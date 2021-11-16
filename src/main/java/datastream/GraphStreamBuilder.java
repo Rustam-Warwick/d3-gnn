@@ -1,10 +1,5 @@
 package datastream;
 
-import org.apache.flink.api.common.functions.Partitioner;
-import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.api.java.typeutils.PojoTypeInfo;
 import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
@@ -17,10 +12,7 @@ import partitioner.RandomPartitioning;
 import types.GraphQuery;
 import vertex.SimpleVertex;
 
-import javax.xml.crypto.Data;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.Random;
 
 public class GraphStreamBuilder {
     private final StreamExecutionEnvironment env;
@@ -49,8 +41,14 @@ public class GraphStreamBuilder {
             SingleOutputStreamOperator<GraphQuery> tmp = (SingleOutputStreamOperator) this.input;
             // 1. First comes Partitioner
             this.iterationStart = tmp.iterate();
-            this.input = this.iterationStart.map(new RandomPartitioning()).setParallelism(1).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
+            Class<? extends BasePartitioner> myPartitioner = null;
+            switch (partitioner){
+                case RANDOM -> myPartitioner = RandomPartitioning.class;
+            }
+            assert myPartitioner != null;
+            this.input = this.iterationStart.map(myPartitioner.getConstructor().newInstance()).setParallelism(1).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
             // 2. Then comes Part based on the part assigned
+
             this.input = this.input.process(new SimplePart<SimpleVertex>());
 
 

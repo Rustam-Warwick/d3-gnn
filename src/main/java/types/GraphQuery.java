@@ -9,7 +9,15 @@ import java.util.Arrays;
 import java.util.List;
 
 public class GraphQuery {
-    public enum OPERATORS {NONE, ADD, REMOVE, UPDATE, SYNC}
+
+    /**
+     * ADD -> Addition of new graph element. See class GraphElement
+     * REMOVE -> Removal of new graph element. See class Graph Element
+     * UPDATE -> Update external of new graph element || Feature. See class Graph Element and Feature
+     * SYNC -> Internal messages to sync the state between master and slave nodes
+     * AGG -> Messages of aggregation functions
+     */
+    public enum OPERATORS {NONE, ADD, REMOVE, UPDATE, SYNC, AGG}
 
     public Object element = null; // Element over which we are querying
     public OPERATORS op = OPERATORS.NONE;

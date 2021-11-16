@@ -125,7 +125,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
      * @param msg
      */
     public void handleMasterMessage(Update<T> msg){
-        if(msg.lastModified > this.lastModified.get()){
+        if(msg.lastModified >= this.lastModified.get()){
             // Can be merged
             this.value = msg.value;
             this.lastModified.set(msg.lastModified);

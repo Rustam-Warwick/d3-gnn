@@ -2,10 +2,11 @@ package edge;
 
 import part.BasePart;
 import storage.GraphStorage;
+import types.Aggregatable;
 import types.GraphElement;
 import vertex.BaseVertex;
 
-abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement {
+abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement implements Aggregatable {
     public VT source;
     public VT destination;
 
@@ -32,7 +33,6 @@ abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement {
         this.source=null;
         this.destination=null;
     }
-
     abstract public void addEdgeCallback();
     abstract public BaseEdge<VT> copy();
 }

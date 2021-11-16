@@ -1,13 +1,15 @@
 package vertex;
 
 import features.ReplicableArrayListFeature;
-import part.BasePart;
+import org.nd4j.linalg.api.ndarray.INDArray;
 import storage.GraphStorage;
-import types.GraphElement;
+import types.Aggregatable;
 import types.GraphQuery;
 import types.ReplicableGraphElement;
 
-abstract public class BaseVertex extends ReplicableGraphElement {
+import java.util.concurrent.CompletableFuture;
+
+abstract public class BaseVertex extends ReplicableGraphElement implements Aggregatable {
 
     public ReplicableArrayListFeature<Short> parts = null;
 
@@ -28,10 +30,16 @@ abstract public class BaseVertex extends ReplicableGraphElement {
      */
     public void addVertexCallback(){
         parts = new ReplicableArrayListFeature<>("parts",this);
+        parts.startTimer("3");
         parts.add(this.partId);
-//        parts.startTimer("3");
+
     }
 
+    /**
+     * Get feature of the l hop. l=0 is the initial features
+     * @param l
+     * @return
+     */
     @Override
     public void sendMessageToReplicas(GraphQuery msg, Short... alsoSendHere) {
         this.parts.getValue().whenComplete((item,err)->{

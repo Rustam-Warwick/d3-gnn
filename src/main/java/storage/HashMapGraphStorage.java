@@ -1,12 +1,8 @@
 package storage;
-
-
-
 import edge.BaseEdge;
 import features.Feature;
 import part.BasePart;
 import vertex.BaseVertex;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;

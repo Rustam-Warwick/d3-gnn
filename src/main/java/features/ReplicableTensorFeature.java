@@ -21,4 +21,11 @@ public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
         super(fieldName, element, value);
     }
 
+    @Override
+    public void setValue(INDArray value) {
+        this.editHandler(item->{
+            item.value.assign(value);
+            return true;
+        });
+    }
 }
