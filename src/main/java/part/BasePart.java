@@ -19,6 +19,7 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     public BasePart(GraphStorage<VT> a){
        this.setStorage(a);
     }
+    public transient Integer count;
     public BasePart(){
 
     }
@@ -28,10 +29,21 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     }
     abstract public GraphStorage<VT> newStorage();
     abstract public BaseAggregator<VT>[] newAggregators();
-
+    abstract public void dispatch(GraphQuery g);
+    public void collect(GraphQuery e){
+        System.out.println(++count);
+//        if(true)return;
+//        if(e.part!=null && e.part.equals(this.partId)){
+//            // Inteneded for this guy
+//            this.dispatch(e);
+//            return;
+//        }
+        this.out.collect(e);
+    }
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
+        this.count = new Integer(0);
         this.setPartId((short)this.getRuntimeContext().getIndexOfThisSubtask());
         this.setStorage(this.newStorage());
         this.aggFunctions = new ArrayList<>();
@@ -49,6 +61,12 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     }
     public void detachAggregator(BaseAggregator<VT> e){
         aggFunctions.remove(e);
+    }
+
+    @Override
+    public void processElement(GraphQuery value, ProcessFunction<GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
+        this.out = out;
+        this.dispatch(value);
     }
 
     public Short getPartId() {

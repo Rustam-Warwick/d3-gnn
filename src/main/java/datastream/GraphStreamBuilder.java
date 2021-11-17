@@ -22,7 +22,7 @@ public class GraphStreamBuilder {
     public enum PARTITIONER {RANDOM};
 
 
-    public GraphStreamBuilder(SingleOutputStreamOperator<GraphQuery> queries, StreamExecutionEnvironment env){
+    public GraphStreamBuilder(DataStream<GraphQuery> queries, StreamExecutionEnvironment env){
         this.env = env;
         this.input = queries;
     }
@@ -38,8 +38,9 @@ public class GraphStreamBuilder {
     }
     public GraphStreamBuilder startAccepting(PARTITIONER partitioner) throws ExceptionInChainedOperatorException {
         try {
-            SingleOutputStreamOperator<GraphQuery> tmp = (SingleOutputStreamOperator) this.input;
+            DataStream<GraphQuery> tmp = this.input.map(item->item);
             // 1. First comes Partitioner
+
             this.iterationStart = tmp.iterate();
             Class<? extends BasePartitioner> myPartitioner = null;
             switch (partitioner){
@@ -50,6 +51,7 @@ public class GraphStreamBuilder {
             // 2. Then comes Part based on the part assigned
 
             this.input = this.input.process(new SimplePart<SimpleVertex>());
+            this.input.print();
 
 
         } catch (Exception e) {

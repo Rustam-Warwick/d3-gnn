@@ -1,6 +1,7 @@
 package sources;
 import edge.SimpleEdge;
 import features.ReplicableTensorFeature;
+import features.StringReplicableFeature;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.nd4j.linalg.factory.Nd4j;

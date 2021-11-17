@@ -2,23 +2,19 @@ package vertex;
 
 import features.Feature;
 import features.ReplicableTensorFeature;
+import features.StringReplicableFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import storage.GraphStorage;
 
 public class SimpleVertex extends BaseVertex{
-    public ReplicableTensorFeature feature;
+    public ReplicableTensorFeature feature = null;
+    public ReplicableTensorFeature l1 = null;
 
     @Override
-    public void addVertexCallback() {
-        super.addVertexCallback();
-        INDArray initialFeature = this.feature==null?Nd4j.create(new float[]{1,2,3,4},2,2):this.feature.value;
-        this.feature = new ReplicableTensorFeature("feature",this,initialFeature);
-        this.feature.startTimer("3");
-    }
-
-    @Override
-    public Feature<INDArray> getFeature(short l) {
+    public Feature<INDArray> getFeature(short l){
+        if(l==0)return this.feature;
+        if(l==1)return this.l1;
         return this.feature;
     }
 
@@ -32,6 +28,12 @@ public class SimpleVertex extends BaseVertex{
 
     public SimpleVertex() {
         super();
+    }
+
+    @Override
+    public void addVertexCallback() {
+        super.addVertexCallback();
+//        l1.startTimer(10000,"3","204264","206557");
     }
 
     @Override

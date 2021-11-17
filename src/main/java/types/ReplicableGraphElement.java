@@ -36,7 +36,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         this.masterPart = masterPart;
     }
     public void sendMessage(GraphQuery msg, Short partId){
-        this.getStorage().getPart().out.collect(msg.generateQueryForPart(partId));
+        this.getStorage().getPart().collect(msg.generateQueryForPart(partId));
     }
     abstract public void sendMessageToReplicas(GraphQuery msg, Short ...alsoSendHere);
 
@@ -48,7 +48,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     public void updateFeature(Feature.Update<?> incoming){
         try{
-
             Field myFeature = ReplicableGraphElement.getFeature(this,incoming.fieldName);
             Feature feature = (Feature) myFeature.get(this);
             feature.updateMessage(incoming);

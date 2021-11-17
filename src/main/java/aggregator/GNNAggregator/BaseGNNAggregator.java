@@ -2,7 +2,9 @@ package aggregator.GNNAggregator;
 
 import aggregator.BaseAggregator;
 import edge.BaseEdge;
+import javassist.NotFoundException;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 import scala.Tuple2;
 import scala.Tuple4;
 import types.GraphQuery;
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggregator<VT> {
     public HashMap<String, Tuple4<Short, Short, String, ArrayList<Tuple2<INDArray,Integer>>>> gnnQueries = new HashMap<>();
+    public transient INDArray identity = Nd4j.zeros(1);
     public static GraphQuery prepareQuery(GNNQuery e){
         return new GraphQuery(e).changeOperation(GraphQuery.OPERATORS.AGG);
     }
@@ -77,7 +80,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
         short lminus = (short) (l-1);
         CompletableFuture<INDArray>[] features = new CompletableFuture[]{edge.source.getFeature(lminus).getValue(), edge.destination.getFeature(lminus).getValue(),edge.getFeature(lminus).getValue()};
         return CompletableFuture.allOf(features).thenApply((vod)->(
-            this.MESSAGE(edge.source.getFeature(lminus).getValue().join(),edge.destination.getFeature(lminus).getValue().join(),edge.getFeature(lminus).getValue().join(),lminus)
+            this.MESSAGE(features[0].join(),features[1].join(),features[2].join(),lminus)
         ));
     }
     public CompletableFuture<INDArray> accumulate(CompletableFuture<INDArray> f1,CompletableFuture<INDArray> f2, AtomicInteger acc){
@@ -86,6 +89,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
                 ));
     }
     /**
+     * Send a request message to all parts containing this vertex, so they do partial aggregation and send it back
      * @param l level of aggregation needed for the vertex
      * @param v vertex for which we are aggregating
      */
@@ -96,44 +100,56 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
              gnnQueries.put(id, new Tuple4<>((short) parts.size(), l, v.getId(), new ArrayList<>()));
              GNNQuery query = new GNNQuery().withResponsePart(getPart().getPartId()).withId(id).withOperator(GNNQuery.OPERATORS.REQUEST).withLValue(l).withVertex(v.getId());
              GraphQuery gQuery = BaseGNNAggregator.prepareQuery(query);
-             v.sendMessageToReplicas(gQuery);
-             this.dispatch(gQuery);
+             v.sendMessageToReplicas(gQuery,getPart().getPartId()); // Send aggregation request to master and all replicas available
          });
     }
 
-
+    /**
+     * Once all the partial aggregations are collected this function computes and update the L value of the vertex
+     * If needed propagates the message and continue with L+1 aggregations
+     * @param gnnState
+     */
     public void continueGNNCell(Tuple4<Short,Short,String,ArrayList<Tuple2<INDArray,Integer>>> gnnState){
         INDArray combinedNeighAgg = this.COMBINER(gnnState._4());
         VT vertex = getPart().getStorage().getVertex(gnnState._3());
         vertex.getFeature(gnnState._2()).getValue().whenComplete((res,thr)->{
-            INDArray updatedValue =this.UPDATE(res,combinedNeighAgg);
+            INDArray updatedValue = this.UPDATE(res,combinedNeighAgg);
             vertex.getFeature(gnnState._2()).setValue(updatedValue);
+            this.gnnQueries.remove(gnnState);
         });
-
     }
 
     public void interStepFunction(Short lNow, VT vertexUpdated){
 
     }
 
+    /**
+     * Once the request arrives to this part, this function partially aggregates all the messages of this vertex
+     * and sends it back to requesting part
+     * @param query
+     * @return
+     */
     public CompletableFuture<Tuple2<INDArray,Integer>> getLocalMessages(GNNQuery query){
         try{
+            CompletableFuture<INDArray> reductionInitial  = new CompletableFuture<>();
+            reductionInitial.complete(this.identity);
             VT vertex = part.getStorage().getVertex(query.vertexId);
             AtomicInteger acc = new AtomicInteger(1);
-            Optional<CompletableFuture<INDArray>> messages =  part.getStorage().getEdges()
+            CompletableFuture<INDArray> messages =  part.getStorage().getEdges()
                     .filter(item->item.destination.equals(vertex))
                     .map(item->this.message(item, query.l))
-                    .reduce((m1,m2)->this.accumulate(m1,m2,acc));
+                    .reduce(reductionInitial,(m1,m2)->this.accumulate(m1,m2,acc));
 
-            if(messages.isPresent()){
-                return messages.get().thenApply(aggregations->(
-                       new Tuple2<>(aggregations,acc.get())
-                    ));
-            }
-            return null;
+            return messages.thenApply(aggregations-> {
+               return new Tuple2<>(aggregations, acc.get());
+            });
+
 
         }catch (Exception e){
-            return null;
+            System.out.println(e);
+            CompletableFuture<Tuple2<INDArray,Integer>> ftException = new CompletableFuture<>();
+            ftException.complete(new Tuple2<>(this.identity,0));
+            return ftException;
         }
     }
 
@@ -157,8 +173,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
                         Short response = incomingQuery.responsePart;
                         incomingQuery.withAggValue(val._1).withAccumulator(val._2).withResponsePart(getPart().getPartId()).withOperator(GNNQuery.OPERATORS.RESPONSE);
                         GraphQuery query = BaseGNNAggregator.prepareQuery(incomingQuery);
-                        if(incomingQuery.responsePart.equals(response)) this.dispatch(query);
-                        else getPart().out.collect(query.generateQueryForPart(response));
+                        getPart().collect(query.generateQueryForPart(response));
                     });
                 }
                 else if(incomingQuery.op== GNNQuery.OPERATORS.RESPONSE){

@@ -1,6 +1,7 @@
 package features;
 
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 import types.GraphElement;
 
 public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
@@ -14,7 +15,7 @@ public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
     }
 
     public ReplicableTensorFeature(String fieldName, GraphElement element) {
-        super(fieldName, element);
+        super(fieldName, element, Nd4j.zeros(1));
     }
 
     public ReplicableTensorFeature(String fieldName, GraphElement element, INDArray value) {
@@ -24,7 +25,7 @@ public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
     @Override
     public void setValue(INDArray value) {
         this.editHandler(item->{
-            item.value.assign(value);
+            item.value = value;
             return true;
         });
     }

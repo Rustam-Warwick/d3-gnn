@@ -29,7 +29,7 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
 
     @Override
     public void addEdgeCallback() {
-        this.feature = new StaticFeature<>("feature",this, Nd4j.create(new float[]{0,0,0,0},2,2));
+        this.feature = new StaticFeature<>("feature",this, Nd4j.zeros(1));
     }
 
     @Override

@@ -5,6 +5,7 @@ import types.GraphQuery;
 import types.ReplicableGraphElement;
 import types.SerialFunction;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -40,6 +41,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         this.fuzzyValue = null;
     }
 
+    @Deprecated
     public ReplicableFeature(String fieldName, GraphElement element) {
         super(fieldName, element);
         this.value = null;
@@ -166,16 +168,16 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         }
     }
 
-    public void startTimer(String id) {
-        if (this.attachedId == null || !this.attachedId.equals(id)) return;
+    public void startTimer(int period, String... ids) {
+        if (this.attachedId == null || !Arrays.asList(ids).contains(this.attachedId))  return;
         Timer a = new Timer();
         ReplicableFeature<T> as = this;
         a.schedule(new TimerTask() {
             @Override
             public void run() {
-                System.out.format("Part %s  Completed:%s Values:%s ReplicationState:%s Updated last:%s \n", as.partId, as.fuzzyValue.isDone(), as.value, as.state, as.lastModified);
+                System.out.format("Part %s Id:%s  Completed:%s Values:%s ReplicationState:%s Updated last:%s \n", as.partId,as.attachedId, as.fuzzyValue.isDone(), as.value, as.state, as.lastModified);
             }
-        }, 0, 10000);
+        }, 0, period);
     }
 
     @Override

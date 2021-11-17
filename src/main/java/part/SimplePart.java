@@ -31,15 +31,11 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
     }
 
     @Override
-    public void processElement(GraphQuery query, ProcessFunction<GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
+    public void dispatch(GraphQuery query){
         try {
-            this.out = out;
-//            System.out.format("Query part %s this part %s\n",query.part,this.partId);
             boolean isVertex = query.element instanceof BaseVertex;
             boolean isEdge = query.element instanceof BaseEdge;
             boolean isFeature = query.element instanceof Feature.Update;
-//            if (!isVertex && !isEdge && !isFeature)
-//                throw new UnsupportedOperationException("Input Stream Element can be of type (Vertex | Edge | Feature)");
             switch (query.op) {
                 case ADD -> {
                     if (isEdge) {
