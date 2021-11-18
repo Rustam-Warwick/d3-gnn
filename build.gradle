@@ -9,6 +9,12 @@ repositories {
     mavenCentral()
 }
 
+jar{
+    manifest {
+        attributes 'Main-Class': 'StreamPartitionTest'
+    }
+}
+
 dependencies {
     implementation 'org.jetbrains:annotations:20.1.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'

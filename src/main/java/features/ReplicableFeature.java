@@ -86,6 +86,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if(this.fuzzyValue==null || this.fuzzyValue.isDone()){
             // already done so need a new fuzzyValue
             this.fuzzyValue = new CompletableFuture<>();
+            this.fuzzyValue.complete(this.value);
         }
     }
     public void completeFuzzy(){

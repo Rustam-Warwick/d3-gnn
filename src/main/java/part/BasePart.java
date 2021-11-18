@@ -8,6 +8,7 @@ import storage.GraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
 
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -31,13 +32,12 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     abstract public BaseAggregator<VT>[] newAggregators();
     abstract public void dispatch(GraphQuery g);
     public void collect(GraphQuery e){
-        System.out.println(++count);
-//        if(true)return;
-//        if(e.part!=null && e.part.equals(this.partId)){
-//            // Inteneded for this guy
-//            this.dispatch(e);
-//            return;
-//        }
+//        System.out.println(++count);
+        if(e.part!=null && e.part.equals(this.partId)){
+            // Inteneded for this guy
+            this.dispatch(e);
+            return;
+        }
         this.out.collect(e);
     }
     @Override

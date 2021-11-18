@@ -29,6 +29,7 @@ public class StreamPartitionTest {
 
 
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(50);
             env.registerType(SerializedLambda.class);
             env.registerTypeWithKryoSerializer(Nd4j.getBackend().getNDArrayClass(), Nd4jSerializer.class);
             env.registerTypeWithKryoSerializer(ClosureSerializer.Closure.class,ClosureSerializer.class);
@@ -50,7 +51,7 @@ public class StreamPartitionTest {
             new GraphStreamBuilder(source,env)
                     .startAccepting(GraphStreamBuilder.PARTITIONER.RANDOM)
                     .build();
-        env.executeAsync();
+        env.execute();
         System.out.println(env.getStreamGraph());
     }
 
