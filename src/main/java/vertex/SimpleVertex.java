@@ -2,9 +2,7 @@ package vertex;
 
 import features.Feature;
 import features.ReplicableTensorFeature;
-import features.StringReplicableFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
 import storage.GraphStorage;
 
 public class SimpleVertex extends BaseVertex{

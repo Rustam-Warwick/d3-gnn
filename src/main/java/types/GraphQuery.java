@@ -17,7 +17,7 @@ public class GraphQuery {
      * SYNC -> Internal messages to sync the state between master and slave nodes
      * AGG -> Messages of aggregation functions
      */
-    public enum OPERATORS {NONE, ADD, REMOVE, UPDATE, SYNC, AGG}
+    public enum OPERATORS {NONE, ADD, REMOVE, UPDATE, SYNC, AGG,L1AGG,L2AGG}
 
     public Object element = null; // Element over which we are querying
     public OPERATORS op = OPERATORS.NONE;

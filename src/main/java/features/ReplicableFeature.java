@@ -62,7 +62,6 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if(this.state == ReplicableGraphElement.STATE.MASTER){
             // Need to execute and send the updates to replicas
             this.handleMasterRPC(fn);
-
         }
         else if(this.state== ReplicableGraphElement.STATE.REPLICA){
             // Need to get the fn to master and wait for message
@@ -116,9 +115,6 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             // 1. Increment lastUpdateed
             this.lastModified.incrementAndGet();
             // 2. Compose state message and update the replica
-            if(this.attachedId.equals("3")){
-                System.out.format("3 Sending update %s to replicas\n",this.lastModified);
-            }
             ((ReplicableGraphElement) element).sendMessageToReplicas(ReplicableFeature.prepareMessage(this.prepareStateSync()));
         }
     }
@@ -128,9 +124,6 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
      * @param msg
      */
     public void handleMasterMessage(Update<T> msg){
-        if(this.attachedId.equals("3")){
-            System.out.format("3 Receiving update %s from master\n",msg.lastModified);
-        }
         if(msg.lastModified >= this.lastModified.get()){
             // Can be merged
             this.value = msg.value;
@@ -172,7 +165,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         }
     }
 
-    public void startTimer(int period, String... ids) {
+    public void startTimer(int period, String... ids){
         if (this.attachedId == null || !Arrays.asList(ids).contains(this.attachedId))  return;
         Timer a = new Timer();
         ReplicableFeature<T> as = this;

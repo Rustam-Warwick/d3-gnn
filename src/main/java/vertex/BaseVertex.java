@@ -59,7 +59,6 @@ abstract public class BaseVertex extends ReplicableGraphElement implements Aggre
         }
 
         parts.add(this.partId);
-//        parts.startTimer("3");
 
     }
 

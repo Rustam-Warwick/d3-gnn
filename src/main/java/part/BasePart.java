@@ -2,8 +2,13 @@ package part;
 
 import aggregator.BaseAggregator;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamUtils;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import partitioner.BasePartitioner;
 import storage.GraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
@@ -11,7 +16,7 @@ import vertex.BaseVertex;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<GraphQuery,GraphQuery> {
+abstract public class BasePart<VT extends BaseVertex> extends KeyedProcessFunction<Short,GraphQuery,GraphQuery>  {
     public transient GraphStorage<VT> storage = null;
     public transient Short partId=null;
     public transient Collector<GraphQuery> out = null;
@@ -65,7 +70,7 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
 
 
     @Override
-    public void processElement(GraphQuery value, ProcessFunction<GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
+    public void processElement(GraphQuery value, KeyedProcessFunction<Short, GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
         this.out = out;
         System.out.format("Part id: %s | Query part: %s \n",this.partId,value.part);
         this.dispatch(value);
@@ -79,4 +84,5 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     public void setPartId(Short partId) {
         this.partId = partId;
     }
+
 }

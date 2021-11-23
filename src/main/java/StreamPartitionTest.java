@@ -4,6 +4,7 @@ import edge.SimpleEdge;
 import features.ReplicableTensorFeature;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.core.fs.Path;
+import org.apache.flink.runtime.state.Keyed;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
@@ -46,12 +47,14 @@ public class StreamPartitionTest {
             SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).name("Source Reader Mapper");
-        DataStream<GraphQuery> partitioned_map = source.map(new RandomPartitioning()).setParallelism(1).map(item->item).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
-        IterativeStream<GraphQuery> iterationStart = partitioned_map.iterate();
-        DataStream<GraphQuery> partitionedIterations = iterationStart.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
 
-        DataStream<GraphQuery> afterPart =  partitionedIterations.process(new SimplePart<SimpleVertex>());
-        iterationStart.closeWith(afterPart);
+        KeyedStream<GraphQuery,Short> partitionedStream = BasePartitioner.partitionHelper(source,new RandomPartitioning());
+        IterativeStream<GraphQuery> salam = partitionedStream.iterate();
+        KeyedStream<GraphQuery,Short> t = DataStreamUtils.reinterpretAsKeyedStream(salam.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor()),new BasePartitioner.PartKeyExtractor());
+
+        DataStream<GraphQuery> afterPart = t.process(new SimplePart<SimpleVertex>());
+
+        salam.closeWith(afterPart);
 
 
         System.out.println(env.getExecutionPlan());
