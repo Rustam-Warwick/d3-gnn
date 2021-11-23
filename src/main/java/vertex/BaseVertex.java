@@ -11,6 +11,7 @@ import types.GraphElement;
 import types.GraphQuery;
 import types.ReplicableGraphElement;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
@@ -40,8 +41,13 @@ abstract public class BaseVertex extends ReplicableGraphElement implements Aggre
             try{
                 ReplicableFeature a = (ReplicableFeature) f.get(this);
                 if(a!=null){
-                    // There is some data that was sent
-                    f.set(this,f.getType().getConstructors()[0].newInstance(f.getName(),this,a.value));
+                    // There is some data that was sent chose a constructor that populates the data
+                    Constructor<?>[] cs = f.getType().getDeclaredConstructors();
+                    for(Constructor<?> tmp:cs){
+                        if(tmp.getParameterCount()==3){
+                            f.set(this,tmp.newInstance(f.getName(),this,a.value));
+                        }
+                    }
                 }else{
                     // Initialize the default constructor
                     f.set(this,f.getType().getConstructor(String.class, GraphElement.class).newInstance(f.getName(),this));

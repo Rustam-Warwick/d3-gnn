@@ -33,7 +33,7 @@ public class SimpleVertex extends BaseVertex{
     @Override
     public void addVertexCallback() {
         super.addVertexCallback();
-//        l1.startTimer(10000,"3","204264","206557");
+        l1.startTimer(1000,"3");
     }
 
     @Override

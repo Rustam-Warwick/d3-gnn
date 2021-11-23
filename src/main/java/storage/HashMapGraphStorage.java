@@ -41,8 +41,8 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         if(vertices.containsKey(v.getId()))return null;
         VT vC = (VT) v.copy();
         vC.setStorage(this);
-        vertices.put(v.getId(), vC);
         vC.addVertexCallback();
+        vertices.put(v.getId(), vC);
         return vC;
     }
 

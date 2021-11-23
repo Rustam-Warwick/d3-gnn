@@ -1,3 +1,0 @@
--env:
-  -java:
-    -home: "~/.jdks/corretto-15.0.2"

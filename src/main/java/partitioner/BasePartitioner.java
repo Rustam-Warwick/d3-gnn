@@ -7,18 +7,20 @@ import org.apache.flink.configuration.Configuration;
 import types.GraphQuery;
 
 abstract public class BasePartitioner extends RichMapFunction<GraphQuery, GraphQuery> {
+
+
+
+
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-
-        System.out.println(this.getRuntimeContext().getNumberOfParallelSubtasks());
     }
 
 
     public static class PartExtractPartitioner implements Partitioner<Short>{
         @Override
         public int partition(Short key, int numPartitions) {
-            return key;
+            return (int)key;
         }
     }
     public static class PartKeyExtractor implements KeySelector<GraphQuery,Short>{

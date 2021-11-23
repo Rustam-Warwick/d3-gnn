@@ -5,10 +5,7 @@ import types.GraphQuery;
 import types.ReplicableGraphElement;
 import types.SerialFunction;
 
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -86,7 +83,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if(this.fuzzyValue==null || this.fuzzyValue.isDone()){
             // already done so need a new fuzzyValue
             this.fuzzyValue = new CompletableFuture<>();
-            this.fuzzyValue.complete(this.value);
+//            this.fuzzyValue.complete(this.value);
         }
     }
     public void completeFuzzy(){
@@ -119,6 +116,9 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             // 1. Increment lastUpdateed
             this.lastModified.incrementAndGet();
             // 2. Compose state message and update the replica
+            if(this.attachedId.equals("3")){
+                System.out.format("3 Sending update %s to replicas\n",this.lastModified);
+            }
             ((ReplicableGraphElement) element).sendMessageToReplicas(ReplicableFeature.prepareMessage(this.prepareStateSync()));
         }
     }
@@ -128,6 +128,9 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
      * @param msg
      */
     public void handleMasterMessage(Update<T> msg){
+        if(this.attachedId.equals("3")){
+            System.out.format("3 Receiving update %s from master\n",msg.lastModified);
+        }
         if(msg.lastModified >= this.lastModified.get()){
             // Can be merged
             this.value = msg.value;

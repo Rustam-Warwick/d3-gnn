@@ -23,17 +23,14 @@ public class MyFirstGNNAggregator<VT extends BaseVertex> extends BaseGNNAggregat
 
     @Override
     public INDArray COMBINER(ArrayList<Tuple2<INDArray, Integer>> accumulations) {
-        int size = (int)accumulations.stream().filter(item->item._1.size(0)>1).count();
-        INDArray[] res = new INDArray[size];
-        int accTotal = 0;
+
+        INDArray[] res = new INDArray[accumulations.size()];
         int i=0;
         for(Tuple2<INDArray,Integer> x:accumulations){
-            if(x._1.size(0)==1)continue;
             res[i] = x._1;
-            size+= x._2;
             i++;
         }
-        return Nd4j.accumulate(res).div(size);
+        return Nd4j.accumulate(res).div(accumulations.size());
     }
 
     @Override

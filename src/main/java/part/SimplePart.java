@@ -2,6 +2,7 @@ package part;
 
 import aggregator.BaseAggregator;
 import aggregator.GNNAggregator.MyFirstGNNAggregator;
+import aggregator.WaitingFuturesOutput.WaitingFuturesOutput;
 import edge.BaseEdge;
 import features.Feature;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -37,22 +38,25 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
             boolean isEdge = query.element instanceof BaseEdge;
             boolean isFeature = query.element instanceof Feature.Update;
             switch (query.op) {
-                case ADD -> {
+                case ADD : {
                     if (isEdge) {
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
+                        System.out.format("%s %s \n",tmp.getId(),tmp.destination.getId());
                         getStorage().addEdge(tmp);
                     }
+                    break;
                 }
-                case REMOVE -> System.out.println("Remove Operation");
-                case SYNC -> {
+                case REMOVE : System.out.println("Remove Operation");
+                case SYNC : {
                     if(isFeature) {
                         getStorage().updateFeature((Feature.Update<?>) query.element);
                     }
+                    break;
                 }
-                case AGG -> {
-
+                case AGG : {
+                    break;
                 }
-                default -> System.out.println("Undefined Operation");
+                default : System.out.println("Undefined Operation");
         }
 
         aggFunctions.forEach((fn) -> {

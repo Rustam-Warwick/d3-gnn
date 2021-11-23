@@ -110,6 +110,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
      * @param gnnState
      */
     public void continueGNNCell(Tuple4<Short,Short,String,ArrayList<Tuple2<INDArray,Integer>>> gnnState){
+        gnnState._4().removeIf(item->item._2==0); // Clear empty ones
         INDArray combinedNeighAgg = this.COMBINER(gnnState._4());
         VT vertex = getPart().getStorage().getVertex(gnnState._3());
         vertex.getFeature(gnnState._2()).getValue().whenComplete((res,thr)->{
@@ -134,7 +135,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
             CompletableFuture<INDArray> reductionInitial  = new CompletableFuture<>();
             reductionInitial.complete(this.identity);
             VT vertex = part.getStorage().getVertex(query.vertexId);
-            AtomicInteger acc = new AtomicInteger(1);
+            AtomicInteger acc = new AtomicInteger(0);
             CompletableFuture<INDArray> messages =  part.getStorage().getEdges()
                     .filter(item->item.destination.equals(vertex))
                     .map(item->this.message(item, query.l))
@@ -165,7 +166,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
     @Override
     public void dispatch(GraphQuery msg) {
         switch(msg.op){
-            case AGG -> {
+            case AGG : {
                 GNNQuery incomingQuery = (GNNQuery) msg.element;
                 if(incomingQuery.op == GNNQuery.OPERATORS.REQUEST){
                     CompletableFuture<Tuple2<INDArray,Integer>> res = getLocalMessages(incomingQuery);
@@ -185,13 +186,16 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
                         this.continueGNNCell(gnnState);
                     }
                 }
+                break;
 
             }
-            case ADD->{
+            case ADD:{
                 if(msg.element instanceof BaseEdge){
                     BaseEdge<VT> tmp = (BaseEdge<VT>) msg.element;
+
                     this.startGNNCell((short) 1, this.part.getStorage().getVertex(tmp.destination.getId()));
                 }
+                break;
             }
 
         }
