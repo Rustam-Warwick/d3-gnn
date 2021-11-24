@@ -12,9 +12,12 @@ if __name__=="__main__":
 		socketServer.bind(("127.0.0.1",9090));
 		socketServer.listen(1);
 		while True:
-			(clientConnected, clientAddress) = socketServer.accept();
-			line = f.readline()
-			while line:
-				print(line)
-				clientConnected.send(line.encode())
+			try:
+				(clientConnected, clientAddress) = socketServer.accept();
 				line = f.readline()
+				while line:
+					print(line)
+					clientConnected.send(line.encode())
+					line = f.readline()
+			except:
+				pass

@@ -41,8 +41,8 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         if(vertices.containsKey(v.getId()))return null;
         VT vC = (VT) v.copy();
         vC.setStorage(this);
-        vC.addVertexCallback();
         vertices.put(v.getId(), vC);
+        vC.addVertexCallback();
         return vC;
     }
 
@@ -94,6 +94,8 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
             }
         }catch(ClassNotFoundException ce){
             System.out.println(ce.getMessage());
+        }catch (NullPointerException ne){
+            System.out.println(e.fieldName);
         }
     }
 

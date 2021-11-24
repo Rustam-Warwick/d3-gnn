@@ -1,11 +1,10 @@
 package part;
 
 import aggregator.BaseAggregator;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamUtils;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import partitioner.BasePartitioner;
@@ -16,7 +15,7 @@ import vertex.BaseVertex;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-abstract public class BasePart<VT extends BaseVertex> extends KeyedProcessFunction<Short,GraphQuery,GraphQuery>  {
+abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<GraphQuery,GraphQuery>  {
     public transient GraphStorage<VT> storage = null;
     public transient Short partId=null;
     public transient Collector<GraphQuery> out = null;
@@ -36,8 +35,6 @@ abstract public class BasePart<VT extends BaseVertex> extends KeyedProcessFuncti
     abstract public BaseAggregator<VT>[] newAggregators();
     abstract public void dispatch(GraphQuery g);
     public void collect(GraphQuery e){
-        count++;
-        if(count%1000==0) System.out.println(count + " Messages sent");
         if(e.part!=null && e.part.equals(this.partId)){
             // Inteneded for this guy
             this.dispatch(e);
@@ -70,9 +67,8 @@ abstract public class BasePart<VT extends BaseVertex> extends KeyedProcessFuncti
 
 
     @Override
-    public void processElement(GraphQuery value, KeyedProcessFunction<Short, GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
+    public void processElement(GraphQuery value, ProcessFunction<GraphQuery, GraphQuery>.Context ctx, Collector<GraphQuery> out) throws Exception {
         this.out = out;
-        System.out.format("Part id: %s | Query part: %s \n",this.partId,value.part);
         this.dispatch(value);
     }
 
@@ -85,4 +81,13 @@ abstract public class BasePart<VT extends BaseVertex> extends KeyedProcessFuncti
         this.partId = partId;
     }
 
+    public static DataStream<GraphQuery> partHelper(DataStream<GraphQuery> source, BasePart x, FilterFunction<GraphQuery> iterateCondition, FilterFunction<GraphQuery> propegateCondition){
+           IterativeStream<GraphQuery> iteration = source.iterate();
+           DataStream<GraphQuery> tmp = iteration.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
+           DataStream<GraphQuery> res = tmp.process(x);
+           DataStream<GraphQuery> filteredIteration = res.filter(iterateCondition).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
+           iteration.closeWith(filteredIteration);
+           DataStream<GraphQuery> filteredSend = res.filter(propegateCondition);
+           return filteredSend;
+    }
 }

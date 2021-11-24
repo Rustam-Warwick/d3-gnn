@@ -22,7 +22,6 @@ public abstract class GraphStorage<VT extends BaseVertex> {
     public BasePart<VT> getPart() {
         return part;
     }
-
     // CRUD Related Stuff
     abstract public VT addVertex(VT v);
     abstract public boolean deleteVertex(VT v);

@@ -31,7 +31,9 @@ abstract public class GraphElement{
     }
     public void setStorage(GraphStorage storage){
         this.storage = storage;
-        this.partId = storage.getPart().getPartId();
+        if(storage!=null){
+            this.partId = storage.getPart().getPartId();
+        }
     }
 
     public GraphStorage getStorage() {

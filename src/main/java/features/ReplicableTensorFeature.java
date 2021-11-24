@@ -6,6 +6,7 @@ import types.GraphElement;
 
 public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
 
+
     public ReplicableTensorFeature() {
         super();
     }

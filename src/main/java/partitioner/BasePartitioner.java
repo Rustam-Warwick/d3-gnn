@@ -17,15 +17,15 @@ abstract public class BasePartitioner extends RichMapFunction<GraphQuery, GraphQ
     }
 
     public static class PartExtractPartitioner implements Partitioner<Short>{
+
         @Override
         public int partition(Short key, int numPartitions) {
-            return numPartitions % key;
+            return key;
         }
     }
 
-    public static KeyedStream<GraphQuery,Short> partitionHelper(DataStream<GraphQuery> inputStream,BasePartitioner basePartitioner){
-        DataStream<GraphQuery> tmp = inputStream.map(basePartitioner).startNewChain().map(item->item).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
-        return DataStreamUtils.reinterpretAsKeyedStream(tmp,new BasePartitioner.PartKeyExtractor());
+    public static DataStream<GraphQuery> partitionHelper(DataStream<GraphQuery> inputStream,BasePartitioner basePartitioner){
+        return inputStream.map(basePartitioner).setParallelism(1).map(item->item).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
     }
 
     public static class PartKeyExtractor implements KeySelector<GraphQuery,Short>{

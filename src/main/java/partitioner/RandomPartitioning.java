@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class RandomPartitioning extends BasePartitioner {
-    public final int partitions = 3;
+    public final int partitions = 2;
     public final HashMap<String,Short> masters = new HashMap<>();
 
     @Override

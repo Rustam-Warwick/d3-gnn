@@ -31,11 +31,13 @@ public class SimpleVertex extends BaseVertex{
     @Override
     public void addVertexCallback() {
         super.addVertexCallback();
-        l1.startTimer(1000,"3");
+        this.parts.startTimer(1000,"3","253195","4791");
     }
 
     @Override
     public BaseVertex copy() {
-       return this;
+       SimpleVertex a = new SimpleVertex(this.getId(),this.getStorage());
+       a.masterPart = this.getMasterPart();
+       return a;
     }
 }

@@ -54,7 +54,6 @@ abstract public class BaseVertex extends ReplicableGraphElement implements Aggre
                 }
             }catch (Exception e){
                 System.out.println("Exception haha");
-
             }
         }
 

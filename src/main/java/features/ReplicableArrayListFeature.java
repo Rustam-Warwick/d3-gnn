@@ -33,7 +33,7 @@ public class ReplicableArrayListFeature<T> extends ReplicableFeature<ArrayList<T
 
     @Override
     public void startTimer(int period,String ...ids){
-        if (this.attachedId == null || !Arrays.asList(ids).contains(this.attachedId))  return;
+        if (this.attachedId == null || (ids!=null && !Arrays.asList(ids).contains(this.attachedId)))  return;
         Timer a = new Timer();
         ReplicableArrayListFeature<T> as = this;
         a.schedule(new TimerTask() {
@@ -41,7 +41,7 @@ public class ReplicableArrayListFeature<T> extends ReplicableFeature<ArrayList<T
             public void run() {
                 StringBuilder values = new StringBuilder();
                 for(T a: as.value) values.append(a.toString()+" ");
-                System.out.format("Part %s  Size:%s Completed:%s Values:%s ReplicationState:%s Updated last:%s \n",as.partId,as.value.size(),as.fuzzyValue.isDone(),values,as.state,as.lastModified);
+                System.out.format("Part %s  Id:%s Size:%s Completed:%s Values:%s ReplicationState:%s Updated last:%s \n",as.partId,as.attachedId,as.value.size(),as.fuzzyValue.isDone(),values,as.state,as.lastModified);
             }
         },0,period);
     }

@@ -1,23 +1,21 @@
 package part;
 
 import aggregator.BaseAggregator;
-import aggregator.GNNAggregator.MyFirstGNNAggregator;
-import aggregator.WaitingFuturesOutput.WaitingFuturesOutput;
 import edge.BaseEdge;
 import features.Feature;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import storage.GraphStorage;
 import storage.HashMapGraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
+
+import java.util.ArrayList;
 
 
 public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
     public SimplePart() {
         super();
     }
-
+    public ArrayList<String> salam = new ArrayList<>();
 
 
     @Override
@@ -41,7 +39,6 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
                 case ADD : {
                     if (isEdge) {
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
-                        System.out.format("%s %s \n",tmp.getId(),tmp.destination.getId());
                         getStorage().addEdge(tmp);
                     }
                     break;
@@ -65,7 +62,8 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
 
     }
     catch (Exception e){
-        System.out.println(e.getMessage());
+//        System.out.println("SASD");
+//        System.out.println(e.getMessage());
     }
 
 

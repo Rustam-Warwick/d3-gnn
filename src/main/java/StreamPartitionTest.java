@@ -15,6 +15,7 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
+import part.BasePart;
 import part.SimplePart;
 import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
@@ -26,7 +27,7 @@ import java.lang.invoke.SerializedLambda;
 
 
 public class StreamPartitionTest {
-    public static int parallelism = 3;
+    public static int parallelism = 2;
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 //            env.getConfig().disableClosureCleaner();
@@ -46,15 +47,16 @@ public class StreamPartitionTest {
             v2.feature = new ReplicableTensorFeature("feature",v2,v1A);
             SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
-        }).name("Source Reader Mapper");
+        }).setParallelism(1).name("Source Reader Mapper");
 
-        KeyedStream<GraphQuery,Short> partitionedStream = BasePartitioner.partitionHelper(source,new RandomPartitioning());
-        IterativeStream<GraphQuery> salam = partitionedStream.iterate();
-        KeyedStream<GraphQuery,Short> t = DataStreamUtils.reinterpretAsKeyedStream(salam.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor()),new BasePartitioner.PartKeyExtractor());
+        DataStream<GraphQuery> partitionedStream = BasePartitioner.partitionHelper(source,new RandomPartitioning());
 
-        DataStream<GraphQuery> afterPart = t.process(new SimplePart<SimpleVertex>());
-
-        salam.closeWith(afterPart);
+        BasePart.partHelper(
+                partitionedStream,
+                new SimplePart<SimpleVertex>(),
+                item->item.op== GraphQuery.OPERATORS.SYNC,
+                item->item.op!= GraphQuery.OPERATORS.SYNC
+                ).print();
 
 
         System.out.println(env.getExecutionPlan());

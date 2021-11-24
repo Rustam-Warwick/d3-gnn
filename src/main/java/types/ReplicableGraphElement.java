@@ -54,8 +54,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
         }
         catch(IllegalAccessException e){
             System.out.println(e.getMessage());
+            System.out.println("Error");
         }catch (NoSuchFieldException e){
             System.out.println(e.getMessage());
+            System.out.println("Error");
         }
    }
 

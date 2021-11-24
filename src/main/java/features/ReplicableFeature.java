@@ -1,5 +1,6 @@
 package features;
 
+import org.apache.flink.shaded.netty4.io.netty.util.Timeout;
 import types.GraphElement;
 import types.GraphQuery;
 import types.ReplicableGraphElement;
@@ -7,6 +8,8 @@ import types.SerialFunction;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 abstract public class ReplicableFeature<T> extends Feature<T>{
@@ -71,6 +74,12 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             ReplicableGraphElement tmp = (ReplicableGraphElement) this.element;
             tmp.sendMessageToMaster(ReplicableFeature.prepareMessage(newUpdate));
             this.incompleteFuzzy();
+            this.fuzzyValue.thenApply(item->item).orTimeout(5,TimeUnit.SECONDS).exceptionally(item->{
+                tmp.sendMessageToMaster(ReplicableFeature.prepareMessage(newUpdate));
+                return null;
+            });
+
+
         }
     }
 
@@ -81,7 +90,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if(this.state== ReplicableGraphElement.STATE.MASTER)return; // Master cannot be fuzzy
         if(this.fuzzyValue==null || this.fuzzyValue.isDone()){
             // already done so need a new fuzzyValue
-            this.fuzzyValue = new CompletableFuture<>();
+            this.fuzzyValue =  new CompletableFuture<>();
 //            this.fuzzyValue.complete(this.value);
         }
     }
