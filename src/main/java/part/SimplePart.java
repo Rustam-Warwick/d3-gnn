@@ -15,8 +15,6 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
     public SimplePart() {
         super();
     }
-    public ArrayList<String> salam = new ArrayList<>();
-
 
     @Override
     public GraphStorage<VT> newStorage(){
@@ -25,7 +23,6 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
 
     @Override
     public BaseAggregator<VT>[] newAggregators() {
-//       return new BaseAggregator[]{new MyFirstGNNAggregator<VT>()};
         return new BaseAggregator[0];
     }
 
@@ -37,6 +34,7 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
             boolean isFeature = query.element instanceof Feature.Update;
             switch (query.op) {
                 case ADD : {
+                    this.collect(query);
                     if (isEdge) {
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
                         getStorage().addEdge(tmp);
@@ -62,8 +60,7 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
 
     }
     catch (Exception e){
-//        System.out.println("SASD");
-//        System.out.println(e.getMessage());
+        System.out.println(e);
     }
 
 

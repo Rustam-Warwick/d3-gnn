@@ -27,7 +27,7 @@ public class RandomPartitioning extends BasePartitioner {
             else tmp.source.setMasterPart(masters.get(tmp.source.getId()));
             if(masters.get(tmp.destination.getId()).equals(value.part))tmp.destination.setMasterPart(null);
             else tmp.destination.setMasterPart(masters.get(tmp.destination.getId()));
-            System.out.format("Sending vertex %s to %s\n",tmp.source.getId(),tmp.source.getState());
+//            System.out.format("Sending vertex %s to %s\n",tmp.source.getId(),tmp.source.getState());
         }
 
         return value;

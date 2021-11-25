@@ -16,7 +16,7 @@ public class ReplicableTensorFeature extends ReplicableFeature<INDArray> {
     }
 
     public ReplicableTensorFeature(String fieldName, GraphElement element) {
-        super(fieldName, element, Nd4j.zeros(1));
+        super(fieldName, element,null);
     }
 
     public ReplicableTensorFeature(String fieldName, GraphElement element, INDArray value) {

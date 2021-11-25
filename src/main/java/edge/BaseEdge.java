@@ -1,12 +1,11 @@
 package edge;
 
-import part.BasePart;
 import storage.GraphStorage;
-import types.Aggregatable;
+import types.IncrementalAggregatable;
 import types.GraphElement;
 import vertex.BaseVertex;
 
-abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement implements Aggregatable {
+abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement implements IncrementalAggregatable {
     public VT source;
     public VT destination;
 

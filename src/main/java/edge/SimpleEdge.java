@@ -38,6 +38,11 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
     }
 
     @Override
+    public Feature<INDArray> getAccumulator(short l) {
+        return null;
+    }
+
+    @Override
     public BaseEdge<VT> copy() {
         return this;
     }

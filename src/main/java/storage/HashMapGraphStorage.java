@@ -40,7 +40,6 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         // If vertex is already here then discard it
         if(vertices.containsKey(v.getId()))return null;
         VT vC = (VT) v.copy();
-        System.out.format("Vertex %s added to %s\n",vC.id,vC.getState());
         vC.setStorage(this);
         vC.addVertexCallback();
         vertices.put(v.getId(), vC);

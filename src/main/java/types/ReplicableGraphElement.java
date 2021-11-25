@@ -38,6 +38,12 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public void sendMessage(GraphQuery msg, Short partId){
         this.getStorage().getPart().collect(msg.generateQueryForPart(partId));
     }
+
+    /**
+     * @// TODO: 25/11/2021 This function can be implemented actually. Directly here 
+     * @param msg
+     * @param alsoSendHere
+     */
     abstract public void sendMessageToReplicas(GraphQuery msg, Short ...alsoSendHere);
 
 

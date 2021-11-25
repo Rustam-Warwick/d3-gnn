@@ -1,15 +1,12 @@
 package features;
 
-import org.apache.flink.shaded.netty4.io.netty.util.Timeout;
 import types.GraphElement;
 import types.GraphQuery;
 import types.ReplicableGraphElement;
 import types.SerialFunction;
-
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 abstract public class ReplicableFeature<T> extends Feature<T>{
@@ -76,19 +73,11 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             tmp.sendMessageToMaster(qry);
             this.incompleteFuzzy();
             this.fuzzyValue.thenApply(item->{
-                System.out.println("Not exception");
                 return item;
-            }).orTimeout(100,TimeUnit.MILLISECONDS).exceptionally(item->{
-                System.out.println("TIMEOUT");
-                ReplicableGraphElement tmp2 = (ReplicableGraphElement) this.element;
-                Update<T> t = new Update<T>(this,fn);
-                t.setState(this.state);
-                GraphQuery qry2 = ReplicableFeature.prepareMessage(t);
-                tmp2.sendMessageToMaster(qry2);
+            }).orTimeout(1000,TimeUnit.MILLISECONDS).exceptionally(item->{
+                this.editHandler(fn);
                 return null;
             });
-
-
         }
     }
 
@@ -103,12 +92,12 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
 //            this.fuzzyValue.complete(this.value);
         }
     }
+
     public void completeFuzzy(){
         if(!this.fuzzyValue.isDone()){
             this.fuzzyValue.complete(this.value);
         }
     }
-
 
     /**
      * Returns an UPDATE Query that sends the state of current Feature
@@ -202,7 +191,11 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
 
     @Override
     public CompletableFuture<T> getValue() {
-        return this.fuzzyValue;
+       if(this.fuzzyValue==null){
+           this.fuzzyValue = new CompletableFuture<>();
+           this.fuzzyValue.complete(this.value);
+       }
+       return this.fuzzyValue;
     }
 
     @Override

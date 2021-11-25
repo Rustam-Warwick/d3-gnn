@@ -1,20 +1,8 @@
 import com.twitter.chill.java.ClosureSerializer;
-import datastream.GraphStreamBuilder;
 import edge.SimpleEdge;
 import features.Feature;
-import features.ReplicableTensorFeature;
-import org.apache.flink.api.java.io.TextInputFormat;
-import org.apache.flink.api.java.typeutils.runtime.kryo.JavaSerializer;
-import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
-import org.apache.flink.core.fs.Path;
-import org.apache.flink.runtime.state.Keyed;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamUtils;
-import org.apache.flink.streaming.api.datastream.IterativeStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
 import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
@@ -24,8 +12,6 @@ import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
 import types.GraphQuery;
 import vertex.SimpleVertex;
-
-import javax.xml.crypto.Data;
 import java.lang.invoke.SerializedLambda;
 
 
@@ -33,8 +19,6 @@ public class StreamPartitionTest {
     public static int parallelism = 2;
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-//            env.getConfig().disableClosureCleaner();
-        env.getConfig().enableForceKryo();
         env.setParallelism(parallelism);
         env.registerType(SerializedLambda.class);
         env.registerType(SimpleVertex.class);
@@ -58,12 +42,19 @@ public class StreamPartitionTest {
 
         DataStream<GraphQuery> partitionedStream = BasePartitioner.partitionHelper(source,new RandomPartitioning());
 
-        BasePart.partHelper(
+        DataStream<GraphQuery> levelZero = BasePart.partWithIteration(
                 partitionedStream,
                 new SimplePart<SimpleVertex>(),
-                item->item.op== GraphQuery.OPERATORS.SYNC,
-                item->item.op!= GraphQuery.OPERATORS.SYNC
+                item->item.op == GraphQuery.OPERATORS.SYNC, // Sync Operators are sent back in iteration
+                item->item.op!= GraphQuery.OPERATORS.SYNC // All other operators are going downstream
                 );
+        DataStream<GraphQuery> levelOne = BasePart.partWithIteration(
+                levelZero,
+                new SimplePart<SimpleVertex>(),
+                item->item.op==GraphQuery.OPERATORS.SYNC,
+                item->item.op!=GraphQuery.OPERATORS.SYNC
+        );
+        levelOne.print();
 
 
         System.out.println(env.getExecutionPlan());

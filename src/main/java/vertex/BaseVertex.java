@@ -2,11 +2,8 @@ package vertex;
 
 import features.ReplicableArrayListFeature;
 import features.ReplicableFeature;
-import features.ReplicableTensorFeature;
-import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.shade.jackson.databind.ser.Serializers;
 import storage.GraphStorage;
-import types.Aggregatable;
+import types.IncrementalAggregatable;
 import types.GraphElement;
 import types.GraphQuery;
 import types.ReplicableGraphElement;
@@ -14,9 +11,8 @@ import types.ReplicableGraphElement;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.concurrent.CompletableFuture;
 
-abstract public class BaseVertex extends ReplicableGraphElement implements Aggregatable {
+abstract public class BaseVertex extends ReplicableGraphElement implements IncrementalAggregatable {
 
     public ReplicableArrayListFeature<Short> parts = null;
 
