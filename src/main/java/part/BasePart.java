@@ -18,7 +18,7 @@ import java.util.Arrays;
 abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<GraphQuery,GraphQuery>  {
     public transient GraphStorage<VT> storage = null;
     public transient Short partId=null;
-    public transient Collector<GraphQuery> out = null;
+    public transient volatile Collector<GraphQuery> out = null;
     public transient ArrayList<BaseAggregator<VT>> aggFunctions = null;
     public BasePart(GraphStorage<VT> a){
        this.setStorage(a);
@@ -34,13 +34,14 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     abstract public GraphStorage<VT> newStorage();
     abstract public BaseAggregator<VT>[] newAggregators();
     abstract public void dispatch(GraphQuery g);
-    public void collect(GraphQuery e){
+    synchronized public void collect(GraphQuery e){
         if(e.part!=null && e.part.equals(this.partId)){
             // Inteneded for this guy
             this.dispatch(e);
             return;
         }
-        this.out.collect(e);
+
+        this.out.collect(e); System.out.format("Sending someting to %s \n",e.part);
     }
     @Override
     public void open(Configuration parameters) throws Exception {
@@ -83,11 +84,10 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
 
     public static DataStream<GraphQuery> partHelper(DataStream<GraphQuery> source, BasePart x, FilterFunction<GraphQuery> iterateCondition, FilterFunction<GraphQuery> propegateCondition){
            IterativeStream<GraphQuery> iteration = source.iterate();
-           DataStream<GraphQuery> tmp = iteration.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
-           DataStream<GraphQuery> res = tmp.process(x);
-           DataStream<GraphQuery> filteredIteration = res.filter(iterateCondition).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
-           iteration.closeWith(filteredIteration);
-           DataStream<GraphQuery> filteredSend = res.filter(propegateCondition);
-           return filteredSend;
+           DataStream<GraphQuery> res = iteration.process(x);
+//           DataStream<GraphQuery> filteredIteration = res.filter(iterateCondition).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
+           iteration.closeWith(res);
+//           DataStream<GraphQuery> filteredSend = res.filter(propegateCondition);
+           return res;
     }
 }

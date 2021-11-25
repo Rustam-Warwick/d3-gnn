@@ -52,9 +52,9 @@ public class GraphGenerator extends RichParallelSourceFunction<GraphQuery> {
                 else{
                     // 1. Add as the source
                     SimpleVertex source = new SimpleVertex(srcId.toString());
-                    source.feature = new ReplicableTensorFeature("feature",source,Nd4j.rand(2,2));
+//                    source.feature = new ReplicableTensorFeature("feature",source,Nd4j.rand(2,2));
                     SimpleVertex destination = new SimpleVertex(String.valueOf(value));
-                    destination.feature = new ReplicableTensorFeature("feature",destination,Nd4j.rand(2,2));
+//                    destination.feature = new ReplicableTensorFeature("feature",destination,Nd4j.rand(2,2));
                     SimpleEdge<SimpleVertex> edge = new SimpleEdge<>(source,destination);
                     GraphQuery a = new GraphQuery(edge).changeOperation(GraphQuery.OPERATORS.ADD);
                     ctx.collect(a);

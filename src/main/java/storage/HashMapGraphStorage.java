@@ -40,9 +40,10 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         // If vertex is already here then discard it
         if(vertices.containsKey(v.getId()))return null;
         VT vC = (VT) v.copy();
+        System.out.format("Vertex %s added to %s\n",vC.id,vC.getState());
         vC.setStorage(this);
-        vertices.put(v.getId(), vC);
         vC.addVertexCallback();
+        vertices.put(v.getId(), vC);
         return vC;
     }
 
@@ -87,6 +88,7 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
             if(BaseVertex.class.isAssignableFrom(featureClass)){
                 // Vertex feature
                 VT vertex = this.getVertex(e.attachedId);
+                if(vertex==null)return;
                 vertex.updateFeature(e);
             }
             else if(BaseEdge.class.isAssignableFrom(featureClass)){

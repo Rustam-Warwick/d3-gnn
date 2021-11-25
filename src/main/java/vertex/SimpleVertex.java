@@ -6,14 +6,10 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import storage.GraphStorage;
 
 public class SimpleVertex extends BaseVertex{
-    public ReplicableTensorFeature feature = null;
-    public ReplicableTensorFeature l1 = null;
 
     @Override
     public Feature<INDArray> getFeature(short l){
-        if(l==0)return this.feature;
-        if(l==1)return this.l1;
-        return this.feature;
+        return null;
     }
 
     public SimpleVertex(String id, GraphStorage part) {
@@ -36,8 +32,6 @@ public class SimpleVertex extends BaseVertex{
 
     @Override
     public BaseVertex copy() {
-       SimpleVertex a = new SimpleVertex(this.getId(),this.getStorage());
-       a.masterPart = this.getMasterPart();
-       return a;
+       return this;
     }
 }

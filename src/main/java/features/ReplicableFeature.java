@@ -72,10 +72,19 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             Update<T> newUpdate = new Update<T>(this,fn);
             newUpdate.setState(this.state);
             ReplicableGraphElement tmp = (ReplicableGraphElement) this.element;
-            tmp.sendMessageToMaster(ReplicableFeature.prepareMessage(newUpdate));
+            GraphQuery qry = ReplicableFeature.prepareMessage(newUpdate);
+            tmp.sendMessageToMaster(qry);
             this.incompleteFuzzy();
-            this.fuzzyValue.thenApply(item->item).orTimeout(5,TimeUnit.SECONDS).exceptionally(item->{
-                tmp.sendMessageToMaster(ReplicableFeature.prepareMessage(newUpdate));
+            this.fuzzyValue.thenApply(item->{
+                System.out.println("Not exception");
+                return item;
+            }).orTimeout(100,TimeUnit.MILLISECONDS).exceptionally(item->{
+                System.out.println("TIMEOUT");
+                ReplicableGraphElement tmp2 = (ReplicableGraphElement) this.element;
+                Update<T> t = new Update<T>(this,fn);
+                t.setState(this.state);
+                GraphQuery qry2 = ReplicableFeature.prepareMessage(t);
+                tmp2.sendMessageToMaster(qry2);
                 return null;
             });
 

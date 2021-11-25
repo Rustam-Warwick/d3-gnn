@@ -1,8 +1,11 @@
 import com.twitter.chill.java.ClosureSerializer;
 import datastream.GraphStreamBuilder;
 import edge.SimpleEdge;
+import features.Feature;
 import features.ReplicableTensorFeature;
 import org.apache.flink.api.java.io.TextInputFormat;
+import org.apache.flink.api.java.typeutils.runtime.kryo.JavaSerializer;
+import org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializer;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.runtime.state.Keyed;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -31,8 +34,12 @@ public class StreamPartitionTest {
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 //            env.getConfig().disableClosureCleaner();
+        env.getConfig().enableForceKryo();
         env.setParallelism(parallelism);
         env.registerType(SerializedLambda.class);
+        env.registerType(SimpleVertex.class);
+        env.registerType(GraphQuery.class);
+        env.registerType(Feature.Update.class);
         env.registerTypeWithKryoSerializer(Nd4j.getBackend().getNDArrayClass(), Nd4jSerializer.class);
         env.registerTypeWithKryoSerializer(ClosureSerializer.Closure.class,ClosureSerializer.class);
 
@@ -43,8 +50,8 @@ public class StreamPartitionTest {
             SimpleVertex v1 = new SimpleVertex(id1);
             SimpleVertex v2 = new SimpleVertex(id2);
             INDArray v1A = Nd4j.ones(1);
-            v1.feature = new ReplicableTensorFeature("feature",v1,v1A);
-            v2.feature = new ReplicableTensorFeature("feature",v2,v1A);
+//            v1.feature = new ReplicableTensorFeature("feature",v1,v1A);
+//            v2.feature = new ReplicableTensorFeature("feature",v2,v1A);
             SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
@@ -56,7 +63,7 @@ public class StreamPartitionTest {
                 new SimplePart<SimpleVertex>(),
                 item->item.op== GraphQuery.OPERATORS.SYNC,
                 item->item.op!= GraphQuery.OPERATORS.SYNC
-                ).print();
+                );
 
 
         System.out.println(env.getExecutionPlan());
