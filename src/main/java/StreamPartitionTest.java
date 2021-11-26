@@ -7,7 +7,7 @@ import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import part.BasePart;
-import part.SimplePart;
+import part.L0Part;
 import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
 import types.GraphQuery;
@@ -44,17 +44,17 @@ public class StreamPartitionTest {
 
         DataStream<GraphQuery> levelZero = BasePart.partWithIteration(
                 partitionedStream,
-                new SimplePart<SimpleVertex>(),
+                new L0Part<SimpleVertex>(),
                 item->item.op == GraphQuery.OPERATORS.SYNC, // Sync Operators are sent back in iteration
                 item->item.op!= GraphQuery.OPERATORS.SYNC // All other operators are going downstream
                 );
-        DataStream<GraphQuery> levelOne = BasePart.partWithIteration(
-                levelZero,
-                new SimplePart<SimpleVertex>(),
-                item->item.op==GraphQuery.OPERATORS.SYNC,
-                item->item.op!=GraphQuery.OPERATORS.SYNC
-        );
-        levelOne.print();
+//        DataStream<GraphQuery> levelOne = BasePart.partWithIteration(
+//                levelZero,
+//                new L0Part<SimpleVertex>(),
+//                item->item.op==GraphQuery.OPERATORS.SYNC,
+//                item->item.op!=GraphQuery.OPERATORS.SYNC
+//        );
+        levelZero.print();
 
 
         System.out.println(env.getExecutionPlan());

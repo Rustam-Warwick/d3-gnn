@@ -53,8 +53,8 @@ public class SimpleVertex extends BaseVertex{
     }
 
 
-    public SimpleVertex(String id, GraphStorage part) {
-        super(id, part);
+    public SimpleVertex(String id, GraphStorage storage) {
+        super(id, storage);
     }
 
     public SimpleVertex(String id) {
@@ -73,6 +73,7 @@ public class SimpleVertex extends BaseVertex{
 
     @Override
     public BaseVertex copy() {
-       return this;
+       SimpleVertex a = new SimpleVertex(this.getId(),this.getStorage());
+       return a;
     }
 }

@@ -39,11 +39,10 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
     public VT addVertex(VT v) {
         // If vertex is already here then discard it
         if(vertices.containsKey(v.getId()))return null;
-        VT vC = (VT) v.copy();
-        vC.setStorage(this);
-        vC.addVertexCallback();
-        vertices.put(v.getId(), vC);
-        return vC;
+        v.setStorage(this);
+        v.addVertexCallback();
+        vertices.put(v.getId(), v);
+        return v;
     }
 
     @Override

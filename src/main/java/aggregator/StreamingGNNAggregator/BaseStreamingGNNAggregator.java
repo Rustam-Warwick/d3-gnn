@@ -45,11 +45,10 @@ abstract public class BaseStreamingGNNAggregator<VT extends BaseVertex> extends 
     /**
      * Given current aggregation value and acumulation and new message return new aggregation and acumulator value
      * @param aggregation
-     * @param acummulator
      * @param newMessage
      * @return
      */
-    abstract public Tuple2<INDArray,INDArray> COMBINE(INDArray aggregation,INDArray acummulator,INDArray newMessage);
+    abstract public INDArray COMBINE(INDArray aggregation,INDArray newMessage);
 
     /**
      * Create a message from source and destination parameters
@@ -60,16 +59,16 @@ abstract public class BaseStreamingGNNAggregator<VT extends BaseVertex> extends 
     abstract public INDArray MESSAGE(INDArray source, INDArray destination);
 
     public CompletableFuture<INDArray> handleSourceDestinationPair(VT myDest, VT prevSource, VT prevDest){
-        return CompletableFuture.allOf(myDest.getAggegation(this.L).getValue(),myDest.getAccumulator(this.L).getValue()).thenApply((vd)->{
+        return CompletableFuture.allOf(myDest.getAggegation(this.L).getValue()).thenApply((vd)->{
             INDArray message = this.MESSAGE(prevSource.getFeature((short) (L-1)).getValue().join(),prevDest.getFeature((short) (L-1)).getValue().join());
-            Tuple2<INDArray,INDArray> res = this.COMBINE(myDest.getAggegation(L).getValue().join(),myDest.getAccumulator(L).getValue().join(),message);
-            INDArray updateFeature = this.UPDATE(res._1,prevDest.getFeature((short)(L-1)).getValue().join());
-            myDest.getAggegation(L).setValue(res._1);
-            myDest.getAccumulator(L).setValue(res._2);
+            INDArray a = COMBINE(myDest.getAggegation(L).getValue().join(),message);
+            INDArray updateFeature = this.UPDATE(a,prevDest.getFeature((short)(L-1)).getValue().join());
+            myDest.getAggegation(L).setValue(a);
             myDest.getFeature(L).setValue(updateFeature);
             return updateFeature;
         });
     }
+
 
 
     @Override

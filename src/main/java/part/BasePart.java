@@ -35,6 +35,13 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     abstract public BaseAggregator<VT>[] newAggregators();
     abstract public void dispatch(GraphQuery g);
     synchronized public void collect(GraphQuery e){
+//        if(e.part.equals(this.partId)){
+//            this.dispatch(e);
+//            return;
+//        }
+        this.out.collect(e);
+    }
+    synchronized public void collectRemote(GraphQuery e){
         this.out.collect(e);
     }
     @Override

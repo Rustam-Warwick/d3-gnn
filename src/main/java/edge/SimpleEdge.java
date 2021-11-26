@@ -7,6 +7,7 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import storage.GraphStorage;
 import vertex.BaseVertex;
+import vertex.SimpleVertex;
 
 
 public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
@@ -43,7 +44,14 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
     }
 
     @Override
+    public Feature<INDArray> getAggegation(short l) {
+        return null;
+    }
+
+    @Override
     public BaseEdge<VT> copy() {
-        return this;
+        VT source = (VT) this.source.copy();
+        VT dest = (VT) this.destination.copy();
+         return new SimpleEdge<VT>(source,destination);
     }
 }

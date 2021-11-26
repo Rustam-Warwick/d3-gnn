@@ -1,6 +1,7 @@
 package part;
 
 import aggregator.BaseAggregator;
+import aggregator.StreamingGNNAggregator.StreamingAggType;
 import edge.BaseEdge;
 import features.Feature;
 import storage.GraphStorage;
@@ -11,8 +12,8 @@ import vertex.BaseVertex;
 import java.util.ArrayList;
 
 
-public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
-    public SimplePart() {
+public class L0Part<VT extends BaseVertex> extends  BasePart<VT> {
+    public L0Part() {
         super();
     }
 
@@ -34,10 +35,13 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
             boolean isFeature = query.element instanceof Feature.Update;
             switch (query.op) {
                 case ADD : {
-                    this.collect(query);
                     if (isEdge) {
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
+                        BaseEdge<VT> tmpCopy = tmp.copy();
+                        query.element = tmpCopy;
+                        this.collectRemote(query);
                         getStorage().addEdge(tmp);
+                        this.collect(new GraphQuery(new StreamingAggType<VT>(tmp.source,tmp.destination)).toPart(this.partId).changeOperation(GraphQuery.OPERATORS.AGG));
                     }
                     break;
                 }
@@ -49,14 +53,15 @@ public class SimplePart<VT extends BaseVertex> extends  BasePart<VT> {
                     break;
                 }
                 case AGG : {
+                    aggFunctions.forEach((fn) -> {
+                        if (fn.shouldTrigger(query)) fn.dispatch(query);
+                    });
                     break;
                 }
                 default : System.out.println("Undefined Operation");
         }
 
-        aggFunctions.forEach((fn) -> {
-            if (fn.shouldTrigger(query)) fn.dispatch(query);
-        });
+
 
     }
     catch (Exception e){
