@@ -12,7 +12,6 @@ import java.util.TimerTask;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-
 public class ReplicableArrayListFeature<T> extends ReplicableFeature<ArrayList<T>> {
 
     public ReplicableArrayListFeature() {

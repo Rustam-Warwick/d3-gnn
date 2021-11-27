@@ -2,7 +2,9 @@ package types;
 
 
 import features.Feature;
+import features.ReplicableArrayListFeature;
 import features.ReplicableFeature;
+import features.ReplicableTensorFeature;
 import org.jetbrains.annotations.NotNull;
 import storage.GraphStorage;
 
@@ -15,38 +17,67 @@ abstract public class ReplicableGraphElement extends GraphElement {
      * null -> MASTER
      * otherwise -> Replica storing ID of MASTER
      */
-    public Short masterPart = -1;
+    public Short masterPart;
+    public ReplicableArrayListFeature<Short> parts;
 
     public enum STATE {NONE,REPLICA,MASTER}
+
 
     public ReplicableGraphElement(){
         super();
         this.masterPart=-1;
+        this.parts = new ReplicableArrayListFeature<>("parts",this);
     }
     public ReplicableGraphElement(String id){
         super(id);
         this.masterPart=-1;
+        this.parts = new ReplicableArrayListFeature<>("parts",this);
     }
-    public ReplicableGraphElement(String id, GraphStorage storage){
-        super(id,storage);
-        this.masterPart=-1;
+
+    public ReplicableGraphElement(ReplicableGraphElement e){
+        super(e);
+        this.masterPart = e.masterPart;
+        this.parts = e.parts;
     }
-    public ReplicableGraphElement(String id, GraphStorage storage, Short masterPart){
-        super(id,storage);
-        this.masterPart = masterPart;
-    }
-    public void sendMessage(GraphQuery msg, Short partId){
-        this.getStorage().getPart().collect(msg.generateQueryForPart(partId));
+
+    @Override
+    public void setStorageCallback(GraphStorage storage) {
+        super.setStorageCallback(storage);
+        parts.add(this.partId);
     }
 
     /**
-     * @// TODO: 25/11/2021 This function can be implemented actually. Directly here 
+     * Send message to specific part
+     * @param msg
+     * @param partId
+     */
+    public void sendMessage(GraphQuery msg, Short partId){
+        this.getStorage().getPart().collect(msg.generateQueryForPart(partId),false);
+    }
+
+    /**
+     * Send message to replicas as well as some optional other parts
      * @param msg
      * @param alsoSendHere
      */
-    abstract public void sendMessageToReplicas(GraphQuery msg, Short ...alsoSendHere);
+    public void sendMessageToReplicas(GraphQuery msg, Short... alsoSendHere) {
+        this.parts.getValue().whenComplete((item,err)->{
+            for(Short i:item){
+                if(i.equals(this.partId))continue;
+                this.sendMessage(msg,i);
+            }
+        });
+        for(Short i: alsoSendHere){
+            this.sendMessage(msg,i);
+        }
 
+    }
 
+    /**
+     * Send message to master node IF this guy is a REPLICA
+     * @param msg
+     * @param alsoSendHere
+     */
     public void sendMessageToMaster(GraphQuery msg, Short ...alsoSendHere){
         if(this.masterPart!=null && this.masterPart >=0)this.sendMessage(msg,this.masterPart);
         for(Short tmp:alsoSendHere)this.sendMessage(msg,tmp);
@@ -81,21 +112,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     }
 
 
-    @NotNull
-    public static ArrayList<Field> getReplicableFeatures(ReplicableGraphElement el){
-        Class<?> tmp = null;
-        ArrayList<Field> fields = new ArrayList<>();
-        do{
-            if(tmp==null) tmp=el.getClass();
-            else tmp = tmp.getSuperclass();
-            Field[] fieldsForClass = tmp.getDeclaredFields();
-            for(Field tmpField:fieldsForClass){
-                if(ReplicableFeature.class.isAssignableFrom(tmpField.getType()))fields.add(tmpField);
-            }
-        }
-        while(!tmp.equals(ReplicableGraphElement.class));
-        return fields;
-    }
+
     @NotNull
     public static Field getFeature(ReplicableGraphElement el,String fieldName) throws NoSuchFieldException{
         Class <?> tmp = null;

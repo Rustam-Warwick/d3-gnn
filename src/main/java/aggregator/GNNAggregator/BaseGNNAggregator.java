@@ -174,7 +174,7 @@ abstract public class BaseGNNAggregator<VT extends BaseVertex> extends BaseAggre
                         Short response = incomingQuery.responsePart;
                         incomingQuery.withAggValue(val._1).withAccumulator(val._2).withResponsePart(getPart().getPartId()).withOperator(GNNQuery.OPERATORS.RESPONSE);
                         GraphQuery query = BaseGNNAggregator.prepareQuery(incomingQuery);
-                        getPart().collect(query.generateQueryForPart(response));
+                        getPart().collect(query.generateQueryForPart(response),false);
                     });
                 }
                 else if(incomingQuery.op== GNNQuery.OPERATORS.RESPONSE){

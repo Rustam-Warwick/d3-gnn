@@ -11,14 +11,6 @@ import vertex.SimpleVertex;
 
 
 public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
-    public StaticFeature<INDArray> feature = null;
-    public SimpleEdge(String id, GraphStorage part, VT source, VT destination) {
-        super(id, part, source, destination);
-    }
-
-    public SimpleEdge(String id, VT source, VT destination) {
-        super(id, source, destination);
-    }
 
     public SimpleEdge(VT source, VT destination) {
         super(source, destination);
@@ -28,14 +20,18 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
         super();
     }
 
+    public SimpleEdge(SimpleEdge<VT> e){
+        super(e);
+    }
+
     @Override
-    public void addEdgeCallback() {
-        this.feature = new StaticFeature<>("feature",this, Nd4j.zeros(1));
+    public BaseEdge<VT> copy() {
+        return new SimpleEdge<VT>(this);
     }
 
     @Override
     public Feature<INDArray> getFeature(short l) {
-        return this.feature;
+        return null;
     }
 
     @Override
@@ -48,10 +44,4 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
         return null;
     }
 
-    @Override
-    public BaseEdge<VT> copy() {
-        VT source = (VT) this.source.copy();
-        VT dest = (VT) this.destination.copy();
-         return new SimpleEdge<VT>(source,destination);
-    }
 }

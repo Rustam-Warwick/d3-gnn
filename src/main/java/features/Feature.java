@@ -33,6 +33,11 @@ abstract public class Feature<T> {
         this.setElement(element);
     }
 
+    /**
+     * Feature is attached to graph element
+     * Need to update some parameters
+     * @param element
+     */
     public void setElement(GraphElement element) {
         this.element = element;
         this.attachedId = element.getId();

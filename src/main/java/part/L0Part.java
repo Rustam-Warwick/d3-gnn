@@ -36,12 +36,9 @@ public class L0Part<VT extends BaseVertex> extends  BasePart<VT> {
             switch (query.op) {
                 case ADD : {
                     if (isEdge) {
+                        this.collect(query,true);
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
-                        BaseEdge<VT> tmpCopy = tmp.copy();
-                        query.element = tmpCopy;
-                        this.collectRemote(query);
                         getStorage().addEdge(tmp);
-                        this.collect(new GraphQuery(new StreamingAggType<VT>(tmp.source,tmp.destination)).toPart(this.partId).changeOperation(GraphQuery.OPERATORS.AGG));
                     }
                     break;
                 }

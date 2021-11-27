@@ -32,10 +32,10 @@ public class L1Part<VT extends BaseVertex> extends  BasePart<VT> {
             boolean isFeature = query.element instanceof Feature.Update;
             switch (query.op) {
                 case ADD : {
-                    this.collect(query);
                     if (isEdge) {
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
                         getStorage().addEdge(tmp);
+
                     }
                     break;
                 }

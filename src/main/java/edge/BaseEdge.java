@@ -9,18 +9,6 @@ abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement imple
     public VT source;
     public VT destination;
 
-    public BaseEdge(String id, GraphStorage part, VT source, VT destination) {
-        super(id, part);
-        this.source = source;
-        this.destination = destination;
-    }
-
-    public BaseEdge(String id, VT source, VT destination) {
-        super(id);
-        this.source = source;
-        this.destination = destination;
-    }
-
     public BaseEdge(VT source, VT destination) {
         super(source.getId());
         this.source = source;
@@ -32,6 +20,12 @@ abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement imple
         this.source=null;
         this.destination=null;
     }
-    abstract public void addEdgeCallback();
+
+    public BaseEdge(BaseEdge<VT> e){
+        super(e);
+        this.source = (VT) e.source.copy();
+        this.destination = (VT) e.destination.copy();
+    }
+
     abstract public BaseEdge<VT> copy();
 }

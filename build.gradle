@@ -19,15 +19,21 @@ dependencies {
     compileOnly([
     ])
     implementation([
-        'org.apache.flink:flink-clients_2.11:1.13.0',
-        'org.apache.flink:flink-streaming-java_2.11:1.13.0',
+            'com.esotericsoftware:kryo:4.0.0',
+            'org.apache.flink:flink-clients_2.11:1.14.0',
+            'org.apache.flink:flink-streaming-java_2.11:1.14.0',
 //        'org.deeplearning4j:deeplearning4j-core:1.0.0-M1.1',
-        'org.nd4j:nd4j-native-platform:1.0.0-M1.1',
+            'org.nd4j:nd4j-native-platform:1.0.0-M1.1',
 //        'ch.qos.logback:logback-classic:1.1.7',
-        'org.deeplearning4j:deeplearning4j-utility-iterators:1.0.0-M1.1',
-        'org.nd4j:nd4j-kryo_2.11:1.0.0-M1.1'
+            'org.deeplearning4j:deeplearning4j-utility-iterators:1.0.0-M1.1',
+            'org.nd4j:nd4j-kryo_2.11:1.0.0-M1.1'
 
     ])
+//    constraints{
+//        implementation('') {
+//            because 'There are bugs in declaring Generics'
+//        }
+//    }
 }
 
 jar{

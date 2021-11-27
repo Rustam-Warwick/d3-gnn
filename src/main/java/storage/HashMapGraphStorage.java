@@ -39,8 +39,7 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
     public VT addVertex(VT v) {
         // If vertex is already here then discard it
         if(vertices.containsKey(v.getId()))return null;
-        v.setStorage(this);
-        v.addVertexCallback();
+        v.setStorageCallback(this);
         vertices.put(v.getId(), v);
         return v;
     }
@@ -64,14 +63,12 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         this.addVertex(e.destination);
         // 2. Create Edge
         edges.putIfAbsent(e.source.getId(),new ArrayList<>());
-        BaseEdge<VT> eC = e.copy();
-        eC.source = this.getVertex(e.source.getId());
-        eC.destination = this.getVertex(e.destination.getId());
-        eC.setStorage(this);
-        edges.get(e.source.getId()).add(eC);
+        e.source = this.getVertex(e.source.getId());
+        e.destination = this.getVertex(e.destination.getId());
+        e.setStorageCallback(this);
+        edges.get(e.source.getId()).add(e);
         // 3. Make Edge Callback & Return
-        eC.addEdgeCallback();
-        return eC;
+        return e;
     }
 
     @Override

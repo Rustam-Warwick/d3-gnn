@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 abstract public class ReplicableFeature<T> extends Feature<T>{
-    public volatile AtomicInteger lastModified = new AtomicInteger(0);
+    public transient AtomicInteger lastModified = new AtomicInteger(0);
     public volatile T value;
     public transient CompletableFuture<T> fuzzyValue;
     public ReplicableGraphElement.STATE state;
@@ -31,6 +31,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         this.fuzzyValue = null;
     }
 
+    @Deprecated
     public ReplicableFeature(String fieldName) {
         super(fieldName);
         this.state = ReplicableGraphElement.STATE.NONE;
@@ -38,22 +39,29 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         this.fuzzyValue = null;
     }
 
-    @Deprecated
-    public ReplicableFeature(String fieldName, GraphElement element) {
-        super(fieldName, element);
-        this.value = null;
-    }
 
     public ReplicableFeature(String fieldName, GraphElement element, T value){
         super(fieldName,element);
         this.value = value;
-        this.fuzzyValue = new CompletableFuture<>();
-        this.fuzzyValue.complete(this.value);// Complete if Master
-        this.editHandler(null); // Sync messages with the master node if this is replica
+        this.fuzzyValue = null; // initialized on first get if not synced before that
     }
 
+    @Override
+    public void setElement(GraphElement element) {
+        super.setElement(element);
+        this.state = ((ReplicableGraphElement)element).getState();
+    }
 
     /**
+     * Sync state with master node,
+     * Up-to specific feature to implement either on adding to Storage or lazily later
+     */
+    public void sync(){
+        this.editHandler(null); // Sending a null message to master is syncing, master will return the current value
+    }
+
+    /**
+     * If this state == NONE then nothing happens
      * All functions should direct their lambda to this guy
      * Sending lambda over to master for editing
      * @param fn
@@ -89,12 +97,22 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if(this.fuzzyValue==null || this.fuzzyValue.isDone()){
             // already done so need a new fuzzyValue
             this.fuzzyValue =  new CompletableFuture<>();
-//            this.fuzzyValue.complete(this.value);
         }
     }
 
+    /**
+     * Case with exceptions are usually impossible
+     */
     public void completeFuzzy(){
+        if(this.fuzzyValue==null){
+            this.fuzzyValue = new CompletableFuture<>();
+            this.fuzzyValue.complete(this.value);
+        }
         if(!this.fuzzyValue.isDone()){
+            this.fuzzyValue.complete(this.value);
+        }
+        if(this.fuzzyValue.isCompletedExceptionally()){
+            this.fuzzyValue = new CompletableFuture<>();
             this.fuzzyValue.complete(this.value);
         }
     }
@@ -153,7 +171,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
                     // External message needs to be commited (Excenal Update)
                     // @todo add State replacer
                 }else{
-                    // This guy wants to get latest state of mine (Sync Request)
+                    // SYNC Request:This guy wants to get latest state of mine (Sync Request)
                     ((ReplicableGraphElement)element).sendMessage(ReplicableFeature.prepareMessage(this.prepareStateSync()),msg.partId);
 
                 }
@@ -172,6 +190,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         }
     }
 
+    // DEBUGGING PURPOSE ONLY
     public void startTimer(int period, String... ids){
         if (this.attachedId == null || !Arrays.asList(ids).contains(this.attachedId))  return;
         Timer a = new Timer();
@@ -179,7 +198,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         a.schedule(new TimerTask() {
             @Override
             public void run() {
-                System.out.format("Part %s Id:%s  Completed:%s Values:%s ReplicationState:%s Updated last:%s \n", as.partId,as.attachedId, as.fuzzyValue.isDone(), as.value, as.state, as.lastModified);
+                System.out.format("Part %s Id:%s Values:%s ReplicationState:%s Updated last:%s \n", as.partId,as.attachedId,  as.value, as.state, as.lastModified);
             }
         }, 0, period);
     }
@@ -198,9 +217,5 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
        return this.fuzzyValue;
     }
 
-    @Override
-    public void setElement(GraphElement element) {
-        super.setElement(element);
-        this.state = ((ReplicableGraphElement)element).getState();
-    }
+
 }
