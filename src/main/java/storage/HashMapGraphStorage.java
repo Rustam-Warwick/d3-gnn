@@ -92,7 +92,7 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
         }catch(ClassNotFoundException ce){
             System.out.println(ce.getMessage());
         }catch (NullPointerException ne){
-            System.out.println(e.fieldName);
+            System.out.println(ne+e.fieldName);
         }
     }
 

@@ -168,8 +168,10 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             if(Objects.isNull(msg.updateFn)){
                 // There is no payload RPC, makes sense only if external update or sync request
                 if(msg.state== ReplicableGraphElement.STATE.NONE){
-                    // External message needs to be commited (Excenal Update)
-                    // @todo add State replacer
+                    // External message needs to be commited (External Update)
+                    this.value = msg.value;
+                    this.lastModified.incrementAndGet();
+                    ((ReplicableGraphElement) element).sendMessageToReplicas(ReplicableFeature.prepareMessage(this.prepareStateSync()));
                 }else{
                     // SYNC Request:This guy wants to get latest state of mine (Sync Request)
                     ((ReplicableGraphElement)element).sendMessage(ReplicableFeature.prepareMessage(this.prepareStateSync()),msg.partId);
@@ -186,6 +188,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
 
             }else if(msg.state == ReplicableGraphElement.STATE.NONE){
                 // Needs to be redirected to master. Updates are done in master. Why it is here? D
+                System.out.println("Needs to be redirected to master, updates are done in master, why it is here");
             }
         }
     }

@@ -2,6 +2,7 @@ package edge;
 
 
 import features.Feature;
+import features.ReplicableAggregator;
 import features.StaticFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import storage.GraphStorage;
@@ -47,7 +48,7 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
     }
 
     @Override
-    public Feature<INDArray> getAggregation(short l) {
+    public ReplicableAggregator<INDArray> getAggregation(short l) {
         return null;
     }
 }

@@ -44,13 +44,19 @@ public class GNNPart<VT extends BaseVertex> extends  BasePart<VT> {
             switch (query.op) {
                 case ADD : {
                     if (isEdge) {
-                        this.collect(query,true); // Send to next layer to add it as well
+                        if(maxL>L)this.collect(query,true); // Send to next layer to add it as well
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
                         getStorage().addEdge(tmp);
                     }
                     break;
                 }
                 case REMOVE : System.out.println("Remove Operation");
+                case UPDATE:{
+                    if(isFeature) {
+                        getStorage().updateFeature((Feature.Update<?>) query.element);
+                    }
+                    break;
+                }
                 case SYNC : {
                     if(isFeature) {
                         getStorage().updateFeature((Feature.Update<?>) query.element);
@@ -58,14 +64,14 @@ public class GNNPart<VT extends BaseVertex> extends  BasePart<VT> {
                     break;
                 }
                 case AGG : {
-
+                    // Handled below in aggFunctions
                     break;
                 }
                 default : System.out.println("Undefined Operation");
         }
         aggFunctions.forEach((fn) -> {
                 if (fn.shouldTrigger(query)) fn.dispatch(query);
-            });
+        });
 
 
 

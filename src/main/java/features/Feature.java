@@ -46,7 +46,7 @@ abstract public class Feature<T> {
     }
 
     abstract public CompletableFuture<T> getValue(); // Get the value as a future
-    abstract public void setValue(T newValue);
+    abstract public void setValue(T newValue); // Set the value
     abstract public void updateMessage(Update<T> msg); // External Update Message
 
     /**
@@ -85,6 +85,26 @@ abstract public class Feature<T> {
 
         public void setState(ReplicableGraphElement.STATE state) {
             this.state = state;
+        }
+
+        public void setUpdateFn(SerialFunction<? extends Feature<T>, Boolean> updateFn) {
+            this.updateFn = updateFn;
+        }
+
+        public void setFieldName(String fieldName) {
+            this.fieldName = fieldName;
+        }
+
+        public void setPartId(Short partId) {
+            this.partId = partId;
+        }
+
+        public void setAttachedId(String attachedId) {
+            this.attachedId = attachedId;
+        }
+
+        public void setAttachedToClassName(String attachedToClassName) {
+            this.attachedToClassName = attachedToClassName;
         }
 
         public void setValue(T value) {
