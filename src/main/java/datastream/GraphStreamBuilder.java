@@ -6,7 +6,7 @@ import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.runtime.tasks.ExceptionInChainedOperatorException;
-import part.L0Part;
+import part.GNNPart;
 import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
 import types.GraphQuery;
@@ -53,7 +53,7 @@ public class GraphStreamBuilder {
             this.input = this.input.map(item->item);
             // 2. Then comes Part based on the part assigned
             this.input = DataStreamUtils.reinterpretAsKeyedStream(this.input,new BasePartitioner.PartKeyExtractor())
-                    .process(new L0Part<SimpleVertex>()).name("Part");
+                    .process(new GNNPart<SimpleVertex>()).name("Part");
 
         } catch (Exception e) {
             System.out.println(e.getMessage());

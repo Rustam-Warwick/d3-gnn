@@ -3,15 +3,13 @@ package vertex;
 import features.Feature;
 import features.ReplicableTensorFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.nd4j.linalg.factory.Nd4j;
 import storage.GraphStorage;
-
-import java.util.Objects;
 
 public class SimpleVertex extends BaseVertex {
     public ReplicableTensorFeature feature = null;
-//    public ReplicableTensorFeature h1acc = null;
-//    public ReplicableTensorFeature h1agg = null;
-//    public ReplicableTensorFeature h1 = null;
+    public ReplicableTensorFeature h1agg = null;
+    public ReplicableTensorFeature h1 = null;
 //    public ReplicableTensorFeature h2acc = null;
 //    public ReplicableTensorFeature h2agg = null;
 //    public ReplicableTensorFeature h2 = null;
@@ -28,11 +26,21 @@ public class SimpleVertex extends BaseVertex {
     public SimpleVertex(SimpleVertex e){
         super(e);
     }
+
     @Override
     public void setStorageCallback(GraphStorage storage) {
+        if(storage.part.L==0){
+            // L0 Part added
+        }
+        if(storage.part.L==1){
+            // L1 Part added
+            this.feature = null;
+            this.h1agg = new ReplicableTensorFeature("h1agg",this,Nd4j.zeros(8,8));
+            this.h1 = new ReplicableTensorFeature("h1",this,Nd4j.zeros(8,8));
+        }
+
         super.setStorageCallback(storage);
-        if(!Objects.isNull(this.feature))this.feature.sync();
-        this.feature.startTimer(1000,"3","260805","43287");
+
     }
 
     @Override
@@ -42,43 +50,24 @@ public class SimpleVertex extends BaseVertex {
 
     @Override
     public Feature<INDArray> getFeature(short l) {
-        return null;
-//        switch (l){
-//            case 0:
-//                return this.feature;
-//            case 1:
-//                return this.h1;
-//            case 2:
-//                return this.h2;
-//            default:
-//                return null;
-//        }
+        switch (l){
+            case 0:
+                return this.feature;
+            case 1:
+                return this.h1;
+            default:
+                return null;
+        }
     }
 
     @Override
-    public Feature<INDArray> getAccumulator(short l) {
-        return null;
-//        switch (l){
-//            case 1:
-//                return this.h1acc;
-//            case 2:
-//                return this.h2acc;
-//            default:
-//                return null;
-//        }
-    }
-
-    @Override
-    public Feature<INDArray> getAggegation(short l) {
-        return null;
-//        switch (l){
-//            case 1:
-//                return this.h1agg;
-//            case 2:
-//                return this.h2agg;
-//            default:
-//                return null;
-//        }
+    public Feature<INDArray> getAggregation(short l) {
+        switch (l){
+            case 1:
+                return this.h1agg;
+            default:
+                return null;
+        }
     }
 
 

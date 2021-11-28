@@ -44,7 +44,7 @@ abstract public class GraphElement{
 
     /**
      * Callback when the storage actually stores this GraphELement
-     * Need to update some references
+     * Need to update some references for the features once this step is done
      * @param storage
      */
     public void setStorageCallback(GraphStorage storage){
@@ -56,6 +56,9 @@ abstract public class GraphElement{
                 try{
                      Feature feature = (Feature)f.get(this);
                      if(!Objects.isNull(feature))feature.setElement(this);
+                     if(feature instanceof ReplicableFeature){
+                         ((ReplicableFeature)feature).sync();
+                     }
                 }catch (Exception e){
                     System.out.println(e.getMessage());
                 }

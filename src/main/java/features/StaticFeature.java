@@ -2,6 +2,7 @@ package features;
 
 import types.GraphElement;
 
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 public class StaticFeature<T>  extends Feature<T>{
@@ -31,6 +32,10 @@ public class StaticFeature<T>  extends Feature<T>{
 
     @Override
     public CompletableFuture<T> getValue() {
+        if(Objects.isNull(this.fuzzyValue)){
+            this.fuzzyValue = new CompletableFuture<>();
+            this.fuzzyValue.complete(this.value);
+        }
         return this.fuzzyValue;
     }
 

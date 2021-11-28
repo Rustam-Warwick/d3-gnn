@@ -1,6 +1,8 @@
 package part;
 
 import aggregator.BaseAggregator;
+import aggregator.StreamingGNNAggregator.StreamingAggType;
+import aggregator.StreamingGNNAggregator.StreamingGNNAggregator;
 import edge.BaseEdge;
 import features.Feature;
 import storage.GraphStorage;
@@ -8,12 +10,19 @@ import storage.HashMapGraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
 
+import java.util.ArrayList;
 
-public class L1Part<VT extends BaseVertex> extends  BasePart<VT> {
-    public L1Part() {
+
+public class GNNPart<VT extends BaseVertex> extends  BasePart<VT> {
+
+    public GNNPart() {
         super();
     }
-
+    public GNNPart(short L,short maxL){
+        super();
+        this.L = L;
+        this.maxL = maxL;
+    }
     @Override
     public GraphStorage<VT> newStorage(){
         return new HashMapGraphStorage<>();
@@ -21,7 +30,9 @@ public class L1Part<VT extends BaseVertex> extends  BasePart<VT> {
 
     @Override
     public BaseAggregator<VT>[] newAggregators() {
-        return new BaseAggregator[0];
+
+        return new BaseAggregator[]{new StreamingGNNAggregator(this.L,this.maxL)};
+
     }
 
     @Override
@@ -33,9 +44,9 @@ public class L1Part<VT extends BaseVertex> extends  BasePart<VT> {
             switch (query.op) {
                 case ADD : {
                     if (isEdge) {
+                        this.collect(query,true); // Send to next layer to add it as well
                         BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
                         getStorage().addEdge(tmp);
-
                     }
                     break;
                 }
@@ -47,13 +58,14 @@ public class L1Part<VT extends BaseVertex> extends  BasePart<VT> {
                     break;
                 }
                 case AGG : {
-                    aggFunctions.forEach((fn) -> {
-                        if (fn.shouldTrigger(query)) fn.dispatch(query);
-                    });
+
                     break;
                 }
                 default : System.out.println("Undefined Operation");
         }
+        aggFunctions.forEach((fn) -> {
+                if (fn.shouldTrigger(query)) fn.dispatch(query);
+            });
 
 
 

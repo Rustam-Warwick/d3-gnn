@@ -3,14 +3,14 @@ import edge.SimpleEdge;
 import features.Feature;
 import features.ReplicableArrayListFeature;
 import features.ReplicableTensorFeature;
+import features.StaticFeature;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import part.BasePart;
-import part.L0Part;
-import part.L1Part;
+import part.GNNPart;
 import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
 import types.GraphQuery;
@@ -42,10 +42,10 @@ public class StreamPartitionTest {
             String id2 = lineItems[1];
             SimpleVertex v1 = new SimpleVertex(id1);
             SimpleVertex v2 = new SimpleVertex(id2);
-            INDArray v1A = Nd4j.rand(8,8);
-            v1.feature = new ReplicableTensorFeature("feature",v1,v1A);
-            v2.feature = new ReplicableTensorFeature("feature",v2,v1A);
+            v1.feature = new ReplicableTensorFeature("feature",v1, Nd4j.rand(8,8));
+            v2.feature = new ReplicableTensorFeature("feature",v2,Nd4j.rand(8,8));
             SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
+            ed.feature = new StaticFeature<INDArray>("feature",ed,Nd4j.rand(8,8));
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
 
@@ -53,7 +53,7 @@ public class StreamPartitionTest {
 
         DataStream<GraphQuery> levelZero = BasePart.partWithIteration(
                 partitionedStream,
-                new L0Part<SimpleVertex>(),
+                new GNNPart<SimpleVertex>(),
                 item->{
                     return item.op == GraphQuery.OPERATORS.SYNC;
                 }, // Sync Operators are sent back in iteration
@@ -61,13 +61,15 @@ public class StreamPartitionTest {
                     return item.op!= GraphQuery.OPERATORS.SYNC;}// All other operators are going downstream
 
                 );
+
         DataStream<GraphQuery> levelOne = BasePart.partWithIteration(
                 levelZero,
-                new L1Part<SimpleVertex>(),
+                new GNNPart<SimpleVertex>(),
                 item->item.op==GraphQuery.OPERATORS.SYNC,
                 item->item.op!=GraphQuery.OPERATORS.SYNC
         );
-        levelZero.print();
+
+        levelOne.print();
 
 
         System.out.println(env.getExecutionPlan());

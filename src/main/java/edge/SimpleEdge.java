@@ -4,13 +4,13 @@ package edge;
 import features.Feature;
 import features.StaticFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
 import storage.GraphStorage;
 import vertex.BaseVertex;
-import vertex.SimpleVertex;
 
 
 public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
+
+    public StaticFeature<INDArray> feature = null;
 
     public SimpleEdge(VT source, VT destination) {
         super(source, destination);
@@ -24,6 +24,7 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
         super(e);
     }
 
+
     @Override
     public BaseEdge<VT> copy() {
         return new SimpleEdge<VT>(this);
@@ -31,17 +32,22 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
 
     @Override
     public Feature<INDArray> getFeature(short l) {
-        return null;
+        return this.feature;
     }
 
     @Override
-    public Feature<INDArray> getAccumulator(short l) {
-        return null;
+    public void setStorageCallback(GraphStorage storage) {
+        if(storage.part.L==0){
+
+        }
+        if(storage.part.L==1){
+//            this.feature = null;
+        }
+        super.setStorageCallback(storage);
     }
 
     @Override
-    public Feature<INDArray> getAggegation(short l) {
+    public Feature<INDArray> getAggregation(short l) {
         return null;
     }
-
 }

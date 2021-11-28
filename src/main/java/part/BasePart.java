@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<GraphQuery,GraphQuery>  {
+    public short L=0;
+    public short maxL = 1;
     public transient GraphStorage<VT> storage = null;
     public transient Short partId=null;
     public transient volatile Collector<GraphQuery> out = null;
@@ -38,12 +40,14 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
      * @param forceNextOperator disallow optimization if true and send anyway. Even if it is going to the same operator
      */
     synchronized public void collect(GraphQuery e,boolean forceNextOperator){
-        if(forceNextOperator)this.out.collect(e);
-        if(e.part.equals(this.partId)){
-            this.dispatch(e);
-            return;
+        if(forceNextOperator){
+            this.out.collect(e);
+        }else{
+            if(e.part.equals(this.partId)){
+                this.dispatch(e);
+            }
+            else this.out.collect(e);
         }
-        this.out.collect(e);
     }
 
     @Override

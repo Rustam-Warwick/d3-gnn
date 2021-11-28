@@ -26,18 +26,17 @@ abstract public class BaseStreamingGNNAggregator<VT extends BaseVertex> extends 
      * Level of aggregation
      */
     public final Short L;
+    public final Short maxL;
 
     public BaseStreamingGNNAggregator(){
         this.L = 0;
+        this.maxL = 1;
     }
-    public BaseStreamingGNNAggregator(Short L){
-        this.L = L;
+    public BaseStreamingGNNAggregator(Short L,Short maxL){
+        this.L = L;this.maxL = maxL;
     }
 
-    @Override
-    public boolean shouldTrigger(GraphQuery o) {
-        return o.op== GraphQuery.OPERATORS.AGG;
-    }
+
 
 
     abstract public INDArray UPDATE(INDArray aggregation,INDArray feature);
@@ -56,40 +55,58 @@ abstract public class BaseStreamingGNNAggregator<VT extends BaseVertex> extends 
      * @param destination
      * @return
      */
-    abstract public INDArray MESSAGE(INDArray source, INDArray destination);
-
-    public CompletableFuture<INDArray> handleSourceDestinationPair(VT myDest, VT prevSource, VT prevDest){
-        return CompletableFuture.allOf(myDest.getAggegation(this.L).getValue()).thenApply((vd)->{
-            INDArray message = this.MESSAGE(prevSource.getFeature((short) (L-1)).getValue().join(),prevDest.getFeature((short) (L-1)).getValue().join());
-            INDArray a = COMBINE(myDest.getAggegation(L).getValue().join(),message);
-            INDArray updateFeature = this.UPDATE(a,prevDest.getFeature((short)(L-1)).getValue().join());
-            myDest.getAggegation(L).setValue(a);
+    abstract public INDArray MESSAGE(INDArray source,INDArray destination,INDArray edgeFeature);
+    public CompletableFuture<INDArray> message(BaseEdge e){
+       return CompletableFuture.allOf(e.source.getFeature(this.L).getValue(),e.destination.getFeature(this.L).getValue(),e.getFeature(this.L).getValue())
+           .thenApply(item->{
+               INDArray source = e.source.getFeature(this.L).getValue().join();
+               INDArray destination = e.destination.getFeature(this.L).getValue().join();
+               INDArray edge = e.getFeature(this.L).getValue().join();
+               return this.MESSAGE(source,destination,edge);
+        });
+    }
+    public CompletableFuture<INDArray> handleSourceDestinationPair(VT myDest, INDArray message, INDArray prevFeature){
+        return CompletableFuture.allOf(myDest.getAggregation(this.L).getValue()).thenApply((vd)->{
+            INDArray a = COMBINE(myDest.getAggregation(L).getValue().join(),message);
+            myDest.getAggregation(L).setValue(a);
+            INDArray updateFeature = this.UPDATE(a,prevFeature);
             myDest.getFeature(L).setValue(updateFeature);
             return updateFeature;
         });
     }
 
-
+    @Override
+    public boolean shouldTrigger(GraphQuery o) {
+        return o.op== GraphQuery.OPERATORS.AGG || o.op== GraphQuery.OPERATORS.ADD;
+    }
 
     @Override
     public void dispatch(GraphQuery msg) {
+        switch (msg.op){
+            case ADD:{
+                if(msg.element instanceof BaseEdge){
+                    // Edge Addition
+                    BaseEdge<VT> edge = (BaseEdge<VT>) msg.element;
+                    this.message(edge).whenComplete((res,tr)->{
+                        StreamingAggType<VT> query = new StreamingAggType<>(res,edge.destination.getId(),edge.destination.getFeature(this.L).getValue().join());
+                        GraphQuery graphQuery = new GraphQuery(query).changeOperation(GraphQuery.OPERATORS.AGG).toPart(this.getPart().getPartId());
+                        this.getPart().collect(graphQuery,true);
+                    });
+                }
+                break;
+            }
+        }
+
         if(msg.element instanceof StreamingAggType){
             StreamingAggType<VT> query = (StreamingAggType<VT>) msg.element;
-            if(query.destination==null){
-                // We need to aggregate for all destinations of the given source
-            }
-            else{
+            assert !Objects.isNull(query.destinationId);
                 // Just specific source -> destination pair is what we need
-                VT vertex = this.getPart().getStorage().getVertex(query.source.getId());
-                VT dest = this.getPart().getStorage().getVertex(query.destination.getId());
-                assert !Objects.isNull(vertex) && !Objects.isNull(dest);
-                handleSourceDestinationPair(dest,query.source, query.destination)
-                    .whenComplete((res,trw)->{
+            VT dest = this.getPart().getStorage().getVertex(query.destinationId);
+            assert !Objects.isNull(dest);
+            handleSourceDestinationPair(dest,query.message, query.prevFeature)
+            .whenComplete((res,trw)->{
 
-                    });
-                // @todo Issue is that we need to pass in the destination from the previous layer as well
-                // @solution Catch the Sync values and when they come send individually from each part
-            }
+            });
         }
     }
 }

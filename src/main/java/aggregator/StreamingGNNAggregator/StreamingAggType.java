@@ -1,28 +1,23 @@
 package aggregator.StreamingGNNAggregator;
 
+import org.nd4j.linalg.api.ndarray.INDArray;
 import vertex.BaseVertex;
+import vertex.SimpleVertex;
 
 public class StreamingAggType<VT extends BaseVertex> {
-    public VT source;
-    public VT destination;
-
+    public INDArray message;
+    public String destinationId;
+    public INDArray prevFeature;
     public StreamingAggType(){
-        this.source = null;
-        this.destination = null;
+        message = null;
+        destinationId = null;
+        prevFeature = null;
     }
-    public StreamingAggType(VT source){
-        this.source = source;
-    }
-    public StreamingAggType(VT source, VT destination){
-        this.source = source;
-        this.destination = destination;
-    }
-
-    public void setDestination(VT destination) {
-        this.destination = destination;
+    public StreamingAggType(INDArray message,String destinationId,INDArray prevFeature){
+        this.message = message;
+        this.destinationId = destinationId;
+        this.prevFeature = prevFeature;
     }
 
-    public void setSource(VT source) {
-        this.source = source;
-    }
+
 }
