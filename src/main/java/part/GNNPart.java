@@ -13,26 +13,20 @@ import vertex.BaseVertex;
 import java.util.ArrayList;
 
 
-public class GNNPart<VT extends BaseVertex> extends  BasePart<VT> {
+public class GNNPart  extends  BasePart {
 
     public GNNPart() {
         super();
     }
-    public GNNPart(short L,short maxL){
-        super();
-        this.L = L;
-        this.maxL = maxL;
-    }
-    @Override
-    public GraphStorage<VT> newStorage(){
-        return new HashMapGraphStorage<>();
-    }
+
 
     @Override
-    public BaseAggregator<VT>[] newAggregators() {
-
-        return new BaseAggregator[]{new StreamingGNNAggregator(this.L,this.maxL)};
-
+    public GraphStorage newStorage(){
+        return new HashMapGraphStorage(this);
+    }
+    @Override
+    public BaseAggregator[] newAggregators() {
+        return new BaseAggregator[]{new StreamingGNNAggregator()};
     }
 
     @Override
@@ -44,8 +38,7 @@ public class GNNPart<VT extends BaseVertex> extends  BasePart<VT> {
             switch (query.op) {
                 case ADD : {
                     if (isEdge) {
-                        if(maxL>L)this.collect(query,true); // Send to next layer to add it as well
-                        BaseEdge<VT> tmp = (BaseEdge<VT>) query.element;
+                        BaseEdge<BaseVertex> tmp = (BaseEdge) query.element;
                         getStorage().addEdge(tmp);
                     }
                     break;

@@ -1,25 +1,20 @@
 import com.twitter.chill.java.ClosureSerializer;
+import datastream.GraphStream;
 import edge.SimpleEdge;
 import features.Feature;
 import features.ReplicableArrayListFeature;
 import features.ReplicableTensorFeature;
 import features.StaticFeature;
-import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.metrics.Meter;
-import org.apache.flink.metrics.MeterView;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.indexing.conditions.GreaterThan;
-import part.BasePart;
-import part.GNNPart;
-import partitioner.BasePartitioner;
 import partitioner.RandomPartitioning;
 import types.GraphQuery;
 import vertex.SimpleVertex;
+
 import java.lang.invoke.SerializedLambda;
 
 
@@ -39,6 +34,7 @@ public class StreamPartitionTest {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(parallelism);
+        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         StreamPartitionTest.registerSerializers(env);
 
         DataStream<GraphQuery> source =  env.socketTextStream("127.0.0.1",9090).setParallelism(1).map(item->{
@@ -49,50 +45,15 @@ public class StreamPartitionTest {
             SimpleVertex v2 = new SimpleVertex(id2);
             v1.feature = new ReplicableTensorFeature("feature",v1, Nd4j.rand(8,8));
             v2.feature = new ReplicableTensorFeature("feature",v2,Nd4j.rand(8,8));
-            SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
+            SimpleEdge ed = new SimpleEdge(v1,v2);
             ed.feature = new StaticFeature<INDArray>("feature",ed,Nd4j.rand(8,8));
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
+        GraphStream stream = new GraphStream(source,env);
+        stream.partitionBy(new RandomPartitioning()).addGNN(1);
 
-        DataStream<GraphQuery> partitionedStream = BasePartitioner.partitionHelper(source,new RandomPartitioning());
 
-        DataStream<GraphQuery> levelZero = BasePart.partWithIteration(
-                partitionedStream,
-                new GNNPart<SimpleVertex>((short)0,(short)1),
-                item->{
-                    return item.op == GraphQuery.OPERATORS.SYNC;
-                }, // Sync Operators are sent back in iteration
-                item->{
-                    return item.op!= GraphQuery.OPERATORS.SYNC;}// All other operators are going downstream
 
-                );
-
-        DataStream<GraphQuery> levelOne = BasePart.partWithIteration(
-                levelZero,
-                new GNNPart<SimpleVertex>((short)1,(short)1),
-                item->item.op==GraphQuery.OPERATORS.SYNC,
-                item->item.op!=GraphQuery.OPERATORS.SYNC
-        );
-
-        levelOne.map(new RichMapFunction<GraphQuery, GraphQuery>() {
-            private Meter meter;
-            @Override
-            public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                this.meter = getRuntimeContext().getMetricGroup().meter("myMeter",new MeterView(1));
-            }
-
-            @Override
-            public GraphQuery map(GraphQuery value) throws Exception {
-                this.meter.markEvent();
-                if(value.element instanceof Feature.Update){
-                    Feature.Update e = (Feature.Update) value.element;
-                    System.out.format("%s -> %s\n",e.attachedId,e.value);
-                    System.out.println(meter.getRate());
-                }
-                return value;
-            }
-        });
 
         System.out.println(env.getExecutionPlan());
         env.execute();

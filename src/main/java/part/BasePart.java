@@ -2,6 +2,8 @@ package part;
 
 import aggregator.BaseAggregator;
 import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
@@ -12,26 +14,22 @@ import storage.GraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 
-abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<GraphQuery,GraphQuery>  {
-    public short L=0;
-    public short maxL = 1;
-    public transient GraphStorage<VT> storage = null;
-    public transient Short partId=null;
+abstract public class BasePart extends ProcessFunction<GraphQuery,GraphQuery>  {
+    private transient GraphStorage storage = null;
+    public transient Short partId = null;
+    public Short level = 0;
     public transient volatile Collector<GraphQuery> out = null;
-    public transient ArrayList<BaseAggregator<VT>> aggFunctions = null;
-    public transient Integer count;
+    public transient ArrayList<BaseAggregator> aggFunctions = null;
+
     public BasePart(){
 
     }
 
-    public GraphStorage<VT> getStorage() {
-        return storage;
-    }
-    abstract public GraphStorage<VT> newStorage();
-    abstract public BaseAggregator<VT>[] newAggregators();
+    abstract public GraphStorage newStorage();
+    abstract public BaseAggregator[] newAggregators();
     abstract public void dispatch(GraphQuery g);
 
     /**
@@ -53,26 +51,16 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.count = new Integer(0);
-        this.setPartId((short)this.getRuntimeContext().getIndexOfThisSubtask());
-        this.setStorage(this.newStorage());
         this.aggFunctions = new ArrayList<>();
-        Arrays.stream(this.newAggregators()).forEach(this::attachAggregator);
+        this.setPartId((short)this.getRuntimeContext().getIndexOfThisSubtask()); // Set this part id
+        this.storage = this.newStorage();
+        BaseAggregator[] tmp = this.newAggregators();
+        for(BaseAggregator i:tmp){
+            this.attachAggregator(i);
+        }
+
     }
 
-    public void setStorage(GraphStorage<VT> storage) {
-        this.storage = storage;
-        storage.setPart(this);
-    }
-    public BasePart<VT> attachAggregator(BaseAggregator<VT> e){
-        aggFunctions.add(e);
-        e.attachedTo(this);
-        return this;
-    }
-
-    public void detachAggregator(BaseAggregator<VT> e){
-        aggFunctions.remove(e);
-    }
 
 
     @Override
@@ -82,22 +70,37 @@ abstract public class BasePart<VT extends BaseVertex> extends ProcessFunction<Gr
     }
 
 
+    public BasePart attachAggregator(BaseAggregator e){
+        aggFunctions.add(e);
+        e.attachedTo(this);
+        return this;
+    }
+
+    public void detachAggregator(BaseAggregator e){
+        aggFunctions.remove(e);
+
+    }
+
     public Short getPartId() {
         return partId;
+    }
+
+    public GraphStorage getStorage() {
+            return this.storage;
     }
 
     public void setPartId(Short partId) {
         this.partId = partId;
     }
 
+
     public static DataStream<GraphQuery> partWithIteration(DataStream<GraphQuery> source, BasePart x, FilterFunction<GraphQuery> iterateCondition, FilterFunction<GraphQuery> propegateCondition){
            IterativeStream<GraphQuery> iteration = source.iterate();
-           DataStream<GraphQuery> iteration_partitioned = iteration.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
-           DataStream<GraphQuery> res = iteration_partitioned.process(x);
+//           DataStream<GraphQuery> iteration_partitioned = iteration.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
+           DataStream<GraphQuery> res = iteration.process(x);
            DataStream<GraphQuery> filteredIteration = res.filter(iterateCondition).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
            iteration.closeWith(filteredIteration);
            DataStream<GraphQuery> filteredSend = res.filter(propegateCondition);
            return filteredSend;
     }
-
 }

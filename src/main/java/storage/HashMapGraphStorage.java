@@ -1,6 +1,8 @@
 package storage;
 import edge.BaseEdge;
 import features.Feature;
+import javassist.NotFoundException;
+import org.apache.commons.lang3.NotImplementedException;
 import part.BasePart;
 import vertex.BaseVertex;
 import java.util.ArrayList;
@@ -11,22 +13,21 @@ import java.util.stream.Stream;
 /**
  * HashMap Based Vertex-Centric graph storage
  */
-public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT> {
+public class HashMapGraphStorage extends GraphStorage {
     /**
      * Stores Edges as a map of (source_key=>(dest_key))
      */
-    public HashMap<String, ArrayList<BaseEdge<VT>>> edges;
+    public HashMap<String, ArrayList<BaseEdge<BaseVertex>>> edges;
     /**
      * Stores Vertex hashed by source id. Good for O(1) search
      * Note that dest vertices are stored here as well with the isPart attribute set to something else
      */
-    public HashMap<String, VT> vertices;
+    public HashMap<String, BaseVertex> vertices;
 
-    public HashMapGraphStorage(BasePart<VT> part){
+    public HashMapGraphStorage(BasePart part){
         super(part);
         edges = new HashMap<>();
         vertices = new HashMap<>();
-
     }
 
     public HashMapGraphStorage() {
@@ -36,7 +37,7 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
     }
 
     @Override
-    public VT addVertex(VT v) {
+    public BaseVertex addVertex(BaseVertex v) {
         // If vertex is already here then discard it
         if(vertices.containsKey(v.getId()))return null;
         v.setStorageCallback(this);
@@ -45,7 +46,7 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
     }
 
     @Override
-    public boolean deleteVertex(VT v) {
+    public boolean deleteVertex(BaseVertex v) {
         return false;
     }
 
@@ -57,22 +58,28 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
 //    }
 
     @Override
-    public BaseEdge<VT> addEdge(BaseEdge<VT> e) {
+    public BaseEdge<BaseVertex> addEdge(BaseEdge<BaseVertex> e) {
         // 1. If source vertex not in storage create it
-        this.addVertex(e.source);
-        this.addVertex(e.destination);
-        // 2. Create Edge
-        edges.putIfAbsent(e.source.getId(),new ArrayList<>());
-        e.source = this.getVertex(e.source.getId());
-        e.destination = this.getVertex(e.destination.getId());
-        e.setStorageCallback(this);
-        edges.get(e.source.getId()).add(e);
-        // 3. Make Edge Callback & Return
-        return e;
+        try{
+
+            this.addVertex(e.source);
+            this.addVertex(e.destination);
+            // 2. Create Edge
+            edges.putIfAbsent(e.source.getId(),new ArrayList<>());
+            e.source = this.getVertex(e.source.getId());
+            e.destination = this.getVertex(e.destination.getId());
+            e.setStorageCallback(this);
+            edges.get(e.source.getId()).add(e);
+            // 3. Make Edge Callback & Return
+            return e;
+        }catch (NotFoundException ec){
+            System.out.println(ec);
+        }
+        return null;
     }
 
     @Override
-    public void deleteEdge(BaseEdge<VT> e) {
+    public void deleteEdge(BaseEdge<BaseVertex> e) {
 
     }
 
@@ -82,9 +89,9 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
             Class<?> featureClass = Class.forName(e.attachedToClassName);
             if(BaseVertex.class.isAssignableFrom(featureClass)){
                 // Vertex feature
-                VT vertex = this.getVertex(e.attachedId);
+                BaseVertex vertex = this.getVertex(e.attachedId);
                 if(vertex==null)return;
-                vertex.updateFeature(e);
+                vertex.updateFeatureCallback(e);
             }
             else if(BaseEdge.class.isAssignableFrom(featureClass)){
                 // Edge feature
@@ -93,28 +100,30 @@ public class HashMapGraphStorage<VT extends BaseVertex> extends GraphStorage<VT>
             System.out.println(ce.getMessage());
         }catch (NullPointerException ne){
             System.out.println(ne+e.fieldName);
+        }catch (NotFoundException ce){
+            System.out.println("Vertex not found for feature");
         }
     }
 
     // Get Queries
     @Override
-    public VT getVertex(String id) {
+    public BaseVertex getVertex(String id) throws NotFoundException {
         return this.vertices.get(id);
     }
 
     @Override
-    public BaseEdge<VT> getEdge() {
+    public BaseEdge<BaseVertex> getEdge(String source, String dest) throws NotFoundException {
         return null;
     }
 
 
     @Override
-    public Stream<VT> getVertices() {
+    public Stream<BaseVertex> getVertices() {
         return vertices.values().stream();
     }
 
     @Override
-    public Stream<BaseEdge<VT>> getEdges() {
+    public Stream<BaseEdge<BaseVertex>> getEdges() {
         return edges.values().stream().flatMap(Collection::stream);
     }
 }

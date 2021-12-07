@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
 
 abstract public class Feature<T> {
     /**
-     * fieldName,attachedId,ClassName uniquely identify a feature withing a graph
+     * fieldName,attachedId,ClassName uniquely identify a feature within a graph
      */
     public String fieldName;
     public String attachedId;

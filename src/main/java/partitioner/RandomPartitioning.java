@@ -14,6 +14,11 @@ public class RandomPartitioning extends BasePartitioner {
     public final HashMap<String,Short> masters = new HashMap<>();
 
     @Override
+    public boolean isParallel() {
+        return false;
+    }
+
+    @Override
     public GraphQuery map(GraphQuery value) throws Exception {
         if(Objects.isNull(value.part)){
             value.part = (short) ThreadLocalRandom.current().nextInt(0,this.partitions);

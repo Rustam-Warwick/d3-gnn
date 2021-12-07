@@ -1,7 +1,5 @@
 package features;
 
-
-import org.nd4j.linalg.api.ndarray.INDArray;
 import types.GraphElement;
 
 abstract public class ReplicableAggregator<T> extends ReplicableFeature<T> {

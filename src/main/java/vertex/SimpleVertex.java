@@ -1,28 +1,26 @@
 package vertex;
 
+import annotations.FeatureAnnotation;
 import features.Feature;
 import features.ReplicableAggregator;
 import features.ReplicableMinAggregator;
 import features.ReplicableTensorFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
-import storage.GraphStorage;
 
 public class SimpleVertex extends BaseVertex {
+
+    @FeatureAnnotation(level=0)
     public ReplicableTensorFeature feature = null;
+    @FeatureAnnotation(level=0)
     public ReplicableMinAggregator h0agg = null;
+    @FeatureAnnotation(level=1)
     public ReplicableTensorFeature h1 = null;
+    @FeatureAnnotation(level=1)
     public ReplicableMinAggregator h1agg = null;
-//    public ReplicableTensorFeature h2acc = null;
-//    public ReplicableTensorFeature h2agg = null;
-//    public ReplicableTensorFeature h2 = null;
-
-
 
     public SimpleVertex(String id) {
         super(id);
     }
-
     public SimpleVertex() {
         super();
     }
@@ -30,53 +28,14 @@ public class SimpleVertex extends BaseVertex {
         super(e);
     }
 
-    @Override
-    public void setStorageCallback(GraphStorage storage) {
-        if(storage.part.L==0){
 
-            this.h0agg = new ReplicableMinAggregator("h0agg",this,Nd4j.zeros(8,8));
-            this.h1 = null;
-            this.h1agg = null;
-        }
-        if(storage.part.L==1){
-            // L1 Part added
-            this.feature = null;
-            this.h0agg = null;
-            this.h1agg = new ReplicableMinAggregator("h1agg",this,Nd4j.zeros(8,8));
-            this.h1 = new ReplicableTensorFeature("h1",this,Nd4j.zeros(8,8));
-        }
-
-        super.setStorageCallback(storage);
-    }
 
     @Override
     public BaseVertex copy() {
         return new SimpleVertex(this);
     }
 
-    @Override
-    public Feature<INDArray> getFeature(short l) {
-        switch (l){
-            case 0:
-                return this.feature;
-            case 1:
-                return this.h1;
-            default:
-                return null;
-        }
-    }
 
-    @Override
-    public ReplicableAggregator<INDArray> getAggregation(short l) {
-        switch (l){
-            case 0:
-                return this.h0agg;
-            case 1:
-                return this.h1agg;
-            default:
-                return null;
-        }
-    }
 
 
 }

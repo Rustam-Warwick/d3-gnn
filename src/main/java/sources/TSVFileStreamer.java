@@ -41,8 +41,8 @@ public class TSVFileStreamer extends RichSourceFunction<GraphQuery> {
             INDArray v1A = Nd4j.ones(1024);
 //            v1.feature = new ReplicableTensorFeature("feature",v1,v1A);
 //            v2.feature = new ReplicableTensorFeature("feature",v2,v1A);
-            SimpleEdge<SimpleVertex> ed = new SimpleEdge<>(v1,v2);
-            SimpleEdge<SimpleVertex> ed2 = new SimpleEdge<>(v2,v1);
+            SimpleEdge ed = new SimpleEdge(v1,v2);
+            SimpleEdge ed2 = new SimpleEdge(v2,v1);
             GraphQuery q = new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
             GraphQuery q2 = new GraphQuery(ed2).changeOperation(GraphQuery.OPERATORS.ADD);
             ctx.collect(q);

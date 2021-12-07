@@ -1,11 +1,11 @@
 package edge;
 
-import storage.GraphStorage;
-import types.IncrementalAggregatable;
 import types.GraphElement;
 import vertex.BaseVertex;
 
-abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement implements IncrementalAggregatable {
+import java.util.concurrent.CompletableFuture;
+
+abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement  {
     public VT source;
     public VT destination;
 
@@ -26,6 +26,5 @@ abstract public class BaseEdge<VT extends BaseVertex> extends GraphElement imple
         this.source = (VT) e.source.copy();
         this.destination = (VT) e.destination.copy();
     }
-
     abstract public BaseEdge<VT> copy();
 }

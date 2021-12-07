@@ -1,18 +1,10 @@
 package vertex;
-
-import features.ReplicableArrayListFeature;
-import features.ReplicableFeature;
-import storage.GraphStorage;
-import types.IncrementalAggregatable;
-import types.GraphElement;
-import types.GraphQuery;
 import types.ReplicableGraphElement;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-
-abstract public class BaseVertex extends ReplicableGraphElement implements IncrementalAggregatable {
+/**
+ * Dummy BaseVertex Class. Nothing Special except for a copy function
+ */
+abstract public class BaseVertex extends ReplicableGraphElement{
 
 
     public BaseVertex(String id) {
@@ -26,6 +18,8 @@ abstract public class BaseVertex extends ReplicableGraphElement implements Incre
     public BaseVertex(BaseVertex e){
         super(e);
     }
+
+
 
     abstract public BaseVertex copy();
 }

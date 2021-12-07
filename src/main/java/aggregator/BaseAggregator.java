@@ -9,20 +9,20 @@ import vertex.BaseVertex;
  *
  *
  */
-public abstract class BaseAggregator<VT extends BaseVertex> {
-    public BasePart<VT> part = null;
+public abstract class BaseAggregator {
+    public BasePart part = null;
 
-    public BaseAggregator<VT> attachedTo(BasePart<VT> e){
-        part =e;
+    public BaseAggregator attachedTo(BasePart e){
+        this.part =e;
         return this;
 
     }
 
-    public BasePart<VT> getPart() {
+    public BasePart getPart() {
         return part;
     }
 
-    public void setPart(BasePart<VT> part) {
+    public void setPart(BasePart part) {
         this.part = part;
     }
 

@@ -11,6 +11,10 @@ import storage.GraphStorage;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 
+/**
+ * Simple SubClass of GraphElement that defines a parts ReplicableArray and stores masterPart information
+ * of the GraphElement
+ */
 abstract public class ReplicableGraphElement extends GraphElement {
     /**
      * -1 -> UNDEFINED
@@ -42,18 +46,14 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public void setStorageCallback(GraphStorage storage) {
-        super.setStorageCallback(storage);
         parts.add(this.partId);
+        super.setStorageCallback(storage); // Sync is happening there anyway
     }
 
-    /**
-     * Send message to specific part
-     * @param msg
-     * @param partId
-     */
-    public void sendMessage(GraphQuery msg, Short partId){
-        this.getStorage().getPart().collect(msg.generateQueryForPart(partId),false);
-    }
+
+
+
+
 
     /**
      * Send message to replicas as well as some optional other parts
@@ -83,20 +83,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         for(Short tmp:alsoSendHere)this.sendMessage(msg,tmp);
     }
 
-    public void updateFeature(Feature.Update<?> incoming){
-        try{
-            Field myFeature = ReplicableGraphElement.getFeature(this,incoming.fieldName);
-            Feature feature = (Feature) myFeature.get(this);
-            feature.updateMessage(incoming);
-        }
-        catch(IllegalAccessException e){
-            System.out.println(e.getMessage());
-            System.out.println("Error");
-        }catch (NoSuchFieldException e){
-            System.out.println(e.getMessage());
-            System.out.println("Error");
-        }
-   }
+
 
     public STATE getState(){
         if(this.masterPart==null)return STATE.MASTER;
@@ -113,23 +100,5 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
 
 
-    @NotNull
-    public static Field getFeature(ReplicableGraphElement el,String fieldName) throws NoSuchFieldException{
-        Class <?> tmp = null;
-        Field res = null;
-        do{
-            if(tmp==null) tmp=el.getClass();
-            else tmp = tmp.getSuperclass();
-            try{
-                Field tmpField = tmp.getDeclaredField(fieldName);
-                res = tmpField;
-                break;
-            }catch (Exception e){
-                // no need to do anything
-            }
-        }
-        while(!tmp.equals(ReplicableGraphElement.class));
-        if(res==null) throw new NoSuchFieldException("Field not found") ;
-        return res;
-    }
+
 }

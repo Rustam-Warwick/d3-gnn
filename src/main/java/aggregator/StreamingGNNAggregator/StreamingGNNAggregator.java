@@ -1,31 +1,35 @@
 package aggregator.StreamingGNNAggregator;
 
+import edge.BaseEdge;
+import edge.SimpleEdge;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import vertex.BaseVertex;
+import vertex.SimpleVertex;
 
-public class StreamingGNNAggregator<VT extends BaseVertex> extends BaseStreamingGNNAggregator<VT>{
+import java.util.concurrent.CompletableFuture;
+
+public class StreamingGNNAggregator extends BaseStreamingGNNAggregator<SimpleVertex, SimpleEdge>{
 
     public StreamingGNNAggregator() {
         super();
     }
 
-    public StreamingGNNAggregator(Short L,Short maxL) {
-        super(L,maxL);
+
+    @Override
+    public CompletableFuture<INDArray> message(SimpleEdge e) {
+        short level = getPart().level;
+        return CompletableFuture.allOf(e.feature.getValue(),e.feature.getValue()).thenApply((b)->{
+            INDArray source = e.source.feature.getValue().join();
+            INDArray edge = e.feature.getValue().join();
+            return source.mul(edge);
+        });
     }
 
     @Override
-    public INDArray UPDATE(INDArray aggregation, INDArray feature) {
-        return (aggregation.add(feature).div(2));
+    public CompletableFuture<INDArray> update(SimpleVertex e) {
+        short level = getPart().level;
+        return e.feature.getValue();
     }
 
-    @Override
-    public INDArray COMBINE(INDArray aggregation, INDArray newMessage) {
-        return (aggregation.add(newMessage).div(2));
-    }
-
-    @Override
-    public INDArray MESSAGE(INDArray source, INDArray destination, INDArray edgeFeature) {
-        return source.add(destination).add(edgeFeature);
-    }
 }

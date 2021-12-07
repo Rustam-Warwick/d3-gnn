@@ -1,19 +1,21 @@
 package edge;
 
 
+import annotations.FeatureAnnotation;
 import features.Feature;
 import features.ReplicableAggregator;
 import features.StaticFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import storage.GraphStorage;
 import vertex.BaseVertex;
+import vertex.SimpleVertex;
 
 
-public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
-
+public class SimpleEdge  extends BaseEdge<SimpleVertex>{
+    @FeatureAnnotation(level=0)
     public StaticFeature<INDArray> feature = null;
 
-    public SimpleEdge(VT source, VT destination) {
+    public SimpleEdge(SimpleVertex source, SimpleVertex destination) {
         super(source, destination);
     }
 
@@ -21,34 +23,13 @@ public class SimpleEdge<VT extends BaseVertex>  extends BaseEdge<VT>{
         super();
     }
 
-    public SimpleEdge(SimpleEdge<VT> e){
+    public SimpleEdge(SimpleEdge e){
         super(e);
     }
 
-
     @Override
-    public BaseEdge<VT> copy() {
-        return new SimpleEdge<VT>(this);
+    public BaseEdge<SimpleVertex> copy() {
+        return new SimpleEdge(this);
     }
 
-    @Override
-    public Feature<INDArray> getFeature(short l) {
-        return this.feature;
-    }
-
-    @Override
-    public void setStorageCallback(GraphStorage storage) {
-        if(storage.part.L==0){
-
-        }
-        if(storage.part.L==1){
-//            this.feature = null;
-        }
-        super.setStorageCallback(storage);
-    }
-
-    @Override
-    public ReplicableAggregator<INDArray> getAggregation(short l) {
-        return null;
-    }
 }

@@ -55,7 +55,7 @@ public class GraphGenerator extends RichParallelSourceFunction<GraphQuery> {
 //                    source.feature = new ReplicableTensorFeature("feature",source,Nd4j.rand(2,2));
                     SimpleVertex destination = new SimpleVertex(String.valueOf(value));
 //                    destination.feature = new ReplicableTensorFeature("feature",destination,Nd4j.rand(2,2));
-                    SimpleEdge<SimpleVertex> edge = new SimpleEdge<>(source,destination);
+                    SimpleEdge edge = new SimpleEdge(source,destination);
                     GraphQuery a = new GraphQuery(edge).changeOperation(GraphQuery.OPERATORS.ADD);
                     ctx.collect(a);
                     // 2. Increment data structure

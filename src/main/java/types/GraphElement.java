@@ -1,13 +1,12 @@
 package types;
 
 
+import annotations.AccumulatorAnnotation;
+import annotations.FeatureAnnotation;
 import features.Feature;
 import features.ReplicableFeature;
 import org.jetbrains.annotations.NotNull;
-import org.nd4j.shade.guava.graph.Graph;
 import storage.GraphStorage;
-
-import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Objects;
@@ -15,6 +14,7 @@ import java.util.Objects;
 /**
  * Base class for all elements is the graph (Vertex,Edge,)
  * A graph Element has an Id, a storage that it is living in, partId
+ * 1 Callback -> setStorageCallback() #Initialize all
  */
 abstract public class GraphElement{
     public String id = null;
@@ -42,29 +42,65 @@ abstract public class GraphElement{
         this.id = id;
     }
 
+    @Override
+    public boolean equals(Object o){
+        GraphElement e =(GraphElement) o;
+        return e.getClass().toString().equals(this.getClass().toString()) && this.getId().equals(e.getId());
+    }
+
+    /**
+     * Send message to the next operator down the line
+     * @// TODO: 03/12/2021 Can experiment with forceNextOperator to see which one yields better results 
+     * @param msg
+     * @param partId
+     */
+    public void sendMessage(GraphQuery msg, Short partId){
+        this.getStorage().getPart().collect(msg.generateQueryForPart(partId),true);
+    }
+
     /**
      * Callback when the storage actually stores this GraphELement
      * Need to update some references for the features once this step is done
-     * @param storage
+     * 1. Nullify all feature/accumulators not belonging to this part
+     * 2. setElement of the Features that are remaining
+     * 3. Sync ReplicatedFeatures
+     * @param storage GraphStorage
      */
     public void setStorageCallback(GraphStorage storage){
         this.storage = storage;
         if(storage!=null){
             this.partId = storage.getPart().getPartId();
+            int levelPart = storage.getPart().level;
             ArrayList<Field> featureFields = GraphElement.getFeatures(this);
             for(Field f:featureFields){
                 try{
-                     Feature feature = (Feature)f.get(this);
-                     if(!Objects.isNull(feature))feature.setElement(this);
-                     if(feature instanceof ReplicableFeature){
-                         ((ReplicableFeature)feature).sync();
-                     }
+                    if(f.isAnnotationPresent(FeatureAnnotation.class) && f.getAnnotation(FeatureAnnotation.class).level()!=levelPart)f.set(this,null);
+                    Feature feature = (Feature)f.get(this);
+                    if(!Objects.isNull(feature))feature.setElement(this);
+                    if(feature instanceof ReplicableFeature){
+                     ((ReplicableFeature)feature).sync();
+                    }
                 }catch (Exception e){
                     System.out.println(e.getMessage());
                 }
 
             }
+        }
+    }
 
+    /**
+     * Callback when a new Feature update is arriving at this GraphElement
+     * @param incoming
+     */
+    public void updateFeatureCallback(Feature.Update<?> incoming){
+        try{
+            Feature feature = this.getFeature(incoming.fieldName);
+            feature.updateMessage(incoming);
+        }
+        catch(IllegalAccessException e){
+            System.out.println(e.getMessage());
+        }catch (NoSuchFieldException e){
+            System.out.println(e.getMessage());
         }
     }
 
@@ -80,6 +116,12 @@ abstract public class GraphElement{
         return partId;
     }
 
+
+    /**
+     * Get all Features up-till this class
+     * @param el
+     * @return
+     */
     @NotNull
     public static ArrayList<Field> getFeatures(GraphElement el){
         Class<?> tmp = null;
@@ -95,10 +137,76 @@ abstract public class GraphElement{
         return fields;
     }
 
-    @Override
-    public boolean equals(Object o){
-        GraphElement e =(GraphElement) o;
-        return e.getClass().toString().equals(this.getClass().toString()) && this.getId().equals(e.getId());
+    /**
+     * Get Feature with the given filedName
+     * @param fieldName name of the field of the feature
+     * @return
+     * @throws NoSuchFieldException
+     * @throws IllegalAccessException
+     */
+    public Feature getFeature(String fieldName) throws NoSuchFieldException,IllegalAccessException{
+        Class <?> tmp = null;
+        Field res = null;
+        do{
+            if(tmp==null) tmp=this.getClass();
+            else tmp = tmp.getSuperclass();
+            try{
+                Field tmpField = tmp.getDeclaredField(fieldName);
+                if(Feature.class.isAssignableFrom(tmpField.getType())){
+                    res = tmpField;
+                    break;
+                }
+            }catch (Exception e){
+                // no need to do anything
+            }
+        }
+        while(!tmp.equals(ReplicableGraphElement.class));
+        if(res==null) throw new NoSuchFieldException("Field not found") ;
+        return (Feature)res.get(this);
     }
+
+    /**
+     * Get level Feature defined in the GraphElement
+     * @param level 0..
+     * @return
+     * @throws NoSuchFieldException
+     * @throws IllegalAccessException
+     */
+    @NotNull
+    public Feature getFeature(int level) throws NoSuchFieldException,IllegalAccessException{
+        Class<?> tmp = null;
+        ArrayList<Field> fields = new ArrayList<>();
+        tmp = this.getClass();
+        while(!tmp.equals(GraphElement.class)){
+            Field[] fieldsForClass = tmp.getDeclaredFields();
+            for(Field tmpField:fieldsForClass){
+                if(Feature.class.isAssignableFrom(tmpField.getType()) && tmpField.isAnnotationPresent(FeatureAnnotation.class) && tmpField.getAnnotation(FeatureAnnotation.class).level()==level)return (Feature)tmpField.get(this);
+            }
+            tmp = tmp.getSuperclass();
+        }
+        throw new NoSuchFieldException();
+    }
+
+    /**
+     * Get Accumulator defined for the GraphElement
+     * @param level 0..
+     * @return
+     * @throws NoSuchFieldException
+     * @throws IllegalAccessException
+     */
+    public Feature getAccumulator(int level) throws NoSuchFieldException,IllegalAccessException{
+        Class<?> tmp = null;
+        ArrayList<Field> fields = new ArrayList<>();
+        tmp = this.getClass();
+        while(!tmp.equals(GraphElement.class)){
+            Field[] fieldsForClass = tmp.getDeclaredFields();
+            for(Field tmpField:fieldsForClass){
+                if(Feature.class.isAssignableFrom(tmpField.getType()) && tmpField.isAnnotationPresent(AccumulatorAnnotation.class) && tmpField.getAnnotation(AccumulatorAnnotation.class).level()==level)return (Feature) tmpField.get(this);
+            }
+            tmp = tmp.getSuperclass();
+        }
+        throw new NoSuchFieldException();
+    }
+
 
 }
