@@ -20,12 +20,12 @@ import java.util.ArrayList;
 abstract public class BasePart extends ProcessFunction<GraphQuery,GraphQuery>  {
     private transient GraphStorage storage = null;
     public transient Short partId = null;
-    public Short level = 0;
+    public Short level;
     public transient volatile Collector<GraphQuery> out = null;
     public transient ArrayList<BaseAggregator> aggFunctions = null;
 
     public BasePart(){
-
+        this.level = 0;
     }
 
     abstract public GraphStorage newStorage();
@@ -93,6 +93,13 @@ abstract public class BasePart extends ProcessFunction<GraphQuery,GraphQuery>  {
         this.partId = partId;
     }
 
+    public void setLevel(Short level) {
+        this.level = level;
+    }
+
+    public Short getLevel() {
+        return level;
+    }
 
     public static DataStream<GraphQuery> partWithIteration(DataStream<GraphQuery> source, BasePart x, FilterFunction<GraphQuery> iterateCondition, FilterFunction<GraphQuery> propegateCondition){
            IterativeStream<GraphQuery> iteration = source.iterate();

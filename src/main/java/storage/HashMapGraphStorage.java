@@ -61,7 +61,6 @@ public class HashMapGraphStorage extends GraphStorage {
     public BaseEdge<BaseVertex> addEdge(BaseEdge<BaseVertex> e) {
         // 1. If source vertex not in storage create it
         try{
-
             this.addVertex(e.source);
             this.addVertex(e.destination);
             // 2. Create Edge
@@ -73,7 +72,7 @@ public class HashMapGraphStorage extends GraphStorage {
             // 3. Make Edge Callback & Return
             return e;
         }catch (NotFoundException ec){
-            System.out.println(ec);
+            ec.printStackTrace();
         }
         return null;
     }
@@ -97,11 +96,11 @@ public class HashMapGraphStorage extends GraphStorage {
                 // Edge feature
             }
         }catch(ClassNotFoundException ce){
-            System.out.println(ce.getMessage());
+           ce.printStackTrace();
         }catch (NullPointerException ne){
-            System.out.println(ne+e.fieldName);
+            ne.printStackTrace();
         }catch (NotFoundException ce){
-            System.out.println("Vertex not found for feature");
+            ce.printStackTrace();
         }
     }
 

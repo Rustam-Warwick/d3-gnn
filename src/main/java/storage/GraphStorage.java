@@ -35,5 +35,4 @@ public abstract class GraphStorage {
     abstract public Stream<BaseEdge<BaseVertex>> getEdges();
     abstract public BaseEdge<BaseVertex> getEdge(String source,String dest) throws NotFoundException;
 
-
 }

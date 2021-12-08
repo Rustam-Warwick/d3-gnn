@@ -189,6 +189,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
             }else if(msg.state == ReplicableGraphElement.STATE.NONE){
                 // Needs to be redirected to master. Updates are done in master. Why it is here? D
                 System.out.println("Needs to be redirected to master, updates are done in master, why it is here");
+                ((ReplicableGraphElement) element).sendMessageToMaster(new GraphQuery(msg).changeOperation(GraphQuery.OPERATORS.UPDATE));
             }
         }
     }

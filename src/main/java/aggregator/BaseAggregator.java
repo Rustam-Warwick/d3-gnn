@@ -1,7 +1,7 @@
 package aggregator;
 
+import edge.BaseEdge;
 import part.BasePart;
-import types.GraphQuery;
 import vertex.BaseVertex;
 
 /**
@@ -9,7 +9,7 @@ import vertex.BaseVertex;
  *
  *
  */
-public abstract class BaseAggregator {
+public abstract class BaseAggregator<VT extends BaseVertex, ET extends BaseEdge<VT>> {
     public BasePart part = null;
 
     public BaseAggregator attachedTo(BasePart e){
@@ -17,6 +17,19 @@ public abstract class BaseAggregator {
         return this;
 
     }
+    public void addVertexCallback(VT vertex){
+
+    }
+
+    public void addEdgeCallback(ET edge){
+
+    }
+
+    public void updateVertexCallback(VT vertex){
+
+    }
+
+
 
     public BasePart getPart() {
         return part;
@@ -25,17 +38,4 @@ public abstract class BaseAggregator {
     public void setPart(BasePart part) {
         this.part = part;
     }
-
-    /**
-     * Is the Ojects real type accepted in this aggregator. Does it care?
-     * @param o Object to by typechecked
-     * @return
-     */
-    public abstract boolean shouldTrigger(GraphQuery o);
-
-    /**
-     * If objects type is accepted then comes into dispatch
-     * @param msg Object instance
-     */
-    public abstract void dispatch(GraphQuery msg);
 }

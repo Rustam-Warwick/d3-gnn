@@ -70,7 +70,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
         for(Short i: alsoSendHere){
             this.sendMessage(msg,i);
         }
-
     }
 
     /**

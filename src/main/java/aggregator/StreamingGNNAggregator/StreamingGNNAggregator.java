@@ -19,17 +19,40 @@ public class StreamingGNNAggregator extends BaseStreamingGNNAggregator<SimpleVer
     @Override
     public CompletableFuture<INDArray> message(SimpleEdge e) {
         short level = getPart().level;
-        return CompletableFuture.allOf(e.feature.getValue(),e.feature.getValue()).thenApply((b)->{
-            INDArray source = e.source.feature.getValue().join();
-            INDArray edge = e.feature.getValue().join();
-            return source.mul(edge);
-        });
+        if(level==0){
+            return CompletableFuture.allOf(e.feature.getValue(),e.source.feature.getValue()).thenApply((b)->{
+                INDArray source = e.source.feature.getValue().join();
+                INDArray edge = e.feature.getValue().join();
+                return source.mul(edge);
+            });
+        }
+        if(level==1){
+            return CompletableFuture.allOf(e.feature.getValue(),e.source.h1.getValue()).thenApply((b)->{
+                INDArray source = e.source.h1.getValue().join();
+                INDArray edge = e.feature.getValue().join();
+                return source.mul(edge);
+            });
+        }
+        else{
+            return CompletableFuture.allOf(e.feature.getValue(),e.source.h2.getValue()).thenApply((b)->{
+                INDArray source = e.source.h2.getValue().join();
+                INDArray edge = e.feature.getValue().join();
+                return source.mul(edge);
+            });
+
+        }
     }
 
     @Override
     public CompletableFuture<INDArray> update(SimpleVertex e) {
         short level = getPart().level;
-        return e.feature.getValue();
+        if(level==0){
+           return e.feature.getValue();
+        }
+        if(level==1){
+            return e.h1.getValue();
+        }
+        return e.h2.getValue();
     }
 
 }

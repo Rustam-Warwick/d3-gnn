@@ -21,14 +21,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  * We can use aggregator functions such as SUM, MEAN, MAX , MIN. For MEAN we are sending the count accumulator
  *
  */
-abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>> extends BaseAggregator {
+abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>> extends BaseAggregator<V,T> {
 
     public void toNextLevel(INDArray update, BaseVertex destination){
         try{
-            assert update!=null;
+            if(update==null) throw new NullPointerException();
             Feature.Update<INDArray> a = new Feature.Update<>();
             a.setAttachedId(destination.getId());
-            a.setFieldName(destination.getFeature((getPart().level + 1)).fieldName);
+            a.setFieldName(destination.getFeatureField((getPart().level + 1)).getName());
             a.setAttachedToClassName(destination.getClass().getName());
             a.setState(ReplicableGraphElement.STATE.NONE);
             a.setValue(update);
@@ -36,7 +36,7 @@ abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends
             this.getPart().collect(query.toPart(this.getPart().getPartId()),true);
         }
        catch (Exception e){
-           System.out.println(e.getMessage());
+            e.printStackTrace();
        }
     }
     /**
@@ -48,53 +48,30 @@ abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends
     abstract public CompletableFuture<INDArray> update(V e);
 
     @Override
-    public boolean shouldTrigger(GraphQuery o) {
-        return o.op== GraphQuery.OPERATORS.UPDATE || o.op== GraphQuery.OPERATORS.SYNC || o.op== GraphQuery.OPERATORS.ADD;
+    public void addEdgeCallback(T edge) {
+        super.addEdgeCallback(edge);
+        this.message(edge).thenCompose(res->(
+                this.update(edge.destination)
+                )).whenComplete((res,vid)->{
+                    this.toNextLevel(res,edge.destination);
+        });
     }
 
     @Override
-    public void dispatch(GraphQuery msg) {
-        try{
-            switch (msg.op){
-                case ADD:{
-                    if(msg.element instanceof BaseEdge){
-                        // Edge Addition.
-                        T edge = (T) msg.element;
-                        //  Compute message -> Increment aggregator -> Send the UPDATED result from master partition only
-                        this.message(edge).thenCompose(res->{
-                            return this.update(edge.destination);
-                        }).whenComplete((res,vid)->{
-                            this.toNextLevel(res,edge.destination);
-                        });
-                    }
-                    break;
-                }
-
-                case UPDATE:
-                case SYNC:{
-                    if(msg.element instanceof Feature.Update){
-                        Feature.Update upd = (Feature.Update) msg.element;
-                        V vertex = (V) getPart().getStorage().getVertex(upd.attachedId);
-                        getPart().getStorage().getEdges().filter(item->item.source.equals(vertex)).forEach(item->{
-                            T edge = (T) item;
-                            this.message(edge).thenCompose(res->this.update(edge.destination))
-                                    .whenComplete((resa,vod)->{
-                                        this.toNextLevel(resa,item.destination);
-                            });
-                        });
-
-                        this.update(vertex).whenComplete((resa,vod)->{
-                            this.toNextLevel(resa,vertex);
-                        });
-                        }
-                    }
-                }
-            }
-        catch (NotFoundException e){
-            System.out.println(e);
-        }
+    public void updateVertexCallback(V vertex) {
+        super.updateVertexCallback(vertex);
+        getPart().getStorage().getEdges().filter(item->item.source.equals(vertex)).forEach(item->{
+            T edge = (T) item;
+            this.message(edge).thenCompose(res->this.update(edge.destination))
+                    .whenComplete((res,vd)->{
+                        this.toNextLevel(res,item.destination);
+            });
 
 
-
+            this.update(vertex).whenComplete((res,vd)->{
+               this.toNextLevel(res,vertex);
+            });
+        });
     }
+
 }

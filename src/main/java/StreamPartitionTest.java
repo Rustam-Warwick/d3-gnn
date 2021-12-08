@@ -50,7 +50,14 @@ public class StreamPartitionTest {
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
         GraphStream stream = new GraphStream(source,env);
-        stream.partitionBy(new RandomPartitioning()).addGNN(1);
+        GraphStream res = stream.partitionBy(new RandomPartitioning()).addGNN(0).addGNN(1).addGNN(2);
+        res.input.map(item->{
+            if(item.op== GraphQuery.OPERATORS.UPDATE){
+                Feature.Update a = (Feature.Update) item.element;
+                System.out.println(a.value);
+            }
+            return item;
+        });
 
 
 

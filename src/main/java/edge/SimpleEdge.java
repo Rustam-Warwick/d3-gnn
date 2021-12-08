@@ -12,7 +12,7 @@ import vertex.SimpleVertex;
 
 
 public class SimpleEdge  extends BaseEdge<SimpleVertex>{
-    @FeatureAnnotation(level=0)
+    @FeatureAnnotation(level=-1)
     public StaticFeature<INDArray> feature = null;
 
     public SimpleEdge(SimpleVertex source, SimpleVertex destination) {
@@ -27,7 +27,17 @@ public class SimpleEdge  extends BaseEdge<SimpleVertex>{
         super(e);
     }
 
+    /**
+     * Call the callback of aggregators if this edge is added to storage
+     * @param storage GraphStorage
+     */
     @Override
+    public void setStorageCallback(GraphStorage storage) {
+        super.setStorageCallback(storage);
+        this.getStorage().getPart().aggFunctions.forEach(item->{
+            item.addEdgeCallback(this);
+        });
+    }
     public BaseEdge<SimpleVertex> copy() {
         return new SimpleEdge(this);
     }

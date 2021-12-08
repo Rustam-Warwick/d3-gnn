@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public class GraphStream {
     private final StreamExecutionEnvironment env;
-    private final DataStream<GraphQuery> input;
+    public final DataStream<GraphQuery> input;
 
     public GraphStream(DataStream<GraphQuery> input, StreamExecutionEnvironment env){
         this.env = env;
@@ -32,7 +32,7 @@ public class GraphStream {
             return new GraphStream(tmp,this.env);
         }
         else{
-            DataStream<GraphQuery>tmp= input.map(e).setParallelism(1).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor()).map(item->item);
+            DataStream<GraphQuery>tmp= input.map(e).setParallelism(1).map(item->item).partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor());
             return new GraphStream(tmp,this.env);
         }
     }
@@ -42,8 +42,11 @@ public class GraphStream {
      * @param l depth of GNN aggregation
      * @return
      */
-    public DataStream<GraphQuery> addGNN(int l){
-        return BasePart.partWithIteration(this.input,new GNNPart(),item->item.op== GraphQuery.OPERATORS.SYNC,item->item.op!= GraphQuery.OPERATORS.SYNC);
+    public GraphStream addGNN(int l){
+        GNNPart s = new GNNPart();
+        s.setLevel((short)l);
+        DataStream<GraphQuery> next = BasePart.partWithIteration(this.input,s,item->item.op== GraphQuery.OPERATORS.SYNC,item->item.op!= GraphQuery.OPERATORS.SYNC);
+        return new GraphStream(next.partitionCustom(new BasePartitioner.PartExtractPartitioner(),new BasePartitioner.PartKeyExtractor()),this.env);
     }
 
     public StreamExecutionEnvironment getEnvironment() {

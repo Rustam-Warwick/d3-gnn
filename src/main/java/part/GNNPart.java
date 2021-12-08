@@ -1,7 +1,6 @@
 package part;
 
 import aggregator.BaseAggregator;
-import aggregator.StreamingGNNAggregator.StreamingAggType;
 import aggregator.StreamingGNNAggregator.StreamingGNNAggregator;
 import edge.BaseEdge;
 import features.Feature;
@@ -9,8 +8,6 @@ import storage.GraphStorage;
 import storage.HashMapGraphStorage;
 import types.GraphQuery;
 import vertex.BaseVertex;
-
-import java.util.ArrayList;
 
 
 public class GNNPart  extends  BasePart {
@@ -29,6 +26,10 @@ public class GNNPart  extends  BasePart {
         return new BaseAggregator[]{new StreamingGNNAggregator()};
     }
 
+
+
+
+
     @Override
     public void dispatch(GraphQuery query){
         try {
@@ -36,35 +37,35 @@ public class GNNPart  extends  BasePart {
             boolean isEdge = query.element instanceof BaseEdge;
             boolean isFeature = query.element instanceof Feature.Update;
             switch (query.op) {
-                case ADD : {
+                case ADD: {
                     if (isEdge) {
+                        this.collect(query, true);
                         BaseEdge<BaseVertex> tmp = (BaseEdge) query.element;
                         getStorage().addEdge(tmp);
                     }
                     break;
                 }
-                case REMOVE : System.out.println("Remove Operation");
-                case UPDATE:{
-                    if(isFeature) {
+                case REMOVE:
+                    System.out.println("Remove Operation");
+                case UPDATE: {
+                    if (isFeature) {
                         getStorage().updateFeature((Feature.Update<?>) query.element);
                     }
                     break;
                 }
-                case SYNC : {
-                    if(isFeature) {
+                case SYNC: {
+                    if (isFeature) {
                         getStorage().updateFeature((Feature.Update<?>) query.element);
                     }
                     break;
                 }
-                case AGG : {
+                case AGG: {
                     // Handled below in aggFunctions
                     break;
                 }
-                default : System.out.println("Undefined Operation");
-        }
-        aggFunctions.forEach((fn) -> {
-                if (fn.shouldTrigger(query)) fn.dispatch(query);
-        });
+                default:
+                    System.out.println("Undefined Operation");
+            }
 
 
 

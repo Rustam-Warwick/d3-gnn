@@ -74,7 +74,7 @@ abstract public class GraphElement{
             ArrayList<Field> featureFields = GraphElement.getFeatures(this);
             for(Field f:featureFields){
                 try{
-                    if(f.isAnnotationPresent(FeatureAnnotation.class) && f.getAnnotation(FeatureAnnotation.class).level()!=levelPart)f.set(this,null);
+                    if(f.isAnnotationPresent(FeatureAnnotation.class) && f.getAnnotation(FeatureAnnotation.class).level()!=-1 && f.getAnnotation(FeatureAnnotation.class).level()!=levelPart)f.set(this,null);
                     Feature feature = (Feature)f.get(this);
                     if(!Objects.isNull(feature))feature.setElement(this);
                     if(feature instanceof ReplicableFeature){
@@ -98,9 +98,9 @@ abstract public class GraphElement{
             feature.updateMessage(incoming);
         }
         catch(IllegalAccessException e){
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }catch (NoSuchFieldException e){
-            System.out.println(e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -166,21 +166,21 @@ abstract public class GraphElement{
     }
 
     /**
-     * Get level Feature defined in the GraphElement
+     * Get the Field of a level x feature
      * @param level 0..
      * @return
      * @throws NoSuchFieldException
      * @throws IllegalAccessException
      */
     @NotNull
-    public Feature getFeature(int level) throws NoSuchFieldException,IllegalAccessException{
+    public Field getFeatureField(int level) throws NoSuchFieldException,IllegalAccessException{
         Class<?> tmp = null;
         ArrayList<Field> fields = new ArrayList<>();
         tmp = this.getClass();
         while(!tmp.equals(GraphElement.class)){
             Field[] fieldsForClass = tmp.getDeclaredFields();
             for(Field tmpField:fieldsForClass){
-                if(Feature.class.isAssignableFrom(tmpField.getType()) && tmpField.isAnnotationPresent(FeatureAnnotation.class) && tmpField.getAnnotation(FeatureAnnotation.class).level()==level)return (Feature)tmpField.get(this);
+                if(Feature.class.isAssignableFrom(tmpField.getType()) && tmpField.isAnnotationPresent(FeatureAnnotation.class) && tmpField.getAnnotation(FeatureAnnotation.class).level()==level)return tmpField;
             }
             tmp = tmp.getSuperclass();
         }
