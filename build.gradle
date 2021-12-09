@@ -25,9 +25,9 @@ dependencies {
 //        'org.deeplearning4j:deeplearning4j-core:1.0.0-M1.1',
             'org.apache.flink:flink-statebackend-rocksdb_2.11:1.14.0',
             'org.nd4j:nd4j-native-platform:1.0.0-M1.1',
-//        'ch.qos.logback:logback-classic:1.1.7',
             'org.deeplearning4j:deeplearning4j-utility-iterators:1.0.0-M1.1',
-            'org.nd4j:nd4j-kryo_2.11:1.0.0-M1.1'
+            'org.nd4j:nd4j-kryo_2.11:1.0.0-M1.1',
+            'org.tensorflow:tensorflow-core-platform:0.3.3',
 
     ])
 //    constraints{
