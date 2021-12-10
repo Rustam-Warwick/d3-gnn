@@ -6,6 +6,9 @@ import features.Feature;
 import features.ReplicableAggregator;
 import features.StaticFeature;
 import org.nd4j.linalg.api.ndarray.INDArray;
+import org.tensorflow.op.core.Constant;
+import org.tensorflow.types.TFloat32;
+import org.tensorflow.types.TFloat64;
 import storage.GraphStorage;
 import vertex.BaseVertex;
 import vertex.SimpleVertex;
@@ -13,7 +16,7 @@ import vertex.SimpleVertex;
 
 public class SimpleEdge  extends BaseEdge<SimpleVertex>{
     @FeatureAnnotation(level=-1)
-    public StaticFeature<INDArray> feature = null;
+    public StaticFeature<TFloat32> feature = null;
 
     public SimpleEdge(SimpleVertex source, SimpleVertex destination) {
         super(source, destination);

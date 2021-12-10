@@ -9,12 +9,19 @@ import org.nd4j.kryo.Nd4jSerializer;
 import org.nd4j.linalg.api.ndarray.INDArray;
 import org.nd4j.linalg.factory.Nd4j;
 import org.tensorflow.EagerSession;
+import org.tensorflow.Tensor;
+import org.tensorflow.internal.types.TFloat32Mapper;
+import org.tensorflow.ndarray.Shape;
 import org.tensorflow.op.Ops;
 import org.tensorflow.op.Scope;
 import org.tensorflow.op.core.Constant;
 import org.tensorflow.op.random.RandomUniform;
+import org.tensorflow.types.TFloat32;
+import org.tensorflow.types.TFloat64;
 import org.tensorflow.types.TInt32;
+import org.tensorflow.types.family.TType;
 import partitioner.RandomPartitioning;
+import serializers.TensorSerializer;
 import types.GraphQuery;
 import vertex.SimpleVertex;
 
@@ -34,32 +41,41 @@ public class StreamPartitionTest {
         env.registerType(ReplicableTensorFeature.class);
         env.registerTypeWithKryoSerializer(Nd4j.getBackend().getNDArrayClass(), Nd4jSerializer.class);
         env.registerTypeWithKryoSerializer(ClosureSerializer.Closure.class,ClosureSerializer.class);
+        env.registerTypeWithKryoSerializer(Tensor.class, TensorSerializer.class);
+
+
+
     }
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.getConfig().disableClosureCleaner();
         env.setParallelism(parallelism);
         env.setStateBackend(new EmbeddedRocksDBStateBackend());
         StreamPartitionTest.registerSerializers(env);
 
         DataStream<GraphQuery> source =  env.socketTextStream("127.0.0.1",9090).setParallelism(1).map(item->{
-
+            Ops a = Ops.create();
+            TFloat32 s1 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
+            TFloat32 s2 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
             String[] lineItems = item.split("\t");
             String id1 = lineItems[0];
             String id2 = lineItems[1];
             SimpleVertex v1 = new SimpleVertex(id1);
             SimpleVertex v2 = new SimpleVertex(id2);
-            v1.feature = new ReplicableTFTensorFeature("feature",v1, Nd4j.rand(8,8));
-            v2.feature = new ReplicableTensorFeature("feature",v2,Nd4j.rand(8,8));
+            Scope e = new Scope(EagerSession.getDefault());
+            v1.feature = new ReplicableTFTensorFeature("feature",v1, s1);
+            v2.feature = new ReplicableTFTensorFeature("feature",v2, s2);
             SimpleEdge ed = new SimpleEdge(v1,v2);
-            ed.feature = new StaticFeature<INDArray>("feature",ed,Nd4j.rand(8,8));
+            ed.feature = new StaticFeature<TFloat32>("feature",ed,s1);
+            System.out.println(ed.feature.value.getClass());
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
         GraphStream stream = new GraphStream(source,env);
         GraphStream res = stream.partitionBy(new RandomPartitioning()).addGNN(0).addGNN(1).addGNN(2);
         res.input.map(item->{
             if(item.op== GraphQuery.OPERATORS.UPDATE){
-                Feature.Update a = (Feature.Update) item.element;
-                System.out.println(a.value);
+                Feature.Update upd = (Feature.Update) item.element;
+                System.out.println(upd.value);
             }
             return item;
         });

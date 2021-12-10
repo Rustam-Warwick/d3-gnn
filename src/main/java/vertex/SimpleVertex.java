@@ -40,14 +40,14 @@ public class SimpleVertex extends BaseVertex {
     @Override
     public void setStorageCallback(GraphStorage storage) {
         if(storage!=null){
-            if(storage.getPart().getLevel()==1){
-                this.h1agg = new ReplicableTFTensorFeature("h1agg",this, TFloat64.tensorOf(Shape.of(8,8)));
-                this.h1 = new ReplicableTFTensorFeature("h1",this,TFloat64.tensorOf(Shape.of(8,8)));
-            }
-            if(storage.getPart().getLevel()==2){
-                this.h2agg = new ReplicableTFTensorFeature("h2agg",this,TFloat64.tensorOf(Shape.of(8,8)));
-                this.h2 = new ReplicableTFTensorFeature("h2",this,TFloat64.tensorOf(Shape.of(8,8)));
-            }
+//            if(storage.getPart().getLevel()==1){
+//                this.h1agg = new ReplicableTFTensorFeature("h1agg",this, TFloat64.tensorOf(Shape.of(8,8)));
+//                this.h1 = new ReplicableTFTensorFeature("h1",this,TFloat64.tensorOf(Shape.of(8,8)));
+//            }
+//            if(storage.getPart().getLevel()==2){
+//                this.h2agg = new ReplicableTFTensorFeature("h2agg",this,TFloat64.tensorOf(Shape.of(8,8)));
+//                this.h2 = new ReplicableTFTensorFeature("h2",this,TFloat64.tensorOf(Shape.of(8,8)));
+//            }
         }
         super.setStorageCallback(storage);
 

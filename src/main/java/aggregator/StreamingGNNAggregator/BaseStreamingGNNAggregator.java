@@ -21,12 +21,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * We can use aggregator functions such as SUM, MEAN, MAX , MIN. For MEAN we are sending the count accumulator
  *
  */
-abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>> extends BaseAggregator<V,T> {
+abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>,K> extends BaseAggregator<V,T> {
 
-    public void toNextLevel(INDArray update, BaseVertex destination){
+    public void toNextLevel(K update, BaseVertex destination){
         try{
             if(update==null) throw new NullPointerException();
-            Feature.Update<INDArray> a = new Feature.Update<>();
+            Feature.Update<K> a = new Feature.Update<>();
             a.setAttachedId(destination.getId());
             a.setFieldName(destination.getFeatureField((getPart().level + 1)).getName());
             a.setAttachedToClassName(destination.getClass().getName());
@@ -44,8 +44,8 @@ abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends
      * @param e
      * @return
      */
-    abstract public CompletableFuture<INDArray> message(T e);
-    abstract public CompletableFuture<INDArray> update(V e);
+    abstract public CompletableFuture<K> message(T e);
+    abstract public CompletableFuture<K> update(V e);
 
     @Override
     public void addEdgeCallback(T edge) {
