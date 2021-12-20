@@ -11,6 +11,7 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.tensorflow.EagerSession;
 import org.tensorflow.Tensor;
 import org.tensorflow.internal.types.TFloat32Mapper;
+import org.tensorflow.internal.types.TFloat64Mapper;
 import org.tensorflow.ndarray.Shape;
 import org.tensorflow.op.Ops;
 import org.tensorflow.op.Scope;
@@ -23,6 +24,7 @@ import org.tensorflow.types.family.TType;
 import partitioner.RandomPartitioning;
 import serializers.TensorSerializer;
 import types.GraphQuery;
+import types.TFWrapper;
 import vertex.SimpleVertex;
 
 import java.lang.invoke.SerializedLambda;
@@ -41,10 +43,7 @@ public class StreamPartitionTest {
         env.registerType(ReplicableTensorFeature.class);
         env.registerTypeWithKryoSerializer(Nd4j.getBackend().getNDArrayClass(), Nd4jSerializer.class);
         env.registerTypeWithKryoSerializer(ClosureSerializer.Closure.class,ClosureSerializer.class);
-        env.registerTypeWithKryoSerializer(Tensor.class, TensorSerializer.class);
-
-
-
+        env.registerTypeWithKryoSerializer(TFWrapper.class, TensorSerializer.class);
     }
     public static void main(String[] args) throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -62,11 +61,10 @@ public class StreamPartitionTest {
             String id2 = lineItems[1];
             SimpleVertex v1 = new SimpleVertex(id1);
             SimpleVertex v2 = new SimpleVertex(id2);
-            Scope e = new Scope(EagerSession.getDefault());
-            v1.feature = new ReplicableTFTensorFeature("feature",v1, s1);
-            v2.feature = new ReplicableTFTensorFeature("feature",v2, s2);
+            v1.feature = new ReplicableTFTensorFeature("feature",v1, new TFWrapper(s1));
+            v2.feature = new ReplicableTFTensorFeature("feature",v2, new TFWrapper(s2));
             SimpleEdge ed = new SimpleEdge(v1,v2);
-            ed.feature = new StaticFeature<TFloat32>("feature",ed,s1);
+            ed.feature = new StaticFeature<TFWrapper>("feature",ed,new TFWrapper(s1));
             System.out.println(ed.feature.value.getClass());
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");

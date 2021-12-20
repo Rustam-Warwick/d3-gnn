@@ -7,8 +7,9 @@ import org.tensorflow.types.TFloat32;
 import org.tensorflow.types.TFloat64;
 import types.GraphElement;
 import org.tensorflow.ndarray.DoubleNdArray;
+import types.TFWrapper;
 
-public class ReplicableTFTensorFeature extends ReplicableFeature<TFloat32> {
+public class ReplicableTFTensorFeature extends ReplicableFeature<TFWrapper> {
 
 
     public ReplicableTFTensorFeature() {
@@ -23,12 +24,12 @@ public class ReplicableTFTensorFeature extends ReplicableFeature<TFloat32> {
         super(fieldName, element,null);
     }
 
-    public ReplicableTFTensorFeature(String fieldName, GraphElement element, TFloat32 value) {
+    public ReplicableTFTensorFeature(String fieldName, GraphElement element, TFWrapper value) {
         super(fieldName, element, value);
     }
 
     @Override
-    public void setValue(TFloat32 value) {
+    public void setValue(TFWrapper value) {
         this.editHandler(item->{
             item.value = value;
             return true;

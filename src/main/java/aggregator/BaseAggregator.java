@@ -15,8 +15,8 @@ public abstract class BaseAggregator<VT extends BaseVertex, ET extends BaseEdge<
     public BaseAggregator attachedTo(BasePart e){
         this.part =e;
         return this;
-
     }
+
     public void addVertexCallback(VT vertex){
 
     }
