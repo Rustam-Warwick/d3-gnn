@@ -56,6 +56,8 @@ public class StreamPartitionTest {
             Ops a = Ops.create();
             TFloat32 s1 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
             TFloat32 s2 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
+            System.out.println(s1.getFloat(0,0));
+            System.out.println(s2.getFloat(0,0));
             String[] lineItems = item.split("\t");
             String id1 = lineItems[0];
             String id2 = lineItems[1];

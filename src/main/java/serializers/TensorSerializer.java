@@ -16,6 +16,7 @@ import org.tensorflow.types.TString;
 import org.tensorflow.types.family.TType;
 import types.TFWrapper;
 
+import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
@@ -27,6 +28,7 @@ public class TensorSerializer extends Serializer<TFWrapper> {
     }
     @Override
     public void write(Kryo kryo, Output output, TFWrapper object) {
+
         MyBufferMapper buffer = new MyBufferMapper(output);
         SerializeTensor a = this.ops.io.serializeTensor(this.ops.constantOf(object.value));
         a.serialized().asTensor().asBytes().write(buffer);
@@ -35,10 +37,14 @@ public class TensorSerializer extends Serializer<TFWrapper> {
     @Override
     public TFWrapper read(Kryo kryo, Input input, Class<TFWrapper> type) {
 
+            int length = input.readInt();
+            byte[] rawTensorData = input.readBytes(length);
+            String decodedRawTensor = new String(rawTensorData,StandardCharsets.US_ASCII);
+            Constant<TString> str = this.ops.constant(StandardCharsets.US_ASCII,decodedRawTensor);
+            TFloat32 a = ops.io.parseTensor(str,TFloat32.class).asTensor();
+            a.getFloat(0,0);
+            return new TFWrapper(a);
 
-        Constant<T> str = this.ops.constant(StandardCharsets.US_ASCII,input.readString());
-        TFloat32 a = ops.io.parseTensor(str, TFloat32.class).asTensor();
-        return new TFWrapper(a);
     }
 
     public class MyBufferMapper implements DataBuffer<byte[]>{
@@ -80,6 +86,7 @@ public class TensorSerializer extends Serializer<TFWrapper> {
         public DataBuffer<byte[]> copyTo(DataBuffer<byte[]> dst, long size) {
             byte[][] a = new byte[1][];
             dst.read(a);
+            kryo.writeInt(a[0].length);
             kryo.writeBytes(a[0]);
             return this;
         }
