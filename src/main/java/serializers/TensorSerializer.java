@@ -4,6 +4,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import org.tensorflow.Tensor;
 import org.tensorflow.ndarray.buffer.DataBuffer;
 import org.tensorflow.ndarray.buffer.DataBufferWindow;
 import org.tensorflow.ndarray.buffer.DataStorageVisitor;
@@ -30,20 +31,27 @@ public class TensorSerializer extends Serializer<TFWrapper> {
     public void write(Kryo kryo, Output output, TFWrapper object) {
 
         MyBufferMapper buffer = new MyBufferMapper(output);
+        output.writeString(object.getValue().type().getName());
         SerializeTensor a = this.ops.io.serializeTensor(this.ops.constantOf(object.value));
         a.serialized().asTensor().asBytes().write(buffer);
     }
 
     @Override
     public TFWrapper read(Kryo kryo, Input input, Class<TFWrapper> type) {
-
+        try {
+            String className = input.readString();
+            Class clazz = Class.forName(className);
             int length = input.readInt();
             byte[] rawTensorData = input.readBytes(length);
             String decodedRawTensor = new String(rawTensorData,StandardCharsets.US_ASCII);
             Constant<TString> str = this.ops.constant(StandardCharsets.US_ASCII,decodedRawTensor);
-            TFloat32 a = ops.io.parseTensor(str,TFloat32.class).asTensor();
-            a.getFloat(0,0);
+            TType a = ops.io.parseTensor(str,clazz).asTensor();
             return new TFWrapper(a);
+        }
+        catch (ClassNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
 
     }
 

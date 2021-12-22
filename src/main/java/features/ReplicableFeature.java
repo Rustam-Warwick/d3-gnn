@@ -104,15 +104,11 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
      * Case with exceptions are usually impossible
      */
     public void completeFuzzy(){
-        if(this.fuzzyValue==null){
+        if(this.fuzzyValue==null || this.fuzzyValue.isDone() || this.fuzzyValue.isCompletedExceptionally()){
             this.fuzzyValue = new CompletableFuture<>();
             this.fuzzyValue.complete(this.value);
         }
         if(!this.fuzzyValue.isDone()){
-            this.fuzzyValue.complete(this.value);
-        }
-        if(this.fuzzyValue.isCompletedExceptionally()){
-            this.fuzzyValue = new CompletableFuture<>();
             this.fuzzyValue.complete(this.value);
         }
     }
@@ -139,6 +135,7 @@ abstract public class ReplicableFeature<T> extends Feature<T>{
         if (changed) {
             // 1. Increment lastUpdateed
             this.lastModified.incrementAndGet();
+            this.completeFuzzy();
             // 2. Compose state message and update the replica
             ((ReplicableGraphElement) element).sendMessageToReplicas(ReplicableFeature.prepareMessage(this.prepareStateSync()));
         }

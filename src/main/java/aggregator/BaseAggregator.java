@@ -2,6 +2,8 @@ package aggregator;
 
 import edge.BaseEdge;
 import part.BasePart;
+import storage.GraphStorage;
+import types.GraphQuery;
 import vertex.BaseVertex;
 
 /**
@@ -10,32 +12,39 @@ import vertex.BaseVertex;
  *
  */
 public abstract class BaseAggregator<VT extends BaseVertex, ET extends BaseEdge<VT>> {
-    public BasePart part = null;
+    public GraphStorage storage = null;
 
-    public BaseAggregator attachedTo(BasePart e){
-        this.part =e;
-        return this;
+    public GraphStorage getStorage() {
+        return storage;
     }
 
+    public void setStorage(GraphStorage storage) {
+        this.storage = storage;
+    }
+
+    public BaseAggregator attachedTo(GraphStorage e){
+        this.storage =e;
+        return this;
+    }
+    public void preAddVertexCallback(VT vertex){
+
+    }
     public void addVertexCallback(VT vertex){
 
     }
 
+    public void preAddEdgeCallback(ET edge){
+
+    }
     public void addEdgeCallback(ET edge){
 
     }
-
+    public void preUpdateFeatureCallback()
     public void updateVertexCallback(VT vertex){
 
     }
+    public void dispatch(GraphQuery query){
 
-
-
-    public BasePart getPart() {
-        return part;
     }
 
-    public void setPart(BasePart part) {
-        this.part = part;
-    }
 }

@@ -56,8 +56,6 @@ public class StreamPartitionTest {
             Ops a = Ops.create();
             TFloat32 s1 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
             TFloat32 s2 = a.random.<TFloat32>randomUniform(a.constant(new int[]{2,2}),TFloat32.class).asTensor();
-            System.out.println(s1.getFloat(0,0));
-            System.out.println(s2.getFloat(0,0));
             String[] lineItems = item.split("\t");
             String id1 = lineItems[0];
             String id2 = lineItems[1];
@@ -66,16 +64,14 @@ public class StreamPartitionTest {
             v1.feature = new ReplicableTFTensorFeature("feature",v1, new TFWrapper(s1));
             v2.feature = new ReplicableTFTensorFeature("feature",v2, new TFWrapper(s2));
             SimpleEdge ed = new SimpleEdge(v1,v2);
-            ed.feature = new StaticFeature<TFWrapper>("feature",ed,new TFWrapper(s1));
-            System.out.println(ed.feature.value.getClass());
+            ed.feature = new StaticFeature<TFWrapper<TFloat32>>("feature",ed,new TFWrapper(s2));
             return new GraphQuery(ed).changeOperation(GraphQuery.OPERATORS.ADD);
         }).setParallelism(1).name("Source Reader Mapper");
         GraphStream stream = new GraphStream(source,env);
-        GraphStream res = stream.partitionBy(new RandomPartitioning()).addGNN(0).addGNN(1).addGNN(2);
+        GraphStream res = stream.partitionBy(new RandomPartitioning()).addGNN(0);
         res.input.map(item->{
-            if(item.op== GraphQuery.OPERATORS.UPDATE){
-                Feature.Update upd = (Feature.Update) item.element;
-                System.out.println(upd.value);
+            if(item.op== GraphQuery.OPERATORS.AGG){
+                System.out.println("AGG");
             }
             return item;
         });

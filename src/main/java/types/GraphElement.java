@@ -55,7 +55,7 @@ abstract public class GraphElement{
      * @param partId
      */
     public void sendMessage(GraphQuery msg, Short partId){
-        this.getStorage().getPart().collect(msg.generateQueryForPart(partId),true);
+        this.getStorage().collect(msg.generateQueryForPart(partId),true);
     }
 
     /**
@@ -69,12 +69,11 @@ abstract public class GraphElement{
     public void setStorageCallback(GraphStorage storage){
         this.storage = storage;
         if(storage!=null){
-            this.partId = storage.getPart().getPartId();
-            int levelPart = storage.getPart().level;
+            this.partId = storage.getPartId();
             ArrayList<Field> featureFields = GraphElement.getFeatures(this);
             for(Field f:featureFields){
                 try{
-                    if(f.isAnnotationPresent(FeatureAnnotation.class) && f.getAnnotation(FeatureAnnotation.class).level()!=-1 && f.getAnnotation(FeatureAnnotation.class).level()!=levelPart)f.set(this,null);
+//                    if(f.isAnnotationPresent(FeatureAnnotation.class) && f.getAnnotation(FeatureAnnotation.class).level()!=-1 && f.getAnnotation(FeatureAnnotation.class).level()!=levelPart)f.set(this,null);
                     Feature feature = (Feature)f.get(this);
                     if(!Objects.isNull(feature))feature.setElement(this);
                     if(feature instanceof ReplicableFeature){

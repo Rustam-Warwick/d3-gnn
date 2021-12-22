@@ -58,7 +58,6 @@ abstract public class BasePart extends ProcessFunction<GraphQuery,GraphQuery>  {
         for(BaseAggregator i:tmp){
             this.attachAggregator(i);
         }
-
     }
 
 
@@ -72,7 +71,7 @@ abstract public class BasePart extends ProcessFunction<GraphQuery,GraphQuery>  {
 
     public BasePart attachAggregator(BaseAggregator e){
         aggFunctions.add(e);
-        e.attachedTo(this);
+//        e.attachedTo(this);
         return this;
     }
 

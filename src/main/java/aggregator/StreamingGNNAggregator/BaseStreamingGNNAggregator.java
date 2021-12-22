@@ -1,51 +1,59 @@
 package aggregator.StreamingGNNAggregator;
 
 import aggregator.BaseAggregator;
-import aggregator.GNNAggregator.GNNQuery;
 import edge.BaseEdge;
-import features.Feature;
-import javassist.NotFoundException;
-import org.nd4j.linalg.api.ndarray.INDArray;
-import org.nd4j.linalg.factory.Nd4j;
-import scala.Tuple2;
-import scala.Tuple4;
+import org.tensorflow.types.family.TType;
 import types.GraphQuery;
-import types.ReplicableGraphElement;
+import types.TFWrapper;
 import vertex.BaseVertex;
-
-import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * We can use aggregator functions such as SUM, MEAN, MAX , MIN. For MEAN we are sending the count accumulator
  *
  */
-abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>,K> extends BaseAggregator<V,T> {
+abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends BaseEdge<V>,K extends TType> extends BaseAggregator<V,T> {
+    public Short level = 0;
 
-    public void toNextLevel(K update, BaseVertex destination){
+    public class MSG{
+        TFWrapper<K> feature;
+        Short level;
+        String id;
+
+        public MSG(TFWrapper<K> feature, Short level, String id) {
+            this.feature = feature;
+            this.level = level;
+            this.id = id;
+        }
+    }
+
+    public void toNextLevel(TFWrapper<K> update, BaseVertex destination){
         try{
             if(update==null) throw new NullPointerException();
-            Feature.Update<K> a = new Feature.Update<>();
-            a.setAttachedId(destination.getId());
-            a.setFieldName(destination.getFeatureField((getPart().level + 1)).getName());
-            a.setAttachedToClassName(destination.getClass().getName());
-            a.setState(ReplicableGraphElement.STATE.NONE);
-            a.setValue(update);
-            GraphQuery query = new GraphQuery(a).changeOperation(GraphQuery.OPERATORS.UPDATE);
-            this.getPart().collect(query.toPart(this.getPart().getPartId()),true);
+            MSG a = new MSG(update,level,destination.getId());
+            GraphQuery query = new GraphQuery(a).changeOperation(GraphQuery.OPERATORS.AGG);
+            getStorage().sendMessage(query);
         }
        catch (Exception e){
             e.printStackTrace();
        }
     }
+
+    @Override
+    public void dispatch(GraphQuery query) {
+        super.dispatch(query);
+
+    }
+
     /**
      * Generates message for the given edge
      * @param e
      * @return
      */
-    abstract public CompletableFuture<K> message(T e);
-    abstract public CompletableFuture<K> update(V e);
+    abstract public CompletableFuture<TFWrapper<K>> message(T e);
+    abstract public CompletableFuture<TFWrapper<K>> update(V e);
+
+
 
     @Override
     public void addEdgeCallback(T edge) {
@@ -60,18 +68,18 @@ abstract public class BaseStreamingGNNAggregator<V extends BaseVertex, T extends
     @Override
     public void updateVertexCallback(V vertex) {
         super.updateVertexCallback(vertex);
-        getPart().getStorage().getEdges().filter(item->item.source.equals(vertex)).forEach(item->{
-            T edge = (T) item;
-            this.message(edge).thenCompose(res->this.update(edge.destination))
-                    .whenComplete((res,vd)->{
-                        this.toNextLevel(res,item.destination);
-            });
-
-
-            this.update(vertex).whenComplete((res,vd)->{
-               this.toNextLevel(res,vertex);
-            });
-        });
+//        getPart().getStorage().getEdges().filter(item->item.source.equals(vertex)).forEach(item->{
+//            T edge = (T) item;
+//            this.message(edge).thenCompose(res->this.update(edge.destination))
+//                    .whenComplete((res,vd)->{
+//                        this.toNextLevel(res,item.destination);
+//            });
+//
+//
+//            this.update(vertex).whenComplete((res,vd)->{
+//               this.toNextLevel(res,vertex);
+//            });
+//        });
     }
 
 }

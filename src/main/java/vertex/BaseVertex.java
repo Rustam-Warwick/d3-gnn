@@ -30,9 +30,6 @@ abstract public class BaseVertex extends ReplicableGraphElement{
     @Override
     public void setStorageCallback(GraphStorage storage) {
         super.setStorageCallback(storage);
-        this.getStorage().getPart().aggFunctions.forEach(item->{
-            item.addVertexCallback(this);
-        });
     }
 
     /**
@@ -46,7 +43,6 @@ abstract public class BaseVertex extends ReplicableGraphElement{
         try{
             Feature feature = this.getFeature(incoming.fieldName);
             if(feature instanceof ReplicableFeature && ((ReplicableFeature) feature).lastModified.get()==tmp)return; // No update happened since last time
-            this.getStorage().getPart().aggFunctions.forEach(item->{item.updateVertexCallback(this);});
         }catch (NoSuchFieldException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {

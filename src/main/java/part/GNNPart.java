@@ -61,6 +61,7 @@ public class GNNPart  extends  BasePart {
                 }
                 case AGG: {
                     // Handled below in aggFunctions
+                    this.aggFunctions.forEach(item->item.dispatch(query));
                     break;
                 }
                 default:

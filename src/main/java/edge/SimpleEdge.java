@@ -17,7 +17,7 @@ import vertex.SimpleVertex;
 
 public class SimpleEdge  extends BaseEdge<SimpleVertex>{
     @FeatureAnnotation(level=-1)
-    public StaticFeature<TFWrapper> feature = null;
+    public StaticFeature<TFWrapper<TFloat32>> feature = null;
 
     public SimpleEdge(SimpleVertex source, SimpleVertex destination) {
         super(source, destination);
@@ -38,7 +38,7 @@ public class SimpleEdge  extends BaseEdge<SimpleVertex>{
     @Override
     public void setStorageCallback(GraphStorage storage) {
         super.setStorageCallback(storage);
-        this.getStorage().getPart().aggFunctions.forEach(item->{
+        this.getStorage().aggFunctions.forEach(item->{
             item.addEdgeCallback(this);
         });
     }
