@@ -1,6 +1,6 @@
 from pyflink.datastream import StreamExecutionEnvironment
 from helpers.socketmapper import *
-
+from storage.map_storage import HashMapStorage
 PARALLELISM = 3
 
 
@@ -10,6 +10,7 @@ def run():
     env.get_config().disable_closure_cleaner()
     ds = file_reader(env)
     ds = ds.map(EdgeListParser())
+    ds = ds.process(HashMapStorage())
     ds.print()
     env.execute("Test Python job")
 

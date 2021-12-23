@@ -78,6 +78,7 @@ public abstract class GraphStorage extends ProcessFunction<GraphQuery,GraphQuery
     public void updateFeature(Feature.Update<?> e){
 
     }
+
     // Query Related Stuff
     abstract public BaseVertex getVertex(String id) throws NotFoundException;
     abstract public Stream<BaseVertex> getVertices();

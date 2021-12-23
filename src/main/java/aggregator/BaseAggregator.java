@@ -39,7 +39,9 @@ public abstract class BaseAggregator<VT extends BaseVertex, ET extends BaseEdge<
     public void addEdgeCallback(ET edge){
 
     }
-    public void preUpdateFeatureCallback()
+    public void preUpdateFeatureCallback(){
+
+    }
     public void updateVertexCallback(VT vertex){
 
     }
