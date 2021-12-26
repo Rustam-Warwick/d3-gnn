@@ -2,9 +2,10 @@ from pyflink.datastream import ProcessFunction
 from pyflink.datastream.functions import RuntimeContext
 from typing import TYPE_CHECKING
 from elements import ElementTypes, Op
+from exceptions import NotSupported
 
 if TYPE_CHECKING:
-    from elements import GraphQuery, GraphElement
+    from elements import GraphQuery, GraphElement, Rpc
     from elements.vertex import BaseVertex
     from elements.edge import BaseEdge
 
@@ -14,6 +15,7 @@ import abc
 class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
     def __init__(self):
         super(BaseStorage, self).__init__()
+        self.out: list = None
         self.part_id: int = -1
 
     def open(self, runtime_context: RuntimeContext):
@@ -38,18 +40,40 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         self.add_edge(edge)
         edge.post_add_storage_callback(self)
 
-    def msg_replicas(self, el: "GraphElement"):
-        print("Asking for msg")
+    @abc.abstractmethod
+    def update(self, old_element: "GraphElement", new_element: "GraphElement"):
+        """ Actually save element once it has changed """
         pass
 
-    def msg_master(self, el: "GraphElement"):
-        print("Asking for Master msg")
+    @abc.abstractmethod
+    def get_element(self, element_id: str) -> "GraphElement":
+        """ Return element given its id """
         pass
+
+    def message(self, query: "GraphQuery"):
+        self.out.append(query)
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
-        el_type = value.element.element_type
+        self.out = list()
+
+        if value.op == Op.RPC:
+            # Exceptional case when the value is not GraphQuery!
+            el: "Rpc" = value.element
+            element = self.get_element(el.id)
+            if element.element_type == ElementTypes.FEATURE:
+                element(el)
+            else:
+                raise NotSupported
         if value.op == Op.ADD:
+            el_type = value.element.element_type
             if el_type == ElementTypes.EDGE:
                 self.__add_edge(value.element)
             if el_type == ElementTypes.VERTEX:
                 self.__add_vertex(value.element)
+            if el_type == ElementTypes.FEATURE:
+                raise NotSupported
+        if value.op == Op.SYNC:
+            print("Sync %s" % (value,))
+
+
+        yield from self.out

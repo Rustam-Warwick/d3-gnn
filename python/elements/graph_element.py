@@ -27,8 +27,10 @@ class GraphElement(metaclass=ABCMeta):
     def pre_add_storage_callback(self, storage: "BaseStorage"):
         self.storage = storage
         self.part_id = storage.part_id
+        [x.pre_add_storage_callback(storage) for x in self.__get_child_elements]
 
     def post_add_storage_callback(self, storage: "BaseStorage"):
+        [x.post_add_storage_callback(storage) for x in self.__get_child_elements]
         pass
 
     @property
@@ -39,3 +41,28 @@ class GraphElement(metaclass=ABCMeta):
     @property
     def is_replicable(self) -> bool:
         return False
+
+    def __setstate__(self, state: dict):
+        if "storage" not in state: state['storage'] = None
+        for i in state.values():
+            #  Add element to feature
+            if isinstance(i, GraphElement) and i.element_type == ElementTypes.FEATURE:
+                i.element = self
+        self.__dict__.update(state)
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['storage']
+        return state
+
+
+    @property
+    def __get_child_elements(self):
+        from elements.feature import Feature
+        a = list()
+        if isinstance(self, Feature): return a  # Stop at Feature since circular reference otherwise
+        for i in self.__dict__.values():
+            if isinstance(i, GraphElement):
+                # If this feature if GraphElement and there is no circular reference add
+                a.append(i)
+        return a

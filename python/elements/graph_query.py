@@ -11,16 +11,19 @@ class Op(Enum):
     REMOVE = 2
     UPDATE = 3
     SYNC = 4
-    AGG = 5
+    RPC = 5
+    AGG = 6
+
 
 
 class GraphQuery:
-    def __init__(self, op: Op, element: "GraphElement", part: int = None) -> None:
+    def __init__(self, op: Op, element: "GraphElement", part: int = None, iterate=False) -> None:
         self.op: Op = op
         self.part: int = part
         self.element: "GraphElement" = element
+        self.iterate = iterate
 
 
 def query_for_part(query: GraphQuery, part: int) -> GraphQuery:
     """Returns a new GraphQuery but directed to a different part"""
-    return GraphQuery(query.op, part, query.element)
+    return GraphQuery(op=query.op, part=part, element=query.element,iterate=query.iterate)
