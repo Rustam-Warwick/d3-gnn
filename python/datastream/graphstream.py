@@ -30,7 +30,10 @@ class GraphStream:
 
     def partition(self, partitioner: "BasePartitioner") -> DataStream:
         """ Partition incoming @GraphQuery data into parallel machines """
-        self.last = self.last.map(partitioner).partition_custom(Partitioner(), KeySelector())
+        partitioner_par = self.PARALLELISM
+        if not partitioner.is_parallel():partitioner_par = 1
+        self.last = self.last.map(partitioner).set_parallelism(partitioner_par).partition_custom(Partitioner(),
+                                                                                                 KeySelector())
         return self.last
 
     def storage(self, storageProcess: "BaseStorage") -> DataStream:
@@ -50,7 +53,7 @@ class GraphStream:
             j_output_type_info,
             j_python_data_stream_function_operator))
 
-        iterate_filter = st.filter(lambda x: x.iterate)
+        iterate_filter = st.filter(lambda x: x.iterate).partition_custom(Partitioner(), KeySelector())
         continue_filter = st.filter(lambda x: not x.iterate)
         iterator.closeWith(iterate_filter._j_data_stream)
         self.last = continue_filter

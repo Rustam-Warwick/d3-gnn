@@ -8,8 +8,11 @@ class ArrayFeatureMixin:
     def append(self, element):
         pass
 
-    def _append(self, element):
+    def _append(self, element) -> bool:
+        is_updated = False
+        if element in self.value: ret = True
         self.value.append(element)
+        return is_updated
 
 
 class ArrayReplicableFeature(ReplicableFeature, ArrayFeatureMixin):

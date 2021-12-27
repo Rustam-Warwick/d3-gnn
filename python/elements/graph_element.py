@@ -27,10 +27,10 @@ class GraphElement(metaclass=ABCMeta):
     def pre_add_storage_callback(self, storage: "BaseStorage"):
         self.storage = storage
         self.part_id = storage.part_id
-        [x.pre_add_storage_callback(storage) for x in self.__get_child_elements]
+        [x.pre_add_storage_callback(storage) for x in self.__get_features]
 
     def post_add_storage_callback(self, storage: "BaseStorage"):
-        [x.post_add_storage_callback(storage) for x in self.__get_child_elements]
+        [x.post_add_storage_callback(storage) for x in self.__get_features]
         pass
 
     @property
@@ -55,7 +55,6 @@ class GraphElement(metaclass=ABCMeta):
         del state['storage']
         return state
 
-
     @property
     def __get_child_elements(self):
         from elements.feature import Feature
@@ -63,6 +62,16 @@ class GraphElement(metaclass=ABCMeta):
         if isinstance(self, Feature): return a  # Stop at Feature since circular reference otherwise
         for i in self.__dict__.values():
             if isinstance(i, GraphElement):
+                # If this feature if GraphElement and there is no circular reference add
+                a.append(i)
+        return a
+
+    @property
+    def __get_features(self):
+        from elements.feature import Feature
+        a = list()
+        for i in self.__dict__.values():
+            if isinstance(i, Feature):
                 # If this feature if GraphElement and there is no circular reference add
                 a.append(i)
         return a

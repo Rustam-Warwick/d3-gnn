@@ -1,6 +1,6 @@
 from elements.graph_element import GraphElement
 from enum import Enum
-from elements.feature.array_feature import ArrayReplicableFeature
+from elements.feature.set_feature import SetReplicableFeature
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,11 +17,11 @@ class ReplicableGraphElement(GraphElement):
     def __init__(self, master_part: int = None, *args, **kwargs):
         super(ReplicableGraphElement, self).__init__(*args, **kwargs)
         self.master_part = master_part
-        self.parts = ArrayReplicableFeature(field_name="parts", element=self)  # parts where this guy is replicated
+        self.parts = SetReplicableFeature(field_name="parts", element=self)  # parts where this guy is replicated
 
     def pre_add_storage_callback(self, storage: "BaseStorage"):
         super(ReplicableGraphElement, self).pre_add_storage_callback(storage)
-        self.parts.append(self.part_id)  # If Replica it syncs automatically
+        self.parts.add(self.part_id)  # If Replica it syncs automatically
 
     @property
     def state(self) -> ReplicaState:

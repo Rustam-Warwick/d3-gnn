@@ -1,5 +1,6 @@
 from pyflink.datastream import ProcessFunction
 from pyflink.datastream.functions import RuntimeContext
+import re
 from typing import TYPE_CHECKING
 from elements import ElementTypes, Op
 from exceptions import NotSupported
@@ -8,6 +9,7 @@ if TYPE_CHECKING:
     from elements import GraphQuery, GraphElement, Rpc
     from elements.vertex import BaseVertex
     from elements.edge import BaseEdge
+    from elements.feature import Feature
 
 import abc
 
@@ -37,6 +39,8 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
 
     def __add_edge(self, edge: "BaseEdge"):
         edge.pre_add_storage_callback(self)
+        self.__add_vertex(edge.source)
+        self.__add_vertex(edge.destination)
         self.add_edge(edge)
         edge.post_add_storage_callback(self)
 
@@ -45,35 +49,69 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         """ Actually save element once it has changed """
         pass
 
+    def __sync(self, old_element: "GraphElement", new_element: "GraphElement"):
+        self.update(old_element, new_element)
+
     @abc.abstractmethod
-    def get_element(self, element_id: str) -> "GraphElement":
-        """ Return element given its id """
+    def get_vertex(self, element_id: str) -> "BaseVertex":
+        """ Return vertex of ElementNotFound Exception """
         pass
 
+    @abc.abstractmethod
+    def get_edge(self, element_id: str) -> "BaseEdge":
+        """ Return Edge of ElementNotFound Exception """
+        pass
+
+    @abc.abstractmethod
+    def get_feature(self, element_id: str) -> "Feature":
+        """ Return Feature of ElementNotFound Exception """
+        pass
+
+    def get_element(self, element_id: str) -> "GraphElement":
+        """ Decode the get_ functions from the id of GraphElement """
+        feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
+        if feature_match:
+            # Feature is asked
+            return self.get_feature(element_id)
+
+        edge_match = re.search("(?P<source_id>\w+):(?P<dest_id>\w+)", element_id)
+        if edge_match:
+            # Edge is asked
+            return self.get_edge(element_id)
+        # Vertex is asked
+        return self.get_vertex(element_id)
+
     def message(self, query: "GraphQuery"):
+        """ Yield message in this iteration """
         self.out.append(query)
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
         self.out = list()
-
-        if value.op == Op.RPC:
-            # Exceptional case when the value is not GraphQuery!
-            el: "Rpc" = value.element
-            element = self.get_element(el.id)
-            if element.element_type == ElementTypes.FEATURE:
-                element(el)
-            else:
-                raise NotSupported
-        if value.op == Op.ADD:
-            el_type = value.element.element_type
-            if el_type == ElementTypes.EDGE:
-                self.__add_edge(value.element)
-            if el_type == ElementTypes.VERTEX:
-                self.__add_vertex(value.element)
-            if el_type == ElementTypes.FEATURE:
-                raise NotSupported
-        if value.op == Op.SYNC:
-            print("Sync %s" % (value,))
-
+        try:
+            if value.op is Op.RPC:
+                # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
+                el: "Rpc" = value.element
+                element = self.get_element(el.id)
+                if element.element_type is ElementTypes.FEATURE:
+                    element(el)
+                else:
+                    raise NotSupported
+            if value.op is Op.ADD:
+                el_type = value.element.element_type
+                if el_type is ElementTypes.EDGE:
+                    self.__add_edge(value.element)
+                if el_type is ElementTypes.VERTEX:
+                    self.__add_vertex(value.element)
+                if el_type is ElementTypes.FEATURE:
+                    raise NotSupported
+            if value.op is Op.SYNC:
+                el_type = value.element.element_type
+                if el_type is ElementTypes.FEATURE:
+                    element = self.get_feature(value.element.id)
+                    self.__sync(element, value.element)
+                else:
+                    raise NotSupported
+        except Exception as e:
+            print(e)
 
         yield from self.out

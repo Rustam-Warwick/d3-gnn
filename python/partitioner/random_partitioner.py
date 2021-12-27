@@ -17,6 +17,7 @@ class RandomPartitioner(BasePartitioner):
     def is_parallel(self):
         return False
 
+
     def add_to_dict(self, vertex_id: str, value: int):
         if vertex_id not in self.masters:
             self.masters[vertex_id] = value
@@ -25,7 +26,7 @@ class RandomPartitioner(BasePartitioner):
         if self.masters[vertex.id] == part:
             vertex.master_part = -1
         else:
-            vertex.master_part = part
+            vertex.master_part = self.masters[vertex.id]
 
     def map(self, value: "GraphQuery"):
         if value.part is None:
