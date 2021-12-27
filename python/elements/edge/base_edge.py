@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from elements.vertex.base_vertex import BaseVertex
+    from elements import Rpc, GraphElement
+
 
 
 class BaseEdge(GraphElement):
@@ -10,6 +12,9 @@ class BaseEdge(GraphElement):
         super(BaseEdge, self).__init__(src.id + ":" + dest.id, *args, **kwargs)
         self.source: 'BaseVertex' = src
         self.destination: 'BaseVertex' = dest
+
+    def update(self, new_element: "GraphElement"):
+        pass
 
     @property
     def element_type(self):

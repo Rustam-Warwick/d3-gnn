@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from storage import BaseStorage
+    from elements import Rpc
 
 
 class ElementTypes(Enum):
@@ -36,6 +37,18 @@ class GraphElement(metaclass=ABCMeta):
     @property
     @abc.abstractmethod
     def element_type(self) -> ElementTypes:
+        pass
+
+    def __call__(self, rpc: "Rpc") -> bool:
+        """ Find the private RPC function of this element and call with the given arguments"""
+        #  @todo wrap this into self.storage.__update to have better callbacks
+        is_updated = getattr(self, "_%s" % (rpc.fn_name,))(*rpc.args, **rpc.kwargs)
+        if is_updated: self.storage.update(self)
+        return is_updated
+
+    @abc.abstractmethod
+    def update(self, new_element: "GraphElement"):
+        """ Given new value of this element update the necessary states """
         pass
 
     @property

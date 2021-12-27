@@ -1,8 +1,9 @@
 from datastream import GraphStream
-from partitioner import RandomPartitioner,KeySelector,Partitioner
+from partitioner import RandomPartitioner, KeySelector, Partitioner
 from storage.map_storage import HashMapStorage
 from partitioner import RandomPartitioner
 from helpers.socketmapper import EdgeListParser
+
 
 def run():
     graphstream = GraphStream(3)

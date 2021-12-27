@@ -4,3 +4,4 @@ class NotSupported(BaseException):
 
 class GraphElementNotFound(BaseException):
     pass
+

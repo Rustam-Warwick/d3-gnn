@@ -14,7 +14,7 @@ class ArrayFeatureMixin:
         self.value.append(element)
         return is_updated
 
-
 class ArrayReplicableFeature(ReplicableFeature, ArrayFeatureMixin):
-    def __init__(self, value: list = list(), *args, **kwargs):
+    def __init__(self, value: list = None, *args, **kwargs):
+        if not value: value = list()
         super(ArrayReplicableFeature, self).__init__(*args, value=value, **kwargs)

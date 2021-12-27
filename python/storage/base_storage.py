@@ -45,12 +45,24 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         edge.post_add_storage_callback(self)
 
     @abc.abstractmethod
-    def update(self, old_element: "GraphElement", new_element: "GraphElement"):
-        """ Actually save element once it has changed """
+    def update(self, element: "GraphElement"):
+        """ Given already existing element re-save it since the value has changed """
         pass
 
+    def __update(self, old_element: "GraphElement", new_element: "GraphElement"):
+        """ Actually save element once it has changed """
+        if old_element.element_type is not new_element.element_type:
+            raise NotSupported
+        old_element.update(new_element)  # GraphElement _sync function calls storage.update function. Because for each
+        # Feature type there might be different conditions on when we need to update the storage
+        self.update(old_element)
+
     def __sync(self, old_element: "GraphElement", new_element: "GraphElement"):
-        self.update(old_element, new_element)
+        """ Update that is happening because of master sync """
+        if old_element.element_type is not new_element.element_type:
+            raise NotSupported
+        old_element.update(new_element)
+        self.update(old_element)
 
     @abc.abstractmethod
     def get_vertex(self, element_id: str) -> "BaseVertex":
@@ -68,7 +80,7 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         pass
 
     def get_element(self, element_id: str) -> "GraphElement":
-        """ Decode the get_ functions from the id of GraphElement """
+        """ Decode the get_* functions from the id of GraphElement """
         feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
         if feature_match:
             # Feature is asked

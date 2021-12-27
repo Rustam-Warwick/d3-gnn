@@ -14,6 +14,17 @@ class SetFeatureMixin:
         my_set.add(element)
         return is_changed
 
+    @wrap_to_rpc
+    def remove(self, element):
+        pass
+
+    def _remove(self, element) -> bool:
+        my_set: set = self.value
+        is_changed = False
+        if element in is_changed: is_changed = True
+        my_set.remove(element)
+        return is_changed
+
 
 class SetReplicableFeature(ReplicableFeature, SetFeatureMixin):
     def __init__(self, value: set = None, *args, **kwargs):

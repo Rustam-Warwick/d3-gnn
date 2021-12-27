@@ -7,8 +7,8 @@ from elements import GraphQuery, Op
 class EdgeListParser(MapFunction):
     def map(self, value: str) -> GraphQuery:
         values = value.split("\t")
-        a = SimpleVertex(master_part=-1, element_id=values[0])
-        b = SimpleVertex(master_part=-1, element_id=values[0])
+        a = SimpleVertex(element_id=values[0])
+        b = SimpleVertex(element_id=values[1])
         edge = SimpleEdge(src=a, dest=b)
         query = GraphQuery(Op.ADD, edge)
         return query

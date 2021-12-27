@@ -15,10 +15,12 @@ class HashMapStorage(BaseStorage):
         self.edges = dict()
 
     def add_vertex(self, vertex: BaseVertex):
-        self.vertices[vertex.id] = vertex
+        if vertex.id not in self.vertices:
+            self.vertices[vertex.id] = vertex
 
     def add_edge(self, edge: BaseEdge):
-        self.edges[edge.id] = edge
+        if edge.id not in self.edges:
+            self.edges[edge.id] = edge
 
     def get_vertex(self, element_id: str) -> "BaseVertex":
         if element_id in self.vertices:
@@ -47,7 +49,7 @@ class HashMapStorage(BaseStorage):
             return getattr(vertex, f_name)
         raise GraphElementNotFound
 
-
-
-    def update(self, old_element: "GraphElement", new_element: "GraphElement"):
+    def update(self, element: "GraphElement"):
         pass
+
+
