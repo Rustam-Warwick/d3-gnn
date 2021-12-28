@@ -1,5 +1,5 @@
-from elements.feature import ReplicableFeature
 from decorators import wrap_to_rpc
+from elements.feature import Feature
 
 
 class SetFeatureMixin:
@@ -26,7 +26,19 @@ class SetFeatureMixin:
         return is_changed
 
 
-class SetReplicableFeature(ReplicableFeature, SetFeatureMixin):
+class SetReplicableFeature(Feature, SetFeatureMixin):
+    def __init__(self, value: set = None, *args, **kwargs):
+        if value is None : value = set()
+        super(SetReplicableFeature, self).__init__(*args, value=value, **kwargs)
+
+
+class PartSetFeature(Feature, SetFeatureMixin):
     def __init__(self, value: set = None, *args, **kwargs):
         if not value: value = set()
-        super(SetReplicableFeature, self).__init__(*args, value=value, **kwargs)
+        super(PartSetFeature, self).__init__(*args, value=value, **kwargs)
+
+    def sync_replicas(self):
+        """ This is exceptional PartSet Feature which syncs the parent GraphElement when it is modified
+            Logic is that if part set is modifiied a new replica of self.element is added so it need a full sync
+         """
+        self.element.sync_replicas()

@@ -13,7 +13,7 @@ class BaseEdge(GraphElement):
         self.source: 'BaseVertex' = src
         self.destination: 'BaseVertex' = dest
 
-    def update(self, new_element: "GraphElement"):
+    def update(self, new_element: "BaseEdge"):
         pass
 
     @property

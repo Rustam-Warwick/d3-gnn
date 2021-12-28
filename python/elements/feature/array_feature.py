@@ -1,4 +1,4 @@
-from elements.feature import ReplicableFeature
+from elements.feature import Feature
 from decorators import wrap_to_rpc
 
 
@@ -14,7 +14,7 @@ class ArrayFeatureMixin:
         self.value.append(element)
         return is_updated
 
-class ArrayReplicableFeature(ReplicableFeature, ArrayFeatureMixin):
+class ArrayReplicableFeature(Feature, ArrayFeatureMixin):
     def __init__(self, value: list = None, *args, **kwargs):
         if not value: value = list()
         super(ArrayReplicableFeature, self).__init__(*args, value=value, **kwargs)

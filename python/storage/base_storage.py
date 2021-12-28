@@ -3,7 +3,7 @@ from pyflink.datastream.functions import RuntimeContext
 import re
 from typing import TYPE_CHECKING
 from elements import ElementTypes, Op
-from exceptions import NotSupported
+from exceptions import NotSupported,GraphElementNotFound
 
 if TYPE_CHECKING:
     from elements import GraphQuery, GraphElement, Rpc
@@ -29,20 +29,26 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         pass
 
     def __add_vertex(self, vertex: "BaseVertex"):
-        vertex.pre_add_storage_callback(self)
-        self.add_vertex(vertex)
-        vertex.post_add_storage_callback(self)
+        try:
+            self.get_vertex(vertex.id)
+        except GraphElementNotFound:
+            vertex.pre_add_storage_callback(self)
+            self.add_vertex(vertex)
+            vertex.post_add_storage_callback(self)
 
     @abc.abstractmethod
     def add_edge(self, edge: "BaseEdge"):
         pass
 
     def __add_edge(self, edge: "BaseEdge"):
-        edge.pre_add_storage_callback(self)
-        self.__add_vertex(edge.source)
-        self.__add_vertex(edge.destination)
-        self.add_edge(edge)
-        edge.post_add_storage_callback(self)
+        try:
+            self.get_edge(edge.id)
+        except GraphElementNotFound:
+            edge.pre_add_storage_callback(self)
+            self.__add_vertex(edge.source)
+            self.__add_vertex(edge.destination)
+            self.add_edge(edge)
+            edge.post_add_storage_callback(self)
 
     @abc.abstractmethod
     def update(self, element: "GraphElement"):
@@ -50,7 +56,7 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         pass
 
     def __update(self, old_element: "GraphElement", new_element: "GraphElement"):
-        """ Actually save element once it has changed """
+        """ Update request came in """
         if old_element.element_type is not new_element.element_type:
             raise NotSupported
         old_element.update(new_element)  # GraphElement _sync function calls storage.update function. Because for each
@@ -63,6 +69,11 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
             raise NotSupported
         old_element.update(new_element)
         self.update(old_element)
+
+    def __rpc(self, element: "GraphElement", rpc: "Rpc"):
+        """ Update that is happening because of RPC message call """
+        is_changed = element(rpc)
+        if is_changed: self.update(element)
 
     @abc.abstractmethod
     def get_vertex(self, element_id: str) -> "BaseVertex":
@@ -105,7 +116,7 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
                 el: "Rpc" = value.element
                 element = self.get_element(el.id)
                 if element.element_type is ElementTypes.FEATURE:
-                    element(el)
+                    self.__rpc(element, el)
                 else:
                     raise NotSupported
             if value.op is Op.ADD:
@@ -121,9 +132,16 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
                 if el_type is ElementTypes.FEATURE:
                     element = self.get_feature(value.element.id)
                     self.__sync(element, value.element)
+                elif el_type is ElementTypes.VERTEX:
+                    element = self.get_vertex(value.element.id)
+                    self.__sync(element,value.element)
+                elif el_type is ElementTypes.EDGE:
+                    element = self.get_edge(value.element.id)
+                    self.__sync(element,value.element)
                 else:
                     raise NotSupported
+
         except Exception as e:
-            print(e)
+            print(e.with_traceback())
 
         yield from self.out

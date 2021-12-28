@@ -12,5 +12,3 @@ class EdgeListParser(MapFunction):
         edge = SimpleEdge(src=a, dest=b)
         query = GraphQuery(Op.ADD, edge)
         return query
-
-
