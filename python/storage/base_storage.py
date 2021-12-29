@@ -1,14 +1,15 @@
 from pyflink.datastream import ProcessFunction
 from pyflink.datastream.functions import RuntimeContext
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Iterator
 from elements import ElementTypes, Op
-from exceptions import NotSupported,GraphElementNotFound
+from exceptions import NotSupported, GraphElementNotFound
 
 if TYPE_CHECKING:
     from elements import GraphQuery, GraphElement, Rpc
     from elements.vertex import BaseVertex
     from elements.edge import BaseEdge
+    from aggregator import BaseAggregator
     from elements.feature import Feature
 
 import abc
@@ -19,6 +20,12 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         super(BaseStorage, self).__init__()
         self.out: list = None
         self.part_id: int = -1
+        self.aggregators: List["BaseAggregator"] = list()
+
+    def with_aggregator(self, aggregator, *args, **kwargs) -> "BaseStorage":
+        agg = aggregator(*args, storage=self, **kwargs)
+        self.aggregators.append(agg)
+        return self
 
     def open(self, runtime_context: RuntimeContext):
         self.part_id = runtime_context.get_index_of_this_subtask()
@@ -32,9 +39,9 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         try:
             self.get_vertex(vertex.id)
         except GraphElementNotFound:
-            vertex.pre_add_storage_callback(self)
             self.add_vertex(vertex)
-            vertex.post_add_storage_callback(self)
+            vertex.add_storage_callback(self)
+            for agg in self.aggregators: agg.add_element_callback(vertex)
 
     @abc.abstractmethod
     def add_edge(self, edge: "BaseEdge"):
@@ -44,11 +51,11 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         try:
             self.get_edge(edge.id)
         except GraphElementNotFound:
-            edge.pre_add_storage_callback(self)
             self.__add_vertex(edge.source)
             self.__add_vertex(edge.destination)
             self.add_edge(edge)
-            edge.post_add_storage_callback(self)
+            edge.add_storage_callback(self)
+            for agg in self.aggregators: agg.add_element_callback(edge)
 
     @abc.abstractmethod
     def update(self, element: "GraphElement"):
@@ -59,21 +66,27 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
         """ Update request came in """
         if old_element.element_type is not new_element.element_type:
             raise NotSupported
-        old_element.update(new_element)  # GraphElement _sync function calls storage.update function. Because for each
+        is_changed = old_element.update(
+            new_element)  # GraphElement _sync function calls storage.update function. Because for each
         # Feature type there might be different conditions on when we need to update the storage
-        self.update(old_element)
+        if is_changed:
+            self.update(old_element)
+            for agg in self.aggregators: agg.update_element_callback(old_element)
 
     def __sync(self, old_element: "GraphElement", new_element: "GraphElement"):
         """ Update that is happening because of master sync """
         if old_element.element_type is not new_element.element_type:
             raise NotSupported
-        old_element.update(new_element)
-        self.update(old_element)
+        is_changed = old_element.update(new_element)
+        if is_changed:
+            self.update(old_element)
+            for agg in self.aggregators: agg.sync_element_callback(old_element)
 
     def __rpc(self, element: "GraphElement", rpc: "Rpc"):
         """ Update that is happening because of RPC message call """
         is_changed = element(rpc)
-        if is_changed: self.update(element)
+        if is_changed:
+            self.update(element)
 
     @abc.abstractmethod
     def get_vertex(self, element_id: str) -> "BaseVertex":
@@ -83,6 +96,10 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_edge(self, element_id: str) -> "BaseEdge":
         """ Return Edge of ElementNotFound Exception """
+        pass
+
+    @abc.abstractmethod
+    def get_incident_edges(self, vertex: "BaseVertex", n_type: str = "in") -> Iterator["BaseEdge"]:
         pass
 
     @abc.abstractmethod
@@ -134,10 +151,10 @@ class BaseStorage(ProcessFunction, metaclass=abc.ABCMeta):
                     self.__sync(element, value.element)
                 elif el_type is ElementTypes.VERTEX:
                     element = self.get_vertex(value.element.id)
-                    self.__sync(element,value.element)
+                    self.__sync(element, value.element)
                 elif el_type is ElementTypes.EDGE:
                     element = self.get_edge(value.element.id)
-                    self.__sync(element,value.element)
+                    self.__sync(element, value.element)
                 else:
                     raise NotSupported
 

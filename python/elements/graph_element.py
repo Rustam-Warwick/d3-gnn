@@ -3,7 +3,7 @@ from abc import ABCMeta
 from enum import Enum
 from typing import TYPE_CHECKING
 from elements import GraphQuery, Op, query_for_part
-
+from decorators import wrap_to_rpc
 if TYPE_CHECKING:
     from storage import BaseStorage
     from elements import Rpc
@@ -29,13 +29,10 @@ class GraphElement(metaclass=ABCMeta):
         self.storage: "BaseStorage" = storage
         self.part_id: int = part_id
 
-    def pre_add_storage_callback(self, storage: "BaseStorage"):
+    def add_storage_callback(self, storage: "BaseStorage"):
         self.storage = storage
         self.part_id = storage.part_id
-        [x[1].pre_add_storage_callback(storage) for x in self.features]
-
-    def post_add_storage_callback(self, storage: "BaseStorage"):
-        [x[1].post_add_storage_callback(storage) for x in self.features]
+        [x[1].add_storage_callback(storage) for x in self.features]
         pass
 
     def __call__(self, rpc: "Rpc") -> bool:
@@ -55,6 +52,7 @@ class GraphElement(metaclass=ABCMeta):
     def update(self, new_element: "GraphElement") -> bool:
         """ Given new value of this element update the necessary states """
         pass
+
 
     @property
     @abc.abstractmethod

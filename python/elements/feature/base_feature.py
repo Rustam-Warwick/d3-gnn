@@ -2,7 +2,7 @@ import abc
 from abc import ABCMeta
 from typing import TYPE_CHECKING
 
-import elements.graph_element
+from decorators import wrap_to_rpc
 from elements import GraphElement, ElementTypes, Rpc, GraphQuery, Op, ReplicaState, query_for_part
 
 if TYPE_CHECKING:

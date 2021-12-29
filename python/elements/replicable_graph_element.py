@@ -13,8 +13,8 @@ class ReplicableGraphElement(GraphElement):
         self.master = master
         self.parts = PartSetFeature(field_name="parts", element=self)  # parts where this guy is replicated
 
-    def pre_add_storage_callback(self, storage: "BaseStorage"):
-        super(ReplicableGraphElement, self).pre_add_storage_callback(storage)
+    def add_storage_callback(self, storage: "BaseStorage"):
+        super(ReplicableGraphElement, self).add_storage_callback(storage)
         self.parts.add(self.part_id)  # If Replica it syncs automatically
 
     @property
