@@ -13,6 +13,10 @@ class BaseAggregator(metaclass=ABCMeta):
         self.id = ident
 
     @abc.abstractmethod
+    def open(self, *args, **kwargs):
+        pass
+
+    @abc.abstractmethod
     def run(self, *args, **kwargs):
         """ External run of this function """
         pass
@@ -23,12 +27,12 @@ class BaseAggregator(metaclass=ABCMeta):
         pass
 
     @abc.abstractmethod
-    def update_element_callback(self, element: "GraphElement"):
+    def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         """ When external update comes and updated  GraphElement """
         pass
 
     @abc.abstractmethod
-    def sync_element_callback(self, element: "GraphElement"):
+    def sync_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         """ When master syncs values to this GraphElement """
         pass
 

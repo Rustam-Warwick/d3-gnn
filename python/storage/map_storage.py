@@ -19,10 +19,17 @@ class HashMapStorage(BaseStorage):
     def add_vertex(self, vertex: BaseVertex):
         if vertex.id not in self.vertices:
             self.vertices[vertex.id] = vertex
+            return True, vertex
+        return False, self.vertices[vertex.id]
+
+    def add_feature(self, feature: "Feature") -> bool:
+        return (True, feature)
 
     def add_edge(self, edge: BaseEdge):
         if edge.id not in self.edges:
             self.edges[edge.id] = edge
+            return True, edge
+        return False, self.edges[edge.id]
 
     def get_vertex(self, element_id: str) -> "BaseVertex":
         if element_id in self.vertices:
@@ -30,9 +37,9 @@ class HashMapStorage(BaseStorage):
         raise GraphElementNotFound
 
     def get_incident_edges(self, vertex: "BaseVertex", n_type: str = "in") -> Iterator["BaseEdge"]:
-        if n_type is "in":
+        if n_type == "in":
             return filter(lambda x: x.destination == vertex, self.edges)
-        elif n_type is "out":
+        elif n_type == "out":
             return filter(lambda x: x.source == vertex, self.edges)
         else:
             raise NotSupported
@@ -60,4 +67,6 @@ class HashMapStorage(BaseStorage):
         raise GraphElementNotFound
 
     def update(self, element: "GraphElement"):
+        element.integer_clock += 1
+        element.sync_replicas()
         pass

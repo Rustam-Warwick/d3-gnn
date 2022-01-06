@@ -7,6 +7,9 @@ class NeighborhoodSampler(BaseAggregator):
     def __init__(self, ident: str = "full_neighborhood_sampler", storage: "BaseStorage" = None):
         super().__init__(ident, storage)
 
+    def open(self, *args, **kwargs):
+        pass
+
     def run(self, element: "GraphElement", k: int):
         """ Samples full k hop neighborhood of element """
         pass

@@ -9,9 +9,9 @@ if TYPE_CHECKING:
 
 
 class BasePartitioner(MapFunction, metaclass=ABCMeta):
-    def __init__(self, partition=3, *args, **kwargs):
+    def __init__(self, partitions=3, *args, **kwargs):
         super(BasePartitioner, self).__init__(*args, **kwargs)
-        self.partitions = partition
+        self.partitions = partitions
 
     @abc.abstractmethod
     def is_parallel(self):

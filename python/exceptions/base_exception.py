@@ -5,3 +5,6 @@ class NotSupported(BaseException):
 class GraphElementNotFound(BaseException):
     pass
 
+
+class OldVersionException(BaseException):
+    pass

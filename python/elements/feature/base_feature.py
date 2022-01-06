@@ -1,8 +1,8 @@
 import abc
 from abc import ABCMeta
-from typing import TYPE_CHECKING
-
-from decorators import wrap_to_rpc
+from typing import TYPE_CHECKING, Tuple
+from asyncio import Future, get_event_loop
+from exceptions import OldVersionException
 from elements import GraphElement, ElementTypes, Rpc, GraphQuery, Op, ReplicaState, query_for_part
 
 if TYPE_CHECKING:
@@ -16,17 +16,26 @@ class Feature(GraphElement, metaclass=ABCMeta):
 
     def __init__(self, field_name: str, element: "GraphElement", value: object = None, *args, **kwargs):
         feature_id = "%s:%s:%s" % (element.element_type.value, element.id, field_name)
-        self.value = value
+        self.field_name = field_name
+        self._value = value
         self.element: "GraphElement" = element
         super(Feature, self).__init__(element_id=feature_id, *args, **kwargs)
 
-    def update(self, new_element: "Feature") -> bool:
-        self.value = new_element.value
-        return True
+    def update(self, new_element: "Feature") -> Tuple[bool, "GraphElement"]:
+        """ Swapping the 2 states for memory efficiency """
+        res = self._eq(self._value, new_element._value)
+        memento = self._value
+        self._value = new_element._value
+        new_element._value = memento
+        return not res, new_element
 
     @property
     def element_type(self):
         return ElementTypes.FEATURE
+
+    @property
+    def value(self):
+        return self._value
 
     @property
     def state(self) -> ReplicaState:
@@ -43,6 +52,11 @@ class Feature(GraphElement, metaclass=ABCMeta):
     @property
     def replica_parts(self) -> list:
         return self.element.replica_parts
+
+    @abc.abstractmethod
+    def _eq(self, old_value, new_value) -> bool:
+        """ Given @param(values) of 2 Features if they are equal  """
+        pass
 
     def __getstate__(self):
         state = super(Feature, self).__getstate__()

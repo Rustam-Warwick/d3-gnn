@@ -1,7 +1,8 @@
 from pyflink.datastream import StreamExecutionEnvironment, DataStream, MapFunction
 from pyflink.datastream.data_stream import _get_one_input_stream_operator
-from pyflink.datastream.connectors import FileSource, StreamFormat
+from pyflink.datastream.connectors import FileSource, StreamFormat, Duration
 from pyflink.common import WatermarkStrategy
+from pyflink.fn_execution import flink_fn_execution_pb2
 from partitioner import Partitioner, KeySelector
 from typing import TYPE_CHECKING
 
@@ -14,13 +15,16 @@ class GraphStream:
     def __init__(self, PARALLELISM: int = 3):
         self.PARALLELISM = PARALLELISM
         self.env: StreamExecutionEnvironment = StreamExecutionEnvironment.get_execution_environment()
-        self.env.get_config().disable_closure_cleaner()
+        # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
         self.last: "DataStream" = None
         self._j_data_stream = None
 
     def read_file(self, parser: "MapFunction", file_name: str = 'amazon0302_adj.tsv') -> DataStream:
-        """ Read file as a line stream and parse using the @parser """
+        """ Read file as a line stream and parse using the @parser @todo not working for deployment?"""
+        import pathlib, os
+        cur_path = pathlib.Path().resolve()
+        file_name = os.path.join(cur_path, "dataset", file_name)
         self.last = self.env.from_source(
             source=FileSource.for_record_stream_format(StreamFormat.text_line_format(),
                                                        file_name).process_static_file_set().build(),
@@ -28,18 +32,25 @@ class GraphStream:
             source_name="File Reader").map(parser)
         return self.last
 
-    def partition(self, partitioner: "BasePartitioner") -> DataStream:
+    def read_socket(self, parser: "MapFunction", host, port) -> DataStream:
+        tmp = self.env._j_stream_execution_environment.socketTextStream(host,port)
+
+        self.last = DataStream(tmp)
+        self.last = self.last.map(parser)
+        return self.last
+
+    def partition(self, Partitioner: "BasePartitioner", *par_args, **par_kwargs) -> DataStream:
         """ Partition incoming @GraphQuery data into parallel machines """
         partitioner_par = self.PARALLELISM
-        if not partitioner.is_parallel():partitioner_par = 1
-        self.last = self.last.map(partitioner).set_parallelism(partitioner_par).partition_custom(Partitioner(),
-                                                                                                 KeySelector())
+        partitioner = Partitioner(*par_args, partitions=self.PARALLELISM, **par_kwargs)
+        if not partitioner.is_parallel(): partitioner_par = 1
+        self.last = self.last.map(partitioner).set_parallelism(partitioner_par)
         return self.last
 
     def storage(self, storageProcess: "BaseStorage") -> DataStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate fild """
-        from pyflink.fn_execution import flink_fn_execution_pb2
-        iterator = self.last._j_data_stream.iterate()  # Java Class need to somehow handle it
+        iterator = self.last.partition_custom(Partitioner(),
+                                              KeySelector())._j_data_stream.iterate()  # Java Class need to somehow handle it
         self._j_data_stream = iterator
         j_python_data_stream_function_operator, j_output_type_info = \
             _get_one_input_stream_operator(

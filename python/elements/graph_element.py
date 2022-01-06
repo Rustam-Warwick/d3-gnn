@@ -1,9 +1,11 @@
 import abc
 from abc import ABCMeta
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
+from exceptions import OldVersionException
+from asyncio import get_event_loop
 from elements import GraphQuery, Op, query_for_part
-from decorators import wrap_to_rpc
+
 if TYPE_CHECKING:
     from storage import BaseStorage
     from elements import Rpc
@@ -28,31 +30,37 @@ class GraphElement(metaclass=ABCMeta):
         self.id: str = element_id
         self.storage: "BaseStorage" = storage
         self.part_id: int = part_id
+        self.integer_clock = 0
 
     def add_storage_callback(self, storage: "BaseStorage"):
         self.storage = storage
         self.part_id = storage.part_id
-        [x[1].add_storage_callback(storage) for x in self.features]
-        pass
 
     def __call__(self, rpc: "Rpc") -> bool:
         """ If this is master update and sync with replicas otherwise redirect to master node """
-        if self.state == ReplicaState.MASTER:
-            # This is already the master node so just commit the messages
-            is_updated = getattr(self, "_%s" % (rpc.fn_name,))(*rpc.args, **rpc.kwargs)
-            if is_updated: self.sync_replicas()
-            return is_updated
-        elif self.state == ReplicaState.REPLICA:
-            # Send this message to master node
-            query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
-            self.storage.message(query)
-            return False
+        is_updated = getattr(self, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+        return is_updated
 
     @abc.abstractmethod
-    def update(self, new_element: "GraphElement") -> bool:
-        """ Given new value of this element update the necessary states """
+    def update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ General Update. Given new element make the update """
         pass
 
+    def _sync(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ Sync element comes in. It should be commited if this is replica and incoming is a new version """
+        assert self.is_replicable and self.state is ReplicaState.REPLICA, "Element should be replicas to receive sync messages"
+        if self.integer_clock > new_element.integer_clock: raise OldVersionException
+        self.integer_clock = new_element.integer_clock
+        return self.update(new_element)
+
+    def _update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ Unconditional Update comes in commit only takes place in master nodes """
+        if self.state is ReplicaState.REPLICA:
+            query = GraphQuery(Op.UPDATE, new_element, self.master_part, True)
+            self.storage.message(query)
+            return False, self
+        elif self.state is ReplicaState.MASTER:
+            return self.update(new_element)
 
     @property
     @abc.abstractmethod
@@ -101,21 +109,13 @@ class GraphElement(metaclass=ABCMeta):
         if not self.is_replicable or not self.state == ReplicaState.MASTER: return
         query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
         filtered_parts = map(lambda x: query_for_part(query, x),
-                             filter(lambda x: x is not self.part_id, self.replica_parts))
+                             filter(lambda x: x != self.part_id, self.replica_parts))
         for msg in filtered_parts:
             self.storage.message(msg)
 
     @property
-    def child_elements(self):
-        """ Returns all child elements/attributes which are also Features """
-        from elements.feature import Feature
-        a = list()
-        if isinstance(self, Feature): return a  # Stop at Feature since circular reference otherwise
-        for i in self.__dict__.values():
-            if isinstance(i, GraphElement):
-                # If this feature if GraphElement and there is no circular reference add
-                a.append(i)
-        return a
+    def is_ready(self) -> bool:
+        return self.integer_clock > 0
 
     @property
     def features(self):

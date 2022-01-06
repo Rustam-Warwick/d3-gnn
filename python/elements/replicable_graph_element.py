@@ -31,7 +31,7 @@ class ReplicableGraphElement(GraphElement):
 
     @property
     def replica_parts(self) -> list:
-        re: set = self.parts.value
+        re: set = self.parts._value
         a = list(re)
         a.remove(self.part_id)
         return a

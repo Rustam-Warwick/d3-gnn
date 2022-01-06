@@ -1,5 +1,5 @@
 from elements.graph_element import GraphElement, ElementTypes
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     from elements.vertex.base_vertex import BaseVertex
@@ -13,7 +13,7 @@ class BaseEdge(GraphElement):
         self.source: 'BaseVertex' = src
         self.destination: 'BaseVertex' = dest
 
-    def update(self, new_element: "BaseEdge"):
+    def update(self, new_element: "GraphElement") -> Tuple[bool, object]:
         pass
 
     @property

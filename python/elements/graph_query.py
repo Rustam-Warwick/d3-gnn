@@ -15,7 +15,6 @@ class Op(Enum):
     AGG = 6
 
 
-
 class GraphQuery:
     def __init__(self, op: Op, element: "GraphElement", part: int = None, iterate=False) -> None:
         self.op: Op = op
@@ -23,7 +22,11 @@ class GraphQuery:
         self.element: "GraphElement" = element
         self.iterate = iterate
 
+    @property
+    def is_topology_change(self):
+        return self.op is Op.ADD or self.op is Op.REMOVE
+
 
 def query_for_part(query: GraphQuery, part: int) -> GraphQuery:
     """Returns a new GraphQuery but directed to a different part"""
-    return GraphQuery(op=query.op, part=part, element=query.element,iterate=query.iterate)
+    return GraphQuery(op=query.op, part=part, element=query.element, iterate=query.iterate)

@@ -1,17 +1,26 @@
+import logging
+import sys
 from datastream import GraphStream
-from partitioner import RandomPartitioner, KeySelector, Partitioner
 from storage.map_storage import HashMapStorage
 from partitioner import RandomPartitioner
 from helpers.socketmapper import EdgeListParser
 
 
 def run():
-    graphstream = GraphStream(3)
-    graphstream.read_file(EdgeListParser())
-    graphstream.partition(RandomPartitioner())
-    graphstream.storage(HashMapStorage())
+    storage = HashMapStorage()
+    # storage.with_aggregator
+    graphstream = GraphStream(2)
+    graphstream.read_socket(EdgeListParser(), "localhost", 9090)
+    graphstream.partition(RandomPartitioner)
+    graphstream.storage(storage)
+    #graphstream.last.print()
     graphstream.env.execute("Test Python job")
 
 
 if __name__ == '__main__':
-    run()
+    try:
+
+        run()
+    except Exception as e:
+        print(e)
+

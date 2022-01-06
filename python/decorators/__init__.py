@@ -1,1 +1,1 @@
-from .base_decorators import wrap_to_rpc
+from .base_decorators import rpc
