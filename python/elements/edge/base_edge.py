@@ -13,9 +13,6 @@ class BaseEdge(GraphElement):
         self.source: 'BaseVertex' = src
         self.destination: 'BaseVertex' = dest
 
-    def update(self, new_element: "GraphElement") -> Tuple[bool, object]:
-        pass
-
     @property
     def element_type(self):
         return ElementTypes.EDGE

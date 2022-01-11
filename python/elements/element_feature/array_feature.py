@@ -1,4 +1,4 @@
-from elements.feature import Feature
+from elements.element_feature import ElementFeature
 from decorators import rpc
 
 
@@ -14,10 +14,10 @@ class ArrayFeatureMixin:
         return is_updated
 
 
-class ArrayReplicableFeature(Feature, ArrayFeatureMixin):
+class ArrayReplicableElementFeature(ElementFeature, ArrayFeatureMixin):
     def __init__(self, value: list = None, *args, **kwargs):
         if not value: value = list()
-        super(ArrayReplicableFeature, self).__init__(*args, value=value, **kwargs)
+        super(ArrayReplicableElementFeature, self).__init__(*args, value=value, **kwargs)
 
     def _eq(self, old_value: list, new_value: list) -> bool:
         return old_value == new_value

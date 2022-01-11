@@ -27,6 +27,11 @@ class BaseAggregator(metaclass=ABCMeta):
         pass
 
     @abc.abstractmethod
+    def commit_element_callback(self, element:"GraphElement"):
+        """ Update is being commited to the storage, called before update,so storage can safely be interacted afterwards, sync and rpc element calls """
+        pass
+
+    @abc.abstractmethod
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         """ When external update comes and updated  GraphElement """
         pass

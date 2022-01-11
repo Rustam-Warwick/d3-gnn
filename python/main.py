@@ -1,19 +1,20 @@
 import logging
 import sys
 from datastream import GraphStream
-from storage.map_storage import HashMapStorage
+from storage.process_fn import GraphStorageProcess
 from partitioner import RandomPartitioner
+from aggregator.streaming_gnn_inference import StreamingGNNInference
 from helpers.socketmapper import EdgeListParser
 
 
 def run():
-    storage = HashMapStorage()
+    storage = GraphStorageProcess()
     # storage.with_aggregator
     graphstream = GraphStream(2)
     graphstream.read_socket(EdgeListParser(), "localhost", 9090)
     graphstream.partition(RandomPartitioner)
     graphstream.storage(storage)
-    #graphstream.last.print()
+    graphstream.last.print()
     graphstream.env.execute("Test Python job")
 
 

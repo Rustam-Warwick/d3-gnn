@@ -1,5 +1,5 @@
 from decorators import rpc
-from elements.feature import Feature
+from elements.element_feature import ElementFeature
 import collections
 
 
@@ -23,18 +23,18 @@ class SetFeatureMixin:
         return is_changed
 
 
-class SetReplicableFeature(Feature, SetFeatureMixin):
+class SetReplicableElementFeature(ElementFeature, SetFeatureMixin):
     def __init__(self, value: set = None, *args, **kwargs):
         if value is None : value = set()
-        super(SetReplicableFeature, self).__init__(*args, value=value, **kwargs)
+        super(SetReplicableElementFeature, self).__init__(*args, value=value, **kwargs)
 
     def _eq(self, old_value: set, new_value: set) -> bool:
         return collections.Counter(old_value) == collections.Counter(new_value)
 
-class PartSetFeature(Feature, SetFeatureMixin):
+class PartSetElementFeature(ElementFeature, SetFeatureMixin):
     def __init__(self, value: set = None, *args, **kwargs):
         if not value: value = set()
-        super(PartSetFeature, self).__init__(*args, value=value, **kwargs)
+        super(PartSetElementFeature, self).__init__(*args, value=value, **kwargs)
 
     def _eq(self, old_value: set, new_value: set) -> bool:
         return collections.Counter(old_value) == collections.Counter(new_value)

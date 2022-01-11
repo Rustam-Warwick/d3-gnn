@@ -12,13 +12,12 @@ def rpc(fn: object) -> callable:
     def wrapper(self: "GraphElement", *args, __call=False, **kwargs):
         if __call is True:
             return fn(self, *args, **kwargs)
-        rpc = Rpc(fn, self, *args, **kwargs)
-        storage: "BaseStorage" = self.storage
-        assert storage is not None, "Storage is none. How come ?"
+        rpc = Rpc(fn, self, *args, **kwargs) # External Call
         if self.state == ReplicaState.REPLICA:
             # Send this message to master node
             query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
             self.storage.message(query)
-            return
-        return storage._rpc(self, rpc)
+        elif self.state is ReplicaState.MASTER:
+            # Call directly
+            self(rpc)
     return wrapper

@@ -9,85 +9,87 @@ from abc import ABCMeta
 
 if TYPE_CHECKING:
     from elements.edge import SimpleEdge
-    from elements.feature import Feature
+    from elements.element_feature import ElementFeature
     from elements.vertex import SimpleVertex
     from elements import GraphElement
 
 
 class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
-    def __init__(self, ident: str = "streaming_gnn", storage: "BaseStorage" = None):
+    def __init__(self,  minLevel=0, maxLevel=2,  ident: str = "streaming_gnn", storage: "BaseStorage" = None):
         super(BaseStreamingGNNInference, self).__init__(ident, storage)
-        self.queue = dict()
-
+        self.minLevel = minLevel
+        self.maxLevel = maxLevel
+    """ Abstract Functions """
     @abc.abstractmethod
     def exchange(self, edge: "SimpleEdge"):
+        """ Enumerate each edge Increment the aggregate function """
         pass
 
     @abc.abstractmethod
     def apply(self, vertex: "SimpleVertex") -> "torch.tensor":
         pass
-
+    """ Override Functions """
     def run(self, *args, **kwargs):
         pass
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.EDGE:
-            if element.source.is_ready and element.destination.is_ready:
-                self.exchange(element)
-            else:
-                self.queue[element.source.id] = element.destination.id
+            element:"SimpleEdge"
+            if element.source.is_initialized and element.destination.is_initialized:
+                self.exchange(element) # Update the agg function
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         pass
 
+    def commit_element_callback(self, element: "GraphElement"):
+        pass
+
     def sync_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        if element.element_type is ElementTypes.VERTEX:
-            for src, dest in self.queue.items():
-                if src == element.id:
-                    destination = self.storage.get_vertex(dest)
-                    if destination.is_ready:
-                        edge = self.storage.get_edge(element.id + ":" + destination.id)
-                        self.exchange(edge)
-                if dest == element.id:
-                    source = self.storage.get_vertex(src)
-                    if source.is_ready:
-                        edge = self.storage.get_edge(source.id + ":" + element.id)
-                        self.exchange(edge)
+        if element.element_type is ElementTypes.FEATURE and element.field_name == 'parts':
+            element: "ElementFeature"
+            old_element: "ElementFeature"
+            if not old_element.is_initialized and element.is_initialized:
+                # Ready transition happened
+                edge_list = self.storage.get_incident_edges(element.element,"both")
+                [self.exchange(edge) for edge in edge_list if edge.source.is_initialized and edge.destination.is_initialized]
 
     def rpc_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:
-            tmp: "Feature" = element
-            if tmp.field_name == "agg":
-                res = self.apply(tmp.element)
-                tmp_new = copy(tmp)
-                tmp_new._value = res
-                query = GraphQuery(Op.UPDATE, tmp_new, self.storage.part_id, False)
+            element: "ElementFeature"
+            if element.field_name == "agg":
+                # Some update happened to agg, also note that this is always happening in master node
+                res = self.apply(element.element)
+                feature_new = copy(element.element.image)
+                feature_new._value = res
+                query = GraphQuery(Op.AGG, feature_new, self.storage.part_id, False)
                 self.storage.message(query)
 
 
-class StreaminGNNInference(BaseStreamingGNNInference):
+
+
+class StreamingGNNInference(BaseStreamingGNNInference):
     def __init__(self, *args, **kwargs):
-        super(StreaminGNNInference, self).__init__(*args, **kwargs)
-        self.model = None
-        self.model2 = None
+        super(StreamingGNNInference, self).__init__(*args, **kwargs)
+        self.message_fn = None
+        self.update_fn = None
 
     def exchange(self, edge: "SimpleEdge"):
         source: "SimpleVertex" = edge.source
         dest: "SimpleVertex" = edge.destination
         with torch.no_grad():
             conc = torch.concat((source.image.value, dest.image.value), dim=1)
-            msg = self.model(conc)
-            dest.agg.add(msg)
+            msg = self.message_fn(conc)
+            dest.agg.reduce(msg)
 
     def apply(self, vertex: "SimpleVertex") -> torch.tensor:
         with torch.no_grad():
             conc = torch.concat((vertex.image.value, vertex.agg.value), dim=1)
-            return self.model2(conc)
+            return self.update_fn(conc)
 
     def open(self, *args, **kwargs):
-        self.model = torch.nn.Linear(32, 16, dtype=torch.float32)
-        self.model2 = torch.nn.Sequential(
+        self.message_fn = torch.nn.Linear(32, 16, dtype=torch.float32)
+        self.update_fn = torch.nn.Sequential(
             torch.nn.Linear(32, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 32),

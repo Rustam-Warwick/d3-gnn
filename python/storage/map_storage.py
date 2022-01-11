@@ -1,4 +1,4 @@
-from typing import List,Iterator
+from typing import List, Iterator, Literal, Dict
 
 from elements.edge import BaseEdge
 from elements.vertex import BaseVertex
@@ -13,8 +13,8 @@ class HashMapStorage(BaseStorage):
 
     def __init__(self):
         super(HashMapStorage, self).__init__()
-        self.vertices: List["BaseVertex"] = dict()
-        self.edges: List["BaseEdge"] = dict()
+        self.vertices: Dict["BaseVertex"] = dict()
+        self.edges: Dict["BaseEdge"] = dict()
 
     def add_vertex(self, vertex: BaseVertex):
         if vertex.id not in self.vertices:
@@ -36,11 +36,13 @@ class HashMapStorage(BaseStorage):
             return self.vertices[element_id]
         raise GraphElementNotFound
 
-    def get_incident_edges(self, vertex: "BaseVertex", n_type: str = "in") -> Iterator["BaseEdge"]:
+    def get_incident_edges(self, vertex: "BaseVertex", n_type: Literal['in', 'out', 'both'] = "in") -> Iterator["BaseEdge"]:
         if n_type == "in":
-            return filter(lambda x: x.destination == vertex, self.edges)
+            return filter(lambda x: x.destination == vertex, self.edges.values())
         elif n_type == "out":
-            return filter(lambda x: x.source == vertex, self.edges)
+            return filter(lambda x: x.source == vertex, self.edges.values())
+        elif n_type == 'both':
+            return filter(lambda x: x.source == vertex or x.destination == vertex, self.edges.values())
         else:
             raise NotSupported
 
@@ -57,16 +59,15 @@ class HashMapStorage(BaseStorage):
         e_id = feature_match.group("element_id")
         f_name = feature_match.group("feature_name")
         if e_type == ElementTypes.EDGE.value:
-            # This is edge feature
+            # This is edge element_feature
             edge = self.get_edge(e_id)
             return getattr(edge, f_name)
         elif e_type == ElementTypes.VERTEX.value:
-            #  This is vertex feature
+            #  This is vertex element_feature
             vertex = self.get_vertex(e_id)
             return getattr(vertex, f_name)
         raise GraphElementNotFound
 
     def update(self, element: "GraphElement"):
-        element.integer_clock += 1
-        element.sync_replicas()
+        super(HashMapStorage, self).update(element)
         pass

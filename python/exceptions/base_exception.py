@@ -8,3 +8,6 @@ class GraphElementNotFound(BaseException):
 
 class OldVersionException(BaseException):
     pass
+
+class NotUsedOnReplicaException(BaseException):
+    pass
