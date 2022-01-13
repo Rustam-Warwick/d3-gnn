@@ -2,6 +2,7 @@ from typing import List, Iterator, Literal, Dict
 
 from elements.edge import BaseEdge
 from elements.vertex import BaseVertex
+from elements.element_feature import ElementFeature
 from storage import BaseStorage
 from elements.graph_element import ElementTypes
 from exceptions import GraphElementNotFound, NotSupported
@@ -14,24 +15,25 @@ class HashMapStorage(BaseStorage):
     def __init__(self):
         super(HashMapStorage, self).__init__()
         self.vertices: Dict["BaseVertex"] = dict()
+        self.features: Dict["ElementFeature"] = dict()
         self.edges: Dict["BaseEdge"] = dict()
 
-    def add_vertex(self, vertex: BaseVertex):
+    def add_vertex(self, vertex: BaseVertex) -> bool:
         if vertex.id not in self.vertices:
             self.vertices[vertex.id] = vertex
-            return True, vertex
-        return False, self.vertices[vertex.id]
+            return True
+        return False
 
     def add_feature(self, feature: "Feature") -> bool:
-        return (True, feature)
+        return True
 
-    def add_edge(self, edge: BaseEdge):
+    def add_edge(self, edge: BaseEdge) -> bool:
         if edge.id not in self.edges:
             self.edges[edge.id] = edge
-            return True, edge
-        return False, self.edges[edge.id]
+            return True
+        return False
 
-    def get_vertex(self, element_id: str) -> "BaseVertex":
+    def get_vertex(self, element_id: str, with_features=False) -> "BaseVertex":
         if element_id in self.vertices:
             return self.vertices[element_id]
         raise GraphElementNotFound
@@ -46,7 +48,7 @@ class HashMapStorage(BaseStorage):
         else:
             raise NotSupported
 
-    def get_edge(self, element_id: str) -> "BaseEdge":
+    def get_edge(self, element_id: str, with_features = False) -> "BaseEdge":
         if element_id in self.edges:
             return self.edges[element_id]
         raise GraphElementNotFound

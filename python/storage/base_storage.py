@@ -21,15 +21,15 @@ class BaseStorage(metaclass=abc.ABCMeta):
       """
 
     @abc.abstractmethod
-    def add_feature(self, feature: "ElementFeature") -> Tuple[bool, "ElementFeature"]:
+    def add_feature(self, feature: "ElementFeature") -> bool:
         pass
 
     @abc.abstractmethod
-    def add_vertex(self, vertex: "BaseVertex") -> Tuple[bool, "BaseVertex"]:
+    def add_vertex(self, vertex: "BaseVertex") -> bool:
         pass
 
     @abc.abstractmethod
-    def add_edge(self, edge: "BaseEdge") -> Tuple[bool, "BaseEdge"]:
+    def add_edge(self, edge: "BaseEdge") -> bool:
         pass
 
     @abc.abstractmethod
@@ -54,6 +54,9 @@ class BaseStorage(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterator[
         "BaseEdge"]:
+        pass
+
+    def add_element(self, element: "GraphElement") -> bool:
         pass
 
     def get_element(self, element_id: str, with_features=False) -> "GraphElement":

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Iterator, Union, Tuple, Literal, Dict
 
 if TYPE_CHECKING:
     from aggregator import BaseAggregator
+    from elements import GraphElement, GraphQuery
 from pyflink.datastream.functions import RuntimeContext
 
 
@@ -34,35 +35,6 @@ class GraphStorageProcess(HashMapStorage, ProcessFunction):
         """ Yield message in this iteration """
         self.out.append(query)
 
-    def _add_feature(self, feature: "Feature") -> "Feature":
-        created, feature = self.add_feature(feature)
-        if created:
-            feature.add_storage_callback(self)
-            self.for_aggregator(lambda x: x.add_element_callback(feature))
-        return feature
-
-    def _add_vertex(self, vertex: "BaseVertex") -> "BaseVertex":
-        for name, feature in vertex.features:
-            feature = self._add_feature(feature)
-
-        created, vertex = self.add_vertex(vertex)
-        if created:
-            vertex.add_storage_callback(self)
-            self.for_aggregator(lambda x: x.add_element_callback(vertex))
-        return vertex
-
-    def _add_edge(self, edge: "BaseEdge") -> "BaseEdge":
-        for name, feature in edge.features:
-            feature = self._add_feature(feature)
-
-        edge.source = self._add_vertex(edge.source)
-        edge.destination = self._add_vertex(edge.destination)
-        created, edge = self.add_edge(edge)
-        if created:
-            edge.add_storage_callback(self)
-            self.for_aggregator(lambda x: x.add_element_callback(edge))
-        return edge
-
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
         if value.is_topology_change:
             # Redirect to the next operator
@@ -77,43 +49,37 @@ class GraphStorageProcess(HashMapStorage, ProcessFunction):
                 else:
                     raise NotSupported
             if value.op is Op.ADD:
-                el_type = value.element.element_type
-                if el_type is ElementTypes.EDGE:
-                    self._add_edge(value.element)
-                if el_type is ElementTypes.VERTEX:
-                    self._add_vertex(value.element)
-                if el_type is ElementTypes.FEATURE:
-                    raise NotSupported
+                value.element.create_element(self)
             if value.op is Op.SYNC:
                 el_type = value.element.element_type
                 if el_type is ElementTypes.FEATURE:
                     element = self.get_feature(value.element.id)
-                    element._sync(value.element)
+                    element.sync_element(value.element)
                 elif el_type is ElementTypes.VERTEX:
                     element = self.get_vertex(value.element.id)
-                    element._sync(value.element)
+                    element.sync_element(value.element)
                 elif el_type is ElementTypes.EDGE:
                     element = self.get_edge(value.element.id)
-                    element._sync(value.element)
+                    element.sync_element(value.element)
                 else:
                     raise NotSupported
             if value.op is Op.UPDATE:
                 el_type = value.element.element_type
                 if el_type is ElementTypes.FEATURE:
                     element = self.get_feature(value.element.id)
-                    element._update(value.element)
+                    element.update_element(value.element)
                 elif el_type is ElementTypes.VERTEX:
                     element = self.get_vertex(value.element.id)
-                    element._update(value.element)
+                    element.update_element(value.element)
                 elif el_type is ElementTypes.EDGE:
                     element = self.get_edge(value.element.id)
-                    element._update(value.element)
+                    element.update_element(value.element)
                 else:
                     raise NotSupported
             if value.op is Op.AGG:
                 self.for_aggregator(lambda x: x.run(value))
         except Exception as e:
-            logging.log(logging.ERROR, e)
+            logging.log(logging.ERROR, str(e))
 
         while len(self.out):
             yield self.out.pop(0)

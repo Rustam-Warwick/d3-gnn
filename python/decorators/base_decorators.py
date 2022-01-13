@@ -12,12 +12,6 @@ def rpc(fn: object) -> callable:
     def wrapper(self: "GraphElement", *args, __call=False, **kwargs):
         if __call is True:
             return fn(self, *args, **kwargs)
-        rpc = Rpc(fn, self, *args, **kwargs) # External Call
-        if self.state == ReplicaState.REPLICA:
-            # Send this message to master node
-            query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
-            self.storage.message(query)
-        elif self.state is ReplicaState.MASTER:
-            # Call directly
-            self(rpc)
+        remote_fn = Rpc(fn, self, *args, **kwargs) # External Call
+        return self(remote_fn)
     return wrapper

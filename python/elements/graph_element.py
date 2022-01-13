@@ -2,8 +2,8 @@ import abc
 import copy
 from abc import ABCMeta
 from enum import Enum
-from typing import TYPE_CHECKING, Tuple
-from exceptions import OldVersionException, NotUsedOnReplicaException
+from typing import TYPE_CHECKING, Tuple, Dict
+from exceptions import OldVersionException, NotUsedOnReplicaException, GraphElementNotFound
 from asyncio import get_event_loop
 from elements import GraphQuery, Op, query_for_part
 
@@ -30,58 +30,53 @@ class GraphElement(metaclass=ABCMeta):
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GraphStorageProcess" = None) -> None:
         self.id: str = element_id
-        self.part_id: int = part_id # None represents the part id of the storage engine
-        self.storage: "GraphStorageProcess" = storage # Storage
-        self._features = dict() # Cached version of the element features
-
-    def add_storage_callback(self, storage: "GraphStorageProcess"):
-        """ Populate some fields """
-        self.storage = storage
-        self.part_id = storage.part_id
+        self.part_id: int = part_id  # None represents the part id of the storage engine
+        self.storage: "GraphStorageProcess" = storage  # Storage
+        self._features: Dict[str, "ElementFeature"] = dict()  # Cached version of the element features
 
     def __call__(self, rpc: "Rpc") -> bool:
         is_updated = getattr(self, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
         if is_updated:
             self.storage.update(self)
-            self.storage.for_aggregator(lambda x: x.update_element_callback(self))
-            if self.state is ReplicaState.MASTER: self.sync_replicas()
+            self.storage.for_aggregator(lambda x: x.update_element_callback(self, self))
         return is_updated
 
-    def update(self, new_element: "GraphElement") -> bool:
-        """ General Update function. Take all the overlapping Features and call update on them """
-        memento = copy.copy(self)  # Old Version
-        is_updated = False
-        for name, value in new_element.features:
-            is_updated |= self[name].update(value)  # Call Update on the Features
+    def create_element(self) -> bool:
+        """ Save this GraphELement in memory """
+        is_created = self.storage.add_element(self)
+        if not is_created:return is_created
+        for key, value in self:
+            GraphElement.create_element(value)
+        if is_created:
+            self.storage.for_aggregator(lambda x: x.add_element_callback(self))
+        return is_created
 
-        self.integer_clock = max(self.integer_clock, new_element.integer_clock)
+    def update_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ General Update function """
+        memento = copy.copy(self)
+        is_updated = False
+        for name, value in new_element:
+            is_updated_feature, memento_feature = self[name].update_element(value)  # Call Update on the Features
+            is_updated |= is_updated_feature
+            memento._features[name] = memento_feature  # Populate this to not trigger the storage update
         if is_updated:
+            self.integer_clock = max(new_element.integer_clock, self.integer_clock)
             self.storage.update(self)
             self.storage.for_aggregator(lambda x: x.update_element_callback(self, memento))
-            if self.state is ReplicaState.MASTER: self.sync_replicas()
-        return is_updated
+        return is_updated, memento
 
-    def _sync(self, new_element: "GraphElement") -> bool:
-        """ Sync should be called only on replicable features.
-            Master -> Send current state of graphelement to replica
-            Replica -> Update the graphElement if integer clock is behind
-        """
-        if not self.is_replicable: raise NotUsedOnReplicaException
-        if self.state is ReplicaState.MASTER:
-            self["parts"].add(new_element.part_id)
-            return False
-        elif self.state is ReplicaState.REPLICA:
-            if new_element.integer_clock < self.integer_clock: raise OldVersionException
-            return self.update(new_element)
+    def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ Sync this GraphElement Implemented for Replicable Graph Element """
+        pass
 
-    def _update(self, new_element: "GraphElement") -> bool:
-        """ Unconditional Update comes in commit only takes place in master nodes """
-        if self.state is ReplicaState.REPLICA:
-            query = GraphQuery(Op.UPDATE, new_element, self.master_part, True)
-            self.storage.message(query)
-            raise NotUsedOnReplicaException
-        elif self.state is ReplicaState.MASTER:
-            return self.update(new_element)
+    def external_update(self, new_element:"GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ Unconditional Update function """
+        self.update_element(new_element)
+
+    def __iter__(self):
+        """ Iterate over the attached features """
+        tmp = list(self._features.items())
+        return tmp
 
     @property
     @abc.abstractmethod
@@ -138,11 +133,6 @@ class GraphElement(metaclass=ABCMeta):
 
     integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
 
-    @property
-    def features(self):
-        """ Returns all the Feature attributes of this Graph Element """
-        return self._features.items()
-
     def __eq__(self, other):
         return self.id == other.id
 
@@ -164,18 +154,19 @@ class GraphElement(metaclass=ABCMeta):
         if "storage" in state: del state['storage']
         return state
 
-    def __getitem__(self, item):
+    def __getitem__(self, key) -> "ElementFeature":
         """ Get a Feature from this vertex """
-        item = None
-        if item in self._features:
-            item = self._features[item]
-            item.element = self
-            return item
-        elif self.storage:
-            item = self.storage.get_feature("%s:%s:%s" % (self.element_type.value, self.id, item))
-            item.element = self
-            return item
-        raise KeyError
+        try:
+            if key in self._features:
+                item = self._features[key]
+                item.element = self
+                return item
+            elif self.storage:
+                item = self.storage.get_feature("%s:%s:%s" % (self.element_type.value, self.id, key))
+                item.element = self
+                return item
+        except GraphElementNotFound:
+            raise KeyError
 
     def __setitem__(self, key, value: "ElementFeature"):
         """ Set a Feature to this vertex """
@@ -184,15 +175,28 @@ class GraphElement(metaclass=ABCMeta):
         self._features[key] = value
         if self.storage:
             # Setting element which is attached to graph storage
-            self.storage._add_feature(value)
+            value.create_element()
 
     def cache_features(self):
         element = self.storage.get_element(self.id, True)
         self._features = element._features
 
+    def attach_storage(self, storage: "GraphStorageProcess"):
+        """ Simply attach the storage to this element """
+        self.storage = storage
+        self.part_id = storage.part_id
+        for feature in self._features.values():
+            feature.attach_storage(storage)
+
+    def detach_storage(self):
+        """ Remove the storage from this element """
+        self.storage = None
+        for feature in self._features.values():
+            feature.detach_storage()
+
     def sync_replicas(self):
         """ If this is master send SYNC to Replicas """
-        if not self.is_replicable or not self.state == ReplicaState.MASTER: return
+        self.integer_clock += 1
         self.cache_features()
         query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
         filtered_parts = map(lambda x: query_for_part(query, x),
