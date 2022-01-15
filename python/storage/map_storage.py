@@ -2,7 +2,7 @@ from typing import List, Iterator, Literal, Dict
 
 from elements.edge import BaseEdge
 from elements.vertex import BaseVertex
-from elements.element_feature import ElementFeature
+from elements.element_feature import ReplicableFeature
 from storage import BaseStorage
 from elements.graph_element import ElementTypes
 from exceptions import GraphElementNotFound, NotSupported
@@ -15,7 +15,7 @@ class HashMapStorage(BaseStorage):
     def __init__(self):
         super(HashMapStorage, self).__init__()
         self.vertices: Dict["BaseVertex"] = dict()
-        self.features: Dict["ElementFeature"] = dict()
+        self.features: Dict["ReplicableFeature"] = dict()
         self.edges: Dict["BaseEdge"] = dict()
 
     def add_vertex(self, vertex: BaseVertex) -> bool:

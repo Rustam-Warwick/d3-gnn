@@ -1,4 +1,4 @@
-from storage.map_storage import HashMapStorage
+from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
 from exceptions import NotSupported
 from elements import ElementTypes, Op
@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 from pyflink.datastream.functions import RuntimeContext
 
 
-class GraphStorageProcess(HashMapStorage, ProcessFunction):
+class GraphStorageProcess(LinkedListStorage, ProcessFunction):
     def __init__(self, *args, **kwargs):
         super(GraphStorageProcess, self).__init__(*args, **kwargs)
         self.out: list = list()
@@ -19,14 +19,17 @@ class GraphStorageProcess(HashMapStorage, ProcessFunction):
         self.aggregators: Dict[str, BaseAggregator] = dict()
 
     def with_aggregator(self, aggregator, *args, **kwargs) -> "GraphStorageProcess":
+        """ attaching aggregator to storage"""
         agg: BaseAggregator = aggregator(*args, storage=self, **kwargs)
         self.aggregators[agg.id] = agg
         return self
 
     def for_aggregator(self, fn):
-        for agg in self.aggregators: fn(agg)
+        """ Apply a callback function for each aggregator """
+        for agg in self.aggregators.values(): fn(agg)
 
     def open(self, runtime_context: RuntimeContext):
+        """ First callback on the task process side """
         self.part_id = runtime_context.get_index_of_this_subtask()
         self.for_aggregator(lambda agg: agg.open())
         super(GraphStorageProcess, self).open(runtime_context)
@@ -49,7 +52,8 @@ class GraphStorageProcess(HashMapStorage, ProcessFunction):
                 else:
                     raise NotSupported
             if value.op is Op.ADD:
-                value.element.create_element(self)
+                value.element.attach_storage(self)
+                value.element.create_element()
             if value.op is Op.SYNC:
                 el_type = value.element.element_type
                 if el_type is ElementTypes.FEATURE:
@@ -79,7 +83,7 @@ class GraphStorageProcess(HashMapStorage, ProcessFunction):
             if value.op is Op.AGG:
                 self.for_aggregator(lambda x: x.run(value))
         except Exception as e:
-            logging.log(logging.ERROR, str(e))
+            print(str(e))
 
         while len(self.out):
             yield self.out.pop(0)

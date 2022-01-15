@@ -1,7 +1,7 @@
 import torch
 
 from elements.vertex import BaseVertex
-from elements.element_feature.tensor_feature import TensorReplicableElementFeature, MeanAggregatorReplicableFeature
+from elements.element_feature.tensor_feature import TensorReplicableFeature, MeanAggregatorReplicableFeature
 from torch import randint,zeros
 
 

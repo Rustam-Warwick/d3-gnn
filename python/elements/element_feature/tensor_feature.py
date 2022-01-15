@@ -1,6 +1,6 @@
 import abc
 
-from elements.element_feature import ElementFeature
+from elements.element_feature import ReplicableFeature
 from decorators import rpc
 from abc import ABCMeta
 import torch
@@ -13,20 +13,8 @@ class TensorFeatureMixin:
         return True
 
 
-class TensorReplicableElementFeature(ElementFeature, TensorFeatureMixin):
-    def __init__(self, value: torch.tensor = None, *args, **kwargs):
-        if value is None: value = torch.zeros(1)
-        super(TensorReplicableElementFeature, self).__init__(*args, value=value, **kwargs)
-
-    def _eq(self, old_value, new_value) -> bool:
-        return torch.equal(old_value, new_value)
-
-
-class AggregatorReplicableElementFeature(ElementFeature, metaclass=ABCMeta):
-    def __init__(self, value: torch.tensor = None, *args, **kwargs):
-        if value is None: value = torch.zeros(1)
-        super(AggregatorReplicableElementFeature, self).__init__(*args, value=value, **kwargs)
-
+class AggregatorFeatureMixin:
+    """ Base class for all feature aggregators """
     @rpc
     @abc.abstractmethod
     def reduce(self, new_element: torch.tensor):
@@ -39,11 +27,20 @@ class AggregatorReplicableElementFeature(ElementFeature, metaclass=ABCMeta):
 
     @rpc
     @abc.abstractmethod
-    def replace(self, old_tensor: torch.tensor, new_tensor: torch.tensor):
+    def replace(self, new_tensor: torch.tensor, old_tensor: torch.tensor):
         pass
 
 
-class MeanAggregatorReplicableFeature(AggregatorReplicableElementFeature):
+class TensorReplicableFeature(ReplicableFeature, TensorFeatureMixin):
+    def __init__(self, value: torch.tensor = None, *args, **kwargs):
+        if value is None: value = torch.zeros(1)
+        super(TensorReplicableFeature, self).__init__(*args, value=value, **kwargs)
+
+    def _value_eq_(self, old_value, new_value) -> bool:
+        return torch.equal(old_value, new_value)
+
+
+class MeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMixin):
     def __init__(self, value: torch.tensor = None, *args, **kwargs):
         stored_value = (value, 0)  # Represents tensor and number of elements
         super(MeanAggregatorReplicableFeature, self).__init__(*args, value=stored_value, **kwargs)
@@ -56,8 +53,8 @@ class MeanAggregatorReplicableFeature(AggregatorReplicableElementFeature):
     def revert(self, deleted_tensor: torch.tensor):
         pass
 
-    def replace(self, old_tensor: torch.tensor, new_tensor: torch.tensor):
+    def replace(self, new_tensor: torch.tensor, old_tensor: torch.tensor):
         pass
 
-    def _eq(self, old_value, new_value) -> bool:
+    def _value_eq_(self, old_value, new_value) -> bool:
         return torch.equal(old_value[0], new_value[0]) and old_value[1] == new_value[1]

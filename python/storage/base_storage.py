@@ -1,6 +1,6 @@
 from pyflink.datastream import ProcessFunction
 import re
-from typing import TYPE_CHECKING, List, Iterator, Union, Tuple, Literal
+from typing import TYPE_CHECKING, List, Iterable, Union, Tuple, Literal, Dict
 from elements import ElementTypes, Op
 from exceptions import NotSupported, GraphElementNotFound
 from dgl import DGLGraph
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from elements.vertex import BaseVertex
     from elements.edge import BaseEdge
     from aggregator import BaseAggregator
-    from elements.element_feature import ElementFeature
+    from elements.element_feature import ReplicableFeature
 
 import abc
 
@@ -21,19 +21,30 @@ class BaseStorage(metaclass=abc.ABCMeta):
       """
 
     @abc.abstractmethod
-    def add_feature(self, feature: "ElementFeature") -> bool:
+    def add_feature(self, feature: "ReplicableFeature") -> bool:
+        """ Add feature return if created or already existed """
         pass
 
     @abc.abstractmethod
     def add_vertex(self, vertex: "BaseVertex") -> bool:
+        """ Add vertex return if created or already existed """
         pass
 
     @abc.abstractmethod
     def add_edge(self, edge: "BaseEdge") -> bool:
+        """ Add edge return if created or already existed """
         pass
 
     @abc.abstractmethod
-    def update(self, element: "GraphElement"):
+    def update_feature(self, feature: "ReplicableFeature") -> bool:
+        pass
+
+    @abc.abstractmethod
+    def update_vertex(self, vertex: "BaseVertex") -> bool:
+        pass
+
+    @abc.abstractmethod
+    def update_edge(self, vertex: "BaseVertex") -> bool:
         pass
 
     @abc.abstractmethod
@@ -47,20 +58,29 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_feature(self, element_id: str) -> "ElementFeature":
-        """ Return Feature of ElementNotFound Exception """
+    def get_feature(self, element_id: str) -> "ReplicableFeature":
         pass
 
     @abc.abstractmethod
-    def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterator[
+    def get_features(self, element_type: "ElementTypes", element_id:str) -> Dict[str, "ReplicableFeature"]:
+        pass
+
+    @abc.abstractmethod
+    def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterable[
         "BaseEdge"]:
         pass
 
     def add_element(self, element: "GraphElement") -> bool:
-        pass
+        """ Just a multiplexer for adding graph elements """
+        if element.element_type is ElementTypes.VERTEX:
+            return self.add_vertex(element)
+        if element.element_type is ElementTypes.EDGE:
+            return self.add_edge(element)
+        if element.element_type is ElementTypes.FEATURE:
+            return self.add_feature(element)
 
     def get_element(self, element_id: str, with_features=False) -> "GraphElement":
-        """ Decode the get_* functions from the id of GraphElement """
+        """ Just a simple MUX for geting graph elements """
         feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
         if feature_match:
             # Feature is asked
@@ -72,3 +92,11 @@ class BaseStorage(metaclass=abc.ABCMeta):
             return self.get_edge(element_id, with_features)
         # Vertex is asked
         return self.get_vertex(element_id, with_features)
+
+    def update(self, element: "GraphElement"):
+        if element.element_type is ElementTypes.FEATURE:
+            return self.update_feature(element)
+        if element.element_type is ElementTypes.VERTEX:
+            return self.update_feature(element)
+        if element.element_type is ElementTypes.EDGE:
+            return self.update_edge(element)

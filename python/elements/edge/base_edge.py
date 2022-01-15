@@ -37,6 +37,12 @@ class BaseEdge(GraphElement):
         self.destination.detach_storage()
         super(BaseEdge, self).detach_storage()
 
+    def __getstate__(self):
+        state = super(BaseEdge, self).__getstate__()
+        state['source'] = self.source
+        state['destination'] = self.destination
+        return state
+
     @property
     def element_type(self):
         return ElementTypes.EDGE

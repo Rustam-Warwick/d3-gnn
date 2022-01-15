@@ -1,1 +1,1 @@
-from .base_feature import ElementFeature
+from .base_feature import ReplicableFeature

@@ -9,7 +9,7 @@ from abc import ABCMeta
 
 if TYPE_CHECKING:
     from elements.edge import SimpleEdge
-    from elements.element_feature import ElementFeature
+    from elements.element_feature import ReplicableFeature
     from elements.vertex import SimpleVertex
     from elements import GraphElement
 
@@ -29,43 +29,30 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     @abc.abstractmethod
     def apply(self, vertex: "SimpleVertex") -> "torch.tensor":
         pass
+
     """ Override Functions """
     def run(self, *args, **kwargs):
         pass
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.EDGE:
-            element:"SimpleEdge"
+            element: "SimpleEdge"
             if element.source.is_initialized and element.destination.is_initialized:
-                self.exchange(element) # Update the agg function
+                # If both are initialized
+                self.exchange(element)  # Update the agg function
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        pass
-
-    def commit_element_callback(self, element: "GraphElement"):
-        pass
-
-    def sync_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        if element.element_type is ElementTypes.FEATURE and element.field_name == 'parts':
-            element: "ElementFeature"
-            old_element: "ElementFeature"
-            if not old_element.is_initialized and element.is_initialized:
-                # Ready transition happened
-                edge_list = self.storage.get_incident_edges(element.element,"both")
-                [self.exchange(edge) for edge in edge_list if edge.source.is_initialized and edge.destination.is_initialized]
-
-    def rpc_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:
-            element: "ElementFeature"
-            if element.field_name == "agg":
-                # Some update happened to agg, also note that this is always happening in master node
+            element: "ReplicableFeature"
+            old_element: "ReplicableFeature"
+            if element.field_name == 'parts':
+                if not old_element.is_initialized and element.is_initialized:
+                    # Ready transition happened
+                    edge_list = self.storage.get_incident_edges(element.element, "both")  # Feature update happened so update first hop neighborhood
+                    [self.exchange(edge) for edge in edge_list if edge.source.is_initialized and edge.destination.is_initialized]
+
+            if element.field_name == 'agg':
                 res = self.apply(element.element)
-                feature_new = copy(element.element.image)
-                feature_new._value = res
-                query = GraphQuery(Op.AGG, feature_new, self.storage.part_id, False)
-                self.storage.message(query)
-
-
 
 
 class StreamingGNNInference(BaseStreamingGNNInference):
@@ -77,10 +64,7 @@ class StreamingGNNInference(BaseStreamingGNNInference):
     def exchange(self, edge: "SimpleEdge"):
         source: "SimpleVertex" = edge.source
         dest: "SimpleVertex" = edge.destination
-        with torch.no_grad():
-            conc = torch.concat((source.image.value, dest.image.value), dim=1)
-            msg = self.message_fn(conc)
-            dest.agg.reduce(msg)
+        pass
 
     def apply(self, vertex: "SimpleVertex") -> torch.tensor:
         with torch.no_grad():

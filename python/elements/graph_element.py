@@ -9,7 +9,7 @@ from elements import GraphQuery, Op, query_for_part
 
 if TYPE_CHECKING:
     from storage.process_fn import GraphStorageProcess
-    from elements.element_feature import ElementFeature
+    from elements.element_feature import ReplicableFeature
     from elements import Rpc
 
 
@@ -27,26 +27,25 @@ class ElementTypes(Enum):
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
+    copy_fields = ("_features",)
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GraphStorageProcess" = None) -> None:
         self.id: str = element_id
         self.part_id: int = part_id  # None represents the part id of the storage engine
         self.storage: "GraphStorageProcess" = storage  # Storage
-        self._features: Dict[str, "ElementFeature"] = dict()  # Cached version of the element features
+        self._features: Dict[str, "ReplicableFeature"] = dict()  # Cached version of the element features
 
-    def __call__(self, rpc: "Rpc") -> bool:
-        is_updated = getattr(self, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
-        if is_updated:
-            self.storage.update(self)
-            self.storage.for_aggregator(lambda x: x.update_element_callback(self, self))
-        return is_updated
+    def __call__(self, rpc: "Rpc") -> Tuple[bool,"GraphElement"]:
+        new_element = copy.deepcopy(self)
+        getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+        return self.update_element(new_element)
 
     def create_element(self) -> bool:
         """ Save this GraphELement in memory """
         is_created = self.storage.add_element(self)
         if not is_created:return is_created
         for key, value in self:
-            GraphElement.create_element(value)
+            GraphElement.create_element(value) # Call with the graph element create_element
         if is_created:
             self.storage.for_aggregator(lambda x: x.add_element_callback(self))
         return is_created
@@ -75,8 +74,7 @@ class GraphElement(metaclass=ABCMeta):
 
     def __iter__(self):
         """ Iterate over the attached features """
-        tmp = list(self._features.items())
-        return tmp
+        return iter(self._features.items())
 
     @property
     @abc.abstractmethod
@@ -111,7 +109,7 @@ class GraphElement(metaclass=ABCMeta):
     @property
     def is_initialized(self) -> bool:
         """ """
-        return self.integer_clock > 0
+        return self.state is ReplicaState.MASTER or self.integer_clock > 0
 
     @property
     def is_waiting(self) -> bool:
@@ -136,25 +134,45 @@ class GraphElement(metaclass=ABCMeta):
     def __eq__(self, other):
         return self.id == other.id
 
+    def __deepcopy__(self, memodict={}):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        memodict[id(self)] = result
+        for k, v in self.__dict__.items():
+            if k in self.copy_fields:
+                setattr(result, k, copy.deepcopy(v, memodict))
+            else:
+                setattr(result, k, v)
+        return result
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update(self.__dict__)
+        return result
+
     def __setstate__(self, state: dict):
         """  """
-        if "storage" not in state: state['storage'] = None
-
-        for i in state['_features'].values():
-            #  Add element to element_feature
-            if isinstance(i, GraphElement) and i.element_type == ElementTypes.FEATURE:
-                i.element = self
+        state['storage'] = None
+        if "_features" in state:
+            for i in state['_features'].values():
+                #  Add element to element_feature
+                if isinstance(i, GraphElement) and i.element_type == ElementTypes.FEATURE:
+                    i.element = self
         self.__dict__.update(state)
 
     def __getstate__(self):
         """ Serialization, remove storage reference. <id, part_id, _features>.
             Note that _features which are fetched from storage are going to be serialized
          """
-        state = self.__dict__.copy()
-        if "storage" in state: del state['storage']
-        return state
+        return {
+            "id": self.id,
+            "part_id": self.part_id,
+            "_features": self._features,
+            "storage": None
+        }
 
-    def __getitem__(self, key) -> "ElementFeature":
+    def __getitem__(self, key) -> "ReplicableFeature":
         """ Get a Feature from this vertex """
         try:
             if key in self._features:
@@ -164,22 +182,27 @@ class GraphElement(metaclass=ABCMeta):
             elif self.storage:
                 item = self.storage.get_feature("%s:%s:%s" % (self.element_type.value, self.id, key))
                 item.element = self
+                self._features[key] = item  # Cache for future usage
                 return item
         except GraphElementNotFound:
             raise KeyError
 
-    def __setitem__(self, key, value: "ElementFeature"):
+    def __setitem__(self, key, value: "ReplicableFeature"):
         """ Set a Feature to this vertex """
         value.id = "%s:%s:%s" % (self.element_type.value, self.id, key)  # Set Id
         value.element = self  # Set Element
+        value.part_id = self.part_id
+        value.storage = self.storage
         self._features[key] = value
         if self.storage:
             # Setting element which is attached to graph storage
             value.create_element()
 
     def cache_features(self):
-        element = self.storage.get_element(self.id, True)
-        self._features = element._features
+        features = self.storage.get_features(self.element_type, self.id)
+        for key, value in features.items():
+            value.element = self
+            self._features[key] = value
 
     def attach_storage(self, storage: "GraphStorageProcess"):
         """ Simply attach the storage to this element """
@@ -196,7 +219,6 @@ class GraphElement(metaclass=ABCMeta):
 
     def sync_replicas(self):
         """ If this is master send SYNC to Replicas """
-        self.integer_clock += 1
         self.cache_features()
         query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
         filtered_parts = map(lambda x: query_for_part(query, x),

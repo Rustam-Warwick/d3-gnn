@@ -1,10 +1,7 @@
-import operator
-
 from elements import ReplicaState
 from elements.graph_element import GraphElement, GraphQuery, Op
-from elements.element_feature.set_feature import PartSetElementFeature
 from typing import TYPE_CHECKING, Tuple
-from exceptions import OldVersionException, NotUsedOnReplicaException
+from exceptions import OldVersionException
 
 if TYPE_CHECKING:
     from storage.process_fn import GraphStorageProcess
@@ -25,7 +22,7 @@ class ReplicableGraphElement(GraphElement):
             query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
             self.storage.message(query)
             return False
-        is_updated = super(ReplicableGraphElement, self).__call__(rpc)
+        is_updated, _ = super(ReplicableGraphElement, self).__call__(rpc)
         if is_updated:
             self.sync_replicas()
         return is_updated
@@ -34,7 +31,8 @@ class ReplicableGraphElement(GraphElement):
         is_created = super(ReplicableGraphElement, self).create_element()  # Store
         if not is_created: return is_created
         if self.state is ReplicaState.MASTER:
-            self['parts'] = PartSetElementFeature({self.storage.part_id})
+            from elements.element_feature.set_feature import PartSetReplicableFeature
+            self['parts'] = PartSetReplicableFeature({self.storage.part_id})
         elif self.state is ReplicaState.REPLICA:
             query = GraphQuery(Op.SYNC, self, self.master_part, True)
             self.storage.message(query)
@@ -61,7 +59,7 @@ class ReplicableGraphElement(GraphElement):
 
     def __iter__(self):
         tmp = super(ReplicableGraphElement, self).__iter__()
-        return filter(lambda x: x[0] != "parts", tmp)
+        return filter(lambda x: x[0] != "parts", list(tmp))
 
     @property
     def master_part(self) -> int:
@@ -75,6 +73,8 @@ class ReplicableGraphElement(GraphElement):
 
     def del_integer_clock(self):
         del self._clock
+
+    integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
 
     @property
     def is_halo(self) -> bool:
@@ -94,6 +94,11 @@ class ReplicableGraphElement(GraphElement):
     def __getstate__(self):
         """ No need to serialize the parts """
         state = super(ReplicableGraphElement, self).__getstate__()
+        state.update({
+            "master": self.master_part,
+            "_clock":self.integer_clock,
+            "_halo": self.is_halo
+        })
         if "parts" in state["_features"]:
             del state["_features"]["parts"]
         return state
