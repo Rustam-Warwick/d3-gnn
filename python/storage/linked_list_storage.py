@@ -1,5 +1,4 @@
 import re
-from importlib import import_module
 from typing import Literal, Iterator
 from exceptions.base_exception import GraphElementNotFound
 from storage import BaseStorage
@@ -19,6 +18,7 @@ class LinkedListStorage(BaseStorage):
                                   "ReplicableFeature"]] = dict()  # Source vertex to dict of field_name and feature objects
         self.meta_data: Dict[str, dict] = dict()  # Meta-data such as replication stuff per each graph element
         self.last_translated_id = 0
+        self.feature_classes: Dict[str, object] = dict()
 
     def add_feature(self, feature: "ReplicableFeature") -> bool:
         if feature.element.element_type is ElementTypes.VERTEX:
@@ -27,11 +27,14 @@ class LinkedListStorage(BaseStorage):
             features = self.feature_table[vertex_id]
             if feature.field_name in features:
                 return False
-            features[feature.field_name] = feature
-            return True
+
+            features[feature.field_name] = feature.value
+            self.feature_classes[feature.field_name] = type(feature)
         elif feature.element.element_type is ElementTypes.EDGE:
             # @todo not yet implemented since edges do not have features
             pass
+
+        return True
 
     def add_vertex(self, vertex: "BaseVertex") -> bool:
         if vertex.id in self.translation_table: return False  # Already in there
@@ -54,6 +57,10 @@ class LinkedListStorage(BaseStorage):
 
     def update_feature(self, feature: "ReplicableFeature") -> bool:
         """ No need to do anything since objects are already in memory """
+        if feature.element.element_type is ElementTypes.VERTEX:
+            internal_id = self.translation_table[feature.element.id]
+            self.feature_table[internal_id][feature.field_name] = feature.value
+            return True
         pass
 
     def update_vertex(self, vertex: "BaseVertex") -> bool:
@@ -91,9 +98,10 @@ class LinkedListStorage(BaseStorage):
             el_type = int(feature_match['type'])
             if el_type == ElementTypes.VERTEX.value:
                 internal_id = self.translation_table[feature_match['element_id']]
-                feature = self.feature_table[internal_id][feature_match['feature_name']]
+                feature_value = self.feature_table[internal_id][feature_match['feature_name']]
+                feature_class = self.feature_classes[feature_match['feature_name']]
+                feature = feature_class(value=feature_value, element_id=element_id, element=self.get_vertex(feature_match['element_id']))
                 feature.attach_storage(self)
-                feature.element = self.get_vertex(feature_match['element_id'])
                 return feature
             elif el_type == ElementTypes.EDGE.value:
                 # @todo Implement edge features later
@@ -102,13 +110,19 @@ class LinkedListStorage(BaseStorage):
             raise GraphElementNotFound
 
     def get_features(self, element_type: "ElementTypes", element_id: str) -> Dict[str, "ReplicableFeature"]:
+        res = {}
         try:
             if element_type is ElementTypes.VERTEX:
                 internal_id = self.translation_table[element_id]
                 features: Dict[str, "ReplicableFeature"] = self.feature_table[internal_id]
-                for i in features.values():
-                    i.attach_storage(self)
-                return features
+                vertex = self.get_vertex(element_id)
+                for name,value in features.items():
+                    feature_class = self.feature_classes[name]
+                    feature = feature_class(value=value, element_id=element_id,
+                                            element=vertex)
+                    feature.attach_storage(self)
+                    res[name] = feature
+                return res
 
             elif element_type is ElementTypes.EDGE:
                 #   @todo Implement later edge features
@@ -118,4 +132,27 @@ class LinkedListStorage(BaseStorage):
 
     def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterator[
         "BaseEdge"]:
-        pass
+
+        edge_list: ['BaseEdge'] = list()
+        if vertex.id not in self.translation_table: raise GraphElementNotFound
+        int_id = self.translation_table[vertex.id]
+        if edge_type in ['in','both']:
+            # Edges where vertex is destination
+            for _id, edges in self.vertex_table.items():
+                if int_id in edges:
+                    real_id = next(key for key, value in self.translation_table.items() if value == _id)
+                    src_vertex = self.get_vertex(real_id)
+                    edge = BaseEdge(src=src_vertex, dest=vertex)
+                    edge.attach_storage(self)
+                    edge_list.append(edge)
+        if edge_type in ['out','both']:
+            # Edge where vertex is the source
+            out_vertices = self.vertex_table[int_id]
+            for _id in out_vertices:
+                real_id = next(key for key, value in self.translation_table.items() if value == _id)
+                dest_vertex = self.get_vertex(real_id)
+                edge = BaseEdge(src=vertex, dest=dest_vertex)
+                edge.attach_storage(self)
+                edge_list.append(edge)
+        return edge_list
+

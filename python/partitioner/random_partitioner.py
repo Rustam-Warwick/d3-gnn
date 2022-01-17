@@ -24,9 +24,9 @@ class RandomPartitioner(BasePartitioner):
 
     def assign_vertex_state(self, vertex: "BaseVertex", part: int):
         if self.masters[vertex.id] == part:
-            vertex.master = -1
+            vertex._master = -1
         else:
-            vertex.master = self.masters[vertex.id]
+            vertex._master = self.masters[vertex.id]
 
     def map(self, value: "GraphQuery"):
         if value.part is None:

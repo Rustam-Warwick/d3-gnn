@@ -1,8 +1,7 @@
 from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
-from exceptions import NotSupported
+from exceptions import NotSupported,AggregatorExistsException
 from elements import ElementTypes, Op
-import logging
 from typing import TYPE_CHECKING, List, Iterator, Union, Tuple, Literal, Dict
 
 if TYPE_CHECKING:
@@ -18,9 +17,11 @@ class GraphStorageProcess(LinkedListStorage, ProcessFunction):
         self.part_id: int = -1
         self.aggregators: Dict[str, BaseAggregator] = dict()
 
-    def with_aggregator(self, aggregator, *args, **kwargs) -> "GraphStorageProcess":
+    def with_aggregator(self, agg:"BaseAggregator") -> "GraphStorageProcess":
         """ attaching aggregator to storage"""
-        agg: BaseAggregator = aggregator(*args, storage=self, **kwargs)
+        agg.storage = self
+        if agg.id in self.aggregators:
+            raise AggregatorExistsException
         self.aggregators[agg.id] = agg
         return self
 

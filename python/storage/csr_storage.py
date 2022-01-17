@@ -12,7 +12,7 @@ class CSRStorage(BaseStorage):
     def add_edge(self, edge: "BaseEdge") -> Tuple[bool, "BaseEdge"]:
         pass
 
-    def update(self, element: "GraphElement"):
+    def update_element(self, element: "GraphElement"):
         pass
 
     def get_vertex(self, element_id: str) -> "BaseVertex":

@@ -2,6 +2,7 @@ import abc
 import copy
 from abc import ABCMeta
 from typing import TYPE_CHECKING, Tuple
+from exceptions import NotSupported
 import re
 from elements import ReplicableGraphElement, ElementTypes, ReplicaState
 
@@ -14,7 +15,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         Most of its features are combing from the associated GraphElement, whereas an ElementFeature is also a GraphElement
         @todo make this generic maybe ? To infer weather it is replicable or not: Hard to do without overheads
     """
-    copy_fields = ("_value",)  # Only deep copy _value if needed rest is just reference attachment
+    deep_copy_fields = ("_value",)  # Only deep copy _value if needed rest is just reference attachment
 
     def __init__(self, element: "GraphElement" = None, value: object = None, *args, **kwargs):
         self._value = value
@@ -22,21 +23,36 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         super(ReplicableFeature, self).__init__(*args, **kwargs)
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
-        """ Update this feature """
-        memento = copy.copy(self)
-        memento.element = None
+        """ Similar to Graph Element  but added value swapping and no sub-feature checks """
+        memento = copy.copy(self)  # .element field will be empty
         is_updated = not self._value_eq_(self._value, new_element._value)
         if is_updated:
             self._value = new_element._value
-            if self.state is ReplicaState.MASTER: self.integer_clock += 1
-            self.storage.update(self)
-            self.storage.update(self.element)
+            self.integer_clock = max(new_element.integer_clock, self.integer_clock)
+            self.storage.update_element(self)
             self.storage.for_aggregator(lambda x: x.update_element_callback(self, memento))
         return is_updated, memento
 
     def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
-        if self.state is ReplicaState.REPLICA: return super(ReplicableFeature, self).sync_element(new_element)
-        return False, self
+        """ If directly syncing this feature parent vertex should also be updated """
+        if self.state is ReplicaState.REPLICA:
+            is_changed, memento = super(ReplicableFeature, self).sync_element(new_element)
+            if is_changed:
+                self.storage.update_element(self.element)
+            return is_changed, memento
+        raise NotSupported  # Not implemented feature resolution yet :>
+
+    def __call__(self, rpc: "Rpc") -> Tuple[bool,"GraphElement"]:
+        is_changed, memento = super(ReplicableFeature, self).__call__(rpc)
+        if is_changed:
+            self.storage.update_element(self.element)
+        return is_changed, memento
+
+    def external_update(self, new_element:"GraphElement") -> Tuple[bool, "GraphElement"]:
+        is_changed, memento = super(ReplicableFeature, self).external_update(new_element)
+        if is_changed:
+            self.storage.update_element(self.element)
+        return is_changed, memento
 
     @abc.abstractmethod
     def _value_eq_(self, old_value, new_value) -> bool:
@@ -63,7 +79,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def master_part(self) -> int:
         if self.element:
             return self.element.master_part
-        return self.master_part
+        return super(ReplicableFeature, self).master_part
 
     @property
     def replica_parts(self) -> list:
@@ -75,7 +91,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def is_halo(self) -> bool:
         if self.element:
             return self.element.is_halo
-        return self.is_halo
+        return super(ReplicableFeature, self).is_halo
 
     def get_integer_clock(self):
         if self.element:
@@ -84,12 +100,14 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def set_integer_clock(self, value: int):
         if self.element:
-            return self.element.set_integer_clock(value)
+            self.element.set_integer_clock(value)
+            return
         super(ReplicableFeature, self).set_integer_clock(value)
 
     def del_integer_clock(self):
         if self.element:
-            return self.element.del_integer_clock()
+            self.element.del_integer_clock()
+            return
         super(ReplicableFeature, self).del_integer_clock()
 
     integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
@@ -110,6 +128,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         state = super(ReplicableFeature, self).__getstate__()
         state.update({
             "_value": self.value,
-            "element": None
+            "element": None # No need to serialize element value
         })
         return state

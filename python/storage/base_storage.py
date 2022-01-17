@@ -93,10 +93,10 @@ class BaseStorage(metaclass=abc.ABCMeta):
         # Vertex is asked
         return self.get_vertex(element_id, with_features)
 
-    def update(self, element: "GraphElement"):
+    def update_element(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:
             return self.update_feature(element)
         if element.element_type is ElementTypes.VERTEX:
-            return self.update_feature(element)
+            return self.update_vertex(element)
         if element.element_type is ElementTypes.EDGE:
             return self.update_edge(element)

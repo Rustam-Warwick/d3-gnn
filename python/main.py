@@ -8,8 +8,7 @@ from helpers.socketmapper import EdgeListParser
 
 
 def run():
-    storage = GraphStorageProcess()
-    # storage.with_aggregator
+    storage = GraphStorageProcess().with_aggregator(StreamingGNNInference(ident="rustam_streaming_gnn_inference"))
     graphstream = GraphStream(2)
     graphstream.read_socket(EdgeListParser(), "localhost", 9090)
     graphstream.partition(RandomPartitioner)

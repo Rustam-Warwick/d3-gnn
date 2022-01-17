@@ -27,7 +27,7 @@ class ElementTypes(Enum):
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
-    copy_fields = ("_features",)
+    deep_copy_fields = ("_features",)
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GraphStorageProcess" = None) -> None:
         self.id: str = element_id
@@ -36,22 +36,27 @@ class GraphElement(metaclass=ABCMeta):
         self._features: Dict[str, "ReplicableFeature"] = dict()  # Cached version of the element features
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool,"GraphElement"]:
+        """ Remote Procedure call for updating this GraphElement """
         new_element = copy.deepcopy(self)
         getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+        new_element.integer_clock += 1  # Increment integer clock just in case it is actually updated
         return self.update_element(new_element)
 
     def create_element(self) -> bool:
-        """ Save this GraphELement in memory """
+        """ Save this Graph Element in storage """
         is_created = self.storage.add_element(self)
         if not is_created:return is_created
         for key, value in self:
+            # Save Features
             GraphElement.create_element(value) # Call with the graph element create_element
         if is_created:
             self.storage.for_aggregator(lambda x: x.add_element_callback(self))
         return is_created
 
     def update_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
-        """ General Update function """
+        """ Given new Graph Element update the overlapping values
+            @returns (is_changed, old_element)
+        """
         memento = copy.copy(self)
         is_updated = False
         for name, value in new_element:
@@ -60,7 +65,7 @@ class GraphElement(metaclass=ABCMeta):
             memento._features[name] = memento_feature  # Populate this to not trigger the storage update
         if is_updated:
             self.integer_clock = max(new_element.integer_clock, self.integer_clock)
-            self.storage.update(self)
+            self.storage.update_element(self)
             self.storage.for_aggregator(lambda x: x.update_element_callback(self, memento))
         return is_updated, memento
 
@@ -70,7 +75,8 @@ class GraphElement(metaclass=ABCMeta):
 
     def external_update(self, new_element:"GraphElement") -> Tuple[bool, "GraphElement"]:
         """ Unconditional Update function """
-        self.update_element(new_element)
+        self.integer_clock += 1
+        return self.update_element(new_element)
 
     def __iter__(self):
         """ Iterate over the attached features """
@@ -139,16 +145,18 @@ class GraphElement(metaclass=ABCMeta):
         result = cls.__new__(cls)
         memodict[id(self)] = result
         for k, v in self.__dict__.items():
-            if k in self.copy_fields:
+            if k in self.deep_copy_fields:
                 setattr(result, k, copy.deepcopy(v, memodict))
             else:
                 setattr(result, k, v)
         return result
 
     def __copy__(self):
+        """ @todo Uses .get_state() instead of dict, does it make sense? Errors might appear in future bc of this """
         cls = self.__class__
         result = cls.__new__(cls)
-        result.__dict__.update(self.__dict__)
+        result.__dict__.update(self.__getstate__())
+        result.storage = self.storage
         return result
 
     def __setstate__(self, state: dict):
@@ -169,7 +177,7 @@ class GraphElement(metaclass=ABCMeta):
             "id": self.id,
             "part_id": self.part_id,
             "_features": self._features,
-            "storage": None
+            "storage": None # No need to serialize storage value
         }
 
     def __getitem__(self, key) -> "ReplicableFeature":
@@ -187,6 +195,13 @@ class GraphElement(metaclass=ABCMeta):
         except GraphElementNotFound:
             raise KeyError
 
+    def get(self, key, default_value=None):
+        """ Wrapper to not throw error, used in some cases to keep the code cleaner """
+        try:
+            return self[key]
+        except KeyError:
+            return default_value
+
     def __setitem__(self, key, value: "ReplicableFeature"):
         """ Set a Feature to this vertex """
         value.id = "%s:%s:%s" % (self.element_type.value, self.id, key)  # Set Id
@@ -198,7 +213,12 @@ class GraphElement(metaclass=ABCMeta):
             # Setting element which is attached to graph storage
             value.create_element()
 
+    def __str__(self):
+        return self.id
+
     def cache_features(self):
+        """ Get all graph Element Features and store them locally. Mostly used for syncing master and replicas of
+        Graph Element """
         features = self.storage.get_features(self.element_type, self.id)
         for key, value in features.items():
             value.element = self
@@ -217,11 +237,4 @@ class GraphElement(metaclass=ABCMeta):
         for feature in self._features.values():
             feature.detach_storage()
 
-    def sync_replicas(self):
-        """ If this is master send SYNC to Replicas """
-        self.cache_features()
-        query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
-        filtered_parts = map(lambda x: query_for_part(query, x),
-                             filter(lambda x: x != self.storage.part_id, self.replica_parts))
-        for msg in filtered_parts:
-            self.storage.message(msg)
+

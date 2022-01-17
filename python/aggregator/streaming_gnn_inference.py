@@ -45,7 +45,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.FEATURE:
             element: "ReplicableFeature"
             old_element: "ReplicableFeature"
-            if element.field_name == 'parts':
+            if element.field_name == 'feature':
                 if not old_element.is_initialized and element.is_initialized:
                     # Ready transition happened
                     edge_list = self.storage.get_incident_edges(element.element, "both")  # Feature update happened so update first hop neighborhood
@@ -64,7 +64,11 @@ class StreamingGNNInference(BaseStreamingGNNInference):
     def exchange(self, edge: "SimpleEdge"):
         source: "SimpleVertex" = edge.source
         dest: "SimpleVertex" = edge.destination
-        pass
+        agg = dest.get("agg")
+        if agg == None:
+            # Does not exist need to create
+            pass
+
 
     def apply(self, vertex: "SimpleVertex") -> torch.tensor:
         with torch.no_grad():

@@ -70,6 +70,6 @@ class HashMapStorage(BaseStorage):
             return getattr(vertex, f_name)
         raise GraphElementNotFound
 
-    def update(self, element: "GraphElement"):
-        super(HashMapStorage, self).update(element)
+    def update_element(self, element: "GraphElement"):
+        super(HashMapStorage, self).update_element(element)
         pass

@@ -1,5 +1,5 @@
 from elements import ReplicaState
-from elements.graph_element import GraphElement, GraphQuery, Op
+from elements.graph_element import GraphElement, GraphQuery, Op,query_for_part
 from typing import TYPE_CHECKING, Tuple
 from exceptions import OldVersionException
 
@@ -12,27 +12,28 @@ class ReplicableGraphElement(GraphElement):
 
     def __init__(self, master: int = None, is_halo=False, *args, **kwargs):
         super(ReplicableGraphElement, self).__init__(*args, **kwargs)
-        self.master = master
+        self._master = master
         self._clock = 0
         self._halo = is_halo
 
-    def __call__(self, rpc: "Rpc") -> bool:
+    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
+        """ Wrap GraphElement call to have separate behavior for Replica & Master nodes """
         if self.state == ReplicaState.REPLICA:
             # Send this message to master node if it is replica
             query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
             self.storage.message(query)
-            return False
-        is_updated, _ = super(ReplicableGraphElement, self).__call__(rpc)
+            return False, self
+        is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
         if is_updated:
             self.sync_replicas()
-        return is_updated
+        return is_updated, elem
 
     def create_element(self) -> bool:
         is_created = super(ReplicableGraphElement, self).create_element()  # Store
         if not is_created: return is_created
         if self.state is ReplicaState.MASTER:
             from elements.element_feature.set_feature import PartSetReplicableFeature
-            self['parts'] = PartSetReplicableFeature({self.storage.part_id})
+            self['parts'] = PartSetReplicableFeature({self.storage.part_id})  # This is special feature it will sync entire parent feature
         elif self.state is ReplicaState.REPLICA:
             query = GraphQuery(Op.SYNC, self, self.master_part, True)
             self.storage.message(query)
@@ -44,7 +45,7 @@ class ReplicableGraphElement(GraphElement):
             self["parts"].add(new_element.part_id)  # This is going to handle syncing no need to bother
             return False, self
         elif self.state is ReplicaState.REPLICA:
-            if new_element.integer_clock < self.integer_clock: raise OldVersionException
+            if new_element.integer_clock <= self.integer_clock: raise OldVersionException
             return self.update_element(new_element)
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
@@ -61,9 +62,18 @@ class ReplicableGraphElement(GraphElement):
         tmp = super(ReplicableGraphElement, self).__iter__()
         return filter(lambda x: x[0] != "parts", list(tmp))
 
+    def sync_replicas(self):
+        """ If this is master send SYNC to Replicas """
+        self.cache_features()
+        query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
+        filtered_parts = map(lambda x: query_for_part(query, x),
+                             filter(lambda x: x != self.storage.part_id, self.replica_parts))
+        for msg in filtered_parts:
+            self.storage.message(msg)
+
     @property
     def master_part(self) -> int:
-        return self.master
+        return self._master
 
     def get_integer_clock(self):
         return self._clock
@@ -95,8 +105,8 @@ class ReplicableGraphElement(GraphElement):
         """ No need to serialize the parts """
         state = super(ReplicableGraphElement, self).__getstate__()
         state.update({
-            "master": self.master_part,
-            "_clock":self.integer_clock,
+            "_master": self.master_part,
+            "_clock": self.integer_clock,
             "_halo": self.is_halo
         })
         if "parts" in state["_features"]:
