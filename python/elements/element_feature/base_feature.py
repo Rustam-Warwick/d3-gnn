@@ -4,10 +4,7 @@ from abc import ABCMeta
 from typing import TYPE_CHECKING, Tuple
 from exceptions import NotSupported
 import re
-from elements import ReplicableGraphElement, ElementTypes, ReplicaState
-
-if TYPE_CHECKING:
-    from elements import  GraphElement
+from elements import ReplicableGraphElement, ElementTypes, ReplicaState, Op, GraphQuery, GraphElement
 
 
 class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
@@ -21,6 +18,18 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         self._value = value
         self.element: "GraphElement" = element
         super(ReplicableFeature, self).__init__(*args, **kwargs)
+
+    def create_element(self) -> bool:
+        """ Just a normal Creation without any Features """
+        self._features.clear()  # No sub Features allowed for Features
+        return GraphElement.create_element(self)
+
+    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
+        """ Similar to sync_element we need to save the .element since integer_clock might change """
+        is_changed, memento = super(ReplicableFeature, self).__call__(rpc)
+        if is_changed:
+            self.storage.update_element(self.element)
+        return is_changed, memento
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
@@ -41,14 +50,10 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
                 self.storage.update_element(self.element)
             return is_changed, memento
         raise NotSupported  # Not implemented feature resolution yet :>
+        # @todo Should we implement smt like this that calls sync_replicas()
 
-    def __call__(self, rpc: "Rpc") -> Tuple[bool,"GraphElement"]:
-        is_changed, memento = super(ReplicableFeature, self).__call__(rpc)
-        if is_changed:
-            self.storage.update_element(self.element)
-        return is_changed, memento
-
-    def external_update(self, new_element:"GraphElement") -> Tuple[bool, "GraphElement"]:
+    def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
+        """ We need to save the .element since integer_clock might change as well """
         is_changed, memento = super(ReplicableFeature, self).external_update(new_element)
         if is_changed:
             self.storage.update_element(self.element)
@@ -128,6 +133,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         state = super(ReplicableFeature, self).__getstate__()
         state.update({
             "_value": self.value,
-            "element": None # No need to serialize element value
+            "element": None  # No need to serialize element value
         })
         return state

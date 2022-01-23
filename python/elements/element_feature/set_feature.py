@@ -32,6 +32,9 @@ class SetReplicableReplicableFeature(ReplicableFeature, SetFeatureMixin):
 
 
 class PartSetReplicableFeature(ReplicableFeature, SetFeatureMixin):
+    """ Special Set Feature which stores the parts of replication
+        Different from regular set feature is the sync_replicas which syncs the attached element entirely
+    """
     def __init__(self, value: set = None, *args, **kwargs):
         if not value: value = set()
         super(PartSetReplicableFeature, self).__init__(*args, value=value, **kwargs)
@@ -40,7 +43,4 @@ class PartSetReplicableFeature(ReplicableFeature, SetFeatureMixin):
         return collections.Counter(old_value) == collections.Counter(new_value)
 
     def sync_replicas(self):
-        """ This is exceptional PartSet Feature which syncs the parent GraphElement when it is modified
-            Logic is that if part set is modifiied a new replica of self.element is added so it need a full sync
-         """
         self.element.sync_replicas()

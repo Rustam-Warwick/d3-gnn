@@ -3,14 +3,14 @@ from abc import ABCMeta
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from storage import BaseStorage
+    from storage.process_fn import GraphStorageProcess
     from elements import GraphElement
 
 
 class BaseAggregator(metaclass=ABCMeta):
-    def __init__(self, ident: str, storage: "BaseStorage" = None):
-        self.storage = storage
-        self.id = ident
+    def __init__(self, ident: str, storage: "GraphStorageProcess" = None):
+        self.storage: "GraphStorageProcess" = storage
+        self.id: str = ident
 
     @abc.abstractmethod
     def open(self, *args, **kwargs):
@@ -18,15 +18,15 @@ class BaseAggregator(metaclass=ABCMeta):
 
     @abc.abstractmethod
     def run(self, *args, **kwargs):
-        """ External run of this function """
+        """ External run of this function @notimplemented"""
         pass
 
     @abc.abstractmethod
     def add_element_callback(self, element: "GraphElement"):
-        """ Callback after element is added """
+        """ Callback after Graph Element is added """
         pass
 
     @abc.abstractmethod
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        """ When external update comes and updated  GraphElement """
+        """ When external update comes and updated GraphElement """
         pass

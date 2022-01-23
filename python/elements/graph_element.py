@@ -48,7 +48,7 @@ class GraphElement(metaclass=ABCMeta):
         if not is_created:return is_created
         for key, value in self:
             # Save Features
-            GraphElement.create_element(value) # Call with the graph element create_element
+            value.create_element()  # Call with the graph element create_element
         if is_created:
             self.storage.for_aggregator(lambda x: x.add_element_callback(self))
         return is_created
@@ -58,11 +58,17 @@ class GraphElement(metaclass=ABCMeta):
             @returns (is_changed, old_element)
         """
         memento = copy.copy(self)
+        memento._features = self._features.copy()
         is_updated = False
         for name, value in new_element:
-            is_updated_feature, memento_feature = self[name].update_element(value)  # Call Update on the Features
-            is_updated |= is_updated_feature
-            memento._features[name] = memento_feature  # Populate this to not trigger the storage update
+            feature = self.get(name)
+            if feature:
+                is_updated_feature, memento_feature = feature.update_element(value)  # Call Update on the Features
+                is_updated |= is_updated_feature
+                memento._features[name] = memento_feature  # Populate this to not trigger the storage updatea
+            else:
+                self[name] = value
+                is_updated |= True
         if is_updated:
             self.integer_clock = max(new_element.integer_clock, self.integer_clock)
             self.storage.update_element(self)
@@ -73,7 +79,7 @@ class GraphElement(metaclass=ABCMeta):
         """ Sync this GraphElement Implemented for Replicable Graph Element """
         pass
 
-    def external_update(self, new_element:"GraphElement") -> Tuple[bool, "GraphElement"]:
+    def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ Unconditional Update function """
         self.integer_clock += 1
         return self.update_element(new_element)
@@ -177,7 +183,7 @@ class GraphElement(metaclass=ABCMeta):
             "id": self.id,
             "part_id": self.part_id,
             "_features": self._features,
-            "storage": None # No need to serialize storage value
+            "storage": None  # No need to serialize storage value
         }
 
     def __getitem__(self, key) -> "ReplicableFeature":

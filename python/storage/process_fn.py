@@ -1,24 +1,24 @@
 from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
-from exceptions import NotSupported,AggregatorExistsException
+from exceptions import NotSupported, AggregatorExistsException
 from elements import ElementTypes, Op
 from typing import TYPE_CHECKING, List, Iterator, Union, Tuple, Literal, Dict
-
+from elements import GraphQuery
 if TYPE_CHECKING:
     from aggregator import BaseAggregator
-    from elements import GraphElement, GraphQuery
 from pyflink.datastream.functions import RuntimeContext
 
 
 class GraphStorageProcess(LinkedListStorage, ProcessFunction):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, is_last=False, **kwargs):
         super(GraphStorageProcess, self).__init__(*args, **kwargs)
-        self.out: list = list()
-        self.part_id: int = -1
-        self.aggregators: Dict[str, BaseAggregator] = dict()
+        self.out: list = list()  # List storing the message to be sent
+        self.part_id: int = -1  # Index of this parallel task
+        self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
+        self.is_last = is_last  # Is this GraphStorageProcess the last one in the pipeline
 
-    def with_aggregator(self, agg:"BaseAggregator") -> "GraphStorageProcess":
-        """ attaching aggregator to storage"""
+    def with_aggregator(self, agg: "BaseAggregator") -> "GraphStorageProcess":
+        """ Attaching aggregator to this process function """
         agg.storage = self
         if agg.id in self.aggregators:
             raise AggregatorExistsException
@@ -40,7 +40,7 @@ class GraphStorageProcess(LinkedListStorage, ProcessFunction):
         self.out.append(query)
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
-        if value.is_topology_change:
+        if value.is_topology_change and not self.is_last:
             # Redirect to the next operator
             yield value
         try:
@@ -82,8 +82,9 @@ class GraphStorageProcess(LinkedListStorage, ProcessFunction):
                 else:
                     raise NotSupported
             if value.op is Op.AGG:
-                self.for_aggregator(lambda x: x.run(value))
+                self.aggregators[value.aggregator_name].run(value)
         except Exception as e:
+            print("ERROR")
             print(str(e))
 
         while len(self.out):

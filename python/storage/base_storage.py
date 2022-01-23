@@ -80,7 +80,7 @@ class BaseStorage(metaclass=abc.ABCMeta):
             return self.add_feature(element)
 
     def get_element(self, element_id: str, with_features=False) -> "GraphElement":
-        """ Just a simple MUX for geting graph elements """
+        """ Just a simple MUX for getting graph elements """
         feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
         if feature_match:
             # Feature is asked

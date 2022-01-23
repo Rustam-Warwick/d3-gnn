@@ -29,11 +29,13 @@ class ReplicableGraphElement(GraphElement):
         return is_updated, elem
 
     def create_element(self) -> bool:
+        if self.state is ReplicaState.REPLICA: self._features.clear()
         is_created = super(ReplicableGraphElement, self).create_element()  # Store
         if not is_created: return is_created
         if self.state is ReplicaState.MASTER:
             from elements.element_feature.set_feature import PartSetReplicableFeature
-            self['parts'] = PartSetReplicableFeature({self.storage.part_id})  # This is special feature it will sync entire parent feature
+            self['parts'] = PartSetReplicableFeature({self.storage.part_id})  # This is special feature it will sync
+            # entire parent feature
         elif self.state is ReplicaState.REPLICA:
             query = GraphQuery(Op.SYNC, self, self.master_part, True)
             self.storage.message(query)
@@ -59,6 +61,7 @@ class ReplicableGraphElement(GraphElement):
         return is_updated, memento
 
     def __iter__(self):
+        """ Do not have parts in the iter  """
         tmp = super(ReplicableGraphElement, self).__iter__()
         return filter(lambda x: x[0] != "parts", list(tmp))
 

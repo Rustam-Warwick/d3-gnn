@@ -100,7 +100,9 @@ class LinkedListStorage(BaseStorage):
                 internal_id = self.translation_table[feature_match['element_id']]
                 feature_value = self.feature_table[internal_id][feature_match['feature_name']]
                 feature_class = self.feature_classes[feature_match['feature_name']]
-                feature = feature_class(value=feature_value, element_id=element_id, element=self.get_vertex(feature_match['element_id']))
+                feature: "ReplicableFeature" = feature_class(value=feature_value, element_id=element_id,
+                                                             element=self.get_vertex(
+                                                                 feature_match['element_id']))
                 feature.attach_storage(self)
                 return feature
             elif el_type == ElementTypes.EDGE.value:
@@ -116,7 +118,7 @@ class LinkedListStorage(BaseStorage):
                 internal_id = self.translation_table[element_id]
                 features: Dict[str, "ReplicableFeature"] = self.feature_table[internal_id]
                 vertex = self.get_vertex(element_id)
-                for name,value in features.items():
+                for name, value in features.items():
                     feature_class = self.feature_classes[name]
                     feature = feature_class(value=value, element_id=element_id,
                                             element=vertex)
@@ -136,7 +138,7 @@ class LinkedListStorage(BaseStorage):
         edge_list: ['BaseEdge'] = list()
         if vertex.id not in self.translation_table: raise GraphElementNotFound
         int_id = self.translation_table[vertex.id]
-        if edge_type in ['in','both']:
+        if edge_type in ['in', 'both']:
             # Edges where vertex is destination
             for _id, edges in self.vertex_table.items():
                 if int_id in edges:
@@ -145,7 +147,7 @@ class LinkedListStorage(BaseStorage):
                     edge = BaseEdge(src=src_vertex, dest=vertex)
                     edge.attach_storage(self)
                     edge_list.append(edge)
-        if edge_type in ['out','both']:
+        if edge_type in ['out', 'both']:
             # Edge where vertex is the source
             out_vertices = self.vertex_table[int_id]
             for _id in out_vertices:
@@ -155,4 +157,3 @@ class LinkedListStorage(BaseStorage):
                 edge.attach_storage(self)
                 edge_list.append(edge)
         return edge_list
-
