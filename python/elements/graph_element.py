@@ -3,12 +3,10 @@ import copy
 from abc import ABCMeta
 from enum import Enum
 from typing import TYPE_CHECKING, Tuple, Dict
-from exceptions import OldVersionException, NotUsedOnReplicaException, GraphElementNotFound
-from asyncio import get_event_loop
-from elements import GraphQuery, Op, query_for_part
+from exceptions import GraphElementNotFound
 
 if TYPE_CHECKING:
-    from storage.process_fn import GraphStorageProcess
+    from storage.gnn_layer import GNNLayerProcess
     from elements.element_feature import ReplicableFeature
     from elements import Rpc
 
@@ -23,19 +21,20 @@ class ElementTypes(Enum):
     VERTEX = 0
     EDGE = 1
     FEATURE = 2
+    NONE = 3
 
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
     deep_copy_fields = ("_features",)
 
-    def __init__(self, element_id: str = None, part_id=None, storage: "GraphStorageProcess" = None) -> None:
+    def __init__(self, element_id: str = None, part_id=None, storage: "GNNLayerProcess" = None) -> None:
         self.id: str = element_id
         self.part_id: int = part_id  # None represents the part id of the storage engine
-        self.storage: "GraphStorageProcess" = storage  # Storage
+        self.storage: "GNNLayerProcess" = storage  # Storage
         self._features: Dict[str, "ReplicableFeature"] = dict()  # Cached version of the element features
 
-    def __call__(self, rpc: "Rpc") -> Tuple[bool,"GraphElement"]:
+    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Remote Procedure call for updating this GraphElement """
         new_element = copy.deepcopy(self)
         getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
@@ -45,10 +44,10 @@ class GraphElement(metaclass=ABCMeta):
     def create_element(self) -> bool:
         """ Save this Graph Element in storage """
         is_created = self.storage.add_element(self)
-        if not is_created:return is_created
+        if not is_created: return is_created
         for key, value in self:
             # Save Features
-            value.create_element()  # Call with the graph element create_element
+            GraphElement.create_element(value)
         if is_created:
             self.storage.for_aggregator(lambda x: x.add_element_callback(self))
         return is_created
@@ -120,7 +119,7 @@ class GraphElement(metaclass=ABCMeta):
 
     @property
     def is_initialized(self) -> bool:
-        """ """
+        """ Initialized means that it is safe to use the features and data in this element """
         return self.state is ReplicaState.MASTER or self.integer_clock > 0
 
     @property
@@ -166,7 +165,7 @@ class GraphElement(metaclass=ABCMeta):
         return result
 
     def __setstate__(self, state: dict):
-        """  """
+        """ Set the object values from the state dict, used for deserialization """
         state['storage'] = None
         if "_features" in state:
             for i in state['_features'].values():
@@ -187,7 +186,7 @@ class GraphElement(metaclass=ABCMeta):
         }
 
     def __getitem__(self, key) -> "ReplicableFeature":
-        """ Get a Feature from this vertex """
+        """ Get a Feature from this GraphElement """
         try:
             if key in self._features:
                 item = self._features[key]
@@ -209,7 +208,8 @@ class GraphElement(metaclass=ABCMeta):
             return default_value
 
     def __setitem__(self, key, value: "ReplicableFeature"):
-        """ Set a Feature to this vertex """
+        """ Set a Feature to this vertex. @note that such Feature creation will not sync, sync should be done
+        manually """
         value.id = "%s:%s:%s" % (self.element_type.value, self.id, key)  # Set Id
         value.element = self  # Set Element
         value.part_id = self.part_id
@@ -222,6 +222,9 @@ class GraphElement(metaclass=ABCMeta):
     def __str__(self):
         return self.id
 
+    def __hash__(self):
+        return self.id.__hash__()
+
     def cache_features(self):
         """ Get all graph Element Features and store them locally. Mostly used for syncing master and replicas of
         Graph Element """
@@ -230,7 +233,7 @@ class GraphElement(metaclass=ABCMeta):
             value.element = self
             self._features[key] = value
 
-    def attach_storage(self, storage: "GraphStorageProcess"):
+    def attach_storage(self, storage: "GNNLayerProcess"):
         """ Simply attach the storage to this element """
         self.storage = storage
         self.part_id = storage.part_id
@@ -242,5 +245,3 @@ class GraphElement(metaclass=ABCMeta):
         self.storage = None
         for feature in self._features.values():
             feature.detach_storage()
-
-

@@ -22,10 +22,10 @@ class SetFeatureMixin:
         return is_changed
 
 
-class SetReplicableReplicableFeature(ReplicableFeature, SetFeatureMixin):
+class SetReplicatedFeature(ReplicableFeature, SetFeatureMixin):
     def __init__(self, value: set = None, *args, **kwargs):
         if value is None: value = set()
-        super(SetReplicableReplicableFeature, self).__init__(*args, value=value, **kwargs)
+        super(SetReplicatedFeature, self).__init__(*args, value=value, **kwargs)
 
     def _value_eq_(self, old_value: set, new_value: set) -> bool:
         return collections.Counter(old_value) == collections.Counter(new_value)

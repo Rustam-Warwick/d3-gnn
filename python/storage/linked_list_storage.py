@@ -21,8 +21,8 @@ class LinkedListStorage(BaseStorage):
         self.feature_classes: Dict[str, object] = dict()
 
     def add_feature(self, feature: "ReplicableFeature") -> bool:
-        if feature.element.element_type is ElementTypes.VERTEX:
-            vertex_id = self.translation_table[feature.element.id]
+        if feature.attached_to[0] is ElementTypes.VERTEX:
+            vertex_id = self.translation_table[feature.attached_to[1]]
             if vertex_id not in self.feature_table: self.feature_table[vertex_id] = dict()
             features = self.feature_table[vertex_id]
             if feature.field_name in features:
@@ -30,8 +30,11 @@ class LinkedListStorage(BaseStorage):
 
             features[feature.field_name] = feature.value
             self.feature_classes[feature.field_name] = type(feature)
-        elif feature.element.element_type is ElementTypes.EDGE:
+        elif feature.attached_to[0] is ElementTypes.EDGE:
             # @todo not yet implemented since edges do not have features
+            pass
+        elif feature.attached_to[0] is ElementTypes.NONE:
+            # @ Features that do not belong to element
             pass
 
         return True

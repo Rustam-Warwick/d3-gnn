@@ -21,15 +21,15 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def create_element(self) -> bool:
         """ Just a normal Creation without any Features """
-        self._features.clear()  # No sub Features allowed for Features
-        return GraphElement.create_element(self)
+        if self.attached_to[0] is ElementTypes.NONE:
+            # Independent feature behave just like ReplicableGraphElements
+            return super(ReplicableFeature, self).create_element()
+        else:
+            return GraphElement.create_element(self)  # Omit all Replication Stuff
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Similar to sync_element we need to save the .element since integer_clock might change """
-        is_changed, memento = super(ReplicableFeature, self).__call__(rpc)
-        if is_changed:
-            self.storage.update_element(self.element)
-        return is_changed, memento
+        return super(ReplicableFeature, self).__call__(rpc)
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
@@ -44,20 +44,11 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ If directly syncing this feature parent vertex should also be updated """
-        if self.state is ReplicaState.REPLICA:
-            is_changed, memento = super(ReplicableFeature, self).sync_element(new_element)
-            if is_changed:
-                self.storage.update_element(self.element)
-            return is_changed, memento
-        raise NotSupported  # Not implemented feature resolution yet :>
-        # @todo Should we implement smt like this that calls sync_replicas()
+        return super(ReplicableFeature, self).sync_element(new_element)
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ We need to save the .element since integer_clock might change as well """
-        is_changed, memento = super(ReplicableFeature, self).external_update(new_element)
-        if is_changed:
-            self.storage.update_element(self.element)
-        return is_changed, memento
+        return super(ReplicableFeature, self).external_update(new_element)
 
     @abc.abstractmethod
     def _value_eq_(self, old_value, new_value) -> bool:
@@ -70,6 +61,13 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         group = re.search("[\w:]+:(?P<feature_name>\w+)", self.id)
         if group:
             return group['feature_name']
+        raise KeyError
+
+    @property
+    def attached_to(self) -> Tuple["ElementTypes", str]:
+        group = re.search("(?P<element_type>\w+):(?P<element_id>\w+):\w+", self.id)
+        if group:
+            return ElementTypes(int(group['element_type'])), group['element_id']
         raise KeyError
 
     @property
@@ -90,12 +88,10 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def replica_parts(self) -> list:
         if self.element:
             return self.element.replica_parts
-        return list()
+        return super(ReplicableFeature, self).replica_parts
 
     @property
     def is_halo(self) -> bool:
-        if self.element:
-            return self.element.is_halo
         return super(ReplicableFeature, self).is_halo
 
     def get_integer_clock(self):
@@ -119,14 +115,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def cache_features(self):
         pass
-
-    def __setitem__(self, key, value):
-        """ Feature does not have sub features """
-        pass
-
-    def __getitem__(self, item):
-        """ Feature does not have sub features """
-        raise KeyError
 
     def __getstate__(self):
         """ Fill in from the state """

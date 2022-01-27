@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from elements import GraphQuery
     from elements.edge import BaseEdge
     from elements.vertex import BaseVertex
+    from elements.element_feature import ReplicableFeature
 
 
 class RandomPartitioner(BasePartitioner):
@@ -16,7 +17,6 @@ class RandomPartitioner(BasePartitioner):
 
     def is_parallel(self):
         return False
-
 
     def add_to_dict(self, vertex_id: str, value: int):
         if vertex_id not in self.masters:
@@ -29,6 +29,10 @@ class RandomPartitioner(BasePartitioner):
             vertex._master = self.masters[vertex.id]
 
     def map(self, value: "GraphQuery"):
+        if value.element.element_type is ElementTypes.FEATURE:
+            value.element: "ReplicableFeature"
+            value.part = self.masters[value.element.attached_to[1]]
+
         if value.part is None:
             value.part = randint(0, self.partitions - 1)
 

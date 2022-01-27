@@ -9,15 +9,15 @@ if TYPE_CHECKING:
 from pyflink.datastream.functions import RuntimeContext
 
 
-class GraphStorageProcess(LinkedListStorage, ProcessFunction):
+class GNNLayerProcess(LinkedListStorage, ProcessFunction):
     def __init__(self, *args, is_last=False, **kwargs):
-        super(GraphStorageProcess, self).__init__(*args, **kwargs)
+        super(GNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.part_id: int = -1  # Index of this parallel task
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
         self.is_last = is_last  # Is this GraphStorageProcess the last one in the pipeline
 
-    def with_aggregator(self, agg: "BaseAggregator") -> "GraphStorageProcess":
+    def with_aggregator(self, agg: "BaseAggregator") -> "GNNLayerProcess":
         """ Attaching aggregator to this process function """
         agg.storage = self
         if agg.id in self.aggregators:
@@ -33,7 +33,7 @@ class GraphStorageProcess(LinkedListStorage, ProcessFunction):
         """ First callback on the task process side """
         self.part_id = runtime_context.get_index_of_this_subtask()
         self.for_aggregator(lambda agg: agg.open())
-        super(GraphStorageProcess, self).open(runtime_context)
+        super(GNNLayerProcess, self).open(runtime_context)
 
     def message(self, query: "GraphQuery"):
         """ Yield message in this iteration """
@@ -41,7 +41,8 @@ class GraphStorageProcess(LinkedListStorage, ProcessFunction):
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
         if value.is_topology_change and not self.is_last:
-            # Redirect to the next operator
+            # Redirect to the next operator.
+            # Should be here so that subsequent layers have received updated topology state before any other thing
             yield value
         try:
             if value.op is Op.RPC:
