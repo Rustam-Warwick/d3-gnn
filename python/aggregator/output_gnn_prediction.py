@@ -15,9 +15,10 @@ class BaseOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     def __init__(self, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
         super(BaseOutputPrediction, self).__init__(ident, storage)
 
+    @property
     @abc.abstractmethod
-    def apply(self, value: "torch.tensor"):
-        """ Main Function to do predictions on Predictions """
+    def apply_fn(self) -> "torch.Module":
+        """ Result is pytorch module that does last output layer """
         pass
 
     def open(self, *args, **kwargs):
@@ -33,7 +34,6 @@ class BaseOutputPrediction(BaseAggregator, metaclass=ABCMeta):
             real_vertex.external_update(vertex)
         except GraphElementNotFound:
             vertex.create_element()
-        print(self.apply(query.element.value))
 
     def add_element_callback(self, element: "GraphElement"):
         pass
@@ -53,5 +53,5 @@ class MyOutputPrediction(BaseOutputPrediction):
             torch.nn.Softmax(dim=0)
         )
 
-    def apply(self, value: "torch.tensor") -> torch.tensor:
-        return self.update_fn(value)
+    def apply_fn(self):
+        return self.update_fn

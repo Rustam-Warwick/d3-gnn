@@ -2,7 +2,7 @@ import re
 from typing import Literal, Iterator
 from exceptions.base_exception import GraphElementNotFound
 from storage import BaseStorage
-from typing import Dict, List, TYPE_CHECKING
+from typing import Dict, List, TYPE_CHECKING, Set
 from elements import ElementTypes
 from elements.element_feature import ReplicableFeature
 from elements.edge import BaseEdge
@@ -11,127 +11,126 @@ from elements.vertex import BaseVertex
 
 class LinkedListStorage(BaseStorage):
     def __init__(self, *args, **kwargs):
-        self.translation_table: Dict[str, str] = dict()  # Table storing translated ids for memory efficiency
-        self.vertex_table: Dict[str, List[str]] = dict()  # Source Vertex to destinations mapping table
-        self.feature_table: Dict[str,
-                            Dict:[str,
-                                  "ReplicableFeature"]] = dict()  # Source vertex to dict of field_name and feature objects
-        self.meta_data: Dict[str, dict] = dict()  # Meta-data such as replication stuff per each graph element
-        self.last_translated_id = 0
-        self.feature_classes: Dict[str, object] = dict()
+        self.translation_table: Dict[str, int] = dict()  # Table storing translated ids for memory efficiency
+        self.reverse_translation_table: Dict[int, str] = dict() # Reverse Lookup
+        self.vertex_table: Dict[int, Dict] = dict()  # Source Vertex to destinations mapping table
+        self.feature_table: Dict[int, Dict] = dict()  # Feature and their meta-data
+        self.element_features: Dict[int, Set[int]] = dict()  # Element.id -> List of Feature ids
+        self.vertex_out_edges: Dict[int, List[int]] = dict() # Vertex.id -> List of out vertex ids
+        self.vertex_in_edges: Dict[int, List[int]] = dict()  # Vertex.id -> List of in vertex ids
+        self.last_translated_id = 0  # Internal id counter
+        self.feature_classes: Dict[str, object] = dict()  # Feature.field name -> Class
 
     def add_feature(self, feature: "ReplicableFeature") -> bool:
-        if feature.attached_to[0] is ElementTypes.VERTEX:
-            vertex_id = self.translation_table[feature.attached_to[1]]
-            if vertex_id not in self.feature_table: self.feature_table[vertex_id] = dict()
-            features = self.feature_table[vertex_id]
-            if feature.field_name in features:
-                return False
-
-            features[feature.field_name] = feature.value
+        if feature.id in self.translation_table: return False  # If exists return False
+        self.translation_table[feature.id] = self.last_translated_id
+        self.reverse_translation_table[self.last_translated_id] = feature.id
+        data = feature.__getstate__()
+        del data['_features']
+        del data["id"]
+        self.feature_table[self.last_translated_id] = data
+        if feature.field_name not in self.feature_classes:
+            # Add Feature classes
             self.feature_classes[feature.field_name] = type(feature)
+
+        if feature.attached_to[0] is ElementTypes.VERTEX:
+            # If this feature belongs to Vertex
+            vertex_id = self.translation_table[feature.attached_to[1]]
+            if vertex_id not in self.element_features: self.element_features[vertex_id] = set()
+            self.element_features[vertex_id].add(self.last_translated_id)
+
         elif feature.attached_to[0] is ElementTypes.EDGE:
             # @todo not yet implemented since edges do not have features
             pass
-        elif feature.attached_to[0] is ElementTypes.NONE:
-            # @ Features that do not belong to element
-            pass
 
+        self.last_translated_id += 1
         return True
 
     def add_vertex(self, vertex: "BaseVertex") -> bool:
         if vertex.id in self.translation_table: return False  # Already in there
-        my_id = str(self.last_translated_id)
+        self.translation_table[vertex.id] = self.last_translated_id
+        self.reverse_translation_table[self.last_translated_id] = vertex.id
+        data = vertex.__getstate__()
+        del data["_features"]  # Features will come
+        del data["id"]  # id is not needed
+        self.vertex_table[self.last_translated_id] = data
         self.last_translated_id += 1
-        self.translation_table[vertex.id] = my_id
-        self.vertex_table[my_id] = list()
-        meta_data = vertex.__getstate__()
-        if "_features" in meta_data: del meta_data["_features"]  # Features will come
-        if "id" in meta_data: del meta_data["id"]  # id is not needed
-        self.meta_data[my_id] = meta_data
         return True
 
     def add_edge(self, edge: "BaseEdge") -> bool:
         """ Since we allow multi-edges it always returns True unless some runtime error happens """
         source_id = self.translation_table[edge.source.id]
         dest_id = self.translation_table[edge.destination.id]
-        self.vertex_table[source_id].append(dest_id)
+        if source_id not in self.vertex_out_edges: self.vertex_out_edges[source_id] = list()
+        if dest_id not in self.vertex_in_edges: self.vertex_in_edges[dest_id] = list()
+        self.vertex_out_edges[source_id].append(dest_id)
+        self.vertex_in_edges[dest_id].append(source_id)
         return True
 
     def update_feature(self, feature: "ReplicableFeature") -> bool:
-        """ No need to do anything since objects are already in memory """
-        if feature.element.element_type is ElementTypes.VERTEX:
-            internal_id = self.translation_table[feature.element.id]
-            self.feature_table[internal_id][feature.field_name] = feature.value
-            return True
-        pass
+        int_id = self.translation_table[feature.id]
+        data = feature.__getstate__()
+        del data["_features"]  # Features will come
+        del data["id"]  # id is not needed
+        self.feature_table[int_id] = data
+        return True
 
     def update_vertex(self, vertex: "BaseVertex") -> bool:
-        try:
-            int_id = self.translation_table[vertex.id]
-            meta_data = vertex.__getstate__()
-            if "_features" in meta_data: del meta_data["_features"]  # Features will come
-            if "id" in meta_data: del meta_data["id"]  # id is not needed
-            self.meta_data[int_id] = meta_data
-            return True
-        except KeyError:
-            raise GraphElementNotFound
-        pass
+        int_id = self.translation_table[vertex.id]
+        meta_data = vertex.__getstate__()
+        del meta_data["_features"]  # Features will come
+        del meta_data["id"]  # id is not needed
+        self.vertex_table[int_id] = meta_data
+        return True
 
     def update_edge(self, vertex: "BaseVertex") -> bool:
         pass
 
     def get_vertex(self, element_id: str, with_features=False) -> "BaseVertex":
-        if element_id not in self.translation_table: raise GraphElementNotFound
-        int_id = self.translation_table[element_id]
-        vertex = BaseVertex(element_id=element_id)
-        vertex.__setstate__(self.meta_data[int_id])
-        if with_features:
-            # Add the cache of all the features
-            pass
-        vertex.attach_storage(self)
-        return vertex
+        try:
+            int_id = self.translation_table[element_id]
+            vertex = BaseVertex(element_id=element_id)
+            vertex.__setstate__(self.vertex_table[int_id])
+            if with_features:
+                # Add the cache of all the features
+                pass
+            vertex.attach_storage(self)
+            return vertex
+        except KeyError:
+            raise GraphElementNotFound
 
     def get_edge(self, element_id: str, with_features=False) -> "BaseEdge":
         pass
 
-    def get_feature(self, element_id: str) -> "ReplicableFeature":
+    def get_feature(self, element_id: str, with_element=True) -> "ReplicableFeature":
         try:
+            int_id = self.translation_table[element_id]
             feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
             el_type = int(feature_match['type'])
+            feature_class = self.feature_classes[feature_match['feature_name']]
+            feature: "ReplicableFeature" = feature_class(element_id=element_id)
+            feature.__setstate__(self.feature_table[int_id])
+            feature.attach_storage(self)
+            if not with_element: return feature
             if el_type == ElementTypes.VERTEX.value:
-                internal_id = self.translation_table[feature_match['element_id']]
-                feature_value = self.feature_table[internal_id][feature_match['feature_name']]
-                feature_class = self.feature_classes[feature_match['feature_name']]
-                feature: "ReplicableFeature" = feature_class(value=feature_value, element_id=element_id,
-                                                             element=self.get_vertex(
-                                                                 feature_match['element_id']))
-                feature.attach_storage(self)
-                return feature
-            elif el_type == ElementTypes.EDGE.value:
+                element = self.get_vertex(feature_match['element_id'])
+                feature.element = element
+            if el_type == ElementTypes.EDGE.value:
                 # @todo Implement edge features later
                 pass
+            return feature
         except KeyError:
             raise GraphElementNotFound
 
     def get_features(self, element_type: "ElementTypes", element_id: str) -> Dict[str, "ReplicableFeature"]:
-        res = {}
         try:
-            if element_type is ElementTypes.VERTEX:
-                internal_id = self.translation_table[element_id]
-                features: Dict[str, "ReplicableFeature"] = self.feature_table[internal_id]
-                vertex = self.get_vertex(element_id)
-                for name, value in features.items():
-                    feature_class = self.feature_classes[name]
-                    feature = feature_class(value=value, element_id=element_id,
-                                            element=vertex)
-                    feature.attach_storage(self)
-                    res[name] = feature
-                return res
-
-            elif element_type is ElementTypes.EDGE:
-                #   @todo Implement later edge features
-                pass
+            internal_id = self.translation_table[element_id]
+            feature_ids = self.element_features.get(internal_id, list())
+            res: Dict[str, "ReplicableFeature"] = dict()
+            for f_id in feature_ids:
+                feat = self.get_feature(self.reverse_translation_table[f_id], with_element=False)
+                res[feat.field_name] = feat
+            return res
         except KeyError:
             raise GraphElementNotFound
 
@@ -140,23 +139,21 @@ class LinkedListStorage(BaseStorage):
 
         edge_list: ['BaseEdge'] = list()
         if vertex.id not in self.translation_table: raise GraphElementNotFound
-        int_id = self.translation_table[vertex.id]
-        if edge_type in ['in', 'both']:
+        int_id = self.translation_table[vertex.id]  # Internal Vertex Id
+        if edge_type in ('in', 'both'):
             # Edges where vertex is destination
-            for _id, edges in self.vertex_table.items():
-                if int_id in edges:
-                    real_id = next(key for key, value in self.translation_table.items() if value == _id)
-                    src_vertex = self.get_vertex(real_id)
-                    edge = BaseEdge(src=src_vertex, dest=vertex)
-                    edge.attach_storage(self)
-                    edge_list.append(edge)
-        if edge_type in ['out', 'both']:
+            in_vertices = self.vertex_in_edges.get(int_id, list())
+            for _id in in_vertices:
+                real_id = self.reverse_translation_table[_id]
+                source_vertex = self.get_vertex(real_id)
+                edge = BaseEdge(src=source_vertex, dest=vertex, storage=self)
+                edge_list.append(edge)
+        if edge_type in ('out', 'both'):
             # Edge where vertex is the source
-            out_vertices = self.vertex_table[int_id]
+            out_vertices = self.vertex_out_edges.get(int_id, list())
             for _id in out_vertices:
-                real_id = next(key for key, value in self.translation_table.items() if value == _id)
+                real_id = self.reverse_translation_table[_id]
                 dest_vertex = self.get_vertex(real_id)
-                edge = BaseEdge(src=vertex, dest=dest_vertex)
-                edge.attach_storage(self)
+                edge = BaseEdge(src=vertex, dest=dest_vertex, storage=self)
                 edge_list.append(edge)
         return edge_list

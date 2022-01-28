@@ -44,11 +44,14 @@ class ReplicableGraphElement(GraphElement):
 
     def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         if self.state is ReplicaState.MASTER:
-            """ Add to parts and sync with replicas """
+            # Add to parts of replicas and sync with this part
             self["parts"].add(new_element.part_id)
+            print("MASTER RECEVIED MESSAGE")
             self.sync_replicas(new_element.part_id)
             return False, self
         elif self.state is ReplicaState.REPLICA:
+            # Commit the update to replica
+            print("Replica recevied message")
             if new_element.integer_clock <= self.integer_clock: raise OldVersionException
             return self.update_element(new_element)
 
@@ -71,12 +74,17 @@ class ReplicableGraphElement(GraphElement):
 
     def sync_replicas(self, part_id=None):
         """ If this is master send SYNC to Replicas """
+        if self.state is not ReplicaState.MASTER: return  # Masters can sync replicas
         if self.is_halo:
             # No need to sync since this is a halo element
             return
-        self.cache_features()  # @todo, discard the halo values from sending
+        features = self.storage.get_features(self.element_type, self.id)
+        for key, value in features.items():
+            value.element = self
+            self._features[key] = value
+            if value.is_halo: value._value = None  # Do not send the actual value of halo elements
         query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
-        if part_id:
+        if part_id is not None:
             self.storage.message(query_for_part(query, part_id))
             return
         filtered_parts = map(lambda x: query_for_part(query, x),
@@ -122,6 +130,4 @@ class ReplicableGraphElement(GraphElement):
             "_clock": self.integer_clock,
             "_halo": self.is_halo
         })
-        if "parts" in state["_features"]:
-            del state["_features"]["parts"]
         return state

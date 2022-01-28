@@ -2,7 +2,7 @@ import abc
 import copy
 from abc import ABCMeta
 from typing import TYPE_CHECKING, Tuple
-from exceptions import NotSupported
+from exceptions import NotSupported, NotUsedOnReplicaException
 import re
 from elements import ReplicableGraphElement, ElementTypes, ReplicaState, Op, GraphQuery, GraphElement
 

@@ -28,9 +28,9 @@ class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
     def open(self, *args, **kwargs):
         self.inference_agg = self.storage.aggregators[
             self.inference_aggregator_name]  # Have the reference to Inference aggregator
-        print(self.inference_agg)
 
     def run(self, query: "GraphQuery", **kwargs):
+        if True: return
         query.element: "ReplicableFeature"
         real_id = query.element.id
         query.element.id += '_label'
@@ -49,12 +49,13 @@ class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:
+            return
             try:
                 if element.field_name == 'feature' and self.storage.get_feature(element.id + "_label"):
                     # Already in the training set
-                    print("SALAM")
-                    self.ready.add(self.storage.get_vertex(element.attached_to[1]))
-                    self.start_training_if_batch_filled()
+                    #self.ready.add(self.storage.get_vertex(element.attached_to[1]))
+                    #self.start_training_if_batch_filled()
+                    pass
             except GraphElementNotFound:
                 pass
 

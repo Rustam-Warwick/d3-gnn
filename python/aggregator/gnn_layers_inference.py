@@ -45,7 +45,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Populate the required features for embeddings
             element['agg'] = MeanAggregatorReplicableFeature(
-                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False))
+                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False), is_halo=True)
             element['feature'] = TensorReplicableFeature(value=torch.zeros((7,), requires_grad=False, dtype=torch.float32))
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"

@@ -36,8 +36,8 @@ class GraphStream:
     def read_socket(self, parser: "MapFunction", host, port) -> DataStream:
         """ Read sochet for a streaming of lines """
         tmp = self.env._j_stream_execution_environment.socketTextStream(host, port)
-        self.last = DataStream(tmp)
-        self.last = self.last.map(parser).set_parallelism(1)  # @todo fix later the ordering so that parallelism can
+        self.last = DataStream(tmp).name("Socket Reader")
+        self.last = self.last.map(parser).name("String Parser")  # @todo fix later the ordering so that parallelism can
         return self.last
 
     def partition(self, partitioner: "BasePartitioner") -> DataStream:
@@ -45,17 +45,17 @@ class GraphStream:
         partitioner_par = self.PARALLELISM
         partitioner.partitions = self.PARALLELISM
         if not partitioner.is_parallel(): partitioner_par = 1  # Partitioner does not support parallelism in itself
-        self.last = self.last.map(partitioner).set_parallelism(partitioner_par)
+        self.last = self.last.map(partitioner).set_parallelism(partitioner_par).name("Partitioner")
         return self.last
 
     def gnn_layer(self, storageProcess: "GNNLayerProcess") -> DataStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate filed """
         last = self.last.partition_custom(Partitioner(), KeySelector())
-        iterator = last._j_data_stream.iterate()  # Java Class need to somehow handle it
-        ds = DataStream(iterator)
         long_iterator = last._j_data_stream.iterate()  # Java Class need to somehow handle it
-        ds = ds.union(DataStream(long_iterator))
-        st = ds.process(storageProcess)
+        iterator = long_iterator.iterate()  # Java Class need to somehow handle it
+
+        ds = DataStream(iterator)
+        st = ds.process(storageProcess).name("GNN Process")
         iterate_filter = st.filter(lambda x: x.iterate is True).partition_custom(Partitioner(), KeySelector())
         continue_filter = st.filter(lambda x: x.iterate is False)
         if self.long_iterator:
@@ -90,6 +90,6 @@ class GraphStream:
         return self.last
 
     def train_test_split(self, splitter: "MapFunction"):
-        splitter = self.last.partition_custom(Partitioner(), KeySelector()).map(splitter)
+        splitter = self.last.map(splitter)
         self.last = splitter.filter(lambda x: x.is_train is False)
         self.train_stream = splitter.filter(lambda x: x.is_train is True)

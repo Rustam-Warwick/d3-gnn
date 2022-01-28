@@ -1,18 +1,18 @@
-class NotSupported(BaseException):
+class NotSupported(Exception):
     pass
 
 
-class GraphElementNotFound(BaseException):
+class GraphElementNotFound(Exception):
     pass
 
 
-class OldVersionException(BaseException):
+class OldVersionException(Exception):
     pass
 
 
-class NotUsedOnReplicaException(BaseException):
+class NotUsedOnReplicaException(Exception):
     pass
 
 
-class AggregatorExistsException(BaseException):
+class AggregatorExistsException(Exception):
     pass

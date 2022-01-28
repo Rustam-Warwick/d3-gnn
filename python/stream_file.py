@@ -1,6 +1,7 @@
 import socket
 import sys
 import time
+
 if __name__ == "__main__":
     # Main application
     fileName = sys.argv[1]

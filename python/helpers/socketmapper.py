@@ -1,20 +1,19 @@
-from pyflink.datastream import MapFunction
+from pyflink.datastream import MapFunction, RuntimeContext
 from elements.vertex import SimpleVertex
 from elements.edge import SimpleEdge
 from elements.element_feature.tensor_feature import TensorReplicableFeature
 from elements import GraphQuery, Op
 import torch
-from typing import Dict,List
+from typing import Dict, List
 
 
 class EdgeListParser(MapFunction):
     def __init__(self, categories: List[str], *args, **kwargs):
         super(EdgeListParser, self).__init__(*args, **kwargs)
-        self.one_hot_encoding:Dict[str, torch.tensor] = dict()
+        self.one_hot_encoding: Dict[str, torch.tensor] = dict()
         eye = torch.eye(len(categories))
         for i, category in enumerate(categories):
             self.one_hot_encoding[category] = eye[i]
-
 
     def open(self, runtime_context: "RuntimeContext"):
         print(runtime_context.get_index_of_this_subtask())
@@ -36,7 +35,7 @@ class EdgeListParser(MapFunction):
         except Exception:
             source_id = values[0]
             category = self.one_hot_encoding[values[1]]
-            a = SimpleVertex(element_id=source_id)
-            a['feature'] = TensorReplicableFeature(value=category)
-            query = GraphQuery(Op.ADD, a['feature'])
+            vertex = SimpleVertex(element_id=source_id)
+            vertex['feature'] = TensorReplicableFeature(value=category)
+            query = GraphQuery(Op.UPDATE, vertex)
         return query

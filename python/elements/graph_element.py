@@ -85,6 +85,8 @@ class GraphElement(metaclass=ABCMeta):
 
     def __iter__(self):
         """ Iterate over the attached features """
+        if self._features is None:
+            print("ERROR")
         return iter(self._features.items())
 
     @property

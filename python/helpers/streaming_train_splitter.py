@@ -1,6 +1,6 @@
 from pyflink.datastream import MapFunction
 from elements import GraphQuery, Op, ElementTypes
-from random import randint
+from random import random
 
 
 class StreamingTrainSplitter(MapFunction):
@@ -12,8 +12,8 @@ class StreamingTrainSplitter(MapFunction):
         self.l = l
 
     def map(self, value: "GraphQuery") -> "GraphQuery":
-        if value.op is Op.ADD and value.element.element_type is ElementTypes.FEATURE:
-            n = randint(0, 1)
+        if value.op is Op.UPDATE and value.element.element_type is ElementTypes.VERTEX:
+            n = random()
             if n < self.l:
                 # Interpret this as training data
                 value.is_train = True

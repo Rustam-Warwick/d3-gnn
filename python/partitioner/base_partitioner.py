@@ -1,6 +1,6 @@
 import abc
 
-from pyflink.datastream import MapFunction, Partitioner as Pr, KeySelector as Ky
+from pyflink.datastream import RuntimeContext,MapFunction, Partitioner as Pr, KeySelector as Ky
 from typing import TYPE_CHECKING, Any
 from abc import ABCMeta
 

@@ -1,8 +1,9 @@
 from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
-from exceptions import NotSupported, AggregatorExistsException
+
+from exceptions import NotSupported, AggregatorExistsException, GraphElementNotFound
 from elements import ElementTypes, Op
-from typing import TYPE_CHECKING, List, Iterator, Union, Tuple, Literal, Dict
+from typing import TYPE_CHECKING, Dict
 from elements import GraphQuery
 if TYPE_CHECKING:
     from aggregator import BaseAggregator
@@ -40,6 +41,8 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         self.out.append(query)
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
+        if value.op is Op.UPDATE:
+            print(value.op)
         if value.is_topology_change and not self.is_last:
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
@@ -57,6 +60,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                 value.element.attach_storage(self)
                 value.element.create_element()
             if value.op is Op.SYNC:
+                print("SALAMAMA")
                 el_type = value.element.element_type
                 if el_type is ElementTypes.FEATURE:
                     element = self.get_feature(value.element.id)
@@ -82,11 +86,13 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                     element.update_element(value.element)
                 else:
                     raise NotSupported
-            if value.op is Op.AGG:
-                self.aggregators[value.aggregator_name].run(value)
+            # if value.op is Op.AGG:
+            #     self.aggregators[value.aggregator_name].run(value)
+        except GraphElementNotFound:
+            print("Graph Element Not Found Exception")
+        except NotSupported:
+            print("Not support such message type")
         except Exception as e:
-            print("ERROR")
-            print(str(e))
-
+            print(e)
         while len(self.out):
             yield self.out.pop(0)

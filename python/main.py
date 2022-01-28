@@ -27,6 +27,7 @@ def run():
             with_aggregator(MyOutputTraining(inference_name='rustam_streaming_gnn_inference'))
     )
     graphstream.last.print()
+    print(graphstream.env.get_execution_plan())
     graphstream.env.execute("Test Python job")
 
 
