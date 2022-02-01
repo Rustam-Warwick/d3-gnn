@@ -1,6 +1,5 @@
-from pyflink.datastream import ProcessFunction
 import re
-from typing import TYPE_CHECKING, List, Iterable, Union, Tuple, Literal, Dict
+from typing import TYPE_CHECKING, Iterator, Literal, Dict
 from elements import ElementTypes, Op
 from exceptions import NotSupported, GraphElementNotFound
 from dgl import DGLGraph
@@ -48,25 +47,27 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def get_vertex(self, element_id: str, with_features=False) -> "BaseVertex":
+    def get_vertex(self, element_id: str, with_features: bool = False) -> "BaseVertex":
         """ Return vertex of ElementNotFound Exception """
         pass
 
     @abc.abstractmethod
-    def get_edge(self, element_id: str, with_features=False) -> "BaseEdge":
+    def get_edge(self, element_id: str, with_features: bool = False) -> "BaseEdge":
         """ Return Edge of ElementNotFound Exception """
         pass
 
     @abc.abstractmethod
-    def get_feature(self, element_id: str) -> "ReplicableFeature":
+    def get_feature(self, element_id: str, with_element: bool = True) -> "ReplicableFeature":
+        """ Returns single Feature from Feature id """
         pass
 
     @abc.abstractmethod
-    def get_features(self, element_type: "ElementTypes", element_id:str) -> Dict[str, "ReplicableFeature"]:
+    def get_features(self, element_type: "ElementTypes", element_id: str) -> Dict[str, "ReplicableFeature"]:
+        """ Returns Features belonging to some element type """
         pass
 
     @abc.abstractmethod
-    def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterable[
+    def get_incident_edges(self, vertex: "BaseVertex", edge_type: Literal['in', 'out', 'both'] = "in") -> Iterator[
         "BaseEdge"]:
         pass
 
@@ -79,7 +80,24 @@ class BaseStorage(metaclass=abc.ABCMeta):
         if element.element_type is ElementTypes.FEATURE:
             return self.add_feature(element)
 
-    def get_element(self, element_id: str, with_features=False) -> "GraphElement":
+    def get_element(self, element: "GraphElement", throws_exception=True) -> "GraphElement":
+        """ Get updated element by giving an instance of element """
+        try:
+            if element.element_type is ElementTypes.VERTEX:
+                return self.get_vertex(element.id)
+
+            if element.element_type is ElementTypes.EDGE:
+                return self.get_edge(element.id)
+
+            if element.element_type is ElementTypes.FEATURE:
+                return self.get_feature(element.id)
+        except GraphElementNotFound:
+            if throws_exception:
+                raise GraphElementNotFound
+            else:
+                return None
+
+    def get_element_by_id(self, element_id: str, with_features=False) -> "GraphElement":
         """ Just a simple MUX for getting graph elements """
         feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
         if feature_match:

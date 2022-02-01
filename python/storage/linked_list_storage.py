@@ -3,7 +3,7 @@ from typing import Literal, Iterator
 from exceptions.base_exception import GraphElementNotFound
 from storage import BaseStorage
 from typing import Dict, List, TYPE_CHECKING, Set
-from elements import ElementTypes
+from elements import ElementTypes, GraphElement
 from elements.element_feature import ReplicableFeature
 from elements.edge import BaseEdge
 from elements.vertex import BaseVertex
@@ -12,11 +12,11 @@ from elements.vertex import BaseVertex
 class LinkedListStorage(BaseStorage):
     def __init__(self, *args, **kwargs):
         self.translation_table: Dict[str, int] = dict()  # Table storing translated ids for memory efficiency
-        self.reverse_translation_table: Dict[int, str] = dict() # Reverse Lookup
+        self.reverse_translation_table: Dict[int, str] = dict()  # Reverse Lookup
         self.vertex_table: Dict[int, Dict] = dict()  # Source Vertex to destinations mapping table
         self.feature_table: Dict[int, Dict] = dict()  # Feature and their meta-data
         self.element_features: Dict[int, Set[int]] = dict()  # Element.id -> List of Feature ids
-        self.vertex_out_edges: Dict[int, List[int]] = dict() # Vertex.id -> List of out vertex ids
+        self.vertex_out_edges: Dict[int, List[int]] = dict()  # Vertex.id -> List of out vertex ids
         self.vertex_in_edges: Dict[int, List[int]] = dict()  # Vertex.id -> List of in vertex ids
         self.last_translated_id = 0  # Internal id counter
         self.feature_classes: Dict[str, object] = dict()  # Feature.field name -> Class
@@ -25,9 +25,7 @@ class LinkedListStorage(BaseStorage):
         if feature.id in self.translation_table: return False  # If exists return False
         self.translation_table[feature.id] = self.last_translated_id
         self.reverse_translation_table[self.last_translated_id] = feature.id
-        data = feature.__getstate__()
-        del data['_features']
-        del data["id"]
+        data = feature.__getmetadata__()
         self.feature_table[self.last_translated_id] = data
         if feature.field_name not in self.feature_classes:
             # Add Feature classes
@@ -50,9 +48,7 @@ class LinkedListStorage(BaseStorage):
         if vertex.id in self.translation_table: return False  # Already in there
         self.translation_table[vertex.id] = self.last_translated_id
         self.reverse_translation_table[self.last_translated_id] = vertex.id
-        data = vertex.__getstate__()
-        del data["_features"]  # Features will come
-        del data["id"]  # id is not needed
+        data = vertex.__getmetadata__()
         self.vertex_table[self.last_translated_id] = data
         self.last_translated_id += 1
         return True
@@ -69,17 +65,13 @@ class LinkedListStorage(BaseStorage):
 
     def update_feature(self, feature: "ReplicableFeature") -> bool:
         int_id = self.translation_table[feature.id]
-        data = feature.__getstate__()
-        del data["_features"]  # Features will come
-        del data["id"]  # id is not needed
+        data = feature.__getmetadata__()
         self.feature_table[int_id] = data
         return True
 
     def update_vertex(self, vertex: "BaseVertex") -> bool:
         int_id = self.translation_table[vertex.id]
-        meta_data = vertex.__getstate__()
-        del meta_data["_features"]  # Features will come
-        del meta_data["id"]  # id is not needed
+        meta_data = vertex.__getmetadata__()
         self.vertex_table[int_id] = meta_data
         return True
 
@@ -100,7 +92,7 @@ class LinkedListStorage(BaseStorage):
             raise GraphElementNotFound
 
     def get_edge(self, element_id: str, with_features=False) -> "BaseEdge":
-        pass
+        return None
 
     def get_feature(self, element_id: str, with_element=True) -> "ReplicableFeature":
         try:

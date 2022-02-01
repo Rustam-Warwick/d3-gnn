@@ -3,7 +3,7 @@ import copy
 from abc import ABCMeta
 from enum import Enum
 from typing import TYPE_CHECKING, Tuple, Dict
-from exceptions import GraphElementNotFound
+from exceptions import GraphElementNotFound, FeatureExistsException
 
 if TYPE_CHECKING:
     from storage.gnn_layer import GNNLayerProcess
@@ -108,9 +108,9 @@ class GraphElement(metaclass=ABCMeta):
     @property
     def state(self) -> ReplicaState:
         """ State of this GraphElements Instance """
-        if self.master_part is None:
+        if self.part_id is None:
             return ReplicaState.UNDEFINED
-        if self.master_part == -1:
+        if self.master_part == self.part_id:
             return ReplicaState.MASTER
         return ReplicaState.REPLICA
 
@@ -187,6 +187,9 @@ class GraphElement(metaclass=ABCMeta):
             "storage": None  # No need to serialize storage value
         }
 
+    def __getmetadata__(self):
+        return {}
+
     def __getitem__(self, key) -> "ReplicableFeature":
         """ Get a Feature from this GraphElement """
         try:
@@ -212,6 +215,9 @@ class GraphElement(metaclass=ABCMeta):
     def __setitem__(self, key, value: "ReplicableFeature"):
         """ Set a Feature to this vertex. @note that such Feature creation will not sync, sync should be done
         manually """
+        if self.get(key) is not None:
+            # Duplicate elements are not saved @todo double-check if this should be so
+            return
         value.id = "%s:%s:%s" % (self.element_type.value, self.id, key)  # Set Id
         value.element = self  # Set Element
         value.part_id = self.part_id

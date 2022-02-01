@@ -29,6 +29,7 @@ class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
         self.inference_agg = self.storage.aggregators[
             self.inference_aggregator_name]  # Have the reference to Inference aggregator
 
+
     def run(self, query: "GraphQuery", **kwargs):
         if True: return
         query.element: "ReplicableFeature"

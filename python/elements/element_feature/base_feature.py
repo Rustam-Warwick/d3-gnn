@@ -20,7 +20,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         super(ReplicableFeature, self).__init__(*args, **kwargs)
 
     def create_element(self) -> bool:
-        """ Just a normal Creation without any Features """
+        """  """
         if self.attached_to[0] is ElementTypes.NONE:
             # Independent feature behave just like ReplicableGraphElements
             return super(ReplicableFeature, self).create_element()
@@ -124,3 +124,10 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
             "element": None  # No need to serialize element value
         })
         return state
+
+    def __getmetadata__(self):
+        meta_data = super(ReplicableFeature, self).__getmetadata__()
+        meta_data.update({
+            "_value": self.value
+        })
+        return meta_data

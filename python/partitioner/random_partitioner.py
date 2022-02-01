@@ -22,11 +22,8 @@ class RandomPartitioner(BasePartitioner):
         if vertex_id not in self.masters:
             self.masters[vertex_id] = value
 
-    def assign_vertex_state(self, vertex: "BaseVertex", part: int):
-        if self.masters[vertex.id] == part:
-            vertex._master = -1
-        else:
-            vertex._master = self.masters[vertex.id]
+    def assign_vertex_state(self, vertex: "BaseVertex"):
+        vertex._master = self.masters[vertex.id]
 
     def map(self, value: "GraphQuery"):
 
@@ -36,15 +33,15 @@ class RandomPartitioner(BasePartitioner):
             edge: "BaseEdge" = value.element
             self.add_to_dict(edge.source.id, value.part)
             self.add_to_dict(edge.destination.id, value.part)
-            self.assign_vertex_state(edge.source, value.part)
-            self.assign_vertex_state(edge.destination, value.part)
+            self.assign_vertex_state(edge.source)
+            self.assign_vertex_state(edge.destination)
         if value.element.element_type is ElementTypes.VERTEX:
             """Vertex Updates might contain Features as well so test if it is already push to master, 
             else randomly assign a master part """
             part = randint(0, self.partitions - 1)
             self.add_to_dict(value.element.id, part)
             part = self.masters[value.element.id]
-            self.assign_vertex_state(value.element, part)
+            self.assign_vertex_state(value.element)
             value.part = part
 
         return value

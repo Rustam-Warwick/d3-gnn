@@ -1,6 +1,6 @@
 from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
-
+from copy import copy
 from exceptions import NotSupported, AggregatorExistsException, GraphElementNotFound
 from elements import ElementTypes, Op
 from typing import TYPE_CHECKING, Dict
@@ -40,9 +40,19 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         """ Yield message in this iteration """
         self.out.append(query)
 
+    def debug_print(self, *vertex_ids):
+        def fn():
+            for i in vertex_ids:
+                try:
+                    salam = self.get_vertex(i)
+                    print(salam['feature'].value, self.part_id, salam.state)
+                except GraphElementNotFound:
+                    pass
+                except KeyError:
+                    pass
+        fn()
+
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
-        if value.op is Op.UPDATE:
-            print(value.op)
         if value.is_topology_change and not self.is_last:
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
@@ -51,47 +61,38 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             if value.op is Op.RPC:
                 # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
                 el: "Rpc" = value.element
-                element = self.get_element(el.id)
+                element = self.get_element_by_id(el.id)
                 if element.element_type is ElementTypes.FEATURE:
                     element(el)
                 else:
                     raise NotSupported
             if value.op is Op.ADD:
+                # because there might be late events it is always good to create element first
                 value.element.attach_storage(self)
                 value.element.create_element()
             if value.op is Op.SYNC:
-                print("SALAMAMA")
-                el_type = value.element.element_type
-                if el_type is ElementTypes.FEATURE:
-                    element = self.get_feature(value.element.id)
-                    element.sync_element(value.element)
-                elif el_type is ElementTypes.VERTEX:
-                    element = self.get_vertex(value.element.id)
-                    element.sync_element(value.element)
-                elif el_type is ElementTypes.EDGE:
-                    element = self.get_edge(value.element.id)
-                    element.sync_element(value.element)
-                else:
-                    raise NotSupported
+                el = self.get_element(value.element, False)
+                if el is None:
+                    # Late Event
+                    el = copy(value.element)
+                    el.attach_storage(self)
+                    el.create_element()
+                el.sync_element(value.element)
+
             if value.op is Op.UPDATE:
-                el_type = value.element.element_type
-                if el_type is ElementTypes.FEATURE:
-                    element = self.get_feature(value.element.id)
-                    element.update_element(value.element)
-                elif el_type is ElementTypes.VERTEX:
-                    element = self.get_vertex(value.element.id)
-                    element.update_element(value.element)
-                elif el_type is ElementTypes.EDGE:
-                    element = self.get_edge(value.element.id)
-                    element.update_element(value.element)
-                else:
-                    raise NotSupported
-            # if value.op is Op.AGG:
-            #     self.aggregators[value.aggregator_name].run(value)
+                el = self.get_element(value.element, False)
+                if el is None:
+                    # Late Event
+                    el = copy(value.element)
+                    el.attach_storage(self)
+                    el.create_element()
+                el.update_element(value.element)
+            if value.op is Op.AGG:
+                self.aggregators[value.aggregator_name].run(value)
         except GraphElementNotFound:
-            print("Graph Element Not Found Exception")
+            print("Graph Element Not Found Exception", value.op)
         except NotSupported:
-            print("Not support such message type")
+            print("We do not support such message type")
         except Exception as e:
             print(e)
         while len(self.out):

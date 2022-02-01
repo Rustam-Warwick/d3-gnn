@@ -4,6 +4,7 @@ from elements import ElementTypes, GraphQuery, Op, ReplicaState
 from elements.element_feature.tensor_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin, \
     TensorReplicableFeature
 import torch
+from copy import copy
 from abc import ABCMeta
 
 from elements.edge import BaseEdge
@@ -34,19 +35,17 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, res is in callbacks """
-        new_feature: "ReplicableFeature" = query.element
-        old_feature = self.storage.get_feature(new_feature.id)
-        if old_feature is None:
-            self.storage.add_element(new_feature)
-        else:
-            old_feature.external_update(new_feature)
+        new_vertex: "BaseVertex" = query.element
+        old_vertex = self.storage.get_vertex(new_vertex.id)
+        old_vertex['feature'].external_update(new_vertex['feature'])
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
-            # Populate the required features for embeddings
+            # Intialize tensors for operating
             element['agg'] = MeanAggregatorReplicableFeature(
-                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False), is_halo=True)
+                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False), is_halo=True) # No need to replicate
             element['feature'] = TensorReplicableFeature(value=torch.zeros((7,), requires_grad=False, dtype=torch.float32))
+            # Default is zero to have transitive relations
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
             if element.source.is_initialized and element.destination.is_initialized:
@@ -79,9 +78,11 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                 # Generate new embedding for the node & send to master part of the next layer
                 with torch.no_grad():
                     embedding = self.apply(element.element)
-                vertex = BaseVertex(element_id=element.element.id)
+                vertex = copy(element.element)
+                vertex._features.clear()
+                vertex.detach_storage()
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
-                query = GraphQuery(Op.AGG, vertex["feature"], self.storage.part_id, aggregator_name=self.id)
+                query = GraphQuery(Op.AGG, vertex, self.storage.part_id, aggregator_name=self.id)
                 self.storage.message(query)
 
     def update_all_edges(self, new_vertex: "BaseVertex", old_vertex: "BaseVertex"):
@@ -131,17 +132,17 @@ class StreamingGNNInference(BaseStreamingGNNInference):
         self.message_fn = None
         self.update_fn = None
 
-    def exchange(self, edge: "SimpleEdge") -> torch.tensor:
+    def exchange(self, edge: "BaseEdge") -> torch.tensor:
         """ Create the aggregator function and reduce the aggregator function """
-        source: "SimpleVertex" = edge.source
-        dest: "SimpleVertex" = edge.destination
+        source: "BaseVertex" = edge.source
+        dest: "BaseVertex" = edge.destination
         source_f = source['feature']
         destination_f = dest['feature']
         concat_f = torch.concat((source_f.value, destination_f.value), dim=0)
         msg = self.message_fn(concat_f)
         return msg
 
-    def apply(self, vertex: "SimpleVertex") -> torch.tensor:
+    def apply(self, vertex: "BaseVertex") -> torch.tensor:
         feature = vertex['feature']
         agg = vertex['agg']
         conc = torch.concat((feature.value, agg.value[0]), dim=0)

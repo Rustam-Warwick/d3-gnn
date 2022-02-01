@@ -46,12 +46,10 @@ class ReplicableGraphElement(GraphElement):
         if self.state is ReplicaState.MASTER:
             # Add to parts of replicas and sync with this part
             self["parts"].add(new_element.part_id)
-            print("MASTER RECEVIED MESSAGE")
             self.sync_replicas(new_element.part_id)
             return False, self
         elif self.state is ReplicaState.REPLICA:
             # Commit the update to replica
-            print("Replica recevied message")
             if new_element.integer_clock <= self.integer_clock: raise OldVersionException
             return self.update_element(new_element)
 
@@ -69,15 +67,14 @@ class ReplicableGraphElement(GraphElement):
 
     def __iter__(self):
         """ Do not have parts in the iter  """
-        tmp = super(ReplicableGraphElement, self).__iter__()
-        return filter(lambda x: x[0] != "parts", list(tmp))
+        return super(ReplicableGraphElement, self).__iter__()
+        # return filter(lambda x: x[0] != "parts", list(tmp))
 
     def sync_replicas(self, part_id=None):
         """ If this is master send SYNC to Replicas """
-        if self.state is not ReplicaState.MASTER: return  # Masters can sync replicas
-        if self.is_halo:
-            # No need to sync since this is a halo element
-            return
+        if self.state is not ReplicaState.MASTER or self.is_halo or len(self.replica_parts) == 0: return
+        if self.storage is None:
+            print("NONE")
         features = self.storage.get_features(self.element_type, self.id)
         for key, value in features.items():
             value.element = self
@@ -131,3 +128,12 @@ class ReplicableGraphElement(GraphElement):
             "_halo": self.is_halo
         })
         return state
+
+    def __getmetadata__(self):
+        metadata = super(ReplicableGraphElement, self).__getmetadata__()
+        metadata.update({
+            "_master": self.master_part,
+            "_clock": self.integer_clock,
+            "_halo": self.is_halo
+        })
+        return metadata

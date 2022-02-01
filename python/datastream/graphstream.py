@@ -1,9 +1,7 @@
 from pyflink.datastream import StreamExecutionEnvironment, DataStream, MapFunction
-from pyflink.datastream.data_stream import _get_one_input_stream_operator
-from pyflink.datastream.connectors import FileSource, StreamFormat, Duration
+from pyflink.datastream.connectors import FileSource, StreamFormat
 from pyflink.common import WatermarkStrategy
-from pyflink.fn_execution import flink_fn_execution_pb2
-from partitioner import Partitioner, KeySelector
+from partitioner import Partitioner, KeySelector,GraphElementIdSelector
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -17,6 +15,7 @@ class GraphStream:
         self.env: StreamExecutionEnvironment = StreamExecutionEnvironment.get_execution_environment()
         # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
+        self.env.set_max_parallelism(self.PARALLELISM)
         self.last: "DataStream" = None  # Last DataStream in this pipeline
         self.train_stream: "DataStream" = None
         self.long_iterator = None  # Outermost iterators that connects 2 gnn-process functions. Used for backwards pass
@@ -37,7 +36,7 @@ class GraphStream:
         """ Read sochet for a streaming of lines """
         tmp = self.env._j_stream_execution_environment.socketTextStream(host, port)
         self.last = DataStream(tmp).name("Socket Reader")
-        self.last = self.last.map(parser).name("String Parser")  # @todo fix later the ordering so that parallelism can
+        self.last = self.last.map(parser).set_parallelism(1).name("String Parser")  # @todo fix later the ordering so that parallelism can
         return self.last
 
     def partition(self, partitioner: "BasePartitioner") -> DataStream:
@@ -72,7 +71,8 @@ class GraphStream:
             2. Merging Training stream and previous data streams
          """
         storageProcess.is_last = True
-        last = self.last.union(self.train_stream).partition_custom(Partitioner(), KeySelector()) # Union of previous
+        last = self.last.union(self.train_stream).partition_custom(Partitioner(), KeySelector())
+
         # layer and training samples
         iterator = last._j_data_stream.iterate()  # Java Class need to somehow handle it
         ds = DataStream(iterator)

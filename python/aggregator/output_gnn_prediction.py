@@ -25,15 +25,13 @@ class BaseOutputPrediction(BaseAggregator, metaclass=ABCMeta):
         pass
 
     def run(self, query: "GraphQuery", **kwargs):
-        query.element: "ReplicableFeature"
-        vertex = BaseVertex(element_id=query.element.attached_to[1])
-        vertex[query.element.field_name] = query.element
-        vertex.attach_storage(self.storage)
+        query.element: "BaseVertex"
+        query.element.attach_storage(self.storage)
         try:
-            real_vertex = self.storage.get_vertex(vertex.id)
-            real_vertex.external_update(vertex)
+            real_vertex = self.storage.get_vertex(query.element.id)
+            real_vertex.external_update(query.element)
         except GraphElementNotFound:
-            vertex.create_element()
+            query.element.create_element()
 
     def add_element_callback(self, element: "GraphElement"):
         pass

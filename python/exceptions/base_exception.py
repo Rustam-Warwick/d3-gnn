@@ -16,3 +16,7 @@ class NotUsedOnReplicaException(Exception):
 
 class AggregatorExistsException(Exception):
     pass
+
+
+class FeatureExistsException(Exception):
+    pass
