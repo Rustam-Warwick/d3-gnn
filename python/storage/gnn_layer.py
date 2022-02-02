@@ -1,6 +1,7 @@
 from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
 from copy import copy
+from traceback import print_exc
 from exceptions import NotSupported, AggregatorExistsException, GraphElementNotFound
 from elements import ElementTypes, Op
 from typing import TYPE_CHECKING, Dict
@@ -53,6 +54,8 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         fn()
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
+        if value.part != self.part_id:
+            print("ERRORROROR")
         if value.is_topology_change and not self.is_last:
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
@@ -94,6 +97,6 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         except NotSupported:
             print("We do not support such message type")
         except Exception as e:
-            print(e)
+            print_exc()
         while len(self.out):
             yield self.out.pop(0)

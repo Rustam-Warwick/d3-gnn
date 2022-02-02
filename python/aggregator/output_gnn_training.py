@@ -1,7 +1,7 @@
 import abc
 from abc import ABCMeta
 from aggregator import BaseAggregator
-from aggregator.output_gnn_prediction import BaseOutputPrediction
+from aggregator.output_gnn_prediction import BaseStreamingOutputPrediction
 from elements import GraphElement, GraphQuery, ElementTypes
 from elements.vertex import BaseVertex
 from elements.element_feature import ReplicableFeature
@@ -10,25 +10,24 @@ import torch
 from storage.gnn_layer import GNNLayerProcess
 
 
-class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
+class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
     def __init__(self, ident: str = "trainer", inference_name: str = "streaming_gnn", storage: "GNNLayerProcess" = None,
                  batch_size=12):
-        super(BaseOutputTraining, self).__init__(ident, storage)
+        super(BaseStreamingOutputTraining, self).__init__(ident, storage)
         self.ready = set()
         self.batch_size = batch_size
         self.inference_aggregator_name = inference_name
-        self.inference_agg: "BaseOutputPrediction" = None
+        self.inference_agg: "BaseStreamingOutputPrediction" = None
 
     @abc.abstractmethod
-    def loss(self, inferences:"torch.tensor", true_values: "torch.tensor"):
+    def loss(self, inferences: "torch.tensor", true_values: "torch.tensor"):
         pass
 
     def open(self, *args, **kwargs):
         self.inference_agg = self.storage.aggregators[
             self.inference_aggregator_name]  # Have the reference to Inference aggregator
-
 
     def run(self, query: "GraphQuery", **kwargs):
         if True: return
@@ -54,8 +53,8 @@ class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
             try:
                 if element.field_name == 'feature' and self.storage.get_feature(element.id + "_label"):
                     # Already in the training set
-                    #self.ready.add(self.storage.get_vertex(element.attached_to[1]))
-                    #self.start_training_if_batch_filled()
+                    # self.ready.add(self.storage.get_vertex(element.attached_to[1]))
+                    # self.start_training_if_batch_filled()
                     pass
             except GraphElementNotFound:
                 pass
@@ -72,14 +71,12 @@ class BaseOutputTraining(BaseAggregator, metaclass=ABCMeta):
             self.loss(output, batch_labels)
 
 
-class MyOutputTraining(BaseOutputTraining):
+class StreamingOutputTraining(BaseStreamingOutputTraining):
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)
         self.my_loss = torch.nn.CrossEntropyLoss()
 
-    def loss(self, inferences: "torch.tensor", true_values:"torch.tensor"):
+    def loss(self, inferences: "torch.tensor", true_values: "torch.tensor"):
         output = self.my_loss(inferences, true_values)
         output.backward()
-
-

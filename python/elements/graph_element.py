@@ -3,7 +3,7 @@ import copy
 from abc import ABCMeta
 from enum import Enum
 from typing import TYPE_CHECKING, Tuple, Dict
-from exceptions import GraphElementNotFound, FeatureExistsException
+from exceptions import GraphElementNotFound
 
 if TYPE_CHECKING:
     from storage.gnn_layer import GNNLayerProcess
@@ -164,6 +164,9 @@ class GraphElement(metaclass=ABCMeta):
         result = cls.__new__(cls)
         result.__dict__.update(self.__getstate__())
         result.storage = self.storage
+        for k, v in self.__dict__.items():
+            if k in self.deep_copy_fields:
+                setattr(result, k, copy.copy(v))
         return result
 
     def __setstate__(self, state: dict):
@@ -249,7 +252,7 @@ class GraphElement(metaclass=ABCMeta):
             feature.attach_storage(storage)
 
     def detach_storage(self):
-        """ Remove the storage from this element """
+        """ Remove the storage from this element and all of its features """
         self.storage = None
         for feature in self._features.values():
             feature.detach_storage()

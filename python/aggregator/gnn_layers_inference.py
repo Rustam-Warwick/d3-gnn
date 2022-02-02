@@ -20,18 +20,29 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     it means that Layer=0, & and Layer=1 are going to happen in this horizontal operator and then pushed to next ones
     """
 
-    def __init__(self, layers_covered=1, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
+    def __init__(self, layers_covered: int = 1, message_fn: "torch.nn.Module" = None, update_fn: "torch.nn.Module" = None,
+                 ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
         super(BaseStreamingGNNInference, self).__init__(ident, storage)
         self.layers_covered = layers_covered
+        self.message_fn: "torch.Module" = message_fn
+        self.update_fn: "torch.Module" = update_fn
 
-    @abc.abstractmethod
-    def exchange(self, edge: "BaseEdge") -> "torch.tensor":
-        """ Enumerate each edge Increment the aggregate function """
-        pass
+    def exchange(self, edge: "BaseEdge") -> torch.tensor:
+        """ Create the aggregator function and reduce the aggregator function """
+        source: "BaseVertex" = edge.source
+        dest: "BaseVertex" = edge.destination
+        source_f = source['feature']
+        destination_f = dest['feature']
+        concat_f = torch.concat((source_f.value, destination_f.value), dim=0)
+        msg = self.message_fn(concat_f)
+        return msg
 
-    @abc.abstractmethod
-    def apply(self, vertex: "BaseVertex") -> "torch.tensor":
-        pass
+    def apply(self, vertex: "BaseVertex") -> torch.tensor:
+        """ Update the feature of this vertex next layer embedding """
+        feature = vertex['feature']
+        agg = vertex['agg']
+        conc = torch.concat((feature.value, agg.value[0]), dim=0)
+        return self.update_fn(conc)
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, res is in callbacks """
@@ -43,8 +54,10 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Intialize tensors for operating
             element['agg'] = MeanAggregatorReplicableFeature(
-                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False), is_halo=True) # No need to replicate
-            element['feature'] = TensorReplicableFeature(value=torch.zeros((7,), requires_grad=False, dtype=torch.float32))
+                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False),
+                is_halo=True)  # No need to replicate
+            element['feature'] = TensorReplicableFeature(
+                value=torch.zeros((7,), requires_grad=False, dtype=torch.float32))
             # Default is zero to have transitive relations
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
@@ -82,7 +95,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                 vertex._features.clear()
                 vertex.detach_storage()
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
-                query = GraphQuery(Op.AGG, vertex, self.storage.part_id, aggregator_name=self.id)
+                query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
                 self.storage.message(query)
 
     def update_all_edges(self, new_vertex: "BaseVertex", old_vertex: "BaseVertex"):
@@ -127,31 +140,5 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
 
 class StreamingGNNInference(BaseStreamingGNNInference):
-    def __init__(self, *args, **kwargs):
-        super(StreamingGNNInference, self).__init__(*args, **kwargs)
-        self.message_fn = None
-        self.update_fn = None
-
-    def exchange(self, edge: "BaseEdge") -> torch.tensor:
-        """ Create the aggregator function and reduce the aggregator function """
-        source: "BaseVertex" = edge.source
-        dest: "BaseVertex" = edge.destination
-        source_f = source['feature']
-        destination_f = dest['feature']
-        concat_f = torch.concat((source_f.value, destination_f.value), dim=0)
-        msg = self.message_fn(concat_f)
-        return msg
-
-    def apply(self, vertex: "BaseVertex") -> torch.tensor:
-        feature = vertex['feature']
-        agg = vertex['agg']
-        conc = torch.concat((feature.value, agg.value[0]), dim=0)
-        return self.update_fn(conc)
-
     def open(self, *args, **kwargs):
-        self.message_fn = torch.nn.Linear(14, 32, dtype=torch.float32, bias=False)
-        self.update_fn = torch.nn.Sequential(
-            torch.nn.Linear(39, 16, bias=False),
-            torch.nn.ReLU(),
-            torch.nn.Linear(16, 7)
-        )
+        pass

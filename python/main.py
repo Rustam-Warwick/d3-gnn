@@ -1,16 +1,30 @@
-import logging
-import sys
+import torch
 from datastream import GraphStream
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInference
-from aggregator.output_gnn_prediction import MyOutputPrediction
-from aggregator.output_gnn_training import MyOutputTraining
+from aggregator.output_gnn_prediction import StreamingOutputPrediction
+from aggregator.output_gnn_training import StreamingOutputTraining
 from helpers.streaming_train_splitter import StreamingTrainSplitter
 from helpers.socketmapper import EdgeListParser
 
 
 def run():
+    inferencer = StreamingGNNInference(ident="rustam_streaming_gnn_inference",
+                                       message_fn=torch.nn.Linear(14, 32, dtype=torch.float32, bias=False),
+                                       update_fn=torch.nn.Sequential(
+                                           torch.nn.Linear(39, 16, bias=False),
+                                           torch.nn.ReLU(),
+                                           torch.nn.Linear(16, 7)
+                                       ))
+
+    output_predictor = StreamingOutputPrediction(ident='rustam_streaming_gnn_inference', predict_fn=torch.nn.Sequential(
+        torch.nn.Linear(7, 32),
+        torch.nn.Linear(32, 16),
+        torch.nn.Linear(16, 7),
+        torch.nn.Softmax(dim=0)
+    ))
+
     graphstream = GraphStream(3)  # GraphStream with parallelism of 5
     graphstream.read_socket(EdgeListParser(
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
@@ -18,13 +32,13 @@ def run():
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
     graphstream.train_test_split(StreamingTrainSplitter(0))
     graphstream.gnn_layer(
-        GNNLayerProcess().with_aggregator(StreamingGNNInference(ident="rustam_streaming_gnn_inference")))
+        GNNLayerProcess().with_aggregator(inferencer))
     graphstream.gnn_layer(
-        GNNLayerProcess(is_last=True).with_aggregator(StreamingGNNInference(ident="rustam_streaming_gnn_inference")))
+        GNNLayerProcess(is_last=True).with_aggregator(inferencer))
     graphstream.training_inference_layer(
         GNNLayerProcess().
-            with_aggregator(MyOutputPrediction(ident="rustam_streaming_gnn_inference")).
-            with_aggregator(MyOutputTraining(inference_name='rustam_streaming_gnn_inference'))
+            with_aggregator(output_predictor).
+            with_aggregator(StreamingOutputTraining(inference_name='rustam_streaming_gnn_inference'))
     )
     graphstream.last.print()
     print(graphstream.env.get_execution_plan())

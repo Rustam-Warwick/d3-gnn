@@ -29,7 +29,10 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Similar to sync_element we need to save the .element since integer_clock might change """
-        return super(ReplicableFeature, self).__call__(rpc)
+        is_updated, memento = super(ReplicableFeature, self).__call__(rpc)
+        if is_updated and self.element is not None:
+            self.storage.update_element(self.element)
+        return is_updated, memento
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
@@ -44,11 +47,18 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ If directly syncing this feature parent vertex should also be updated """
-        return super(ReplicableFeature, self).sync_element(new_element)
+        is_updated, memento = super(ReplicableFeature, self).sync_element(new_element)
+        if is_updated and self.element is not None:
+            self.storage.update_element(self.element)
+        return is_updated, memento
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ We need to save the .element since integer_clock might change as well """
-        return super(ReplicableFeature, self).external_update(new_element)
+
+        is_updated, memento = super(ReplicableFeature, self).external_update(new_element)
+        if is_updated and self.element is not None:
+            self.storage.update_element(self.element)
+        return is_updated, memento
 
     @abc.abstractmethod
     def _value_eq_(self, old_value, new_value) -> bool:

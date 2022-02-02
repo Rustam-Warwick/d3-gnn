@@ -9,17 +9,13 @@ import torch
 from storage.gnn_layer import GNNLayerProcess
 
 
-class BaseOutputPrediction(BaseAggregator, metaclass=ABCMeta):
+class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
-        super(BaseOutputPrediction, self).__init__(ident, storage)
-
-    @property
-    @abc.abstractmethod
-    def apply_fn(self) -> "torch.Module":
-        """ Result is pytorch module that does last output layer """
-        pass
+    def __init__(self, ident: str = "streaming_gnn", predict_fn: "torch.nn.Module" = None,
+                 storage: "GNNLayerProcess" = None):
+        super(BaseStreamingOutputPrediction, self).__init__(ident, storage)
+        self.predict_fn = predict_fn
 
     def open(self, *args, **kwargs):
         pass
@@ -40,16 +36,7 @@ class BaseOutputPrediction(BaseAggregator, metaclass=ABCMeta):
         pass
 
 
-class MyOutputPrediction(BaseOutputPrediction):
+class StreamingOutputPrediction(BaseStreamingOutputPrediction):
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)
-        self.update_fn = torch.nn.Sequential(
-            torch.nn.Linear(7, 32),
-            torch.nn.Linear(32, 16),
-            torch.nn.Linear(16, 7),
-            torch.nn.Softmax(dim=0)
-        )
-
-    def apply_fn(self):
-        return self.update_fn

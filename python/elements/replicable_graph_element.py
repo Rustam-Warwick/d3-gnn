@@ -1,9 +1,9 @@
 from elements import ReplicaState, GraphElement, GraphQuery, Op, query_for_part
 from typing import TYPE_CHECKING, Tuple
 from exceptions import OldVersionException
-
+from copy import copy
 if TYPE_CHECKING:
-    from storage.gnn_layer import GNNLayerProcess
+    from elements.element_feature.set_feature import SetReplicatedFeature
 
 
 class ReplicableGraphElement(GraphElement):
@@ -17,15 +17,16 @@ class ReplicableGraphElement(GraphElement):
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Wrap GraphElement call to have separate behavior for Replica & Master nodes """
-        if self.state == ReplicaState.REPLICA:
+        if self.state is ReplicaState.REPLICA:
             # Send this message to master node if it is replica
             query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
             self.storage.message(query)
             return False, self
-        is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
-        if is_updated:
-            self.sync_replicas()
-        return is_updated, elem
+        elif self.state is ReplicaState.MASTER:
+            is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
+            if is_updated:
+                self.sync_replicas()
+            return is_updated, elem
 
     def create_element(self) -> bool:
         if self.state is ReplicaState.REPLICA: self._features.clear()  # Clear needed since it will be synced with
@@ -50,7 +51,8 @@ class ReplicableGraphElement(GraphElement):
             return False, self
         elif self.state is ReplicaState.REPLICA:
             # Commit the update to replica
-            if new_element.integer_clock <= self.integer_clock: raise OldVersionException
+            if new_element.integer_clock <= self.integer_clock:
+                raise OldVersionException
             return self.update_element(new_element)
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
@@ -59,33 +61,32 @@ class ReplicableGraphElement(GraphElement):
             query = GraphQuery(Op.UPDATE, new_element, self.master_part, True)
             self.storage.message(query)
             return False, self
-        is_updated, memento = super(ReplicableGraphElement, self).external_update(
-            new_element)  # Basically calling update_element
-        if is_updated:
-            self.sync_replicas()
-        return is_updated, memento
+        elif self.state is ReplicaState.MASTER:
+            is_updated, memento = super(ReplicableGraphElement, self).external_update(
+                new_element)  # Basically calling update_element
+            if is_updated:
+                self.sync_replicas()
+            return is_updated, memento
 
     def __iter__(self):
         """ Do not have parts in the iter  """
         return super(ReplicableGraphElement, self).__iter__()
-        # return filter(lambda x: x[0] != "parts", list(tmp))
 
     def sync_replicas(self, part_id=None):
-        """ If this is master send SYNC to Replicas """
+        """ Sending this element to all or some replicas. This element is shallow copied for  operability """
         if self.state is not ReplicaState.MASTER or self.is_halo or len(self.replica_parts) == 0: return
-        if self.storage is None:
-            print("NONE")
+        cpy_self = copy(self)
+        cpy_self._features = cpy_self._features.copy()
         features = self.storage.get_features(self.element_type, self.id)
         for key, value in features.items():
-            value.element = self
-            self._features[key] = value
+            value.element = cpy_self
+            cpy_self._features[key] = value
             if value.is_halo: value._value = None  # Do not send the actual value of halo elements
-        query = GraphQuery(op=Op.SYNC, element=self, part=None, iterate=True)
+        query = GraphQuery(op=Op.SYNC, element=cpy_self, part=None, iterate=True)
         if part_id is not None:
             self.storage.message(query_for_part(query, part_id))
             return
-        filtered_parts = map(lambda x: query_for_part(query, x),
-                             filter(lambda x: x != self.storage.part_id, self.replica_parts))
+        filtered_parts = map(lambda x: query_for_part(query, x), self.replica_parts)
         for msg in filtered_parts:
             self.storage.message(msg)
 
@@ -110,10 +111,14 @@ class ReplicableGraphElement(GraphElement):
 
     @property
     def replica_parts(self) -> list:
-        re: "PartSetElementFeature" = self['parts']
-        a = list(re.value)
-        a.remove(self.part_id)
-        return a
+        try:
+            re: "SetReplicatedFeature" = self['parts']
+            a = list(re.value)
+            a.remove(self.part_id)
+            return a
+        except Exception:
+            print("Replica Parts error")
+            return list()
 
     @property
     def is_replicable(self) -> bool:
