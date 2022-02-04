@@ -44,21 +44,21 @@ class GraphStream:
         partitioner_par = self.PARALLELISM
         partitioner.partitions = self.PARALLELISM
         if not partitioner.is_parallel(): partitioner_par = 1  # Partitioner does not support parallelism in itself
-        self.last = self.last.map(partitioner).set_parallelism(partitioner_par).name("Partitioner")
+        self.last = self.last.map(partitioner).set_parallelism(partitioner_par).name("Partitioner").partition_custom(Partitioner(), KeySelector())
         return self.last
 
     def gnn_layer(self, storageProcess: "GNNLayerProcess") -> DataStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate filed """
-        last = self.last.partition_custom(Partitioner(), KeySelector())
-        long_iterator = last._j_data_stream.iterate()  # Java Class need to somehow handle it
-        iterator = long_iterator.iterate()  # Java Class need to somehow handle it
+        last = self.last
+        long_iterator = last._j_data_stream.iterate().name("Backward iteration Source")  # Java Class need to somehow handle it
+        iterator = long_iterator.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
 
         ds = DataStream(iterator)
-        st = ds.process(storageProcess).name("GNN Process")
-        iterate_filter = st.filter(lambda x: x.iterate is True).partition_custom(Partitioner(), KeySelector())
-        continue_filter = st.filter(lambda x: x.iterate is False)
+        st = ds.process(storageProcess).name("GNN Process").partition_custom(Partitioner(), KeySelector())
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
+        continue_filter = st.filter(lambda x: x.iterate is False).name("Next layer Filter")
         if self.long_iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).partition_custom(Partitioner(), KeySelector())  # Back
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
             self.long_iterator.closeWith(back_filter._j_data_stream)
         iterator.closeWith(iterate_filter._j_data_stream)
         self.last = continue_filter
@@ -71,16 +71,16 @@ class GraphStream:
             2. Merging Training stream and previous data streams
          """
         storageProcess.is_last = True
-        last = self.last.union(self.train_stream).partition_custom(Partitioner(), KeySelector())
+        last = self.last.union(self.train_stream)
 
         # layer and training samples
-        iterator = last._j_data_stream.iterate()  # Java Class need to somehow handle it
+        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
         ds = DataStream(iterator)
-        st = ds.process(storageProcess)
-        iterate_filter = st.filter(lambda x: x.iterate is True).partition_custom(Partitioner(), KeySelector())
-        continue_filter = st.filter(lambda x: x.iterate is False)
+        st = ds.process(storageProcess).name("Training Process").partition_custom(Partitioner(), KeySelector())
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
+        continue_filter = st.filter(lambda x: x.iterate is False).name("Next Layer Filter")
         if self.long_iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).partition_custom(Partitioner(), KeySelector())  # Back
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
             self.long_iterator.closeWith(back_filter._j_data_stream)
 
         iterator.closeWith(iterate_filter._j_data_stream)
@@ -91,5 +91,5 @@ class GraphStream:
 
     def train_test_split(self, splitter: "MapFunction"):
         splitter = self.last.map(splitter)
-        self.last = splitter.filter(lambda x: x.is_train is False)
-        self.train_stream = splitter.filter(lambda x: x.is_train is True)
+        self.last = splitter.filter(lambda x: x.is_train is False).name("Normal Data")
+        self.train_stream = splitter.filter(lambda x: x.is_train is True).name("Training Data")

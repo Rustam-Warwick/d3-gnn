@@ -4,7 +4,7 @@ from aggregator import BaseAggregator
 from aggregator.output_gnn_prediction import BaseStreamingOutputPrediction
 from elements import GraphElement, GraphQuery, ElementTypes
 from elements.vertex import BaseVertex
-from elements.element_feature import ReplicableFeature
+from copy import copy
 from exceptions import GraphElementNotFound
 import torch
 from storage.gnn_layer import GNNLayerProcess
@@ -13,70 +13,61 @@ from storage.gnn_layer import GNNLayerProcess
 class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, ident: str = "trainer", inference_name: str = "streaming_gnn", storage: "GNNLayerProcess" = None,
+    def __init__(self, loss=torch.nn.CrossEntropyLoss(),
+                 inference_name: str = "streaming_gnn",
+                 storage: "GNNLayerProcess" = None,
                  batch_size=12):
-        super(BaseStreamingOutputTraining, self).__init__(ident, storage)
+        super(BaseStreamingOutputTraining, self).__init__("trainer", storage)
         self.ready = set()
         self.batch_size = batch_size
         self.inference_aggregator_name = inference_name
         self.inference_agg: "BaseStreamingOutputPrediction" = None
-
-    @abc.abstractmethod
-    def loss(self, inferences: "torch.tensor", true_values: "torch.tensor"):
-        pass
+        self.loss = loss
+        self.optimizer: "torch.optim.Optimizer" = None
 
     def open(self, *args, **kwargs):
         self.inference_agg = self.storage.aggregators[
             self.inference_aggregator_name]  # Have the reference to Inference aggregator
 
     def run(self, query: "GraphQuery", **kwargs):
-        if True: return
-        query.element: "ReplicableFeature"
-        real_id = query.element.id
-        query.element.id += '_label'
-        vertex = BaseVertex(element_id=query.element.attached_to[1])
-        vertex[query.element.field_name] = query.element
-        vertex.attach_storage(self.storage)
-        try:
-            real_vertex = self.storage.get_vertex(vertex.id)
-            real_vertex.external_update(vertex)
-            var = real_vertex.get(real_id)  # If this guy exists
-            if var is not None:
-                self.ready.add(real_vertex)
-                self.start_training_if_batch_filled()
-        except GraphElementNotFound:
-            vertex.create_element()
+        vertex: "BaseVertex" = query.element
+        ft = vertex['feature']
+        vertex._features.clear()
+        vertex['feature_label'] = ft
+        el = self.storage.get_element(query.element, False)
+        if el is None:
+            # Late Event
+            el = copy(query.element)
+            el.attach_storage(self.storage)
+            el.create_element()
+        el.external_update(query.element)
 
     def add_element_callback(self, element: "GraphElement"):
-        if element.element_type is ElementTypes.FEATURE:
-            return
-            try:
-                if element.field_name == 'feature' and self.storage.get_feature(element.id + "_label"):
-                    # Already in the training set
-                    # self.ready.add(self.storage.get_vertex(element.attached_to[1]))
-                    # self.start_training_if_batch_filled()
-                    pass
-            except GraphElementNotFound:
-                pass
+        pass
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        pass
+        if element.element_type is ElementTypes.VERTEX and element.id not in self.ready:
+            if element.get('feature') and element.get('feature_label'):  # If both labels and predictions exist
+                self.ready.add(element.id)
+                self.start_training_if_batch_filled()
 
     def start_training_if_batch_filled(self):
         if len(self.ready) >= self.batch_size:
             # Batch size filled
-            batch_embeddings = torch.vstack(list(map(lambda x: x['feature'].value, self.ready)))
-            batch_labels = torch.vstack(list(map(lambda x: x['feature_label'].value, self.ready)))
-            output = self.inference_agg.apply(batch_embeddings)
-            self.loss(output, batch_labels)
+            vertices = list(map(lambda x: self.storage.get_vertex(x), self.ready))
+            batch_embeddings = torch.vstack(list(map(lambda x: x['feature'].value, vertices)))
+            batch_labels = torch.vstack(list(map(lambda x: x['feature_label'].value, vertices)))
+            output = self.inference_agg.predict_fn(batch_embeddings)
+            loss = self.loss(output, batch_labels)
+            loss.backward()
+            self.optimizer.zero_grad()
+            self.optimizer.step()
 
 
 class StreamingOutputTraining(BaseStreamingOutputTraining):
+    def __init__(self, *args, **kwargs):
+        super(StreamingOutputTraining, self).__init__(*args, **kwargs)
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)
-        self.my_loss = torch.nn.CrossEntropyLoss()
-
-    def loss(self, inferences: "torch.tensor", true_values: "torch.tensor"):
-        output = self.my_loss(inferences, true_values)
-        output.backward()
+        self.optimizer = torch.optim.SGD(self.inference_agg.predict_fn.parameters(), lr=0.001)

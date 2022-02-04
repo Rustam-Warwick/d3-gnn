@@ -26,7 +26,8 @@ class ElementTypes(Enum):
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
-    deep_copy_fields = ("_features",)
+    deep_copy_fields = ("_features",)  # Fields to be copied during deepcopy
+    copy_fields = ("_features",)  # Fields to be copied during copy
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GNNLayerProcess" = None) -> None:
         self.id: str = element_id
@@ -57,7 +58,6 @@ class GraphElement(metaclass=ABCMeta):
             @returns (is_changed, old_element)
         """
         memento = copy.copy(self)
-        memento._features = self._features.copy()
         is_updated = False
         for name, value in new_element:
             feature = self.get(name)
@@ -83,10 +83,8 @@ class GraphElement(metaclass=ABCMeta):
         self.integer_clock += 1
         return self.update_element(new_element)
 
-    def __iter__(self):
+    def __iter__(self) -> Dict[str, "GraphElement"]:
         """ Iterate over the attached features """
-        if self._features is None:
-            print("ERROR")
         return iter(self._features.items())
 
     @property
@@ -151,11 +149,13 @@ class GraphElement(metaclass=ABCMeta):
         cls = self.__class__
         result = cls.__new__(cls)
         memodict[id(self)] = result
-        for k, v in self.__dict__.items():
+        state = self.__getstate__()
+        for k, v in state.items():
             if k in self.deep_copy_fields:
                 setattr(result, k, copy.deepcopy(v, memodict))
             else:
                 setattr(result, k, v)
+        result.storage = self.storage
         return result
 
     def __copy__(self):
@@ -164,9 +164,9 @@ class GraphElement(metaclass=ABCMeta):
         result = cls.__new__(cls)
         result.__dict__.update(self.__getstate__())
         result.storage = self.storage
-        for k, v in self.__dict__.items():
-            if k in self.deep_copy_fields:
-                setattr(result, k, copy.copy(v))
+        for key in self.copy_fields:
+            if key in self.__dict__.keys():
+                setattr(result, key, copy.copy(self.__dict__[key]))
         return result
 
     def __setstate__(self, state: dict):

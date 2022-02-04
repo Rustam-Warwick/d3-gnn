@@ -54,8 +54,6 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         fn()
 
     def process_element(self, value: "GraphQuery", ctx: 'ProcessFunction.Context'):
-        if value.part != self.part_id:
-            print("ERRORROROR")
         if value.is_topology_change and not self.is_last:
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
@@ -89,7 +87,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                     el = copy(value.element)
                     el.attach_storage(self)
                     el.create_element()
-                el.update_element(value.element)
+                el.external_update(value.element)
             if value.op is Op.AGG:
                 self.aggregators[value.aggregator_name].run(value)
         except GraphElementNotFound:

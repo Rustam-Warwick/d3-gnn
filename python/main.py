@@ -1,8 +1,9 @@
 import torch
+from flax import linen as nn
 from datastream import GraphStream
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
-from aggregator.gnn_layers_inference import StreamingGNNInference
+from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
 from aggregator.output_gnn_prediction import StreamingOutputPrediction
 from aggregator.output_gnn_training import StreamingOutputTraining
 from helpers.streaming_train_splitter import StreamingTrainSplitter
@@ -10,13 +11,9 @@ from helpers.socketmapper import EdgeListParser
 
 
 def run():
-    inferencer = StreamingGNNInference(ident="rustam_streaming_gnn_inference",
-                                       message_fn=torch.nn.Linear(14, 32, dtype=torch.float32, bias=False),
-                                       update_fn=torch.nn.Sequential(
-                                           torch.nn.Linear(39, 16, bias=False),
-                                           torch.nn.ReLU(),
-                                           torch.nn.Linear(16, 7)
-                                       ))
+    inferencer = StreamingGNNInferenceJAX(ident="rustam_streaming_gnn_inference",
+                                          message_fn=nn.Dense(features=32, use_bias=False),
+                                          update_fn=nn.Dense(features=7, use_bias=False))
 
     output_predictor = StreamingOutputPrediction(ident='rustam_streaming_gnn_inference', predict_fn=torch.nn.Sequential(
         torch.nn.Linear(7, 32),

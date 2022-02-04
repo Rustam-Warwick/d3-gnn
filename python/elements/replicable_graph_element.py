@@ -47,12 +47,14 @@ class ReplicableGraphElement(GraphElement):
         if self.state is ReplicaState.MASTER:
             # Add to parts of replicas and sync with this part
             self["parts"].add(new_element.part_id)
-            self.sync_replicas(new_element.part_id)
+            self.sync_replicas(new_element.part_id, ignore_halo=False)
             return False, self
         elif self.state is ReplicaState.REPLICA:
             # Commit the update to replica
             if new_element.integer_clock <= self.integer_clock:
-                raise OldVersionException
+                # Old version exception
+                # @todo I hope this is fine that I have cases where it enters here, not very often but still
+                return False, self
             return self.update_element(new_element)
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
@@ -72,23 +74,28 @@ class ReplicableGraphElement(GraphElement):
         """ Do not have parts in the iter  """
         return super(ReplicableGraphElement, self).__iter__()
 
-    def sync_replicas(self, part_id=None):
-        """ Sending this element to all or some replicas. This element is shallow copied for  operability """
+    def sync_replicas(self, part_id=None, ignore_halo=True):
+        """ Sending this element to all or some replicas. This element is shallow copied for operability """
         if self.state is not ReplicaState.MASTER or self.is_halo or len(self.replica_parts) == 0: return
+        self.cache_features()
         cpy_self = copy(self)
-        cpy_self._features = cpy_self._features.copy()
-        features = self.storage.get_features(self.element_type, self.id)
-        for key, value in features.items():
-            value.element = cpy_self
-            cpy_self._features[key] = value
-            if value.is_halo: value._value = None  # Do not send the actual value of halo elements
+        cpy_self._features.clear()
+        for key, value in self:
+            if ignore_halo and value.is_halo:
+                continue
+            ft_cpy = copy(value)
+            ft_cpy.element = cpy_self
+            cpy_self._features[key] = ft_cpy
+            if ft_cpy.is_halo: ft_cpy._value = None
+
         query = GraphQuery(op=Op.SYNC, element=cpy_self, part=None, iterate=True)
-        if part_id is not None:
+
+        if part_id:
             self.storage.message(query_for_part(query, part_id))
-            return
-        filtered_parts = map(lambda x: query_for_part(query, x), self.replica_parts)
-        for msg in filtered_parts:
-            self.storage.message(msg)
+        else:
+            filtered_parts = map(lambda x: query_for_part(query, x), self.replica_parts)
+            for msg in filtered_parts:
+                self.storage.message(msg)
 
     @property
     def master_part(self) -> int:

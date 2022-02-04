@@ -2,32 +2,37 @@ import abc
 from abc import ABCMeta
 from aggregator import BaseAggregator
 from elements import GraphElement, GraphQuery
-from elements.element_feature import ReplicableFeature
-from elements.vertex import BaseVertex
-from exceptions import GraphElementNotFound
+from copy import copy
+from typing import TYPE_CHECKING
 import torch
 from storage.gnn_layer import GNNLayerProcess
+if TYPE_CHECKING:
+    from elements.vertex import BaseVertex
 
 
 class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, ident: str = "streaming_gnn", predict_fn: "torch.nn.Module" = None,
+    def __init__(self, ident: str = "streaming_gnn", predictor: "torch.nn.Module" = None,
                  storage: "GNNLayerProcess" = None):
         super(BaseStreamingOutputPrediction, self).__init__(ident, storage)
-        self.predict_fn = predict_fn
+        self.predictor = predictor
 
     def open(self, *args, **kwargs):
         pass
 
+    def apply(self, vertex: "BaseVertex") -> "torch.tensor":
+        feature = vertex['feature'].value
+        return self.predictor(feature)
+
     def run(self, query: "GraphQuery", **kwargs):
-        query.element: "BaseVertex"
-        query.element.attach_storage(self.storage)
-        try:
-            real_vertex = self.storage.get_vertex(query.element.id)
-            real_vertex.external_update(query.element)
-        except GraphElementNotFound:
-            query.element.create_element()
+        el = self.storage.get_element(query.element, False)
+        if el is None:
+            # Late Event
+            el = copy(query.element)
+            el.attach_storage(self.storage)
+            el.create_element()
+        el.external_update(query.element)
 
     def add_element_callback(self, element: "GraphElement"):
         pass

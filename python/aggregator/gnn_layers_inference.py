@@ -3,10 +3,9 @@ from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState
 from elements.element_feature.tensor_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin, \
     TensorReplicableFeature
-import torch
 from copy import copy
 from abc import ABCMeta
-
+import jax.numpy as jnp
 from elements.edge import BaseEdge
 from elements.element_feature import ReplicableFeature
 from elements.vertex import BaseVertex
@@ -20,12 +19,17 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     it means that Layer=0, & and Layer=1 are going to happen in this horizontal operator and then pushed to next ones
     """
 
-    def __init__(self, layers_covered: int = 1, message_fn: "torch.nn.Module" = None, update_fn: "torch.nn.Module" = None,
-                 ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
+    def __init__(self, layers_covered: int = 1, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
         super(BaseStreamingGNNInference, self).__init__(ident, storage)
         self.layers_covered = layers_covered
-        self.message_fn: "torch.Module" = message_fn
-        self.update_fn: "torch.Module" = update_fn
+
+    @abc.abstractmethod
+    def message(self, feature):
+        pass
+
+    @abc.abstractmethod
+    def update(self, feature):
+        pass
 
     def exchange(self, edge: "BaseEdge") -> torch.tensor:
         """ Create the aggregator function and reduce the aggregator function """
@@ -34,7 +38,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         source_f = source['feature']
         destination_f = dest['feature']
         concat_f = torch.concat((source_f.value, destination_f.value), dim=0)
-        msg = self.message_fn(concat_f)
+        msg = self.message(concat_f)
         return msg
 
     def apply(self, vertex: "BaseVertex") -> torch.tensor:
@@ -42,30 +46,33 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         feature = vertex['feature']
         agg = vertex['agg']
         conc = torch.concat((feature.value, agg.value[0]), dim=0)
-        return self.update_fn(conc)
+        return self.update(conc)
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, res is in callbacks """
-        new_vertex: "BaseVertex" = query.element
-        old_vertex = self.storage.get_vertex(new_vertex.id)
-        old_vertex['feature'].external_update(new_vertex['feature'])
+        el = self.storage.get_element(query.element, False)
+        if el is None:
+            # Late Event
+            el = copy(query.element)
+            el.attach_storage(self.storage)
+            el.create_element()
+        el.external_update(query.element)
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Intialize tensors for operating
             element['agg'] = MeanAggregatorReplicableFeature(
-                tensor=torch.zeros((32,), dtype=torch.float32, requires_grad=False),
+                tensor=jnp.zeros((32,), dtype=jnp.float32, requires_grad=False),
                 is_halo=True)  # No need to replicate
             element['feature'] = TensorReplicableFeature(
-                value=torch.zeros((7,), requires_grad=False, dtype=torch.float32))
+                value=jnp.zeros((7,), requires_grad=False, dtype=jnp.float32))
             # Default is zero to have transitive relations
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
             if element.source.is_initialized and element.destination.is_initialized:
                 # If vertices are ready do the embedding now
                 try:
-                    with torch.no_grad():
-                        msg = self.exchange(element)
+                    msg = self.exchange(element)
                     agg: "AggregatorFeatureMixin" = element.destination['agg']
                     agg.reduce(msg)  # Update the aggregator
                 except KeyError:
@@ -75,8 +82,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.VERTEX:
             if not old_element.is_initialized and element.is_initialized:
                 # Bulk Reduce for all waiting nodes
-                with torch.no_grad():
-                    self.reduce_all_edges(element)
+                self.reduce_all_edges(element)
         if element.element_type is ElementTypes.FEATURE:
             element: "ReplicableFeature"
             old_element: "ReplicableFeature"
@@ -84,16 +90,12 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                 # Do something new
                 old_vertex = BaseVertex(element_id=element.element.id)
                 old_vertex["feature"] = old_element
-                with torch.no_grad():
-                    self.update_all_edges(element.element, old_vertex)
+                self.update_all_edges(element.element, old_vertex)
 
             if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
                 # Generate new embedding for the node & send to master part of the next layer
-                with torch.no_grad():
-                    embedding = self.apply(element.element)
-                vertex = copy(element.element)
-                vertex._features.clear()
-                vertex.detach_storage()
+                embedding = self.apply(element.element)
+                vertex = BaseVertex(element_id=element.element.id, master=element.element.master_part)
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
                 query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
                 self.storage.message(query)
@@ -139,6 +141,19 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         agg.bulk_reduce(*exchanges)
 
 
-class StreamingGNNInference(BaseStreamingGNNInference):
+class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
+    def __init__(self,  message_fn=None, update_fn=None, *args, **kwargs,):
+        super(StreamingGNNInferenceJAX, self).__init__(*args, **kwargs)
+        self.message_fn = message_fn
+        self.update_fn = update_fn
+
+    def message(self, feature):
+        pass
+
+    def update(self, feature):
+        pass
+
     def open(self, *args, **kwargs):
         pass
+
+

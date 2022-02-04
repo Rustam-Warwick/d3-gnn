@@ -3,15 +3,15 @@ from elements.vertex import SimpleVertex
 from elements.edge import SimpleEdge
 from elements.element_feature.tensor_feature import TensorReplicableFeature
 from elements import GraphQuery, Op
-import torch
+import jax.numpy as jnp
 from typing import Dict, List
 
 
 class EdgeListParser(MapFunction):
     def __init__(self, categories: List[str], *args, **kwargs):
         super(EdgeListParser, self).__init__(*args, **kwargs)
-        self.one_hot_encoding: Dict[str, torch.tensor] = dict()
-        eye = torch.eye(len(categories))
+        self.one_hot_encoding: Dict[str, "jnp.array"] = dict()
+        eye = jnp.eye(len(categories))
         for i, category in enumerate(categories):
             self.one_hot_encoding[category] = eye[i]
 
