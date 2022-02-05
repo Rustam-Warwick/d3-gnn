@@ -5,6 +5,7 @@ from elements.element_feature.tensor_feature import MeanAggregatorReplicableFeat
     TensorReplicableFeature
 from copy import copy
 from abc import ABCMeta
+from flax.linen import Module
 import jax.numpy as jnp
 from elements.edge import BaseEdge
 from elements.element_feature import ReplicableFeature
@@ -31,41 +32,35 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     def update(self, feature):
         pass
 
-    def exchange(self, edge: "BaseEdge") -> torch.tensor:
-        """ Create the aggregator function and reduce the aggregator function """
+    def exchange(self, edge: "BaseEdge"):
+        """ Return the embedding for the edge for this GNN Layer """
         source: "BaseVertex" = edge.source
         dest: "BaseVertex" = edge.destination
         source_f = source['feature']
         destination_f = dest['feature']
-        concat_f = torch.concat((source_f.value, destination_f.value), dim=0)
-        msg = self.message(concat_f)
-        return msg
+        concat_f = jnp.concatenate((source_f.value, destination_f.value))
+        return self.message(concat_f)
 
-    def apply(self, vertex: "BaseVertex") -> torch.tensor:
-        """ Update the feature of this vertex next layer embedding """
+    def apply(self, vertex: "BaseVertex"):
+        """ Get the embedding of a vertex """
         feature = vertex['feature']
         agg = vertex['agg']
-        conc = torch.concat((feature.value, agg.value[0]), dim=0)
+        conc = jnp.concatenate((feature.value, agg.value[0]))
         return self.update(conc)
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, res is in callbacks """
-        el = self.storage.get_element(query.element, False)
-        if el is None:
-            # Late Event
-            el = copy(query.element)
-            el.attach_storage(self.storage)
-            el.create_element()
+        el = self.storage.get_element(query.element)
         el.external_update(query.element)
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Intialize tensors for operating
             element['agg'] = MeanAggregatorReplicableFeature(
-                tensor=jnp.zeros((32,), dtype=jnp.float32, requires_grad=False),
+                tensor=jnp.zeros((32,), dtype=jnp.float32),
                 is_halo=True)  # No need to replicate
             element['feature'] = TensorReplicableFeature(
-                value=jnp.zeros((7,), requires_grad=False, dtype=jnp.float32))
+                value=jnp.zeros((7,), dtype=jnp.float32))
             # Default is zero to have transitive relations
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
@@ -142,16 +137,18 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
 
 class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
-    def __init__(self,  message_fn=None, update_fn=None, *args, **kwargs,):
+    def __init__(self,  message_fn, update_fn, message_fn_params, update_fn_params, *args, **kwargs):
         super(StreamingGNNInferenceJAX, self).__init__(*args, **kwargs)
-        self.message_fn = message_fn
-        self.update_fn = update_fn
+        self.message_fn: "Module" = message_fn
+        self.update_fn: "Module" = update_fn
+        self.message_fn_params = message_fn_params
+        self.update_fn_params = update_fn_params
 
     def message(self, feature):
-        pass
+        return self.message_fn.apply(self.message_fn_params, feature)
 
     def update(self, feature):
-        pass
+        return self.update_fn.apply(self.update_fn_params, feature)
 
     def open(self, *args, **kwargs):
         pass

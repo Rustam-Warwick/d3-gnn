@@ -1,9 +1,10 @@
 from elements import ReplicaState, GraphElement, GraphQuery, Op, query_for_part
 from typing import TYPE_CHECKING, Tuple
-from exceptions import OldVersionException
 from copy import copy
+
 if TYPE_CHECKING:
     from elements.element_feature.set_feature import SetReplicatedFeature
+    from elements.rpc import Rpc
 
 
 class ReplicableGraphElement(GraphElement):

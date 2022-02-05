@@ -2,7 +2,6 @@ import re
 from typing import TYPE_CHECKING, Iterator, Literal, Dict
 from elements import ElementTypes, Op
 from exceptions import NotSupported, GraphElementNotFound
-from dgl import DGLGraph
 
 if TYPE_CHECKING:
     from elements import GraphQuery, GraphElement, Rpc

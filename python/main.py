@@ -1,42 +1,52 @@
-import torch
 from flax import linen as nn
+from jax import lax, random, numpy as jnp
+from nn.jax.multi_layer_dense import  MultiLayerDense
 from datastream import GraphStream
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
-from aggregator.output_gnn_prediction import StreamingOutputPrediction
+from aggregator.output_gnn_prediction import StreamingOutputPredictionJAX
 from aggregator.output_gnn_training import StreamingOutputTraining
 from helpers.streaming_train_splitter import StreamingTrainSplitter
 from helpers.socketmapper import EdgeListParser
 
-
 def run():
-    inferencer = StreamingGNNInferenceJAX(ident="rustam_streaming_gnn_inference",
-                                          message_fn=nn.Dense(features=32, use_bias=False),
-                                          update_fn=nn.Dense(features=7, use_bias=False))
 
-    output_predictor = StreamingOutputPrediction(ident='rustam_streaming_gnn_inference', predict_fn=torch.nn.Sequential(
-        torch.nn.Linear(7, 32),
-        torch.nn.Linear(32, 16),
-        torch.nn.Linear(16, 7),
-        torch.nn.Softmax(dim=0)
-    ))
+    message_fn = MultiLayerDense(features=[32, 64, 32])
+    message_fn_params = message_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (14,)))
+    update_fn = MultiLayerDense(features=[32, 16, 7])
+    update_fn_params = update_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (39,)))
+
+    inferencer = StreamingGNNInferenceJAX(message_fn=message_fn,
+                                          message_fn_params=message_fn_params,
+                                          update_fn=update_fn,
+                                          update_fn_params=update_fn_params
+                                          )
+    predict_fn = MultiLayerDense(features=[16, 32, 7])
+    predict_fn_params = predict_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (7,)))
+
+    output_predictor = StreamingOutputPredictionJAX(
+        predict_fn=predict_fn,
+        predict_fn_params=predict_fn_params)
 
     graphstream = GraphStream(3)  # GraphStream with parallelism of 5
     graphstream.read_socket(EdgeListParser(
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
          "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
-    graphstream.train_test_split(StreamingTrainSplitter(0))
+    graphstream.train_test_split(StreamingTrainSplitter(0.4))
+
     graphstream.gnn_layer(
         GNNLayerProcess().with_aggregator(inferencer))
     graphstream.gnn_layer(
         GNNLayerProcess(is_last=True).with_aggregator(inferencer))
+
     graphstream.training_inference_layer(
         GNNLayerProcess().
             with_aggregator(output_predictor).
-            with_aggregator(StreamingOutputTraining(inference_name='rustam_streaming_gnn_inference'))
+            with_aggregator(StreamingOutputTraining())
     )
+
     graphstream.last.print()
     print(graphstream.env.get_execution_plan())
     graphstream.env.execute("Test Python job")

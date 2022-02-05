@@ -4,7 +4,7 @@ from aggregator import BaseAggregator
 from elements import GraphElement, GraphQuery
 from copy import copy
 from typing import TYPE_CHECKING
-import torch
+from flax.linen import Module, softmax
 from storage.gnn_layer import GNNLayerProcess
 if TYPE_CHECKING:
     from elements.vertex import BaseVertex
@@ -13,17 +13,19 @@ if TYPE_CHECKING:
 class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, ident: str = "streaming_gnn", predictor: "torch.nn.Module" = None,
-                 storage: "GNNLayerProcess" = None):
+    def __init__(self, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
         super(BaseStreamingOutputPrediction, self).__init__(ident, storage)
-        self.predictor = predictor
 
     def open(self, *args, **kwargs):
         pass
 
-    def apply(self, vertex: "BaseVertex") -> "torch.tensor":
+    @abc.abstractmethod
+    def predict(self, feature):
+        pass
+
+    def _predict(self, vertex: "BaseVertex"):
         feature = vertex['feature'].value
-        return self.predictor(feature)
+        return self.predict(feature)
 
     def run(self, query: "GraphQuery", **kwargs):
         el = self.storage.get_element(query.element, False)
@@ -41,7 +43,14 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
         pass
 
 
-class StreamingOutputPrediction(BaseStreamingOutputPrediction):
+class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
+    def __init__(self, predict_fn: "Module", predict_fn_params, *args, **kwargs):
+        super(StreamingOutputPredictionJAX, self).__init__(*args, **kwargs)
+        self.predict_fn = predict_fn
+        self.predict_fn_params = predict_fn_params
+
+    def predict(self, feature):
+        return softmax(self.predict_fn.apply(self.predict_fn_params, feature))
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)
