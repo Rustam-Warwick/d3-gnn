@@ -1,6 +1,7 @@
 import abc
 import copy
 from abc import ABCMeta
+from functools import cached_property
 from typing import TYPE_CHECKING, Tuple
 from exceptions import NotSupported, NotUsedOnReplicaException
 import re
@@ -14,10 +15,11 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     """
     deep_copy_fields = ("_value",)  # Only deep copy _value if needed rest is just reference attachment
 
-    def __init__(self, element: "GraphElement" = None, value: object = None, *args, **kwargs):
+    def __init__(self, element: "GraphElement" = None, element_id: str = None, value: object = None, *args, **kwargs):
         self._value = value
         self.element: "GraphElement" = element
-        super(ReplicableFeature, self).__init__(*args, **kwargs)
+        element_id = "%s%s" % (ElementTypes.FEATURE.value, element_id)
+        super(ReplicableFeature, self).__init__(element_id=element_id, *args, **kwargs)
 
     def create_element(self) -> bool:
         """  """
@@ -36,7 +38,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
-        memento = copy.copy(self) # .element field will be empty
+        memento = copy.copy(self)  # .element field will be empty
         if new_element.value is None or self.value is None:
             is_updated = True
         else:
@@ -68,20 +70,22 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         """ Given @param(values) of 2 Features if they are equal  """
         pass
 
-    @property
+    @cached_property
     def field_name(self):
         """ Retrieve field name from the id """
-        group = re.search("[\w:]+:(?P<feature_name>\w+)", self.id)
+        real_id_subst = self.id[1:]
+        group = re.search("(\w+:)*(?P<feature_name>\w+)$", real_id_subst)
         if group:
             return group['feature_name']
         raise KeyError
 
-    @property
+    @cached_property
     def attached_to(self) -> Tuple["ElementTypes", str]:
-        group = re.search("(?P<element_type>\w+):(?P<element_id>\w+):\w+", self.id)
+        real_id_subst = self.id[1:]
+        group = re.search("(?P<element_type>\w+):(?P<element_id>\w+):\w+", real_id_subst)
         if group:
             return ElementTypes(int(group['element_type'])), group['element_id']
-        raise KeyError
+        return (ElementTypes.NONE, None)  # Represents Standalone Feature
 
     @property
     def element_type(self):
@@ -141,6 +145,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def __getmetadata__(self):
         meta_data = super(ReplicableFeature, self).__getmetadata__()
         meta_data.update({
-            "_value": self.value
+            "_value": self._value
         })
         return meta_data

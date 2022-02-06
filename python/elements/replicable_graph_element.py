@@ -1,6 +1,7 @@
 from elements import ReplicaState, GraphElement, GraphQuery, Op, query_for_part
 from typing import TYPE_CHECKING, Tuple
 from copy import copy
+from elements import ElementTypes
 
 if TYPE_CHECKING:
     from elements.element_feature.set_feature import SetReplicatedFeature
@@ -10,8 +11,8 @@ if TYPE_CHECKING:
 class ReplicableGraphElement(GraphElement):
     """ General Graph element that is replicatable. Used in Vertex for now can be added for other things as well """
 
-    def __init__(self, master: int = None, is_halo=False, *args, **kwargs):
-        super(ReplicableGraphElement, self).__init__(*args, **kwargs)
+    def __init__(self, element_id: str = None, master: int = None, is_halo=False, *args, **kwargs):
+        super(ReplicableGraphElement, self).__init__(element_id=element_id, *args, **kwargs)
         self._master = master  # Part_id of the master
         self._clock = 0  # Integer Clock
         self._halo = is_halo  # If this only a stub for master

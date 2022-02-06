@@ -1,11 +1,13 @@
 import abc
 from abc import ABCMeta
 from aggregator import BaseAggregator
-from elements import GraphElement, GraphQuery
+from elements import GraphElement, GraphQuery, ElementTypes
+from elements.element_feature.jax_params import JaxParamsFeature
 from copy import copy
 from typing import TYPE_CHECKING
-from flax.linen import Module, softmax
+from flax.linen import Module
 from storage.gnn_layer import GNNLayerProcess
+
 if TYPE_CHECKING:
     from elements.vertex import BaseVertex
 
@@ -47,10 +49,19 @@ class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
     def __init__(self, predict_fn: "Module", predict_fn_params, *args, **kwargs):
         super(StreamingOutputPredictionJAX, self).__init__(*args, **kwargs)
         self.predict_fn = predict_fn
-        self.predict_fn_params = predict_fn_params
+        # attached to one element
+        params_feature = JaxParamsFeature(predict_fn_params, master=0, element_id=self.id)
+        self.predict_fn_params = params_feature
 
     def predict(self, feature):
-        return softmax(self.predict_fn.apply(self.predict_fn_params, feature))
+        return self.predict_fn.apply(self.predict_fn_params.value, feature)
+
+    def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
+        super(StreamingOutputPredictionJAX, self).update_element_callback(element, old_element)
+        if element.element_type is ElementTypes.FEATURE and element.field_name == self.id:
+            self.predict_fn_params = element  # Update(cache) the old value
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)
+        self.predict_fn_params.attach_storage(self.storage)
+        self.predict_fn_params.create_element()

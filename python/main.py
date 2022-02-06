@@ -1,20 +1,21 @@
 from flax import linen as nn
 from jax import lax, random, numpy as jnp
+from flax.linen import relu, softmax, sigmoid
 from nn.jax.multi_layer_dense import  MultiLayerDense
 from datastream import GraphStream
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
-from aggregator.output_gnn_prediction import StreamingOutputPredictionJAX
-from aggregator.output_gnn_training import StreamingOutputTraining
+from aggregator.gnn_output_inference import StreamingOutputPredictionJAX
+from aggregator.gnn_output_training import StreamingOutputTrainingJAX
 from helpers.streaming_train_splitter import StreamingTrainSplitter
 from helpers.socketmapper import EdgeListParser
 
 def run():
 
-    message_fn = MultiLayerDense(features=[32, 64, 32])
+    message_fn = MultiLayerDense(features=[32, 64, 32], activations=[relu, relu, relu])
     message_fn_params = message_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (14,)))
-    update_fn = MultiLayerDense(features=[32, 16, 7])
+    update_fn = MultiLayerDense(features=[32, 16, 7], activations=[relu, relu, relu])
     update_fn_params = update_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (39,)))
 
     inferencer = StreamingGNNInferenceJAX(message_fn=message_fn,
@@ -22,7 +23,7 @@ def run():
                                           update_fn=update_fn,
                                           update_fn_params=update_fn_params
                                           )
-    predict_fn = MultiLayerDense(features=[16, 32, 7])
+    predict_fn = MultiLayerDense(features=[16, 32, 7], activations=[relu, relu, softmax ])
     predict_fn_params = predict_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (7,)))
 
     output_predictor = StreamingOutputPredictionJAX(
@@ -44,7 +45,7 @@ def run():
     graphstream.training_inference_layer(
         GNNLayerProcess().
             with_aggregator(output_predictor).
-            with_aggregator(StreamingOutputTraining())
+            with_aggregator(StreamingOutputTrainingJAX())
     )
 
     graphstream.last.print()

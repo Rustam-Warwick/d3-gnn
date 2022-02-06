@@ -31,15 +31,11 @@ class LinkedListStorage(BaseStorage):
             # Add Feature classes
             self.feature_classes[feature.field_name] = type(feature)
 
-        if feature.attached_to[0] is ElementTypes.VERTEX:
-            # If this feature belongs to Vertex
-            vertex_id = self.translation_table[feature.attached_to[1]]
-            if vertex_id not in self.element_features: self.element_features[vertex_id] = set()
-            self.element_features[vertex_id].add(self.last_translated_id)
-
-        elif feature.attached_to[0] is ElementTypes.EDGE:
-            # @todo not yet implemented since edges do not have features
-            pass
+        if feature.attached_to[0] is not ElementTypes.NONE:
+            # If this feature belongs to some other element
+            attached_id = self.translation_table[feature.attached_to[1]]
+            if attached_id not in self.element_features: self.element_features[attached_id] = set()
+            self.element_features[attached_id].add(self.last_translated_id)
 
         self.last_translated_id += 1
         return True
@@ -81,7 +77,8 @@ class LinkedListStorage(BaseStorage):
     def get_vertex(self, element_id: str, with_features=False) -> "BaseVertex":
         try:
             int_id = self.translation_table[element_id]
-            vertex = BaseVertex(element_id=element_id)
+            vertex = BaseVertex()
+            vertex.id = element_id
             vertex.__setstate__(self.vertex_table[int_id])
             if with_features:
                 # Add the cache of all the features
@@ -97,19 +94,21 @@ class LinkedListStorage(BaseStorage):
     def get_feature(self, element_id: str, with_element=True) -> "ReplicableFeature":
         try:
             int_id = self.translation_table[element_id]
-            feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
-            el_type = int(feature_match['type'])
+            feature_match = re.search("(\w+:)*(?P<feature_name>\w+)$", element_id[1:])
+            # el_type = int(feature_match['type'])
             feature_class = self.feature_classes[feature_match['feature_name']]
-            feature: "ReplicableFeature" = feature_class(element_id=element_id)
+            feature: "ReplicableFeature" = feature_class()
+            feature.id = element_id
             feature.__setstate__(self.feature_table[int_id])
+            if with_element:
+                if feature.attached_to[0] == ElementTypes.VERTEX:
+                    element = self.get_vertex(feature.attached_to[1])
+                    feature.element = element
+                if feature.attached_to[0] == ElementTypes.EDGE.value:
+                    # @todo Implement edge features later
+                    pass
+
             feature.attach_storage(self)
-            if not with_element: return feature
-            if el_type == ElementTypes.VERTEX.value:
-                element = self.get_vertex(feature_match['element_id'])
-                feature.element = element
-            if el_type == ElementTypes.EDGE.value:
-                # @todo Implement edge features later
-                pass
             return feature
         except KeyError:
             raise GraphElementNotFound

@@ -8,7 +8,8 @@ if TYPE_CHECKING:
 
 class BaseEdge(GraphElement):
     def __init__(self, src: 'BaseVertex', dest: 'BaseVertex', *args, **kwargs):
-        super(BaseEdge, self).__init__(src.id + ":" + dest.id, *args, **kwargs)
+        element_id = "%s%s:%s" % (ElementTypes.EDGE.value, src.id, dest.id)
+        super(BaseEdge, self).__init__(element_id=element_id, *args, **kwargs)
         self.source: 'BaseVertex' = src
         self.destination: 'BaseVertex' = dest
 
@@ -26,7 +27,7 @@ class BaseEdge(GraphElement):
         memento.destination = dest_old
         return is_changed, memento
         pass
-    
+
     def attach_storage(self, storage: "GraphStorageProcess"):
         self.source.attach_storage(storage)
         self.destination.attach_storage(storage)

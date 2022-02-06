@@ -98,17 +98,13 @@ class BaseStorage(metaclass=abc.ABCMeta):
 
     def get_element_by_id(self, element_id: str, with_features=False) -> "GraphElement":
         """ Just a simple MUX for getting graph elements """
-        feature_match = re.search("(?P<type>\w+):(?P<element_id>\w+):(?P<feature_name>\w+)", element_id)
-        if feature_match:
-            # Feature is asked
+        element_type = int(element_id[0])
+        if element_type is ElementTypes.FEATURE.value:
             return self.get_feature(element_id)
-
-        edge_match = re.search("(?P<source_id>\w+):(?P<dest_id>\w+)", element_id)
-        if edge_match:
-            # Edge is asked
+        if element_type is ElementTypes.EDGE.value:
             return self.get_edge(element_id, with_features)
-        # Vertex is asked
-        return self.get_vertex(element_id, with_features)
+        if element_type is ElementTypes.VERTEX.value:
+            return self.get_vertex(element_id, with_features)
 
     def update_element(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:

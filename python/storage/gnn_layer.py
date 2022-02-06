@@ -63,10 +63,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                 # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
                 el: "Rpc" = value.element
                 element = self.get_element_by_id(el.id)
-                if element.element_type is ElementTypes.FEATURE:
-                    element(el)
-                else:
-                    raise NotSupported
+                element(el)
             if value.op is Op.ADD:
                 # because there might be late events it is always good to create element first
                 value.element.attach_storage(self)

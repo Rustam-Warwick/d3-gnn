@@ -83,14 +83,16 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             old_element: "ReplicableFeature"
             if element.field_name == 'feature':
                 # Do something new
-                old_vertex = BaseVertex(element_id=element.element.id)
+                old_vertex = BaseVertex()
+                old_vertex.id = element.attached_to[1]
                 old_vertex["feature"] = old_element
                 self.update_all_edges(element.element, old_vertex)
 
             if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
                 # Generate new embedding for the node & send to master part of the next layer
                 embedding = self.apply(element.element)
-                vertex = BaseVertex(element_id=element.element.id, master=element.element.master_part)
+                vertex = BaseVertex(master=element.element.master_part)
+                vertex.id = element.attached_to[1]
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
                 query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
                 self.storage.message(query)

@@ -124,7 +124,7 @@ class GraphElement(metaclass=ABCMeta):
 
     @property
     def is_waiting(self) -> bool:
-        """ If this graph element is replica and is waiting for update this is going to happen """
+        """ If this graph element is replica and is waiting for update this is going to happen"""
         return self.integer_clock < 0
 
     @property
@@ -201,7 +201,7 @@ class GraphElement(metaclass=ABCMeta):
                 item.element = self
                 return item
             elif self.storage:
-                item = self.storage.get_feature("%s:%s:%s" % (self.element_type.value, self.id, key))
+                item = self.storage.get_feature("%s%s:%s:%s" % (ElementTypes.FEATURE.value, self.element_type.value, self.id, key))
                 item.element = self
                 self._features[key] = item  # Cache for future usage
                 return item
@@ -221,7 +221,7 @@ class GraphElement(metaclass=ABCMeta):
         if self.get(key) is not None:
             # Duplicate elements are not saved @todo double-check if this should be so
             return
-        value.id = "%s:%s:%s" % (self.element_type.value, self.id, key)  # Set Id
+        value.id = "%s%s:%s:%s" % (ElementTypes.FEATURE.value, self.element_type.value, self.id, key)  # Set Id
         value.element = self  # Set Element
         value.part_id = self.part_id
         value.storage = self.storage
