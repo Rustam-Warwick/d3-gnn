@@ -3,6 +3,7 @@ from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState
 from elements.element_feature.tensor_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin, \
     TensorReplicableFeature
+from elements.element_feature.jax_params import JaxParamsFeature
 from copy import copy
 from abc import ABCMeta
 from flax.linen import Module
@@ -49,7 +50,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         return self.update(conc)
 
     def run(self, query: "GraphQuery", *args, **kwargs):
-        """ Take in the incoming aggregation result and add it to the storage engine, res is in callbacks """
+        """ Take in the incoming aggregation result and add it to the storage engine, rest is in callbacks """
         el = self.storage.get_element(query.element)
         el.external_update(query.element)
 
@@ -143,16 +144,27 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         super(StreamingGNNInferenceJAX, self).__init__(*args, **kwargs)
         self.message_fn: "Module" = message_fn
         self.update_fn: "Module" = update_fn
-        self.message_fn_params = message_fn_params
-        self.update_fn_params = update_fn_params
+        self.message_fn_params = JaxParamsFeature(message_fn_params, master=0, element_id=self.id+"message") # message params
+        self.update_fn_params = JaxParamsFeature(update_fn_params, master=0, element_id=self.id+"update")  # update params
+
+    def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
+        super(StreamingGNNInferenceJAX, self).update_element_callback(element, old_element)
+        if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"message":
+            self.message_fn_params = element  # Update(cache) the old value
+        if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"update":
+            self.update_fn_params = element  # Update(cache) the old value
 
     def message(self, feature):
-        return self.message_fn.apply(self.message_fn_params, feature)
+        return self.message_fn.apply(self.message_fn_params.value, feature)
 
     def update(self, feature):
-        return self.update_fn.apply(self.update_fn_params, feature)
+        return self.update_fn.apply(self.update_fn_params.value, feature)
 
     def open(self, *args, **kwargs):
-        pass
+        super().open(*args, **kwargs)
+        self.message_fn_params.attach_storage(self.storage)
+        self.message_fn_params.create_element()
+        self.update_fn_params.attach_storage(self.storage)
+        self.update_fn_params.create_element()
 
 

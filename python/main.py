@@ -6,6 +6,7 @@ from datastream import GraphStream
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
+from aggregator.gnn_layers_training import StreamingLayerTrainingJAX
 from aggregator.gnn_output_inference import StreamingOutputPredictionJAX
 from aggregator.gnn_output_training import StreamingOutputTrainingJAX
 from helpers.streaming_train_splitter import StreamingTrainSplitter
@@ -35,12 +36,12 @@ def run():
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
          "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
-    graphstream.train_test_split(StreamingTrainSplitter(0.4))
+    graphstream.train_test_split(StreamingTrainSplitter(0.2))
 
     graphstream.gnn_layer(
-        GNNLayerProcess().with_aggregator(inferencer))
+        GNNLayerProcess().with_aggregator(inferencer).with_aggregator(StreamingLayerTrainingJAX()))
     graphstream.gnn_layer(
-        GNNLayerProcess(is_last=True).with_aggregator(inferencer))
+        GNNLayerProcess(is_last=True).with_aggregator(inferencer).with_aggregator(StreamingLayerTrainingJAX()))
 
     graphstream.training_inference_layer(
         GNNLayerProcess().

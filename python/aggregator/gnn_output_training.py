@@ -1,13 +1,13 @@
 import abc
 from abc import ABCMeta
 
-import flax.traverse_util
+from typing import Sequence
 import jax.numpy
 import numpy
 import optax
 from aggregator import BaseAggregator
 from aggregator.gnn_output_inference import BaseStreamingOutputPrediction
-from elements import GraphElement, GraphQuery, ElementTypes
+from elements import GraphElement, GraphQuery, ElementTypes, IterationState, Op
 from elements.vertex import BaseVertex
 from copy import copy
 from storage.gnn_layer import GNNLayerProcess
@@ -31,7 +31,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
             self.inference_aggregator_name]  # Have the reference to Inference aggregator
 
     @abc.abstractmethod
-    def train(self, batch_embeddings, batch_labels):
+    def train(self, vertices: Sequence["BaseVertex"]):
         pass
 
     def run(self, query: "GraphQuery", **kwargs):
@@ -60,9 +60,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
         if len(self.ready) >= self.batch_size:
             # Batch size filled
             vertices = list(map(lambda x: self.storage.get_vertex(x), self.ready))
-            batch_embeddings = numpy.vstack(list(map(lambda x: x['feature'].value, vertices)))
-            batch_labels = numpy.vstack(list(map(lambda x: x['feature_label'].value, vertices)))
-            self.train(batch_embeddings, batch_labels)
+            self.train(vertices)
 
 
 class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
@@ -77,23 +75,31 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
 
     def loss(self, parameters, embedding, label):
         prediction = self.inference_agg.predict_fn.apply(parameters, embedding)
-        return jax.numpy.negative(jax.numpy.dot(jax.numpy.log(prediction), label))
+        return -jax.numpy.sum(label * jax.numpy.log(prediction))
 
-    def train(self, batch_embeddings, batch_labels):
-        def batch_loss(parameters):
-            losses = jax.vmap(self.loss, (None, 0, 0))(parameters, batch_embeddings, batch_labels)
-            return jax.numpy.sum(losses)
+    def batch_loss(self, parameters, batch_embeddings, batch_labels):
+        losses = jax.vmap(self.loss, (None, 0, 0))(parameters, batch_embeddings, batch_labels)
+        return jax.numpy.sum(losses)
 
-        loss_grad_fn = jax.value_and_grad(batch_loss)
-        params = self.inference_agg.predict_fn_params.value
-        sum_updates = None
-        for i in range(self.epochs):
-            loss, grads = loss_grad_fn(params)
-            updates, self.optimizer_state = self.optimizer.update(grads, self.optimizer_state)
-            params = optax.apply_updates(params, updates)
-            if sum_updates is None:
-                sum_updates = updates
-            else:
-                sum_updates = jax.tree_multimap(lambda x, y: jax.numpy.asarray(x + y), sum_updates, updates)
-            print("Parallell instance {%s} Epoch {%s} Loss {%s}" % (self.storage.part_id, i, loss))
-        self.inference_agg.predict_fn_params.update(sum_updates)  # RPC Call
+    def train(self, vertices: Sequence["BaseVertex"]):
+        batch_embeddings = numpy.vstack(list(map(lambda x: x['feature'].value, vertices)))
+        batch_labels = numpy.vstack(list(map(lambda x: x['feature_label'].value, vertices)))
+        vertex_ids = list(map(lambda x: x.id, vertices))
+
+        def lambda_wrapper(p, e):
+            return self.batch_loss(p, e, batch_labels)
+
+        loss, grad_fn = jax.vjp(lambda_wrapper, self.inference_agg.predict_fn_params.value, batch_embeddings)  # Grad of [
+        # parameters, inputs]
+        grads = grad_fn(1.)
+        parameter_updates, self.optimizer_state = self.optimizer.update(grads[0], self.optimizer_state)
+        self.inference_agg.predict_fn_params.update(parameter_updates)  # Apply the updates for model parameters
+        backward_data = {
+            "vertex_ids": vertex_ids,
+            "grad_vector": grads[1]
+        }
+        print("Loss is {%s}" % (loss, ))
+        query = GraphQuery(op=Op.AGG, element=backward_data, part=self.storage.part_id)
+        query.iteration_state = IterationState.BACKWARD
+        query.is_train = True
+        self.storage.message(query)  # Send Backward computation
