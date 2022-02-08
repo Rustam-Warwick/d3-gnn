@@ -18,7 +18,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
 
     def __init__(self, inference_name: str = "streaming_gnn",
                  storage: "GNNLayerProcess" = None,
-                 batch_size=16, epochs=5):
+                 batch_size=32, epochs=5):
         super(BaseStreamingOutputTraining, self).__init__("trainer", storage)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
@@ -68,6 +68,7 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         super(StreamingOutputTrainingJAX, self).__init__(*args, **kwargs)
         self.optimizer = optimizer
         self.optimizer_state = None
+        self.learning_rate = 0.04
 
     def open(self, *args, **kwargs):
         super(StreamingOutputTrainingJAX, self).open(*args, **kwargs)
@@ -91,9 +92,8 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
 
         loss, grad_fn = jax.vjp(lambda_wrapper, self.inference_agg.predict_fn_params.value, batch_embeddings)  # Grad of [
         # parameters, inputs]
-        grads = grad_fn(1.)
-        parameter_updates, self.optimizer_state = self.optimizer.update(grads[0], self.optimizer_state)
-        self.inference_agg.predict_fn_params.update(parameter_updates)  # Apply the updates for model parameters
+        grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
+        self.inference_agg.predict_fn_params.update(grads[0])  # Apply the updates for model parameters
         backward_data = {
             "vertex_ids": vertex_ids,
             "grad_vector": grads[1]

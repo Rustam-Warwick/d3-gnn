@@ -39,7 +39,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
         memento = copy.copy(self)  # .element field will be empty
-        if new_element.value is None or self.value is None:
+        if new_element._value is None or self._value is None:
             is_updated = True
         else:
             is_updated = not self._value_eq_(self._value, new_element._value)

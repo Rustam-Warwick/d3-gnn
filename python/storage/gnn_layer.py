@@ -84,7 +84,8 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                     el = copy(value.element)
                     el.attach_storage(self)
                     el.create_element()
-                el.external_update(value.element)
+                else:
+                    el.external_update(value.element)
             if value.op is Op.AGG:
                 self.aggregators[value.aggregator_name].run(value)
         except GraphElementNotFound:

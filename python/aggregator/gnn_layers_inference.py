@@ -1,8 +1,11 @@
 import abc
+
+import jax
+
 from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState
-from elements.element_feature.tensor_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin, \
-    TensorReplicableFeature
+from elements.element_feature.aggregator_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin
+from elements.element_feature.tensor_feature import TensorReplicableFeature
 from elements.element_feature.jax_params import JaxParamsFeature
 from copy import copy
 from abc import ABCMeta
@@ -33,22 +36,6 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     def update(self, feature):
         pass
 
-    def exchange(self, edge: "BaseEdge"):
-        """ Return the embedding for the edge for this GNN Layer """
-        source: "BaseVertex" = edge.source
-        dest: "BaseVertex" = edge.destination
-        source_f = source['feature']
-        destination_f = dest['feature']
-        concat_f = jnp.concatenate((source_f.value, destination_f.value))
-        return self.message(concat_f)
-
-    def apply(self, vertex: "BaseVertex"):
-        """ Get the embedding of a vertex """
-        feature = vertex['feature']
-        agg = vertex['agg']
-        conc = jnp.concatenate((feature.value, agg.value[0]))
-        return self.update(conc)
-
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, rest is in callbacks """
         el = self.storage.get_element(query.element)
@@ -56,7 +43,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
-            # Intialize tensors for operating
+            # Initialize the default tensor values, only on the MASTER node
             element['agg'] = MeanAggregatorReplicableFeature(
                 tensor=jnp.zeros((32,), dtype=jnp.float32),
                 is_halo=True)  # No need to replicate
@@ -68,7 +55,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             if element.source.is_initialized and element.destination.is_initialized:
                 # If vertices are ready do the embedding now
                 try:
-                    msg = self.exchange(element)
+                    msg = self.message(element)
                     agg: "AggregatorFeatureMixin" = element.destination['agg']
                     agg.reduce(msg)  # Update the aggregator
                 except KeyError:
@@ -83,15 +70,15 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             element: "ReplicableFeature"
             old_element: "ReplicableFeature"
             if element.field_name == 'feature':
-                # Do something new
+                # Genuine update on feature, update all the previous aggregations
                 old_vertex = BaseVertex()
-                old_vertex.id = element.attached_to[1]
+                old_vertex.id = element.element.id
                 old_vertex["feature"] = old_element
                 self.update_all_edges(element.element, old_vertex)
 
             if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
                 # Generate new embedding for the node & send to master part of the next layer
-                embedding = self.apply(element.element)
+                embedding = self.update(element.element)
                 vertex = BaseVertex(master=element.element.master_part)
                 vertex.id = element.attached_to[1]
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
@@ -105,14 +92,14 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             try:
                 if not edge.source.is_initialized or not edge.destination.is_initialized: continue
                 if edge.destination == new_vertex:
-                    msg_new = self.exchange(edge)
+                    msg_new = self.message(edge)
                     edge.destination = old_vertex
-                    msg_old = self.exchange(edge)
+                    msg_old = self.message(edge)
                     exchanges.append((msg_new, msg_old))
                 else:
-                    msg_new = self.exchange(edge)
+                    msg_new = self.message(edge)
                     edge.source = old_vertex
-                    msg_old = self.exchange(edge)
+                    msg_old = self.message(edge)
                     agg: "AggregatorFeatureMixin" = edge.destination['agg']
                     agg.replace(msg_new, msg_old)
             except KeyError:
@@ -127,7 +114,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         for edge in in_edge_list:
             try:
                 if not edge.source.is_initialized or not edge.destination.is_initialized: continue
-                msg = self.exchange(edge)
+                msg = self.message(edge)
                 if edge.destination == vertex:
                     exchanges.append(msg)
                 else:
@@ -154,11 +141,19 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"update":
             self.update_fn_params = element  # Update(cache) the old value
 
-    def message(self, feature):
-        return self.message_fn.apply(self.message_fn_params.value, feature)
+    @jax.jit
+    def message(self, edge: "BaseEdge"):
+        """ Return the embedding for the edge for this GNN Layer """
+        source: "BaseVertex" = edge.source
+        source_f = source['feature']
+        return self.message_fn.apply(self.message_fn_params.value, source_f.value), jax.jacfwd(self.message_fn.apply)(self.message_fn_params.value, source_f.value)
 
-    def update(self, feature):
-        return self.update_fn.apply(self.update_fn_params.value, feature)
+    @jax.jit
+    def update(self, vertex: "BaseVertex"):
+        feature = vertex['feature']
+        agg = vertex['agg']
+        conc = jnp.concatenate((feature.value, agg.value[0]))
+        return self.update_fn.apply(self.update_fn_params.value, conc)
 
     def open(self, *args, **kwargs):
         super().open(*args, **kwargs)

@@ -23,24 +23,10 @@ class SetFeatureMixin:
 
 
 class SetReplicatedFeature(ReplicableFeature, SetFeatureMixin):
+    """ RPC Wrapper for python built-in set classes  """
     def __init__(self, value: set = None, *args, **kwargs):
         if value is None: value = set()
         super(SetReplicatedFeature, self).__init__(*args, value=value, **kwargs)
 
     def _value_eq_(self, old_value: set, new_value: set) -> bool:
         return collections.Counter(old_value) == collections.Counter(new_value)
-
-
-class PartSetReplicableFeature(ReplicableFeature, SetFeatureMixin):
-    """ Special Set Feature which stores the parts of replication
-        Different from regular set feature is the sync_replicas which syncs the attached element entirely
-    """
-    def __init__(self, value: set = None, *args, **kwargs):
-        if not value: value = set()
-        super(PartSetReplicableFeature, self).__init__(*args, value=value, **kwargs)
-
-    def _value_eq_(self, old_value: set, new_value: set) -> bool:
-        return collections.Counter(old_value) == collections.Counter(new_value)
-
-    def sync_replicas(self):
-        self.element.sync_replicas()

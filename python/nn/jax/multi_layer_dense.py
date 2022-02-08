@@ -2,7 +2,6 @@ from flax.linen import Module, Dense, relu, softmax
 from typing import Sequence, Literal
 
 
-
 class MultiLayerDense(Module):
     features: Sequence[int]
     activations: Sequence[str]

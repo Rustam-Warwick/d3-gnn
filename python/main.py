@@ -15,7 +15,7 @@ from helpers.socketmapper import EdgeListParser
 def run():
 
     message_fn = MultiLayerDense(features=[32, 64, 32], activations=[relu, relu, relu])
-    message_fn_params = message_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (14,)))
+    message_fn_params = message_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (7,)))
     update_fn = MultiLayerDense(features=[32, 16, 7], activations=[relu, relu, relu])
     update_fn_params = update_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (39,)))
 
