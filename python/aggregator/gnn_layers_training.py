@@ -6,7 +6,8 @@ import numpy
 import optax
 from aggregator import BaseAggregator
 from aggregator.gnn_output_inference import BaseStreamingOutputPrediction
-from elements import GraphElement, GraphQuery, IterationState, Op
+from elements.element_feature.tensor_feature import TensorReplicableFeature
+from elements import GraphElement, GraphQuery, IterationState, Op, ElementTypes, ReplicaState
 from storage.gnn_layer import GNNLayerProcess
 
 
@@ -26,6 +27,8 @@ class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
 
     @abc.abstractmethod
     def backward(self, vertices, vector_grads):
+        """ Given array of vertices and gradient of vertices embedding w.r.t. loss function do the backprop and send
+        grad backward """
         pass
 
     def run(self, query: "GraphQuery", **kwargs):
@@ -52,20 +55,54 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
         conc = jax.numpy.concatenate((feature, agg))
         return self.inference_agg.update_fn.apply(update_params, conc)
 
-    def update_fn_batched(self, update_params, batched_agg, batched_feature):
-        return jax.vmap(self.update_fn, (None, 0, 0))(update_params, batched_agg, batched_feature)
+    def message_fn(self, message_params, feature):
+        return self.inference_agg.message_fn.apply(message_params, feature)
+
+    def add_element_callback(self, element: "GraphElement"):
+        if element.element_type is ElementTypes.FEATURE and element.field_name == 'agg_grads':
+            element: "TensorReplicableFeature"
+            vertex = self.storage.get_vertex(element.attached_to[1])
+            agg = vertex['agg']
+            in_edges = self.storage.get_incident_edges(vertex, "in")
+            source_list = list(filter(lambda x: x.is_initialized, [e.source for e in in_edges]))
+            if len(source_list) > 0:
+                in_features = jax.numpy.vstack([e["feature"].value for e in source_list])
+                loss, grad_fn = jax.vjp(lambda params, feature: agg.fn(jax.vmap(self.message_fn, [None, 0])(params, feature)), self.inference_agg.message_fn_params.value, in_features)
+                message_fn_params, feature_grad = grad_fn(element.value)
+                self.inference_agg.message_fn_params.update(message_fn_params) # Update message_fn_params
+
+                back_messages = dict()
+                for i, vertex in enumerate(source_list):
+                    if vertex.master_part in back_messages:
+                        instance = back_messages[vertex.master_part]
+                        instance['vertex_ids'].append(vertex.id)
+                        instance['grad_vector'] = jax.numpy.vstack((instance['grad_vector'], feature_grad[i]))
+                    else:
+                        back_messages[vertex.master_part] = {
+                            "vertex_ids": [vertex.id],
+                            "grad_vector": feature_grad[i, None]
+                        }
+
+                for part, backward_data in back_messages.items():
+                    query = GraphQuery(op=Op.AGG, element=backward_data, part=part)
+                    query.iteration_state = IterationState.BACKWARD
+                    query.is_train = True
+                    self.storage.message(query)  # Send Backward computation
 
     def backward(self, vertices, vector_grads):
-        batch_aggs = numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))
+        batch_aggregations = numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))
         batch_features = numpy.vstack(list(map(lambda x: x['feature'].value, vertices)))
         vertex_ids = list(map(lambda x: x.id, vertices))
-        loss, grad_fn = jax.vjp(self.update_fn_batched, self.inference_agg.update_fn_params.value,
-                                batch_aggs, batch_features)
-        grads = grad_fn(vector_grads)
-        self.inference_agg.update_fn_params.update(grads[0])  # Apply the updates for update model parameters
+        loss, grad_fn = jax.vjp(jax.vmap(self.update_fn, (None, 0, 0)), self.inference_agg.update_fn_params.value,
+                                batch_aggregations, batch_features)
+        update_fn_grads, agg_grad, feature_grad = grad_fn(vector_grads)
+        for i, vertex in enumerate(vertices):
+            vertex['agg_grads'] = TensorReplicableFeature(value=agg_grad[i])
+            vertex['agg_grads'].sync_replicas()
+        self.inference_agg.update_fn_params.update(update_fn_grads)  # Apply the updates for update model parameters
         backward_data = {
             "vertex_ids": vertex_ids,
-            "grad_vector": grads[2]
+            "grad_vector": feature_grad
         }
         query = GraphQuery(op=Op.AGG, element=backward_data, part=self.storage.part_id)
         query.iteration_state = IterationState.BACKWARD

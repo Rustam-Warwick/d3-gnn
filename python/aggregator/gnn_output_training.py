@@ -18,7 +18,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
 
     def __init__(self, inference_name: str = "streaming_gnn",
                  storage: "GNNLayerProcess" = None,
-                 batch_size=32, epochs=5):
+                 batch_size=3, epochs=5):
         super(BaseStreamingOutputTraining, self).__init__("trainer", storage)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
@@ -61,6 +61,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
             # Batch size filled
             vertices = list(map(lambda x: self.storage.get_vertex(x), self.ready))
             self.train(vertices)
+            self.ready.clear()
 
 
 class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):

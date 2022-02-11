@@ -4,7 +4,7 @@ import jax
 
 from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState
-from elements.element_feature.aggregator_feature import MeanAggregatorReplicableFeature, AggregatorFeatureMixin
+from elements.element_feature.aggregator_feature import JACMeanAggregatorReplicableFeature, AggregatorFeatureMixin
 from elements.element_feature.tensor_feature import TensorReplicableFeature
 from elements.element_feature.jax_params import JaxParamsFeature
 from copy import copy
@@ -44,7 +44,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     def add_element_callback(self, element: "GraphElement"):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Initialize the default tensor values, only on the MASTER node
-            element['agg'] = MeanAggregatorReplicableFeature(
+            element['agg'] = JACMeanAggregatorReplicableFeature(
                 tensor=jnp.zeros((32,), dtype=jnp.float32),
                 is_halo=True)  # No need to replicate
             element['feature'] = TensorReplicableFeature(
@@ -141,14 +141,13 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"update":
             self.update_fn_params = element  # Update(cache) the old value
 
-    @jax.jit
     def message(self, edge: "BaseEdge"):
         """ Return the embedding for the edge for this GNN Layer """
         source: "BaseVertex" = edge.source
         source_f = source['feature']
-        return self.message_fn.apply(self.message_fn_params.value, source_f.value), jax.jacfwd(self.message_fn.apply)(self.message_fn_params.value, source_f.value)
+        return self.message_fn.apply(self.message_fn_params.value, source_f.value)
+        # return self.message_fn.apply(self.message_fn_params.value, source_f.value), jax.jacfwd(self.message_fn.apply, argnums=[0, 1])(self.message_fn_params.value, source_f.value)
 
-    @jax.jit
     def update(self, vertex: "BaseVertex"):
         feature = vertex['feature']
         agg = vertex['agg']

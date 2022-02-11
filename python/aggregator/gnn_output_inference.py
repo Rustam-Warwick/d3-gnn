@@ -34,7 +34,6 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
             el.attach_storage(self.storage)
             el.create_element()
         el.external_update(query.element)
-        print(self.predict(el['feature']))
 
     def add_element_callback(self, element: "GraphElement"):
         pass
@@ -51,7 +50,6 @@ class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
         params_feature = JaxParamsFeature(predict_fn_params, master=0, element_id=self.id)
         self.predict_fn_params = params_feature
 
-    @jax.jit
     def predict(self, vertex):
         feature = vertex['feature'].value
         return self.predict_fn.apply(self.predict_fn_params.value, feature)

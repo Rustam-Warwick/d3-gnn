@@ -38,7 +38,8 @@ class GraphElement(metaclass=ABCMeta):
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Remote Procedure call for updating this GraphElement """
         new_element = copy.deepcopy(self)
-        getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+        if not getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs):
+            return False, self
         new_element.integer_clock += 1  # Increment integer clock just in case it is actually updated
         return self.update_element(new_element)
 
@@ -201,7 +202,8 @@ class GraphElement(metaclass=ABCMeta):
                 item.element = self
                 return item
             elif self.storage:
-                item = self.storage.get_feature("%s%s:%s:%s" % (ElementTypes.FEATURE.value, self.element_type.value, self.id, key))
+                item = self.storage.get_feature(
+                    "%s%s:%s:%s" % (ElementTypes.FEATURE.value, self.element_type.value, self.id, key))
                 item.element = self
                 self._features[key] = item  # Cache for future usage
                 return item
@@ -229,6 +231,10 @@ class GraphElement(metaclass=ABCMeta):
         if self.storage:
             # Setting element which is attached to graph storage
             value.create_element()
+
+    def __delitem__(self, key):
+        """ Deleting some graph element feature """
+        pass
 
     def __str__(self):
         return self.id

@@ -3,7 +3,7 @@ from pyflink.datastream import ProcessFunction
 from copy import copy
 from traceback import print_exc
 from exceptions import NotSupported, AggregatorExistsException, GraphElementNotFound
-from elements import ElementTypes, Op
+from elements import ElementTypes, Op, IterationState
 from typing import TYPE_CHECKING, Dict
 from elements import GraphQuery
 if TYPE_CHECKING:
@@ -12,12 +12,13 @@ from pyflink.datastream.functions import RuntimeContext
 
 
 class GNNLayerProcess(LinkedListStorage, ProcessFunction):
-    def __init__(self, *args, is_last=False, **kwargs):
+    def __init__(self, *args, is_last=False,is_first=False, **kwargs):
         super(GNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.part_id: int = -1  # Index of this parallel task
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
         self.is_last = is_last  # Is this GraphStorageProcess the last one in the pipeline
+        self.is_first = is_first  # Is this GraphStorageProcess the last one in the pipeline
 
     def with_aggregator(self, agg: "BaseAggregator") -> "GNNLayerProcess":
         """ Attaching aggregator to this process function """
@@ -96,3 +97,4 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             print_exc()
         while len(self.out):
             yield self.out.pop(0)
+

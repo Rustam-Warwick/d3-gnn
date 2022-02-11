@@ -36,12 +36,12 @@ def run():
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
          "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
-    graphstream.train_test_split(StreamingTrainSplitter(0.2))
+    graphstream.train_test_split(StreamingTrainSplitter(0.05))
 
     graphstream.gnn_layer(
         GNNLayerProcess().with_aggregator(inferencer).with_aggregator(StreamingLayerTrainingJAX()))
     graphstream.gnn_layer(
-        GNNLayerProcess(is_last=True).with_aggregator(inferencer).with_aggregator(StreamingLayerTrainingJAX()))
+        GNNLayerProcess().with_aggregator(inferencer).with_aggregator(StreamingLayerTrainingJAX()))
 
     graphstream.training_inference_layer(
         GNNLayerProcess().

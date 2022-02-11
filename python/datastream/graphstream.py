@@ -17,6 +17,7 @@ class GraphStream:
         self.env.set_parallelism(self.PARALLELISM)
         self.env.set_max_parallelism(self.PARALLELISM)
         self.last: "DataStream" = None  # Last DataStream in this pipeline
+        self.last_storage_process = None # Last storage process to add the is_last stuff
         self.train_stream: "DataStream" = None
         self.long_iterator = None  # Outermost iterators that connects 2 gnn-process functions. Used for backwards pass
 
@@ -49,6 +50,8 @@ class GraphStream:
 
     def gnn_layer(self, storageProcess: "GNNLayerProcess") -> DataStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate filed """
+        if not self.last_storage_process: storageProcess.is_first = True
+        self.last_storage_process = storageProcess
         last = self.last
         long_iterator = last._j_data_stream.iterate().name("Backward iteration Source")  # Java Class need to somehow handle it
         iterator = long_iterator.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
@@ -70,6 +73,7 @@ class GraphStream:
             1. No backward iteration afterwards, so self.long_iterator becomes zero
             2. Merging Training stream and previous data streams
          """
+        self.last_storage_process.is_last = True
         storageProcess.is_last = True
         last = self.last.union(self.train_stream)
 
