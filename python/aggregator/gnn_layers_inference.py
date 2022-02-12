@@ -7,7 +7,6 @@ from elements import ElementTypes, GraphQuery, Op, ReplicaState
 from elements.element_feature.aggregator_feature import JACMeanAggregatorReplicableFeature, AggregatorFeatureMixin
 from elements.element_feature.tensor_feature import TensorReplicableFeature
 from elements.element_feature.jax_params import JaxParamsFeature
-from copy import copy
 from abc import ABCMeta
 from flax.linen import Module
 import jax.numpy as jnp
@@ -15,7 +14,6 @@ from elements.edge import BaseEdge
 from elements.element_feature import ReplicableFeature
 from elements.vertex import BaseVertex
 from elements import GraphElement
-from storage.gnn_layer import GNNLayerProcess
 
 
 class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
@@ -24,8 +22,8 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     it means that Layer=0, & and Layer=1 are going to happen in this horizontal operator and then pushed to next ones
     """
 
-    def __init__(self, layers_covered: int = 1, ident: str = "streaming_gnn", storage: "GNNLayerProcess" = None):
-        super(BaseStreamingGNNInference, self).__init__(ident, storage)
+    def __init__(self, layers_covered: int = 1, *args, **kwargs):
+        super(BaseStreamingGNNInference, self).__init__(*args, **kwargs)
         self.layers_covered = layers_covered
 
     @abc.abstractmethod
@@ -42,8 +40,12 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         el.external_update(query.element)
 
     def add_element_callback(self, element: "GraphElement"):
+        super(BaseStreamingGNNInference, self).add_element_callback(element)
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             # Initialize the default tensor values, only on the MASTER node
+            # @todo Do not initialize the values ? Maybe, not sure.
+            # @todo Add Hidden Feature Class for hiding features on training
+            # @todo We can simplify this implementation if we use RPCs
             element['agg'] = JACMeanAggregatorReplicableFeature(
                 tensor=jnp.zeros((32,), dtype=jnp.float32),
                 is_halo=True)  # No need to replicate
@@ -62,6 +64,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                     pass  # One of features is not here yet
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
+        super(BaseStreamingGNNInference, self).update_element_callback(element, old_element)
         if element.element_type is ElementTypes.VERTEX:
             if not old_element.is_initialized and element.is_initialized:
                 # Bulk Reduce for all waiting nodes
@@ -131,34 +134,19 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         super(StreamingGNNInferenceJAX, self).__init__(*args, **kwargs)
         self.message_fn: "Module" = message_fn
         self.update_fn: "Module" = update_fn
-        self.message_fn_params = JaxParamsFeature(message_fn_params, master=0, element_id=self.id+"message") # message params
-        self.update_fn_params = JaxParamsFeature(update_fn_params, master=0, element_id=self.id+"update")  # update params
-
-    def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
-        super(StreamingGNNInferenceJAX, self).update_element_callback(element, old_element)
-        if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"message":
-            self.message_fn_params = element  # Update(cache) the old value
-        if element.element_type is ElementTypes.FEATURE and element.field_name == self.id+"update":
-            self.update_fn_params = element  # Update(cache) the old value
+        self['message_params'] = JaxParamsFeature(value=message_fn_params) # message params
+        self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
 
     def message(self, edge: "BaseEdge"):
         """ Return the embedding for the edge for this GNN Layer """
         source: "BaseVertex" = edge.source
         source_f = source['feature']
-        return self.message_fn.apply(self.message_fn_params.value, source_f.value)
-        # return self.message_fn.apply(self.message_fn_params.value, source_f.value), jax.jacfwd(self.message_fn.apply, argnums=[0, 1])(self.message_fn_params.value, source_f.value)
+        return self.message_fn.apply(self['message_params'].value, source_f.value)
 
     def update(self, vertex: "BaseVertex"):
         feature = vertex['feature']
         agg = vertex['agg']
         conc = jnp.concatenate((feature.value, agg.value[0]))
-        return self.update_fn.apply(self.update_fn_params.value, conc)
-
-    def open(self, *args, **kwargs):
-        super().open(*args, **kwargs)
-        self.message_fn_params.attach_storage(self.storage)
-        self.message_fn_params.create_element()
-        self.update_fn_params.attach_storage(self.storage)
-        self.update_fn_params.create_element()
+        return self.update_fn.apply(self['update_params'].value, conc)
 
 

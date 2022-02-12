@@ -5,7 +5,7 @@ import collections
 
 class SetFeatureMixin:
 
-    @rpc
+    @rpc()
     def add(self, element) -> bool:
         my_set: set = self.value
         is_changed = False
@@ -13,7 +13,7 @@ class SetFeatureMixin:
         my_set.add(element)
         return is_changed
 
-    @rpc
+    @rpc()
     def remove(self, element) -> bool:
         my_set: set = self.value
         is_changed = False

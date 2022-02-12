@@ -5,7 +5,7 @@ import jax
 
 
 class JaxParamMixin:
-    @rpc
+    @rpc()
     def update(self, grads):
         """ Subtract the new gradients from the current one """
         self._value = jax.tree_multimap(lambda x, y: jax.numpy.asarray(x - y), self._value, grads)

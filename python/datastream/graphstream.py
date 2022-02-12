@@ -3,7 +3,7 @@ from pyflink.datastream.connectors import FileSource, StreamFormat
 from pyflink.common import WatermarkStrategy
 from partitioner import Partitioner, KeySelector,GraphElementIdSelector
 from typing import TYPE_CHECKING
-
+from elements import Op
 if TYPE_CHECKING:
     from storage.gnn_layer import GNNLayerProcess
     from partitioner import BasePartitioner
@@ -95,5 +95,5 @@ class GraphStream:
 
     def train_test_split(self, splitter: "MapFunction"):
         splitter = self.last.map(splitter)
-        self.last = splitter.filter(lambda x: x.is_train is False).name("Normal Data")
-        self.train_stream = splitter.filter(lambda x: x.is_train is True).name("Training Data")
+        self.last = splitter.filter(lambda x: not (x.op is Op.AGG and x.aggregator_name == '3trainer')).name("Normal Data")
+        self.train_stream = splitter.filter(lambda x: (x.op is Op.AGG and x.aggregator_name == '3trainer')).name("Training Data")

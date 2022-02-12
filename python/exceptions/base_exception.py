@@ -20,3 +20,7 @@ class AggregatorExistsException(Exception):
 
 class FeatureExistsException(Exception):
     pass
+
+
+class NestedFeaturesException(Exception):
+    pass

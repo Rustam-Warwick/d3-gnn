@@ -21,12 +21,13 @@ class ElementTypes(Enum):
     VERTEX = 0
     EDGE = 1
     FEATURE = 2
-    NONE = 3
+    AGG = 3
+    NONE = 4
 
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
-    deep_copy_fields = ("_features",)  # Fields to be copied during deepcopy
+    deep_copy_fields = ()  # Fields to be copied during deepcopy
     copy_fields = ("_features",)  # Fields to be copied during copy
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GNNLayerProcess" = None) -> None:
@@ -37,11 +38,18 @@ class GraphElement(metaclass=ABCMeta):
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Remote Procedure call for updating this GraphElement """
-        new_element = copy.deepcopy(self)
-        if not getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs):
+        if rpc.is_procedure:
+            # Procedure RPCs do some logic only no update on self state explicitly
+            getattr(self, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
             return False, self
-        new_element.integer_clock += 1  # Increment integer clock just in case it is actually updated
-        return self.update_element(new_element)
+        else:
+            # Non-procedure RPCs do change the state of element so need to be handled carefully
+            # @todo deep_copy might throw errors when trying to call rpc for anything other than Feature
+            new_element = copy.deepcopy(self)
+            if not getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs):
+                return False, self
+            new_element.integer_clock += 1  # Increment integer clock just in case it is actually updated
+            return self.update_element(new_element)
 
     def create_element(self) -> bool:
         """ Save this Graph Element in storage """
@@ -102,7 +110,7 @@ class GraphElement(metaclass=ABCMeta):
     @property
     def master_part(self) -> int:
         """ Master part of this GraphElement -1 if this is Master Part """
-        return -1
+        return self.part_id
 
     @property
     def state(self) -> ReplicaState:
@@ -122,11 +130,6 @@ class GraphElement(metaclass=ABCMeta):
     def is_initialized(self) -> bool:
         """ Initialized means that it is safe to use the features and data in this element """
         return self.state is ReplicaState.MASTER or self.integer_clock > 0
-
-    @property
-    def is_waiting(self) -> bool:
-        """ If this graph element is replica and is waiting for update this is going to happen"""
-        return self.integer_clock < 0
 
     @property
     def is_halo(self) -> bool:
@@ -150,29 +153,29 @@ class GraphElement(metaclass=ABCMeta):
         cls = self.__class__
         result = cls.__new__(cls)
         memodict[id(self)] = result
-        state = self.__getstate__()
-        for k, v in state.items():
-            if k in self.deep_copy_fields:
-                setattr(result, k, copy.deepcopy(v, memodict))
-            else:
-                setattr(result, k, v)
+        result.__dict__.update(self.__getstate__())
+        for key in self.deep_copy_fields:
+            if key in self.__dict__.keys():
+                setattr(result, key, copy.deepcopy(self.__dict__[key]))
         result.storage = self.storage
         return result
 
     def __copy__(self):
-        """ @todo Uses .get_state() instead of dict, does it make sense? Errors might appear in future bc of this """
+        """
+            Using get_state to populated newly created element
+            storage, element will be undefined
+         """
         cls = self.__class__
         result = cls.__new__(cls)
         result.__dict__.update(self.__getstate__())
-        result.storage = self.storage
         for key in self.copy_fields:
             if key in self.__dict__.keys():
                 setattr(result, key, copy.copy(self.__dict__[key]))
+        result.storage = self.storage
         return result
 
     def __setstate__(self, state: dict):
         """ Set the object values from the state dict, used for deserialization """
-        state['storage'] = None
         if "_features" in state:
             for i in state['_features'].values():
                 #  Add element to element_feature
@@ -184,12 +187,9 @@ class GraphElement(metaclass=ABCMeta):
         """ Serialization, remove storage reference. <id, part_id, _features>.
             Note that _features which are fetched from storage are going to be serialized
          """
-        return {
-            "id": self.id,
-            "part_id": self.part_id,
-            "_features": self._features,
-            "storage": None  # No need to serialize storage value
-        }
+        res = self.__dict__.copy()
+        res['storage'] = None
+        return res
 
     def __getmetadata__(self):
         return {}

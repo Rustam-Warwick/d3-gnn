@@ -34,6 +34,11 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def add_aggregator(self, agg: "BaseAggregator") -> bool:
+        """ Add edge return if created or already existed """
+        pass
+
+    @abc.abstractmethod
     def update_feature(self, feature: "ReplicableFeature") -> bool:
         pass
 
@@ -61,6 +66,11 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_aggregator(self, element_id: str, with_features: bool = False) -> "BaseAggregator":
+        """ Add edge return if created or already existed """
+        pass
+
+    @abc.abstractmethod
     def get_features(self, element_type: "ElementTypes", element_id: str) -> Dict[str, "ReplicableFeature"]:
         """ Returns Features belonging to some element type """
         pass
@@ -78,6 +88,8 @@ class BaseStorage(metaclass=abc.ABCMeta):
             return self.add_edge(element)
         if element.element_type is ElementTypes.FEATURE:
             return self.add_feature(element)
+        if element.element_type is ElementTypes.AGG:
+            return self.add_aggregator(element)
 
     def get_element(self, element: "GraphElement", throws_exception=True) -> "GraphElement":
         """ Get updated element by giving an instance of element """
@@ -90,6 +102,9 @@ class BaseStorage(metaclass=abc.ABCMeta):
 
             if element.element_type is ElementTypes.FEATURE:
                 return self.get_feature(element.id)
+
+            if element.element_type is ElementTypes.AGG:
+                return self.get_aggregator(element.id)
         except GraphElementNotFound:
             if throws_exception:
                 raise GraphElementNotFound
@@ -105,6 +120,8 @@ class BaseStorage(metaclass=abc.ABCMeta):
             return self.get_edge(element_id, with_features)
         if element_type is ElementTypes.VERTEX.value:
             return self.get_vertex(element_id, with_features)
+        if element_type is ElementTypes.AGG.value:
+            return self.get_aggregator(element_id, with_features)
 
     def update_element(self, element: "GraphElement"):
         if element.element_type is ElementTypes.FEATURE:

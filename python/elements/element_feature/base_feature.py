@@ -3,9 +3,9 @@ import copy
 from abc import ABCMeta
 from functools import cached_property
 from typing import TYPE_CHECKING, Tuple
-from exceptions import NotSupported, NotUsedOnReplicaException
 import re
-from elements import ReplicableGraphElement, ElementTypes, ReplicaState, Op, GraphQuery, GraphElement
+from exceptions import NestedFeaturesException
+from elements import ReplicableGraphElement, ElementTypes, GraphElement
 
 
 class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
@@ -73,16 +73,14 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     @cached_property
     def field_name(self):
         """ Retrieve field name from the id """
-        real_id_subst = self.id[1:]
-        group = re.search("(\w+:)*(?P<feature_name>\w+)$", real_id_subst)
+        group = re.search("(\w+:)*(?P<feature_name>\w+)$", self.id[1:])
         if group:
             return group['feature_name']
         raise KeyError
 
     @cached_property
     def attached_to(self) -> Tuple["ElementTypes", str]:
-        real_id_subst = self.id[1:]
-        group = re.search("(?P<element_type>\w+):(?P<element_id>\w+):\w+", real_id_subst)
+        group = re.search("(?P<element_type>\w+):(?P<element_id>\w+):\w+", self.id[1:])
         if group:
             return ElementTypes(int(group['element_type'])), group['element_id']
         return (ElementTypes.NONE, None)  # Represents Standalone Feature
@@ -130,8 +128,11 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
 
-    def cache_features(self):
-        pass
+    def __setitem__(self, key, value):
+        if self.attached_to[0] is ElementTypes.NONE:
+            super(ReplicableFeature, self).__setitem__(key, value)
+        else:
+            raise NestedFeaturesException
 
     def __getstate__(self):
         """ Fill in from the state """

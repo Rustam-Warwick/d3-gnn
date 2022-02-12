@@ -2,6 +2,7 @@ import re
 from typing import Literal, Iterator
 from exceptions.base_exception import GraphElementNotFound
 from storage import BaseStorage
+from aggregator import BaseAggregator
 from typing import Dict, List, TYPE_CHECKING, Set
 from elements import ElementTypes, GraphElement
 from elements.element_feature import ReplicableFeature
@@ -15,6 +16,7 @@ class LinkedListStorage(BaseStorage):
         self.reverse_translation_table: Dict[int, str] = dict()  # Reverse Lookup
         self.vertex_table: Dict[int, Dict] = dict()  # Source Vertex to destinations mapping table
         self.feature_table: Dict[int, Dict] = dict()  # Feature and their meta-data
+        self.agg_table: Dict[int, "BaseAggregator"] = dict()  # Feature and their meta-data
         self.element_features: Dict[int, Set[int]] = dict()  # Element.id -> List of Feature ids
         self.vertex_out_edges: Dict[int, List[int]] = dict()  # Vertex.id -> List of out vertex ids
         self.vertex_in_edges: Dict[int, List[int]] = dict()  # Vertex.id -> List of in vertex ids
@@ -59,6 +61,14 @@ class LinkedListStorage(BaseStorage):
         self.vertex_in_edges[dest_id].append(source_id)
         return True
 
+    def add_aggregator(self, agg: "BaseAggregator") -> bool:
+        if agg.id in self.translation_table: return False  # Already in there
+        self.translation_table[agg.id] = self.last_translated_id
+        self.reverse_translation_table[self.last_translated_id] = agg.id
+        self.agg_table[self.last_translated_id] = agg
+        self.last_translated_id += 1
+        return True
+
     def update_feature(self, feature: "ReplicableFeature") -> bool:
         int_id = self.translation_table[feature.id]
         data = feature.__getmetadata__()
@@ -85,6 +95,17 @@ class LinkedListStorage(BaseStorage):
                 pass
             vertex.attach_storage(self)
             return vertex
+        except KeyError:
+            raise GraphElementNotFound
+
+    def get_aggregator(self, element_id: str, with_features: bool = False) -> "BaseAggregator":
+        try:
+            int_id = self.translation_table[element_id]
+            agg = self.agg_table[int_id]
+            if with_features:
+                # Add the cache of all the features
+                pass
+            return agg
         except KeyError:
             raise GraphElementNotFound
 

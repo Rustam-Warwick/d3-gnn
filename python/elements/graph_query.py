@@ -11,14 +11,14 @@ class Op(Enum):
     REMOVE = 2  # Element being removed
     UPDATE = 3  # Element being updated
     SYNC = 4  # Replicated Element being Synced i.e. Master - Replica communication within 1 parallel instance
-    RPC = 5  # RPC Call from Replica to Master node
-    AGG = 6  # Call for some attached function aggregator .run()
+    RPC = 5  # RPC Call
+    AGG = 6  # Call for some attached function aggregator .run() method
 
 
 class IterationState(Enum):
-    FORWARD = False
-    ITERATE = True
-    BACKWARD = None
+    FORWARD = False  # GraphQuery should be sent forward as normal
+    ITERATE = True   # GraphQuery should be iterating within one parallel instance
+    BACKWARD = None  # GraphQuery should be sent backwards, used for back-prop
 
 
 class GraphQuery:
@@ -53,23 +53,11 @@ class GraphQuery:
 
     iteration_state = property(get_iteration_state, set_iteration_state, del_iteration_state)
 
-    def get_is_train(self) -> bool:
-        return self.op is Op.AGG and self.aggregator_name == 'trainer'
-
-    def set_is_train(self, state: bool):
-        if state is True:
-            self.op = Op.AGG
-            self.aggregator_name = "trainer"  # Special Reserved Aggregator function for training
-
-    def del_is_train(self):
-        pass
-
-    is_train = property(get_is_train, set_is_train, del_is_train)
-
     def __str__(self):
         return self.op.__str__() + self.element.__str__()
 
 
 def query_for_part(query: GraphQuery, part: int) -> GraphQuery:
     """Returns a new GraphQuery but directed to a different part"""
-    return GraphQuery(op=query.op, part=part, element=query.element, iterate=query.iterate, aggregator_name=query.aggregator_name)
+    return GraphQuery(op=query.op, part=part, element=query.element, iterate=query.iterate,
+                      aggregator_name=query.aggregator_name)

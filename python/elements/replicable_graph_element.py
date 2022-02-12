@@ -19,16 +19,10 @@ class ReplicableGraphElement(GraphElement):
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Wrap GraphElement call to have separate behavior for Replica & Master nodes """
-        if self.state is ReplicaState.REPLICA:
-            # Send this message to master node if it is replica
-            query = GraphQuery(op=Op.RPC, element=rpc, part=self.master_part, iterate=True)
-            self.storage.message(query)
-            return False, self
-        elif self.state is ReplicaState.MASTER:
-            is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
-            if is_updated:
-                self.sync_replicas()
-            return is_updated, elem
+        is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
+        if is_updated:
+            self.sync_replicas()
+        return is_updated, elem
 
     def create_element(self) -> bool:
         if self.state is ReplicaState.REPLICA: self._features.clear()  # Clear needed since it will be synced with

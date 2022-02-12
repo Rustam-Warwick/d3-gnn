@@ -16,5 +16,6 @@ class StreamingTrainSplitter(MapFunction):
             n = random()
             if n < self.l:
                 # Interpret this as training data
-                value.is_train = True
+                value.op = Op.AGG
+                value.aggregator_name = '3trainer'
         return value
