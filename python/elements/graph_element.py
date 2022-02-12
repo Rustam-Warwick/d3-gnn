@@ -220,17 +220,19 @@ class GraphElement(metaclass=ABCMeta):
     def __setitem__(self, key, value: "ReplicableFeature"):
         """ Set a Feature to this vertex. @note that such Feature creation will not sync, sync should be done
         manually """
-        if self.get(key) is not None:
-            # Duplicate elements are not saved @todo double-check if this should be so
-            return
         value.id = "%s%s:%s:%s" % (ElementTypes.FEATURE.value, self.element_type.value, self.id, key)  # Set Id
         value.element = self  # Set Element
         value.part_id = self.part_id
         value.storage = self.storage
-        self._features[key] = value
+
         if self.storage:
             # Setting element which is attached to graph storage
-            value.create_element()
+            if value.create_element():
+                self._features[key] = value
+            else:
+                self[key]
+        else:
+            self._features[key] = value
 
     def __delitem__(self, key):
         """ Deleting some graph element feature """

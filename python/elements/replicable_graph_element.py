@@ -72,7 +72,7 @@ class ReplicableGraphElement(GraphElement):
 
     def sync_replicas(self, part_id=None, ignore_halo=True):
         """ Sending this element to all or some replicas. This element is shallow copied for operability """
-        if self.state is not ReplicaState.MASTER or self.is_halo or len(self.replica_parts) == 0: return
+        if self.state is not ReplicaState.MASTER or (ignore_halo and self.is_halo) or len(self.replica_parts) == 0: return
         self.cache_features()
         cpy_self = copy(self)
         cpy_self._features.clear()
@@ -119,8 +119,7 @@ class ReplicableGraphElement(GraphElement):
             a = list(re.value)
             a.remove(self.part_id)
             return a
-        except Exception:
-            print("Replica Parts error")
+        except KeyError:
             return list()
 
     @property
@@ -145,3 +144,8 @@ class ReplicableGraphElement(GraphElement):
             "_halo": self.is_halo
         })
         return metadata
+
+    def __setitem__(self, key, value):
+        super(ReplicableGraphElement, self).__setitem__(key, value)
+        if self.storage:
+            self[key].sync_replicas(ignore_halo=False)

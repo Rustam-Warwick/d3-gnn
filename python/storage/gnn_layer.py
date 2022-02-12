@@ -13,14 +13,22 @@ from pyflink.datastream.functions import RuntimeContext
 
 
 class GNNLayerProcess(LinkedListStorage, ProcessFunction):
-    def __init__(self, *args, is_last=False, is_first=False, **kwargs):
+    def __init__(self, *args, position = 1, layers = 1, **kwargs):
         super(GNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.part_id: int = -1  # Index of this parallel task
         self.parallelism: int = 0
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
-        self.is_last = is_last  # Is this GraphStorageProcess the last one in the pipeline
-        self.is_first = is_first  # Is this GraphStorageProcess the last one in the pipeline
+        self.position = position  # Is this GraphStorageProcess the last one in the pipeline
+        self.layers = layers  # Is this GraphStorageProcess the last one in the pipeline
+
+    @property
+    def is_last(self):
+        return self.position >=  self.layers
+
+    @property
+    def is_first(self):
+        return self.position == 1
 
     def with_aggregator(self, agg: "BaseAggregator") -> "GNNLayerProcess":
         """ Attaching aggregator to this process function """
@@ -82,7 +90,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             if value.op is Op.SYNC:
                 el = self.get_element(value.element, False)
                 if el is None:
-                    # Late Event
+                    print("Later Event Sync")
                     el = copy(value.element)
                     el.attach_storage(self)
                     el.create_element()
@@ -91,6 +99,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             if value.op is Op.UPDATE:
                 el = self.get_element(value.element, False)
                 if el is None:
+                    print("Later Event Update")
                     # Late Event
                     el = copy(value.element)
                     el.attach_storage(self)

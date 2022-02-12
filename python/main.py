@@ -33,7 +33,7 @@ def run():
         predict_fn_params=predict_fn_params,
         element_id="gnn_layer")
 
-    graphstream = GraphStream(3)  # GraphStream with parallelism of 5
+    graphstream = GraphStream(3, 2)  # GraphStream with parallelism of 5
     graphstream.read_socket(EdgeListParser(
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
          "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries

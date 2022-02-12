@@ -29,7 +29,6 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
             el.create_element()
         el.external_update(query.element)
 
-
 class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
     def __init__(self, predict_fn: "Module", predict_fn_params, *args, **kwargs):
         super(StreamingOutputPredictionJAX, self).__init__(*args, **kwargs)

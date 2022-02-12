@@ -42,6 +42,9 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
     @rpc(is_procedure=True, iteration=IterationState.ITERATE, destination=RPCDestination.CUSTOM)
     def msg_backward(self, vertex_ids: Sequence[str], msg_grad: jax.numpy.array):
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
+        msg_grads = []  # Message Param Grads
+        source_vertices = []  # Source Vertices
+        source_vertex_grads = None  # Grads of source vertices
         for i, vertex in enumerate(vertices):
             in_edges = self.storage.get_incident_edges(vertex, "in")
             in_edges = list(
@@ -51,9 +54,28 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             loss, grad_fn = jax.vjp(jax.vmap(self.message_fn, [None, 0]),
                                     self.inference_agg['message_params'].value, in_features)
             message_grad, in_feature_grad = grad_fn(jax.numpy.tile(msg_grad[i], (len(in_edges), 1)))
+            msg_grads.append(message_grad)
+            source_vertices.extend([e.source for e in in_edges])
+            if source_vertex_grads is None:
+                source_vertex_grads = in_feature_grad
+            else:
+                source_vertex_grads = jax.numpy.concatenate((source_vertex_grads, in_feature_grad), axis=0)
+        self.inference_agg['message_params'].batch_update(*msg_grads)  # Update message layer params
+        if not self.storage.is_first:
+            # If no more layer before this no need to send back
+            source_part_dict = dict()
+            for ind, vertex in enumerate(source_vertices):
 
-    #         @todo Send these messages to back-layer given that this is not the first layer
-    @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.SELF)
+                if vertex.master_part not in source_part_dict:
+                    source_part_dict[vertex.master_part] = [[vertex.id], source_vertex_grads[ind, None]]
+                else:
+                    source_part_dict[vertex.master_part][0].append(vertex.id)
+                    source_part_dict[vertex.master_part][1] = jax.numpy.vstack(source_part_dict[vertex.master_part][1],
+                                                                               source_vertex_grads[ind, None])
+            for part, params in source_part_dict.items():
+                self.backward(*params, __parts=[part])
+
+    @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.CUSTOM)
     def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array):
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
         batch_aggregations = jax.numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))
@@ -76,4 +98,4 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             self.msg_backward(*params, __parts=[part])
         self.msg_backward(vertex_ids, msg_grad, __call=True)  # Call directly master parts here
         self.inference_agg['update_params'].update(update_fn_grads)  # Apply the updates to update model parameters
-        self.backward(vertex_ids, feature_grad)
+        self.backward(vertex_ids, feature_grad, __parts=[self.part_id])
