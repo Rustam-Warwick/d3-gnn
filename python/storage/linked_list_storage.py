@@ -27,7 +27,7 @@ class LinkedListStorage(BaseStorage):
         if feature.id in self.translation_table: return False  # If exists return False
         self.translation_table[feature.id] = self.last_translated_id
         self.reverse_translation_table[self.last_translated_id] = feature.id
-        data = feature.__getmetadata__()
+        data = feature.__get_save_data__()
         self.feature_table[self.last_translated_id] = data
         if feature.field_name not in self.feature_classes:
             # Add Feature classes
@@ -46,7 +46,7 @@ class LinkedListStorage(BaseStorage):
         if vertex.id in self.translation_table: return False  # Already in there
         self.translation_table[vertex.id] = self.last_translated_id
         self.reverse_translation_table[self.last_translated_id] = vertex.id
-        data = vertex.__getmetadata__()
+        data = vertex.__get_save_data__()
         self.vertex_table[self.last_translated_id] = data
         self.last_translated_id += 1
         return True
@@ -71,13 +71,13 @@ class LinkedListStorage(BaseStorage):
 
     def update_feature(self, feature: "ReplicableFeature") -> bool:
         int_id = self.translation_table[feature.id]
-        data = feature.__getmetadata__()
+        data = feature.__get_save_data__()
         self.feature_table[int_id] = data
         return True
 
     def update_vertex(self, vertex: "BaseVertex") -> bool:
         int_id = self.translation_table[vertex.id]
-        meta_data = vertex.__getmetadata__()
+        meta_data = vertex.__get_save_data__()
         self.vertex_table[int_id] = meta_data
         return True
 
@@ -108,6 +108,9 @@ class LinkedListStorage(BaseStorage):
             return agg
         except KeyError:
             raise GraphElementNotFound
+
+    def get_aggregators(self, with_features: bool = False) -> Iterator["BaseAggregator"]:
+        return self.agg_table.values()
 
     def get_edge(self, element_id: str, with_features=False) -> "BaseEdge":
         return None

@@ -22,11 +22,11 @@ def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destinatio
             if __call is True:
                 return fn(self, *args, **kwargs)
             remote_fn = Rpc(fn, self, is_procedure, *args, **kwargs)  # External Call
-            if __iteration is IterationState.ITERATE and __destination is RPCDestination.MASTER and self.state is ReplicaState.MASTER:
-                return self(remote_fn)
-
-            if __iteration is IterationState.ITERATE and __destination is RPCDestination.SELF:
-                return self(remote_fn)
+            # if __iteration is IterationState.ITERATE and __destination is RPCDestination.MASTER and self.state is ReplicaState.MASTER:
+            #     return self(remote_fn)
+            #
+            # if __iteration is IterationState.ITERATE and __destination is RPCDestination.SELF:
+            #     return self(remote_fn)
 
             query = GraphQuery(op=Op.RPC, element=remote_fn)
             query.iteration_state = __iteration

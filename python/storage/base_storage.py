@@ -71,6 +71,11 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_aggregators(self, with_features: bool = False) -> Iterator["BaseAggregator"]:
+        """ Add edge return if created or already existed """
+        pass
+
+    @abc.abstractmethod
     def get_features(self, element_type: "ElementTypes", element_id: str) -> Dict[str, "ReplicableFeature"]:
         """ Returns Features belonging to some element type """
         pass

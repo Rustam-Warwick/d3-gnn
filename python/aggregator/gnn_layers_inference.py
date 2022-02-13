@@ -27,11 +27,11 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         self.layers_covered = layers_covered
 
     @abc.abstractmethod
-    def message(self, feature):
+    def message(self, source_feature:jnp.array):
         pass
 
     @abc.abstractmethod
-    def update(self, feature):
+    def update(self, source_feature:jnp.array, agg:jnp.array):
         pass
 
     def run(self, query: "GraphQuery", *args, **kwargs):
@@ -42,40 +42,23 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def init_vertex(self, vertex_id: str, agg: jnp.array, feature: jnp.array):
         vertex = self.storage.get_vertex(vertex_id)
-        vertex['agg'] = JACMeanAggregatorReplicableFeature(
-            tensor=agg,
-            is_halo=True)  # No need to replicate
         vertex['feature'] = TensorReplicableFeature(
             value=feature)
+        vertex['agg'] = JACMeanAggregatorReplicableFeature(tensor=agg, is_halo=True)
 
+        self.reduce_all_edges(vertex_id, __parts=[vertex.master_part, *vertex.replica_parts])  # Callback for
+        # reducing all edges
         if not self.storage.is_last:
-            next_feature = self.update(vertex)
+            next_feature = self.update(feature, agg)
             self.init_vertex(vertex_id, agg, next_feature)
 
     def add_element_callback(self, element: "GraphElement"):
         super(BaseStreamingGNNInference, self).add_element_callback(element)
         if self.storage.is_first:
             if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
-                self.init_vertex(element.id, jnp.zeros((32,), dtype=jnp.float32), jnp.zeros((7,), dtype=jnp.float32),
+                self.init_vertex(element.id, jnp.zeros((32,), dtype=jnp.float32),
+                                 jnp.zeros((7,), dtype=jnp.float32),
                                  __call=True)  # Call here
-
-        if element.element_type is ElementTypes.FEATURE and element.field_name == 'feature':
-            # Feature just arrived reduce all edges
-            if element.element is None:
-                print("SALAM")
-            self.reduce_all_edges(element.element)
-
-        if element.element_type is ElementTypes.EDGE:
-            # If this is first layer can start unwrapping the layers
-            element: "BaseEdge"
-            if element.source.get("feature") and element.destination.get("feature"):
-                # If vertices are ready do the embedding now
-                try:
-                    msg = self.message(element)
-                    agg: "AggregatorFeatureMixin" = element.destination['agg']
-                    agg.reduce(msg)  # Update the aggregator
-                except KeyError:
-                    pass  # One of features is not here yet
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         super(BaseStreamingGNNInference, self).update_element_callback(element, old_element)
@@ -84,58 +67,57 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             old_element: "ReplicableFeature"
             if element.field_name == 'feature':
                 # Genuine update on feature, update all the previous aggregations
-                old_vertex = BaseVertex()
-                old_vertex.id = element.element.id
-                old_vertex["feature"] = old_element
-                self.update_all_edges(element.element, old_vertex)
-
+                self.update_out_edges(element, old_element.value)
+                if element.state is ReplicaState.MASTER:
+                    embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
+                    vertex = BaseVertex(master=element.element.master_part)
+                    vertex.id = element.element.id
+                    vertex["feature"] = TensorReplicableFeature(value=embedding)
+                    query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
+                    self.storage.message(query)
+            if element.field_name == 'agg' and element.state is not ReplicaState.MASTER:
+                print("Not Master but still update why ??? ")
             if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
                 # Generate new embedding for the node & send to master part of the next layer
-                embedding = self.update(element.element)
+                embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
                 vertex = BaseVertex(master=element.element.master_part)
-                vertex.id = element.attached_to[1]
+                vertex.id = element.element.id
                 vertex["feature"] = TensorReplicableFeature(value=embedding)
                 query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
                 self.storage.message(query)
 
-    def update_all_edges(self, new_vertex: "BaseVertex", old_vertex: "BaseVertex"):
+    def update_out_edges(self, vertex: "BaseVertex", old_feature: jnp.array):
         """ Updates the aggregations using all incident edges """
-        edge_list = self.storage.get_incident_edges(new_vertex, "both")  # In Edges, can do bulk update
-        exchanges = []
+        edge_list = self.storage.get_incident_edges(vertex, edge_type="out")  # In Edges, can do bulk update
+        msg_old = self.message(old_feature)
         for edge in edge_list:
             try:
-                if not edge.source.get("feature") or not edge.destination.get("feature"): continue
-                if edge.destination == new_vertex:
-                    msg_new = self.message(edge)
-                    edge.destination = old_vertex
-                    msg_old = self.message(edge)
-                    exchanges.append((msg_new, msg_old))
-                else:
-                    msg_new = self.message(edge)
-                    edge.source = old_vertex
-                    msg_old = self.message(edge)
-                    agg: "AggregatorFeatureMixin" = edge.destination['agg']
-                    agg.replace(msg_new, msg_old)
+                if not edge.source.get("feature") or not edge.destination.get("agg"): continue
+                msg_new = self.message(edge.source['feature'].value)
+                agg: "AggregatorFeatureMixin" = edge.destination['agg']
+                agg.replace(msg_new, msg_old)
             except KeyError:
                 pass
-        agg: "AggregatorFeatureMixin" = new_vertex['agg']
-        agg.bulk_replace(*exchanges)
 
-    def reduce_all_edges(self, vertex: "BaseVertex"):
+    @rpc(is_procedure=True, destination=RPCDestination.CUSTOM, iteration=IterationState.ITERATE)
+    def reduce_all_edges(self, vertex_id: "BaseVertex"):
         """ Bulk Reduce all in-edges and individual reduce for out-edges """
+        vertex = self.storage.get_vertex(vertex_id)
         in_edge_list = self.storage.get_incident_edges(vertex, "both")  # In Edges, can do bulk update
         exchanges = []
         for edge in in_edge_list:
             try:
-                if not edge.source.get("feature") or not edge.destination.get("feature"): continue
-                msg = self.message(edge)
+                if not edge.source.get("feature") or not edge.destination.get("agg"): continue
                 if edge.destination == vertex:
+                    msg = self.message(edge.source['feature'].value)
                     exchanges.append(msg)
                 else:
+                    msg = self.message(edge.source['feature'].value)
                     agg: "AggregatorFeatureMixin" = edge.destination['agg']
                     agg.reduce(msg)
             except KeyError:
                 pass
+
         agg: "AggregatorFeatureMixin" = vertex['agg']
         agg.bulk_reduce(*exchanges)
 
@@ -148,14 +130,9 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         self['message_params'] = JaxParamsFeature(value=message_fn_params)  # message params
         self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
 
-    def message(self, edge: "BaseEdge"):
-        """ Return the embedding for the edge for this GNN Layer """
-        source: "BaseVertex" = edge.source
-        source_f = source['feature']
-        return self.message_fn.apply(self['message_params'].value, source_f.value)
+    def message(self, source_feature: jnp.array):
+        return self.message_fn.apply(self['message_params'].value, source_feature)
 
-    def update(self, vertex: "BaseVertex"):
-        feature = vertex['feature']
-        agg = vertex['agg']
-        conc = jnp.concatenate((feature.value, agg.value[0]))
+    def update(self, source_feature: jnp.array, agg: jnp.array):
+        conc = jnp.concatenate((source_feature, agg))
         return self.update_fn.apply(self['update_params'].value, conc)

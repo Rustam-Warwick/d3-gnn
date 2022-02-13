@@ -48,7 +48,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
         for i, vertex in enumerate(vertices):
             in_edges = self.storage.get_incident_edges(vertex, "in")
             in_edges = list(
-                filter(lambda edge: edge.source.is_initialized and edge.destination.is_initialized, in_edges))
+                filter(lambda edge: edge.source.get('feature'), in_edges)) # Pick edges which have features
             if len(in_edges) == 0: continue
             in_features = jax.numpy.vstack([e.source["feature"].value for e in in_edges])
             loss, grad_fn = jax.vjp(jax.vmap(self.message_fn, [None, 0]),
@@ -70,10 +70,14 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
                     source_part_dict[vertex.master_part] = [[vertex.id], source_vertex_grads[ind, None]]
                 else:
                     source_part_dict[vertex.master_part][0].append(vertex.id)
-                    source_part_dict[vertex.master_part][1] = jax.numpy.vstack(source_part_dict[vertex.master_part][1],
-                                                                               source_vertex_grads[ind, None])
+                    source_part_dict[vertex.master_part][1] = jax.numpy.concatenate(
+                        (source_part_dict[vertex.master_part][1],
+                         source_vertex_grads[ind, None]), axis=0)
             for part, params in source_part_dict.items():
                 self.backward(*params, __parts=[part])
+        else:
+            # This is the last layer do new processing starting from here
+            pass
 
     @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.CUSTOM)
     def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array):

@@ -17,7 +17,7 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
     @abc.abstractmethod
-    def predict(self, feature):
+    def predict(self, vertex):
         pass
 
     def run(self, query: "GraphQuery", **kwargs):
@@ -27,7 +27,9 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
             el = copy(query.element)
             el.attach_storage(self.storage)
             el.create_element()
-        el.external_update(query.element)
+        else:
+            el.external_update(query.element)
+
 
 class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
     def __init__(self, predict_fn: "Module", predict_fn_params, *args, **kwargs):

@@ -75,7 +75,10 @@ class GraphElement(metaclass=ABCMeta):
                 is_updated |= is_updated_feature
                 memento._features[name] = memento_feature  # Populate this to not trigger the storage updatea
             else:
-                self[name] = value
+                value.element = self  # Set Element
+                value.part_id = self.part_id
+                value.storage = self.storage
+                GraphElement.create_element(value)  # Omit all Replication Stuff
                 is_updated |= True
         if is_updated:
             self.integer_clock = max(new_element.integer_clock, self.integer_clock)
@@ -171,7 +174,6 @@ class GraphElement(metaclass=ABCMeta):
         for key in self.copy_fields:
             if key in self.__dict__.keys():
                 setattr(result, key, copy.copy(self.__dict__[key]))
-        result.storage = self.storage
         return result
 
     def __setstate__(self, state: dict):
@@ -191,7 +193,7 @@ class GraphElement(metaclass=ABCMeta):
         res['storage'] = None
         return res
 
-    def __getmetadata__(self):
+    def __get_save_data__(self):
         return {}
 
     def __getitem__(self, key) -> "ReplicableFeature":

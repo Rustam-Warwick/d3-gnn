@@ -43,7 +43,7 @@ class ReplicableGraphElement(GraphElement):
         if self.state is ReplicaState.MASTER:
             # Add to parts of replicas and sync with this part
             self["parts"].add(new_element.part_id)
-            self.sync_replicas(new_element.part_id, ignore_halo=False)
+            self.sync_replicas(new_element.part_id, skip_halos=False)
             return False, self
         elif self.state is ReplicaState.REPLICA:
             # Commit the update to replica
@@ -70,14 +70,14 @@ class ReplicableGraphElement(GraphElement):
         """ Do not have parts in the iter  """
         return super(ReplicableGraphElement, self).__iter__()
 
-    def sync_replicas(self, part_id=None, ignore_halo=True):
+    def sync_replicas(self, part_id=None, skip_halos=True):
         """ Sending this element to all or some replicas. This element is shallow copied for operability """
-        if self.state is not ReplicaState.MASTER or (ignore_halo and self.is_halo) or len(self.replica_parts) == 0: return
+        if self.state is not ReplicaState.MASTER or (skip_halos and self.is_halo) or len(self.replica_parts) == 0: return
         self.cache_features()
         cpy_self = copy(self)
         cpy_self._features.clear()
         for key, value in self:
-            if ignore_halo and value.is_halo:
+            if skip_halos and value.is_halo:
                 continue
             ft_cpy = copy(value)
             ft_cpy.element = cpy_self
@@ -136,16 +136,11 @@ class ReplicableGraphElement(GraphElement):
         })
         return state
 
-    def __getmetadata__(self):
-        metadata = super(ReplicableGraphElement, self).__getmetadata__()
+    def __get_save_data__(self):
+        metadata = super(ReplicableGraphElement, self).__get_save_data__()
         metadata.update({
             "_master": self.master_part,
             "_clock": self.integer_clock,
             "_halo": self.is_halo
         })
         return metadata
-
-    def __setitem__(self, key, value):
-        super(ReplicableGraphElement, self).__setitem__(key, value)
-        if self.storage:
-            self[key].sync_replicas(ignore_halo=False)

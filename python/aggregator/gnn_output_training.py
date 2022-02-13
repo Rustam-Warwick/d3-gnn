@@ -87,6 +87,7 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         loss, grad_fn = jax.vjp(lambda_wrapper, self.inference_agg['predict_params'].value,
                                 batch_embeddings)  # Grad of [
         # parameters, inputs]
+        print("Loss is {%s}" % (loss))
         predict_grads, embedding_grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
         self.inference_agg['predict_params'].update(predict_grads)  # Apply the updates for model parameters
         self.backward(vertex_ids, embedding_grads)

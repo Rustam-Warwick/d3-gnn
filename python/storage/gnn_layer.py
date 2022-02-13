@@ -13,7 +13,7 @@ from pyflink.datastream.functions import RuntimeContext
 
 
 class GNNLayerProcess(LinkedListStorage, ProcessFunction):
-    def __init__(self, *args, position = 1, layers = 1, **kwargs):
+    def __init__(self, *args, position=1, layers=1, **kwargs):
         super(GNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.part_id: int = -1  # Index of this parallel task
@@ -21,10 +21,11 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
         self.position = position  # Is this GraphStorageProcess the last one in the pipeline
         self.layers = layers  # Is this GraphStorageProcess the last one in the pipeline
+        self.late_syncs = dict()
 
     @property
     def is_last(self):
-        return self.position >=  self.layers
+        return self.position >= self.layers
 
     @property
     def is_first(self):
@@ -39,7 +40,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
 
     def for_aggregator(self, fn):
         """ Apply a callback function for each aggregator """
-        for agg in self.aggregators.values(): fn(agg)
+        for agg in self.get_aggregators(): fn(agg)
 
     def open(self, runtime_context: RuntimeContext):
         """ First callback on the task process side """
@@ -50,7 +51,9 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
 
         self.part_id = runtime_context.get_index_of_this_subtask()
         self.parallelism = runtime_context.get_number_of_parallel_subtasks()
-        self.for_aggregator(agg_init)
+        for agg in self.aggregators.values():
+            agg_init(agg)
+        del self.aggregators
         super(GNNLayerProcess, self).open(runtime_context)
 
     def message(self, query: "GraphQuery"):
@@ -90,22 +93,16 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             if value.op is Op.SYNC:
                 el = self.get_element(value.element, False)
                 if el is None:
-                    print("Later Event Sync")
-                    el = copy(value.element)
+                    el = copy(value.element)  # This copy is needed, so we don't lose the part_id after attach_storage
                     el.attach_storage(self)
                     el.create_element()
+                    el = self.get_element(value.element, False)
                 el.sync_element(value.element)
 
             if value.op is Op.UPDATE:
-                el = self.get_element(value.element, False)
-                if el is None:
-                    print("Later Event Update")
-                    # Late Event
-                    el = copy(value.element)
-                    el.attach_storage(self)
-                    el.create_element()
-                else:
-                    el.external_update(value.element)
+                # @todo This is never later because updates get distributed in partitioning stage
+                el = self.get_element(value.element)
+                el.external_update(value.element)
             if value.op is Op.AGG:
                 self.get_aggregator(value.aggregator_name).run(value)
         except GraphElementNotFound:

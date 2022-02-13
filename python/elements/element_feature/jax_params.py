@@ -13,6 +13,8 @@ class JaxParamMixin:
 
     def batch_update(self, *grads):
         """ Update given a list of grads """
+        if len(grads) == 0:
+            return
         sum_grads = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), *grads)
 
         return self.update(sum_grads)

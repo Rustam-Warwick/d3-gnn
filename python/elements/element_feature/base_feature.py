@@ -5,7 +5,7 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Tuple
 import re
 from exceptions import NestedFeaturesException
-from elements import ReplicableGraphElement, ElementTypes, GraphElement
+from elements import ReplicableGraphElement, ElementTypes, GraphElement, ReplicaState
 
 
 class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
@@ -22,12 +22,16 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         super(ReplicableFeature, self).__init__(element_id=element_id, *args, **kwargs)
 
     def create_element(self) -> bool:
-        """  """
         if self.attached_to[0] is ElementTypes.NONE:
             # Independent feature behave just like ReplicableGraphElements
             return super(ReplicableFeature, self).create_element()
         else:
-            return GraphElement.create_element(self)  # Omit all Replication Stuff
+            if self.element is None:
+                # Make sure that element is here
+                self.element = self.storage.get_element_by_id(self.attached_to[1])
+            is_created = GraphElement.create_element(self)  # Omit all Replication Stuff
+            if is_created and self.state is ReplicaState.MASTER:
+                self.sync_replicas(skip_halos=False)
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Similar to sync_element we need to save the .element since integer_clock might change """
@@ -39,7 +43,9 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
         memento = copy.copy(self)  # .element field will be empty
-        if new_element._value is None or self._value is None:
+        if new_element._value is None and self._value is None:
+            is_updated = False
+        elif new_element._value is None or self._value is None:
             is_updated = True
         else:
             is_updated = not self._value_eq_(self._value, new_element._value)
@@ -59,7 +65,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ We need to save the .element since integer_clock might change as well """
-
         is_updated, memento = super(ReplicableFeature, self).external_update(new_element)
         if is_updated and self.element is not None:
             self.storage.update_element(self.element)
@@ -128,9 +133,29 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
 
+    def sync_replicas(self, part_id=None, skip_halos=True):
+        """ Make sure is_halo Features send None and _value  """
+        if self.attached_to[0] is ElementTypes.NONE:
+            super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
+        else:
+            if self.is_halo:
+                tmp = self._value
+                self._value = None
+                super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
+                self._value = tmp
+            else:
+                super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
+
     def __setitem__(self, key, value):
         if self.attached_to[0] is ElementTypes.NONE:
             super(ReplicableFeature, self).__setitem__(key, value)
+        else:
+
+            raise NestedFeaturesException
+
+    def __getitem__(self, item):
+        if self.attached_to[0] is ElementTypes.NONE:
+            super(ReplicableFeature, self).__setitem__(item)
         else:
             raise NestedFeaturesException
 
@@ -143,8 +168,8 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         })
         return state
 
-    def __getmetadata__(self):
-        meta_data = super(ReplicableFeature, self).__getmetadata__()
+    def __get_save_data__(self):
+        meta_data = super(ReplicableFeature, self).__get_save_data__()
         meta_data.update({
             "_value": self._value
         })
