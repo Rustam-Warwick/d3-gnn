@@ -10,9 +10,9 @@ from elements.element_feature.jax_params import JaxParamsFeature
 from abc import ABCMeta
 from flax.linen import Module
 import jax.numpy as jnp
-from elements.edge import BaseEdge
 from elements.element_feature import ReplicableFeature
 from elements.vertex import BaseVertex
+from elements.edge import BaseEdge
 from elements import GraphElement
 
 
@@ -27,64 +27,60 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         self.layers_covered = layers_covered
 
     @abc.abstractmethod
-    def message(self, source_feature:jnp.array):
+    def message(self, source_feature: jnp.array):
         pass
 
     @abc.abstractmethod
-    def update(self, source_feature:jnp.array, agg:jnp.array):
+    def update(self, source_feature: jnp.array, agg: jnp.array):
         pass
+
+    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
+    def forward(self, vertex_id, feature):
+        vertex = self.storage.get_vertex(vertex_id)
+        vertex['feature'].update_value(feature)  # Update value
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, rest is in callbacks """
         el = self.storage.get_element(query.element)
         el.external_update(query.element)
 
-    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
-    def init_vertex(self, vertex_id: str, agg: jnp.array, feature: jnp.array):
-        vertex = self.storage.get_vertex(vertex_id)
+    @staticmethod
+    def init_vertex(vertex):
+        """ Initialize default aggregator and feature per vertex """
         vertex['feature'] = TensorReplicableFeature(
-            value=feature)
-        vertex['agg'] = JACMeanAggregatorReplicableFeature(tensor=agg, is_halo=True)
-
-        self.reduce_all_edges(vertex_id, __parts=[vertex.master_part, *vertex.replica_parts])  # Callback for
-        # reducing all edges
-        if not self.storage.is_last:
-            next_feature = self.update(feature, agg)
-            self.init_vertex(vertex_id, agg, next_feature)
+            value=jnp.zeros((7,), dtype=jnp.float32))
+        vertex['agg'] = JACMeanAggregatorReplicableFeature(tensor=jnp.zeros((32,), dtype=jnp.float32), is_halo=True)
 
     def add_element_callback(self, element: "GraphElement"):
         super(BaseStreamingGNNInference, self).add_element_callback(element)
-        if self.storage.is_first:
-            if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
-                self.init_vertex(element.id, jnp.zeros((32,), dtype=jnp.float32),
-                                 jnp.zeros((7,), dtype=jnp.float32),
-                                 __call=True)  # Call here
+        if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
+            self.init_vertex(element)  # Call here
+            next_layer = self.update(element['feature'].value, element['agg'].value[0])
+            self.forward(element.id, next_layer)
+        if element.element_type is ElementTypes.EDGE:
+            element: "BaseEdge"
+            if element.source.is_initialized and element.destination.is_initialized:
+                pass
+        if element.element_type is ElementTypes.FEATURE and element.field_name == '':
+            pass
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         super(BaseStreamingGNNInference, self).update_element_callback(element, old_element)
-        if element.element_type is ElementTypes.FEATURE:
-            element: "ReplicableFeature"
-            old_element: "ReplicableFeature"
-            if element.field_name == 'feature':
-                # Genuine update on feature, update all the previous aggregations
-                self.update_out_edges(element, old_element.value)
-                if element.state is ReplicaState.MASTER:
-                    embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
-                    vertex = BaseVertex(master=element.element.master_part)
-                    vertex.id = element.element.id
-                    vertex["feature"] = TensorReplicableFeature(value=embedding)
-                    query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
-                    self.storage.message(query)
-            if element.field_name == 'agg' and element.state is not ReplicaState.MASTER:
-                print("Not Master but still update why ??? ")
-            if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
-                # Generate new embedding for the node & send to master part of the next layer
-                embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
-                vertex = BaseVertex(master=element.element.master_part)
-                vertex.id = element.element.id
-                vertex["feature"] = TensorReplicableFeature(value=embedding)
-                query = GraphQuery(Op.AGG, vertex, vertex.master_part, aggregator_name=self.id)
-                self.storage.message(query)
+        # if element.element_type is ElementTypes.FEATURE:
+        #     element: "ReplicableFeature"
+        #     old_element: "ReplicableFeature"
+        #     if element.field_name == 'feature':
+        #         # Genuine update on feature, update all the previous aggregations
+        #         self.update_out_edges(element, old_element.value)
+        #         if element.state is ReplicaState.MASTER:
+        #             embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
+        #             self.forward(element.id, embedding)
+        #     if element.field_name == 'agg' and element.state is not ReplicaState.MASTER:
+        #         print("Not Master but still update why ??? ")
+        #     if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
+        #         # Generate new embedding for the node & send to master part of the next layer
+        #         embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
+        #         self.forward(element.element.id, embedding)
 
     def update_out_edges(self, vertex: "BaseVertex", old_feature: jnp.array):
         """ Updates the aggregations using all incident edges """

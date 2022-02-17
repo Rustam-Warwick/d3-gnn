@@ -30,10 +30,10 @@ public class HashMapGraphStorage extends GraphStorage {
         vertices = new HashMap<>();
     }
 
-    public HashMapGraphStorage() {
-        super();
-        edges = new HashMap<>();
-        vertices = new HashMap<>();
+
+    @Override
+    public BaseVertex addVertexMain(BaseVertex v) {
+        return null;
     }
 
     @Override
@@ -46,6 +46,10 @@ public class HashMapGraphStorage extends GraphStorage {
     }
 
     @Override
+    public BaseEdge<BaseVertex> addEdgeMain(BaseEdge<BaseVertex> e) {
+        return null;
+    }
+
     public boolean deleteVertex(BaseVertex v) {
         return false;
     }
@@ -78,6 +82,10 @@ public class HashMapGraphStorage extends GraphStorage {
     }
 
     @Override
+    public void updateFeatureMain(Feature.Update<?> e) {
+
+    }
+
     public void deleteEdge(BaseEdge<BaseVertex> e) {
 
     }

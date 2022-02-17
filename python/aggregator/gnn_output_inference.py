@@ -1,13 +1,13 @@
 import abc
 from abc import ABCMeta
 from aggregator import BaseAggregator
-from elements import GraphElement, GraphQuery, ElementTypes
+from elements import GraphQuery, RPCDestination, IterationState
 from elements.element_feature.jax_params import JaxParamsFeature
+from elements.element_feature.tensor_feature import TensorReplicableFeature
 from copy import copy
-import jax
+from exceptions import GraphElementNotFound
 from typing import TYPE_CHECKING
 from flax.linen import Module
-from storage.gnn_layer import GNNLayerProcess
 
 if TYPE_CHECKING:
     from elements.vertex import BaseVertex
@@ -20,15 +20,19 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     def predict(self, vertex):
         pass
 
-    def run(self, query: "GraphQuery", **kwargs):
-        el = self.storage.get_element(query.element, False)
-        if el is None:
-            # Late Event
-            el = copy(query.element)
-            el.attach_storage(self.storage)
-            el.create_element()
-        else:
-            el.external_update(query.element)
+    def run(self, *args, **kwargs):
+        pass
+
+    def forward(self, vertex_id, feature):
+        try:
+            vertex = self.storage.get_vertex(vertex_id)
+            vertex['feature'].update_value(feature)  # Update value
+        except GraphElementNotFound:
+            vertex = BaseVertex(master=self.part_id)
+            vertex.id = vertex_id
+            vertex.attach_storage(self.storage)
+            vertex['feature'] = TensorReplicableFeature(value=feature)
+            vertex.create_element()
 
 
 class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):

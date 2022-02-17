@@ -2,10 +2,11 @@ import abc
 import copy
 from abc import ABCMeta
 from functools import cached_property
+from decorators import rpc
 from typing import TYPE_CHECKING, Tuple
 import re
 from exceptions import NestedFeaturesException
-from elements import ReplicableGraphElement, ElementTypes, GraphElement, ReplicaState
+from elements import ReplicableGraphElement, ElementTypes, GraphElement, ReplicaState, GraphQuery, query_for_part, Op
 
 
 class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
@@ -22,16 +23,15 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         super(ReplicableFeature, self).__init__(element_id=element_id, *args, **kwargs)
 
     def create_element(self) -> bool:
-        if self.attached_to[0] is ElementTypes.NONE:
+        is_created = super(ReplicableFeature, self).create_element()
+        if self.attached_to[0] is not ElementTypes.NONE:
             # Independent feature behave just like ReplicableGraphElements
-            return super(ReplicableFeature, self).create_element()
-        else:
             if self.element is None:
                 # Make sure that element is here
                 self.element = self.storage.get_element_by_id(self.attached_to[1])
-            is_created = GraphElement.create_element(self)  # Omit all Replication Stuff
-            if is_created and self.state is ReplicaState.MASTER:
-                self.sync_replicas(skip_halos=False)
+            if is_created:
+                if self.state is ReplicaState.MASTER: self.sync_replicas(skip_halos=False)
+        return is_created
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Similar to sync_element we need to save the .element since integer_clock might change """
@@ -39,6 +39,11 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         if is_updated and self.element is not None:
             self.storage.update_element(self.element)
         return is_updated, memento
+
+    @rpc()
+    def update_value(self, value):
+        """ Rpc call to update the value field """
+        self._value = value
 
     def update_element(self, new_element: "ReplicableFeature") -> Tuple[bool, "GraphElement"]:
         """ Similar to Graph Element  but added value swapping and no sub-feature checks """
@@ -138,24 +143,28 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         if self.attached_to[0] is ElementTypes.NONE:
             super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
         else:
-            if self.is_halo:
-                tmp = self._value
-                self._value = None
-                super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
-                self._value = tmp
+            cpy_self = copy.copy(self)
+            cpy_self._features.clear()
+            if cpy_self.is_halo:
+                cpy_self._value = None
+
+            query = GraphQuery(op=Op.SYNC, element=cpy_self, part=None, iterate=True)
+            if part_id:
+                self.storage.message(query_for_part(query, part_id))
             else:
-                super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
+                filtered_parts = map(lambda x: query_for_part(query, x), self.replica_parts)
+                for msg in filtered_parts:
+                    self.storage.message(msg)
 
     def __setitem__(self, key, value):
         if self.attached_to[0] is ElementTypes.NONE:
             super(ReplicableFeature, self).__setitem__(key, value)
         else:
-
-            raise NestedFeaturesException
+            pass
 
     def __getitem__(self, item):
         if self.attached_to[0] is ElementTypes.NONE:
-            super(ReplicableFeature, self).__setitem__(item)
+            return super(ReplicableFeature, self).__getitem__(item)
         else:
             raise NestedFeaturesException
 

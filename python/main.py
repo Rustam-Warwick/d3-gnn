@@ -1,8 +1,10 @@
-from flax import linen as nn
+
 from jax import lax, random, numpy as jnp
 from flax.linen import relu, softmax, sigmoid
 from nn.jax.multi_layer_dense import MultiLayerDense
 from datastream import GraphStream
+from pyflink.datastream import StreamExecutionEnvironment, DataStream, MapFunction
+
 from storage.gnn_layer import GNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
@@ -11,7 +13,6 @@ from aggregator.gnn_output_inference import StreamingOutputPredictionJAX
 from aggregator.gnn_output_training import StreamingOutputTrainingJAX
 from helpers.streaming_train_splitter import StreamingTrainSplitter
 from helpers.socketmapper import EdgeListParser
-
 
 def run():
     message_fn = MultiLayerDense(features=[32, 64, 32], activations=[relu, relu, relu])

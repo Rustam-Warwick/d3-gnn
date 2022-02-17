@@ -19,6 +19,9 @@ public abstract class GraphStorage extends ProcessFunction<GraphQuery,GraphQuery
     public transient volatile Collector<GraphQuery> out = null; // On each process updated
     public ArrayList<BaseAggregator> aggFunctions = null; // Serialized and sent over network
 
+    public GraphStorage(BasePart part) {
+    }
+
     /**
      * Main function for sending output to next operator
      * @param e

@@ -2,7 +2,7 @@ from storage.linked_list_storage import LinkedListStorage
 from pyflink.datastream import ProcessFunction
 from copy import copy
 from traceback import print_exc
-from exceptions import NotSupported, AggregatorExistsException, GraphElementNotFound
+from exceptions import *
 from elements import ElementTypes, Op, IterationState
 from typing import TYPE_CHECKING, Dict
 from elements import GraphQuery
@@ -21,7 +21,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
         self.position = position  # Is this GraphStorageProcess the last one in the pipeline
         self.layers = layers  # Is this GraphStorageProcess the last one in the pipeline
-        self.late_syncs = dict()
+
 
     @property
     def is_last(self):
@@ -109,6 +109,8 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
             print("Graph Element Not Found Exception", value.op)
         except NotSupported:
             print("We do not support such message type")
+        except CreateElementFailException:
+            print("Failed to create element exception")
         except Exception as e:
             print_exc()
         while len(self.out):

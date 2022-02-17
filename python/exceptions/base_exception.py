@@ -24,3 +24,7 @@ class FeatureExistsException(Exception):
 
 class NestedFeaturesException(Exception):
     pass
+
+
+class CreateElementFailException(Exception):
+    pass

@@ -42,6 +42,8 @@ def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destinatio
             elif __destination is RPCDestination.CUSTOM:
                 parts = __parts
             for i in parts:
+                if i == self.part_id and query.iteration_state is IterationState.ITERATE:
+                    fn(self, *args, **kwargs)
                 self.storage.message(query_for_part(query, i))
 
         return wrapper

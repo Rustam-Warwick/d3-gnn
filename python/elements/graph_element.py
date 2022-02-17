@@ -3,7 +3,7 @@ import copy
 from abc import ABCMeta
 from enum import Enum
 from typing import TYPE_CHECKING, Tuple, Dict
-from exceptions import GraphElementNotFound
+from exceptions import GraphElementNotFound, CreateElementFailException
 
 if TYPE_CHECKING:
     from storage.gnn_layer import GNNLayerProcess
@@ -160,7 +160,6 @@ class GraphElement(metaclass=ABCMeta):
         for key in self.deep_copy_fields:
             if key in self.__dict__.keys():
                 setattr(result, key, copy.deepcopy(self.__dict__[key]))
-        result.storage = self.storage
         return result
 
     def __copy__(self):
@@ -229,10 +228,11 @@ class GraphElement(metaclass=ABCMeta):
 
         if self.storage:
             # Setting element which is attached to graph storage
-            if value.create_element():
+            if self.get(key) is None:
+                # Really does not exist
+                if not value.create_element():
+                    raise CreateElementFailException
                 self._features[key] = value
-            else:
-                self[key]
         else:
             self._features[key] = value
 
