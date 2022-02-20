@@ -22,7 +22,6 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
         self.position = position  # Is this GraphStorageProcess the last one in the pipeline
         self.layers = layers  # Is this GraphStorageProcess the last one in the pipeline
 
-
     @property
     def is_last(self):
         return self.position >= self.layers

@@ -23,7 +23,7 @@ class Partitioner(Pr):
         return key
 
 
-class KeySelector(Ky):
+class MyKeySelector(Ky):
     def get_key(self, value: "GraphQuery"):
         return value.part
 

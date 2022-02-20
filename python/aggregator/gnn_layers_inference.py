@@ -1,6 +1,8 @@
 import abc
 
 import jax
+
+from exceptions import GraphElementNotFound
 from decorators import rpc
 from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState, IterationState, RPCDestination
@@ -36,8 +38,15 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def forward(self, vertex_id, feature):
-        vertex = self.storage.get_vertex(vertex_id)
-        vertex['feature'].update_value(feature)  # Update value
+        try:
+            vertex = self.storage.get_vertex(vertex_id)
+            vertex['feature'].update_value(feature)  # Update value
+        except GraphElementNotFound:
+            vertex = BaseVertex(master=self.part_id)
+            vertex.id = vertex_id
+            vertex['feature'] = TensorReplicableFeature(value=feature)
+            vertex.attach_storage(self.storage)
+            vertex.create_element()
 
     def run(self, query: "GraphQuery", *args, **kwargs):
         """ Take in the incoming aggregation result and add it to the storage engine, rest is in callbacks """
@@ -47,9 +56,9 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     @staticmethod
     def init_vertex(vertex):
         """ Initialize default aggregator and feature per vertex """
+        vertex['agg'] = JACMeanAggregatorReplicableFeature(tensor=jnp.zeros((32,), dtype=jnp.float32), is_halo=True)
         vertex['feature'] = TensorReplicableFeature(
             value=jnp.zeros((7,), dtype=jnp.float32))
-        vertex['agg'] = JACMeanAggregatorReplicableFeature(tensor=jnp.zeros((32,), dtype=jnp.float32), is_halo=True)
 
     def add_element_callback(self, element: "GraphElement"):
         super(BaseStreamingGNNInference, self).add_element_callback(element)
@@ -60,27 +69,30 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
             if element.source.is_initialized and element.destination.is_initialized:
-                pass
-        if element.element_type is ElementTypes.FEATURE and element.field_name == '':
-            pass
+                agg: "AggregatorFeatureMixin" = element.destination['agg']
+                msg = self.message(element.source['feature'].value)
+                agg.reduce(msg)
+        if element.element_type is ElementTypes.FEATURE and (element.field_name == 'feature' or element.field_name == 'agg'):
+            if element.element.get('agg') and element.element.get('feature'):
+                self.reduce_all_edges(element.element.id, __call=True)  # Reduce all edges that were here before
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         super(BaseStreamingGNNInference, self).update_element_callback(element, old_element)
-        # if element.element_type is ElementTypes.FEATURE:
-        #     element: "ReplicableFeature"
-        #     old_element: "ReplicableFeature"
-        #     if element.field_name == 'feature':
-        #         # Genuine update on feature, update all the previous aggregations
-        #         self.update_out_edges(element, old_element.value)
-        #         if element.state is ReplicaState.MASTER:
-        #             embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
-        #             self.forward(element.id, embedding)
-        #     if element.field_name == 'agg' and element.state is not ReplicaState.MASTER:
-        #         print("Not Master but still update why ??? ")
-        #     if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
-        #         # Generate new embedding for the node & send to master part of the next layer
-        #         embedding = self.update(element.element['feature'].value, element.element['agg'].value[0])
-        #         self.forward(element.element.id, embedding)
+        if element.element_type is ElementTypes.FEATURE:
+            element: "ReplicableFeature"
+            old_element: "ReplicableFeature"
+            if element.field_name == 'feature':
+                # Genuine update on feature, update all the previous aggregations
+                self.update_out_edges(element, old_element.value)
+                if element.state is ReplicaState.MASTER:
+                    embedding = self.update(element.value, element.element['agg'].value[0])
+                    self.forward(element.element.id, embedding)
+            if element.field_name == 'agg' and element.state is not ReplicaState.MASTER:
+                print("Not Master but still update why ??? ")
+            if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
+                # Generate new embedding for the node & send to master part of the next layer
+                embedding = self.update(element.element['feature'].value, element.value[0])
+                self.forward(element.element.id, embedding)
 
     def update_out_edges(self, vertex: "BaseVertex", old_feature: jnp.array):
         """ Updates the aggregations using all incident edges """
@@ -88,7 +100,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         msg_old = self.message(old_feature)
         for edge in edge_list:
             try:
-                if not edge.source.get("feature") or not edge.destination.get("agg"): continue
+                if not edge.source.is_initialized or not edge.destination.is_initialized: continue
                 msg_new = self.message(edge.source['feature'].value)
                 agg: "AggregatorFeatureMixin" = edge.destination['agg']
                 agg.replace(msg_new, msg_old)
@@ -103,7 +115,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         exchanges = []
         for edge in in_edge_list:
             try:
-                if not edge.source.get("feature") or not edge.destination.get("agg"): continue
+                if not edge.source.is_initialized or not edge.destination.is_initialized: continue
                 if edge.destination == vertex:
                     msg = self.message(edge.source['feature'].value)
                     exchanges.append(msg)
@@ -126,8 +138,10 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         self['message_params'] = JaxParamsFeature(value=message_fn_params)  # message params
         self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
 
+
     def message(self, source_feature: jnp.array):
         return self.message_fn.apply(self['message_params'].value, source_feature)
+
 
     def update(self, source_feature: jnp.array, agg: jnp.array):
         conc = jnp.concatenate((source_feature, agg))

@@ -4,6 +4,8 @@ from abc import ABCMeta
 from typing import Sequence
 import jax.numpy
 import numpy
+import optax
+
 from decorators import rpc
 from aggregator import BaseAggregator
 from aggregator.gnn_output_inference import BaseStreamingOutputPrediction
@@ -15,7 +17,7 @@ from copy import copy
 class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=3, epochs=5, *args, **kwargs):
+    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=5, epochs=5, *args, **kwargs):
         super(BaseStreamingOutputTraining, self).__init__(element_id="trainer", *args, **kwargs)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
@@ -42,7 +44,8 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
             el = copy(query.element)
             el.attach_storage(self.storage)
             el.create_element()
-        el.external_update(query.element)
+        else:
+            el.external_update(query.element)
 
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         super(BaseStreamingOutputTraining, self).update_element_callback(element, old_element)
@@ -62,18 +65,18 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
 class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
     def __init__(self, *args, **kwargs):
         super(StreamingOutputTrainingJAX, self).__init__(*args, **kwargs)
-        self.learning_rate = 0.04
+        self.learning_rate = 0.01
 
     def open(self, *args, **kwargs):
         super(StreamingOutputTrainingJAX, self).open(*args, **kwargs)
 
     def loss(self, parameters, embedding, label):
         prediction = self.inference_agg.predict_fn.apply(parameters, embedding)
-        return -jax.numpy.sum(label * jax.numpy.log(prediction))
+        return optax.softmax_cross_entropy(prediction, label)
 
     def batch_loss(self, parameters, batch_embeddings, batch_labels):
         losses = jax.vmap(self.loss, (None, 0, 0))(parameters, batch_embeddings, batch_labels)
-        return jax.numpy.sum(losses)
+        return jax.numpy.mean(losses)
 
     def train(self, vertices: Sequence["BaseVertex"]):
         # @todo Sometimes the gradients are becoming zero, why it is happening, double-check
@@ -87,7 +90,8 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         loss, grad_fn = jax.vjp(lambda_wrapper, self.inference_agg['predict_params'].value,
                                 batch_embeddings)  # Grad of [
         # parameters, inputs]
-        print("Loss is {%s}" % (loss))
+        print("Loss is {%s}" % loss)
+        # print("Loss is {%s}" % loss)
         predict_grads, embedding_grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
         self.inference_agg['predict_params'].update(predict_grads)  # Apply the updates for model parameters
         self.backward(vertex_ids, embedding_grads)

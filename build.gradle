@@ -1,54 +1,27 @@
 plugins {
-    id 'java'
+    id 'java-library'
 }
 
 group 'org.example'
 version '1.0-SNAPSHOT'
-def mainClassName = "StreamPartitionTest"
+//def mainClassName = "StreamPartitionTest"
 
 repositories {
     mavenCentral()
 }
 
-
-
 dependencies {
     implementation 'org.jetbrains:annotations:20.1.0'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
-    compileOnly([
-    ])
     implementation([
-            'com.esotericsoftware:kryo:4.0.0',
-            'com.googlecode.json-simple:json-simple:1.1.1',
-            'org.apache.flink:flink-clients_2.11:1.14.0',
-            'org.apache.flink:flink-streaming-java_2.11:1.14.0',
-//        'org.deeplearning4j:deeplearning4j-core:1.0.0-M1.1',
-            'org.apache.flink:flink-statebackend-rocksdb_2.11:1.14.0',
-            'org.nd4j:nd4j-native-platform:1.0.0-M1.1',
-            'org.deeplearning4j:deeplearning4j-utility-iterators:1.0.0-M1.1',
-            'org.nd4j:nd4j-kryo_2.11:1.0.0-M1.1',
-            'org.tensorflow:tensorflow-core-platform:0.3.3',
-
+            'org.apache.flink:flink-streaming-java_2.12:1.14.3',
+            'org.apache.flink:flink-python_2.12:1.14.3',
+            'org.apache.flink:flink-ml-iteration_2.12:2.0.0'
     ])
-//    constraints{
-//        implementation('') {
-//            because 'There are bugs in declaring Generics'
-//        }
-//    }
 }
-
-jar{
+tasks.named('jar') {
     manifest {
-        attributes 'Main-Class': "$mainClassName"
+        attributes('Automatic-Module-Name': 'org.apache.flink.rustam.gnn')
     }
-
-    from {
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    duplicatesStrategy("exclude")
-}
-
-test {
-    useJUnitPlatform()
 }

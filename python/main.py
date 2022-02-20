@@ -1,11 +1,11 @@
-
 from jax import lax, random, numpy as jnp
-from flax.linen import relu, softmax, sigmoid
+from flax.linen import relu, log_softmax, sigmoid
 from nn.jax.multi_layer_dense import MultiLayerDense
 from datastream import GraphStream
 from pyflink.datastream import StreamExecutionEnvironment, DataStream, MapFunction
 
 from storage.gnn_layer import GNNLayerProcess
+from storage.keyed_gnn_layer import KeyedGNNLayerProcess
 from partitioner import RandomPartitioner
 from aggregator.gnn_layers_inference import StreamingGNNInferenceJAX
 from aggregator.gnn_layers_training import StreamingLayerTrainingJAX
@@ -13,6 +13,7 @@ from aggregator.gnn_output_inference import StreamingOutputPredictionJAX
 from aggregator.gnn_output_training import StreamingOutputTrainingJAX
 from helpers.streaming_train_splitter import StreamingTrainSplitter
 from helpers.socketmapper import EdgeListParser
+
 
 def run():
     message_fn = MultiLayerDense(features=[32, 64, 32], activations=[relu, relu, relu])
@@ -26,7 +27,7 @@ def run():
                                           update_fn_params=update_fn_params,
                                           element_id="gnn_layer"
                                           )
-    predict_fn = MultiLayerDense(features=[16, 32, 7], activations=[relu, relu, softmax])
+    predict_fn = MultiLayerDense(features=[16, 32, 7], activations=[relu, relu, None])
     predict_fn_params = predict_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (7,)))
 
     output_predictor = StreamingOutputPredictionJAX(
@@ -42,19 +43,18 @@ def run():
     graphstream.train_test_split(StreamingTrainSplitter(0.05))
 
     graphstream.gnn_layer(
-        GNNLayerProcess().with_aggregator(inferencer).with_aggregator(
+        KeyedGNNLayerProcess().with_aggregator(inferencer).with_aggregator(
             StreamingLayerTrainingJAX(inference_agg=inferencer)))
     graphstream.gnn_layer(
-        GNNLayerProcess().with_aggregator(inferencer).with_aggregator(
+        KeyedGNNLayerProcess().with_aggregator(inferencer).with_aggregator(
             StreamingLayerTrainingJAX(inference_agg=inferencer)))
 
     graphstream.training_inference_layer(
-        GNNLayerProcess().
+        KeyedGNNLayerProcess().
             with_aggregator(output_predictor).
             with_aggregator(StreamingOutputTrainingJAX(inference_agg=output_predictor))
     )
 
-    graphstream.last.print()
     print(graphstream.env.get_execution_plan())
     graphstream.env.execute("Test Python job")
 

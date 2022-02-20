@@ -1,16 +1,14 @@
 import abc
+import copy
 from abc import ABCMeta
 from aggregator import BaseAggregator
 from elements import GraphQuery, RPCDestination, IterationState
+from elements.vertex import BaseVertex
 from elements.element_feature.jax_params import JaxParamsFeature
 from elements.element_feature.tensor_feature import TensorReplicableFeature
-from copy import copy
+from decorators import rpc
 from exceptions import GraphElementNotFound
-from typing import TYPE_CHECKING
 from flax.linen import Module
-
-if TYPE_CHECKING:
-    from elements.vertex import BaseVertex
 
 
 class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
@@ -23,15 +21,18 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     def run(self, *args, **kwargs):
         pass
 
+    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.ITERATE)
     def forward(self, vertex_id, feature):
         try:
             vertex = self.storage.get_vertex(vertex_id)
-            vertex['feature'].update_value(feature)  # Update value
+            copy_vertex = copy.copy(vertex)
+            copy_vertex['feature'] = TensorReplicableFeature(value=feature)
+            vertex.update_element(copy_vertex)
         except GraphElementNotFound:
             vertex = BaseVertex(master=self.part_id)
             vertex.id = vertex_id
-            vertex.attach_storage(self.storage)
             vertex['feature'] = TensorReplicableFeature(value=feature)
+            vertex.attach_storage(self.storage)
             vertex.create_element()
 
 

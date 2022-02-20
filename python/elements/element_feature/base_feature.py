@@ -23,12 +23,14 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         super(ReplicableFeature, self).__init__(element_id=element_id, *args, **kwargs)
 
     def create_element(self) -> bool:
-        is_created = super(ReplicableFeature, self).create_element()
-        if self.attached_to[0] is not ElementTypes.NONE:
-            # Independent feature behave just like ReplicableGraphElements
+        if self.attached_to[0] is ElementTypes.NONE:
+            is_created = super(ReplicableFeature, self).create_element()
+        else:
             if self.element is None:
                 # Make sure that element is here
                 self.element = self.storage.get_element_by_id(self.attached_to[1])
+            # Independent feature behave just like ReplicableGraphElements
+            is_created = GraphElement.create_element(self)
             if is_created:
                 if self.state is ReplicaState.MASTER: self.sync_replicas(skip_halos=False)
         return is_created
