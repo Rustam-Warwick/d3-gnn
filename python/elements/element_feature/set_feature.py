@@ -6,7 +6,7 @@ import collections
 class SetFeatureMixin:
 
     @rpc()
-    def add(self, element, part_id=None) -> bool:
+    def add(self, element, part_id, part_version) -> bool:
         my_set: set = self.value
         is_changed = False
         if element not in my_set: is_changed = True

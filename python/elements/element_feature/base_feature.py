@@ -43,7 +43,7 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         return is_updated, memento
 
     @rpc()
-    def update_value(self, value, part_id=None):
+    def update_value(self, value, part_id, part_version):
         """ Rpc call to update the value field """
         self._value = value
 

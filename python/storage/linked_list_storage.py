@@ -98,6 +98,10 @@ class LinkedListStorage(BaseStorage):
         except KeyError:
             raise GraphElementNotFound
 
+    def get_vertices(self) -> Iterator["BaseVertex"]:
+        vertex_ids_translated = self.vertex_table.keys()
+        return list(map(lambda x: self.get_vertex(self.reverse_translation_table[x]), vertex_ids_translated))
+
     def get_aggregator(self, element_id: str, with_features: bool = False) -> "BaseAggregator":
         try:
             int_id = self.translation_table[element_id]

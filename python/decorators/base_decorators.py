@@ -22,9 +22,10 @@ def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destinatio
 
             if "part_id" not in kwargs:
                 kwargs['part_id'] = self.part_id
+            if 'part_version' not in kwargs:
+                kwargs['part_version'] = self.storage.part_version
 
             if __call is True:
-
                 return fn(self, *args, **kwargs)
             remote_fn = Rpc(fn, self, is_procedure, *args, **kwargs)  # External Call
             query = GraphQuery(op=Op.RPC, element=remote_fn)
@@ -42,7 +43,8 @@ def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destinatio
                 parts = __parts
             for i in parts:
                 if i == self.part_id and query.iteration_state is IterationState.ITERATE:
-                    fn(self, *args, **kwargs)
+                    self(remote_fn)
+                    continue
                 self.storage.message(query_for_part(query, i))
 
         return wrapper

@@ -15,7 +15,7 @@ if __name__ == "__main__":
                 (clientConnected, clientAddress) = socketServer.accept();
                 line = f.readline()
                 while line:
-                    time.sleep(0.01)
+                    time.sleep(1)
                     print(line)
                     clientConnected.send(line.encode())
                     line = f.readline()

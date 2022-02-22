@@ -56,6 +56,11 @@ class BaseStorage(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
+    def get_vertices(self) -> Iterator["BaseVertex"]:
+        """ Return Iterator over all vertices """
+        pass
+
+    @abc.abstractmethod
     def get_edge(self, element_id: str, with_features: bool = False) -> "BaseEdge":
         """ Return Edge of ElementNotFound Exception """
         pass

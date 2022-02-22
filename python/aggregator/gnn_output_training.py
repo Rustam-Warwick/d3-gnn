@@ -30,12 +30,12 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
         pass
 
     @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.SELF)
-    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id):
+    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id, part_version):
         """ Since this is the starting point and it is being sent backwards no implementation needed for this """
         pass
 
     @rpc(is_procedure=True)
-    def update_model(self, update_grad_acc, part_id):
+    def update_model(self, update_grad_acc, part_id, part_version):
         self.msg_received.add(part_id)
         self.predict_grad_list.append(update_grad_acc)
         if len(self.msg_received) == self.storage.parallelism:

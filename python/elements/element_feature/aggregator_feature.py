@@ -58,13 +58,20 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
             return
 
         # Otherwise, append 0 to the tensor
-        stored_value = [tensor, 0, set()]  # Represents (tensor, number_of_elements)
+        stored_value = [tensor, 0, dict()]  # Represents (tensor, number_of_elements)
         super(JACMeanAggregatorReplicableFeature, self).__init__(*args, value=stored_value, **kwargs)
 
     @rpc()
-    def reduce(self, new_element: "jnp.array", part_id, count=1):
+    def reduce(self, new_element: "jnp.array", part_id, part_version, count=1):
         """ Supports Bulk Reduce with 1 sync. step """
-        self._value[2].add(part_id)
+        was_ready = self.is_ready()
+        self._value[2][part_id] = max(self._value[2].get(part_id, 0), part_version)
+        is_ready = self.is_ready()
+        if was_ready and not is_ready:
+            # New versions are coming in
+            self._value[0] = jax.numpy.zeros_like(self._value[0])
+            self._value[1] = 0
+
         if self._value[1] == 0:
             # First element addition
             self._value[1] += count
@@ -85,11 +92,11 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
         self.reduce(summed_aggregations, len(new_elements))  # This one is the RPC Call
 
     @rpc()
-    def revert(self, deleted_tensor: "jnp.array", part_id):
+    def revert(self, deleted_tensor: "jnp.array", part_id, part_version):
         pass
 
     @rpc()
-    def replace(self, new_tensor: jnp.array, old_tensor: jnp.array, part_id):
+    def replace(self, new_tensor: jnp.array, old_tensor: jnp.array, part_id, part_version):
         self._value[2].add(part_id)
         if self._value[1] == 0:
             print("Something wrong replace came with empty aggregator")
@@ -110,7 +117,11 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
             self.replace(new_array_sum, old_array_sum)  # This one is the RPC call
 
     def is_ready(self) -> bool:
-        return len(self._value[2]) == (len(self.replica_parts) + 1)
+        max_seen_version = self._value[2].get(self.part_id, 0)
+        for from_part in self.replica_parts:
+            part_version = self._value[2].get(from_part, 0)
+            if part_version > max_seen_version: return False
+        return True
 
     def reset(self):
         pass

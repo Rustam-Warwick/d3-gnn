@@ -36,7 +36,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         pass
 
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
-    def forward(self, vertex_id, feature, part_id):
+    def forward(self, vertex_id, feature, part_id, part_version):
         try:
             vertex = self.storage.get_vertex(vertex_id)
             vertex['feature'].update_value(feature)  # Update value
@@ -57,13 +57,13 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     def add_element_callback(self, element: "GraphElement"):
         super(BaseStreamingGNNInference, self).add_element_callback(element)
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
-            self.init_vertex(element) # Initialize vertex features locally in the master part
+            self.init_vertex(element)  # Initialize vertex features locally in the master part
 
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"
             if element.source.is_initialized and element.destination.is_initialized:
                 agg: "AggregatorFeatureMixin" = element.destination['agg']
-                msg = self.message(element.source['feature'].value, self['message_params'].value)
+                msg = self.message(element.source['feature'].value, self['params'].value[0])
                 agg.reduce(msg)
 
         if element.element_type is ElementTypes.FEATURE and (
@@ -81,32 +81,53 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                 self.update_out_edges(element, old_element.value)
                 if element.state is ReplicaState.MASTER:
                     if element.element['agg'].is_ready():
-                        embedding = self.update(element.value, element.element['agg'].value[0], self['update_params'].value)
+                        embedding = self.update(element.value, element.element['agg'].value[0], self['params'].value[1])
                         self.forward(element.element.id, embedding)
             if element.field_name == 'agg' and element.state is ReplicaState.MASTER:
                 # Generate new embedding for the node & send to master part of the next laye
                 if element.is_ready():
-                    embedding = self.update(element.element['feature'].value, element.value[0], self['update_params'].value)
+                    embedding = self.update(element.element['feature'].value, element.value[0], self['params'].value[1])
                     self.forward(element.element.id, embedding)
-            if element.field_name == 'message_params':
+            if element.field_name == 'params':
+                # Start the re-inference pipeline Per each vertex that is call reset on local aggregator Have concept
+                # of model versioning and use them to decide if the incoming messages use the latest model or not
+                self.storage.part_version += 1
+                vertices = self.storage.get_vertices()
+                for vertex in vertices:
+                    if vertex.is_initialized is False:
+                        continue
+                    self.reduce_in_edges(vertex)
                 pass
-                # @todo Implement new feature generation based on the updated model value
 
     def update_out_edges(self, vertex: "BaseVertex", old_feature: jnp.array):
         """ Updates the aggregations using all incident edges """
         edge_list = self.storage.get_incident_edges(vertex, edge_type="out")  # In Edges, can do bulk update
-        msg_old = self.message(old_feature, self['message_params'].value)
+        msg_old = self.message(old_feature, self['params'].value[0])
         for edge in edge_list:
             try:
                 if not edge.source.is_initialized or not edge.destination.is_initialized: continue
-                msg_new = self.message(edge.source['feature'].value, self['message_params'].value)
+                msg_new = self.message(edge.source['feature'].value, self['params'].value[0])
                 agg: "AggregatorFeatureMixin" = edge.destination['agg']
                 agg.replace(msg_new, msg_old)
             except KeyError:
                 pass
 
+    def reduce_in_edges(self, vertex: "BaseVertex"):
+        """ Updates the aggregations using all incident edges """
+        edge_list = self.storage.get_incident_edges(vertex, edge_type="in")  # In Edges, can do bulk update
+        exchanges = []
+        for edge in edge_list:
+            try:
+                if not edge.source.is_initialized or not edge.destination.is_initialized: continue
+                msg = self.message(edge.source['feature'].value, self['params'].value[0])
+                exchanges.append(msg)
+            except KeyError:
+                pass
+        agg: "AggregatorFeatureMixin" = vertex['agg']
+        agg.bulk_reduce(*exchanges)
+
     @rpc(is_procedure=True, destination=RPCDestination.CUSTOM, iteration=IterationState.ITERATE)
-    def reduce_all_edges(self, vertex_id: "BaseVertex", part_id):
+    def reduce_all_edges(self, vertex_id: "BaseVertex", part_id, part_version):
         """ Bulk Reduce all in-edges and individual reduce for out-edges """
         vertex = self.storage.get_vertex(vertex_id)
         in_edge_list = self.storage.get_incident_edges(vertex, "both")  # In Edges, can do bulk update
@@ -115,10 +136,10 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             try:
                 if not edge.source.is_initialized or not edge.destination.is_initialized: continue
                 if edge.destination == vertex:
-                    msg = self.message(edge.source['feature'].value, self['message_params'].value)
+                    msg = self.message(edge.source['feature'].value, self['params'].value[0])
                     exchanges.append(msg)
                 else:
-                    msg = self.message(edge.source['feature'].value, self['message_params'].value)
+                    msg = self.message(edge.source['feature'].value, self['params'].value[0])
                     agg: "AggregatorFeatureMixin" = edge.destination['agg']
                     agg.reduce(msg)
             except KeyError:
@@ -133,8 +154,8 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         super(StreamingGNNInferenceJAX, self).__init__(*args, **kwargs)
         self.message_fn: "Module" = message_fn
         self.update_fn: "Module" = update_fn
-        self['message_params'] = JaxParamsFeature(value=message_fn_params)  # message params
-        self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
+        self['params'] = JaxParamsFeature(value=(message_fn_params, update_fn_params))  # message params
+        # self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
 
     def message(self, source_feature: jnp.array, params):
         return self.message_fn.apply(params, source_feature)

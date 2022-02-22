@@ -17,6 +17,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         super(KeyedGNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.last_watermark = 0
+        self.part_version = 0
         self.part_id: int = -1  # Index of this parallel task
         self.parallelism: int = 0
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Tuple, Dict
 from exceptions import GraphElementNotFound, CreateElementFailException
 
 if TYPE_CHECKING:
-    from storage.gnn_layer import GNNLayerProcess
+    from storage.keyed_gnn_layer import KeyedGNNLayerProcess
     from elements.element_feature import ReplicableFeature
     from elements import Rpc
 
@@ -33,7 +33,7 @@ class GraphElement(metaclass=ABCMeta):
     def __init__(self, element_id: str = None, part_id=None, storage: "GNNLayerProcess" = None) -> None:
         self.id: str = element_id
         self.part_id: int = part_id  # None represents the part id of the storage engine
-        self.storage: "GNNLayerProcess" = storage  # Storage
+        self.storage: "KeyedGNNLayerProcess" = storage  # Storage
         self._features: Dict[str, "ReplicableFeature"] = dict()  # Cached version of the element features
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:

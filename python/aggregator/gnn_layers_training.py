@@ -2,6 +2,7 @@ import abc
 from abc import ABCMeta
 from typing import Sequence
 import jax.numpy
+import jax.tree_util
 from aggregator import BaseAggregator
 from aggregator.gnn_layers_inference import BaseStreamingGNNInference
 from elements import GraphElement, GraphQuery, IterationState, RPCDestination
@@ -15,27 +16,23 @@ class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
         super(BaseStreamingLayerTraining, self).__init__(element_id="trainer")
         self.inference_agg: "BaseStreamingGNNInference" = inference_agg  # Reference to inference. Created on open()
         self.epochs = epochs  # Number of epochs on batch of training should go
-        self.update_grad_acc = None
-        self.message_grad_acc = None
-        self.update_grad_list = []
-        self.message_grad_list = []
+        params_dict = self.inference_agg['params'].value
+        self.params_local_acc = list(jax.tree_map(lambda x: 0, params_dict))
+        self.params_grad_list = []
         self.msg_received = set()
 
     @rpc(is_procedure=True)
-    def update_model(self, update_grad_acc, message_grad_acc, part_id):
+    def update_model(self, param_acc: list, part_id, part_version):
+        """ Similar to how all-reduce works. Collect all the grads and then update the model grads """
         self.msg_received.add(part_id)
-        self.update_grad_list.append(update_grad_acc)
-        self.message_grad_list.append(message_grad_acc)
-
+        self.params_grad_list.append(tuple(param_acc))
         if len(self.msg_received) == self.storage.parallelism:
-            self.update_grad_list = list(filter(lambda x: x is not None, self.update_grad_list))
-            self.message_grad_list = list(filter(lambda x: x is not None, self.message_grad_list))
-            self.inference_agg['update_params'].batch_update(*self.update_grad_list)
-            self.inference_agg['message_params'].batch_update(*self.message_grad_list)
+            self.inference_agg['params'].batch_update(*self.params_grad_list)
             self.msg_received.clear()
-            self.update_grad_list.clear()
-            self.message_grad_list.clear()
-    
+            self.params_grad_list.clear()
+            print("Training loop done updating params")
+            # @todo Why so many params update when there was only 2 training loop done commands
+
     @abc.abstractmethod
     def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array):
         """ Since this is the starting point, and it is being sent backwards no implementation needed for this """
@@ -44,13 +41,11 @@ class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
 
 class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
     def on_watermark(self):
-        if self.storage.is_first:
-            self.update_model(self.update_grad_acc, self.message_grad_acc)
-            self.update_grad_acc = None
-            self.message_grad_acc = None
+        self.update_model(self.params_local_acc)
+        self.params_local_acc = list(jax.tree_map(lambda x: 0, self.params_local_acc))
 
     @rpc(is_procedure=True, iteration=IterationState.ITERATE, destination=RPCDestination.CUSTOM)
-    def msg_backward(self, vertex_ids: Sequence[str], msg_grad: jax.numpy.array, part_id):
+    def msg_backward(self, vertex_ids: Sequence[str], msg_grad: jax.numpy.array, part_id, part_version):
         """ Samples local in-edges of vertex_ids and backprops the message function """
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
         msg_grads = []  # Message Param Grads
@@ -71,13 +66,11 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
                 source_vertex_grads = in_feature_grad
             else:
                 source_vertex_grads = jax.numpy.concatenate((source_vertex_grads, in_feature_grad), axis=0)
+        # Update part
 
-        if self.message_grad_acc is None:
-            self.message_grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), *msg_grads)
-        else:
-            self.message_grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0),
-                                                      self.message_grad_acc,
-                                                      *msg_grads)
+        self.params_local_acc[0] = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0),
+                                                     self.params_local_acc[0],
+                                                     *msg_grads)
         # self.inference_agg['message_params'].batch_update(*msg_grads)  # Update message layer params
         if not self.storage.is_first:
             # If no more layer before this no need to send back
@@ -98,7 +91,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             pass
 
     @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.CUSTOM)
-    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array):
+    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id, part_version):
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
         batch_aggregations = jax.numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))
         batch_features = jax.numpy.vstack(list(map(lambda x: x['feature'].value, vertices)))
@@ -121,11 +114,9 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             self.msg_backward(*params, __parts=[part])
         self.msg_backward(vertex_ids, msg_grad, __call=True)  # Call directly master parts here
 
-        if self.update_grad_acc is None:
-            self.update_grad_acc = update_fn_grads
-        else:
-            self.update_grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0),
-                                                     self.update_grad_acc,
+        # Update part
+        self.params_local_acc[1] = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0),
+                                                     self.params_local_acc[1],
                                                      update_fn_grads)
         # self.inference_agg['update_params'].update(update_fn_grads)  # Apply the updates to update model parameters
         if not self.storage.is_first:

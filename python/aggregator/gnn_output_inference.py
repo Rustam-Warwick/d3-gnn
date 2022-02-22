@@ -22,7 +22,7 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
         pass
 
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.ITERATE)
-    def forward(self, vertex_id, feature, part_id):
+    def forward(self, vertex_id, feature, part_id, part_version):
         try:
             vertex = self.storage.get_vertex(vertex_id)
             copy_vertex = copy.copy(vertex)
