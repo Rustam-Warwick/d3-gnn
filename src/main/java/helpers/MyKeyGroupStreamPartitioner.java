@@ -8,6 +8,10 @@ import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.types.Row;
+
+import org.apache.flink.python.PythonFunctionRunner;
+import org.apache.flink.runtime.state.heap.HeapPriorityQueueSet;
+import org.apache.flink.streaming.api.operators.InternalTimerServiceImpl;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.streaming.runtime.partitioner.ConfigurableStreamPartitioner;
 import org.apache.flink.streaming.runtime.partitioner.StreamPartitioner;
@@ -17,7 +21,7 @@ import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.functions.python.KeyByKeySelector;
 import java.lang.reflect.Constructor;
 import java.util.Objects;
-import org.apache.flink.streaming.api.typeinfo.python.PickledByteArrayTypeInfo;
+
 
 public class MyKeyGroupStreamPartitioner extends StreamPartitioner<Row>
         implements ConfigurableStreamPartitioner {
@@ -52,7 +56,7 @@ public class MyKeyGroupStreamPartitioner extends StreamPartitioner<Row>
 
     @Override
     public SubtaskStateMapper getDownstreamSubtaskStateMapper() {
-        return SubtaskStateMapper.RANGE;
+        return SubtaskStateMapper.ARBITRARY;
     }
 
     @Override

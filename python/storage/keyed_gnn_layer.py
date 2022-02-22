@@ -16,6 +16,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
     def __init__(self, *args, position=1, layers=1, **kwargs):
         super(KeyedGNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
+        self.last_watermark = 0
         self.part_id: int = -1  # Index of this parallel task
         self.parallelism: int = 0
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
@@ -59,14 +60,18 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         """ Yield message in this iteration """
         self.out.append(query)
 
+    def custom_on_watermark(self):
+        for agg in self.get_aggregators(): agg.on_watermark()
+
     def process_element(self, value: "GraphQuery", ctx: 'KeyedProcessFunction.Context'):
-        print(ctx.timer_service().current_watermark())
+        if ctx.timer_service().current_watermark() > self.last_watermark:
+            self.last_watermark = ctx.timer_service().current_watermark()
+            self.custom_on_watermark()
+        # ctx.timer_service().register_event_time_timer(0)
         if value.is_topology_change and not self.is_last:
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
             yield value
-        # if self.is_first:
-        #     self.debug_print("015889")
         try:
             if value.op is Op.RPC:
                 # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
@@ -104,5 +109,4 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
             print("Failed to create element exception")
         except Exception as e:
             print_exc()
-        while len(self.out):
-            yield self.out.pop(0)
+        yield from self.out

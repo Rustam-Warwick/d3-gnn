@@ -29,7 +29,6 @@ class BaseAggregator(ReplicableGraphElement, metaclass=ABCMeta):
     def element_type(self) -> ElementTypes:
         return ElementTypes.AGG
 
-    @abc.abstractmethod
     def run(self, *args, **kwargs):
         """ Called with query in *args, when there is associated AGG event coming in with corresponding aggregator
         name """
@@ -44,3 +43,6 @@ class BaseAggregator(ReplicableGraphElement, metaclass=ABCMeta):
         if element.element_type is ElementTypes.FEATURE and element.attached_to[1] == self.id:
             self._features[element.field_name] = element
             element.element = self
+
+    def on_watermark(self):
+        pass

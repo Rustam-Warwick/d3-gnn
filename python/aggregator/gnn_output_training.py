@@ -17,21 +17,32 @@ from copy import copy
 class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=5, epochs=5, *args, **kwargs):
+    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=5, *args, **kwargs):
         super(BaseStreamingOutputTraining, self).__init__(element_id="trainer", *args, **kwargs)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
         self.inference_agg: "BaseStreamingOutputPrediction" = inference_agg  # Reference to inference. Created on open()
-        self.epochs = epochs  # Number of epochs on batch of training should go
+        self.msg_received = set()
+        self.predict_grad_list = list()
 
     @abc.abstractmethod
     def train(self, vertices: Sequence["BaseVertex"]):
         pass
 
     @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.SELF)
-    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array):
+    def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id):
         """ Since this is the starting point and it is being sent backwards no implementation needed for this """
         pass
+
+    @rpc(is_procedure=True)
+    def update_model(self, update_grad_acc, part_id):
+        self.msg_received.add(part_id)
+        self.predict_grad_list.append(update_grad_acc)
+        if len(self.msg_received) == self.storage.parallelism:
+            self.predict_grad_list = list(filter(lambda x: x is not None, self.predict_grad_list))
+            self.inference_agg['predict_params'].batch_update(*self.predict_grad_list)
+            self.msg_received.clear()
+            self.predict_grad_list.clear()
 
     def run(self, query: "GraphQuery", **kwargs):
         vertex: "BaseVertex" = query.element
@@ -66,12 +77,15 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
     def __init__(self, *args, **kwargs):
         super(StreamingOutputTrainingJAX, self).__init__(*args, **kwargs)
         self.learning_rate = 0.01
+        self.grad_acc = None # Holding the accumulator for the gradients
 
-    def open(self, *args, **kwargs):
-        super(StreamingOutputTrainingJAX, self).open(*args, **kwargs)
+    def on_watermark(self):
+        if self.storage.is_first:
+            self.update_model(self.grad_acc)
+            self.grad_acc = None
 
     def loss(self, parameters, embedding, label):
-        prediction = self.inference_agg.predict_fn.apply(parameters, embedding)
+        prediction = self.inference_agg.predict(embedding, parameters)
         return optax.softmax_cross_entropy(prediction, label)
 
     def batch_loss(self, parameters, batch_embeddings, batch_labels):
@@ -93,5 +107,10 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         print("Loss is {%s}" % loss)
         # print("Loss is {%s}" % loss)
         predict_grads, embedding_grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
-        self.inference_agg['predict_params'].update(predict_grads)  # Apply the updates for model parameters
+        if self.grad_acc is None:
+            self.grad_acc = predict_grads
+        else:
+            self.grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), self.grad_acc,
+                                              predict_grads)
+        # self.inference_agg['predict_params'].update(predict_grads)  # Apply the updates for model parameters
         self.backward(vertex_ids, embedding_grads)

@@ -4,7 +4,6 @@ from elements import ReplicaState, GraphQuery, Op, IterationState, query_for_par
 from elements.rpc import RPCDestination
 
 if TYPE_CHECKING:
-    from storage import BaseStorage
     from elements import GraphElement
 
 
@@ -18,16 +17,16 @@ def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destinatio
     """
 
     def result(fn):
-        def wrapper(self: "GraphElement", *args, __call=False, __iteration=iteration, __destination=destination, __parts=[], **kwargs):
+        def wrapper(self: "GraphElement", *args, __call=False, __iteration=iteration, __destination=destination,
+                    __parts=[], **kwargs):
+
+            if "part_id" not in kwargs:
+                kwargs['part_id'] = self.part_id
+
             if __call is True:
+
                 return fn(self, *args, **kwargs)
             remote_fn = Rpc(fn, self, is_procedure, *args, **kwargs)  # External Call
-            # if __iteration is IterationState.ITERATE and __destination is RPCDestination.MASTER and self.state is ReplicaState.MASTER:
-            #     return self(remote_fn)
-            #
-            # if __iteration is IterationState.ITERATE and __destination is RPCDestination.SELF:
-            #     return self(remote_fn)
-
             query = GraphQuery(op=Op.RPC, element=remote_fn)
             query.iteration_state = __iteration
             parts = []

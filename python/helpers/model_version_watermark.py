@@ -6,7 +6,6 @@ from pyflink.common.watermark_strategy import WatermarkStrategy, Duration, Times
 class MyTimestampAssigner(TimestampAssigner):
 
     def extract_timestamp(self, value: Any, record_timestamp: int) -> int:
-        print(record_timestamp)
         return max(record_timestamp + 1, 0)
 
 

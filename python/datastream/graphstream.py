@@ -23,7 +23,7 @@ class GraphStream:
         # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
         self.env.set_max_parallelism(self.PARALLELISM)
-        self.env.get_config().set_auto_watermark_interval(1000) # Retraining each 10000 seconds
+        self.env.get_config().set_auto_watermark_interval(5000) # Retraining each 10000 seconds
         self.position_index = 1
         self.last: "DataStream" = None  # Last DataStream in this pipeline
         self.train_stream: "DataStream" = None
@@ -60,10 +60,13 @@ class GraphStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate filed """
         storageProcess.layers = self.LAYERS
         storageProcess.position = self.position_index
+        if self.position_index == 1:
+            self.last = self.last.assign_timestamps_and_watermarks(MyWaterMarkStrategy.for_periodic_retraining())
         self.position_index += 1
         last = self.last
         iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
         ds = key_by_custom(DataStream(iterator))
+
         st = ds.process(storageProcess).name("GNN Process")
         iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
         continue_filter = st.filter(lambda x: x.iterate is False).name("Next layer Filter")
@@ -107,4 +110,3 @@ class GraphStream:
             "Normal Data")
         self.train_stream = splitter.filter(lambda x: (x.op is Op.AGG and x.aggregator_name == '3trainder')).name(
             "Training Data")
-        self.last = self.last.assign_timestamps_and_watermarks(MyWaterMarkStrategy.for_periodic_retraining())

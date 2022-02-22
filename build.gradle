@@ -17,7 +17,9 @@ dependencies {
     implementation([
             'org.apache.flink:flink-streaming-java_2.12:1.14.3',
             'org.apache.flink:flink-python_2.12:1.14.3',
-            'org.apache.flink:flink-ml-iteration_2.12:2.0.0'
+            'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
+            'org.apache.flink:flink-ml-core_2.12:2.0.0',
+            'org.apache.flink:flink-ml-lib_2.12:2.0.0'
     ])
 }
 tasks.named('jar') {

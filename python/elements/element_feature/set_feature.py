@@ -6,7 +6,7 @@ import collections
 class SetFeatureMixin:
 
     @rpc()
-    def add(self, element) -> bool:
+    def add(self, element, part_id=None) -> bool:
         my_set: set = self.value
         is_changed = False
         if element not in my_set: is_changed = True
@@ -14,7 +14,7 @@ class SetFeatureMixin:
         return is_changed
 
     @rpc()
-    def remove(self, element) -> bool:
+    def remove(self, element, part_id=None) -> bool:
         my_set: set = self.value
         is_changed = False
         if element in is_changed: is_changed = True

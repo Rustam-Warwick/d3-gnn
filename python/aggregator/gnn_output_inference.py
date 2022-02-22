@@ -15,14 +15,14 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
     @abc.abstractmethod
-    def predict(self, vertex):
+    def predict(self, feature, *args, **kwargs):
         pass
 
     def run(self, *args, **kwargs):
         pass
 
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.ITERATE)
-    def forward(self, vertex_id, feature):
+    def forward(self, vertex_id, feature, part_id):
         try:
             vertex = self.storage.get_vertex(vertex_id)
             copy_vertex = copy.copy(vertex)
@@ -43,6 +43,5 @@ class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
         # attached to one element
         self['predict_params'] = JaxParamsFeature(value=predict_fn_params)
 
-    def predict(self, vertex):
-        feature = vertex['feature'].value
-        return self.predict_fn.apply(self['predict_params'].value, feature)
+    def predict(self, feature, params):
+        return self.predict_fn.apply(params, feature)
