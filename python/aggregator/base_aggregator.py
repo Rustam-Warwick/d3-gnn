@@ -46,3 +46,26 @@ class BaseAggregator(ReplicableGraphElement, metaclass=ABCMeta):
 
     def on_watermark(self):
         pass
+
+    def __copy__(self):
+        """ Use parent __copy__ but persist all local information """
+        element = super(BaseAggregator, self).__copy__()
+        copy_dict = self.__dict__.copy()
+        copy_dict.update(element.__dict__)
+        element.__dict__.update(copy_dict)
+        return element
+
+    def __deepcopy__(self, memodict={}):
+        """ Use parent __deepcopy__ but persist all local information """
+        element = super(BaseAggregator, self).__deepcopy__()
+        copy_dict = self.__dict__.copy()
+        copy_dict.update(element.__dict__)
+        element.__dict__.update(copy_dict)
+        return element
+
+    def __getstate__(self):
+        """ Use parent __getstate__ but persist all local information """
+        state = super(BaseAggregator, self).__getstate__()
+        copy_dict = self.__dict__.copy()
+        copy_dict.update(state)
+        return copy_dict

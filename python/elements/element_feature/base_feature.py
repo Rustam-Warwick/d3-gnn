@@ -14,7 +14,6 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
         Most of its features are combing from the associated GraphElement, whereas an ElementFeature is also a GraphElement
         @todo make this generic maybe ? To infer weather it is replicable or not: Hard to do without overheads
     """
-    deep_copy_fields = ("_value",)  # Only deep copy _value if needed rest is just reference attachment
 
     def __init__(self, element: "GraphElement" = None, element_id: str = None, value: object = None, *args, **kwargs):
         self._value = value
@@ -24,12 +23,12 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
 
     def create_element(self) -> bool:
         if self.attached_to[0] is ElementTypes.NONE:
+            # Independent feature behave just like ReplicableGraphElements
             is_created = super(ReplicableFeature, self).create_element()
         else:
             if self.element is None:
                 # Make sure that element is here
                 self.element = self.storage.get_element_by_id(self.attached_to[1])
-            # Independent feature behave just like ReplicableGraphElements
             is_created = GraphElement.create_element(self)
             if is_created:
                 if self.state is ReplicaState.MASTER: self.sync_replicas(skip_halos=False)
@@ -58,23 +57,8 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
             is_updated = not self._value_eq_(self._value, new_element._value)
         if is_updated:
             self._value = new_element._value
-            self.integer_clock = max(new_element.integer_clock, self.integer_clock)
             self.storage.update_element(self)
             self.storage.for_aggregator(lambda x: x.update_element_callback(self, memento))
-        return is_updated, memento
-
-    def sync_element(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
-        """ If directly syncing this feature parent vertex should also be updated """
-        is_updated, memento = super(ReplicableFeature, self).sync_element(new_element)
-        if is_updated and self.element is not None:
-            self.storage.update_element(self.element)
-        return is_updated, memento
-
-    def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
-        """ We need to save the .element since integer_clock might change as well """
-        is_updated, memento = super(ReplicableFeature, self).external_update(new_element)
-        if is_updated and self.element is not None:
-            self.storage.update_element(self.element)
         return is_updated, memento
 
     @abc.abstractmethod
@@ -117,31 +101,10 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
             return self.element.replica_parts
         return super(ReplicableFeature, self).replica_parts
 
-    @property
-    def is_halo(self) -> bool:
-        return super(ReplicableFeature, self).is_halo
-
-    def get_integer_clock(self):
-        if self.element:
-            return self.element.get_integer_clock()
-        return super(ReplicableFeature, self).get_integer_clock()
-
-    def set_integer_clock(self, value: int):
-        if self.element:
-            self.element.set_integer_clock(value)
-            return
-        super(ReplicableFeature, self).set_integer_clock(value)
-
-    def del_integer_clock(self):
-        if self.element:
-            self.element.del_integer_clock()
-            return
-        super(ReplicableFeature, self).del_integer_clock()
-
-    integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
-
     def sync_replicas(self, part_id=None, skip_halos=True):
         """ Make sure is_halo Features send None and _value  """
+        if self.state is not ReplicaState.MASTER or (skip_halos and self.is_halo) or (len(
+                self.replica_parts) == 0 and not part_id): return
         if self.attached_to[0] is ElementTypes.NONE:
             super(ReplicableFeature, self).sync_replicas(part_id, skip_halos)
         else:
@@ -169,6 +132,22 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
             return super(ReplicableFeature, self).__getitem__(item)
         else:
             raise NestedFeaturesException
+
+    def __deepcopy__(self, memodict={}):
+        element = super(ReplicableFeature, self).__copy__()
+        element.__dict__.update({
+            "_value": copy.deepcopy(self._value),
+            "element": copy.copy(self.element)
+        })
+        return element
+
+    def __copy__(self):
+        element = super(ReplicableFeature, self).__copy__()
+        element.__dict__.update({
+            "_value": self._value,
+            "element": copy.copy(self.element)
+        })
+        return element
 
     def __getstate__(self):
         """ Fill in from the state """

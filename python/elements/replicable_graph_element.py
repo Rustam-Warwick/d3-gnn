@@ -14,7 +14,6 @@ class ReplicableGraphElement(GraphElement):
     def __init__(self, element_id: str = None, master: int = None, is_halo=False, *args, **kwargs):
         super(ReplicableGraphElement, self).__init__(element_id=element_id, *args, **kwargs)
         self._master = master  # Part_id of the master
-        self._clock = 0  # Integer Clock
         self._halo = is_halo  # If this only a stub for master
 
     def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
@@ -47,10 +46,6 @@ class ReplicableGraphElement(GraphElement):
             return False, self
         elif self.state is ReplicaState.REPLICA:
             # Commit the update to replica
-            if new_element.integer_clock <= self.integer_clock:
-                # Old version exception
-                # @todo I hope this is fine that I have cases where it enters here, not very often but still
-                return False, self
             return self.update_element(new_element)
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
@@ -72,7 +67,8 @@ class ReplicableGraphElement(GraphElement):
 
     def sync_replicas(self, part_id=None, skip_halos=True):
         """ Sending this element to all or some replicas. This element is shallow copied for operability """
-        if self.state is not ReplicaState.MASTER or (skip_halos and self.is_halo) or len(self.replica_parts) == 0: return
+        if self.state is not ReplicaState.MASTER or (skip_halos and self.is_halo) or (len(
+                self.replica_parts) == 0 and not part_id): return
         self.cache_features()
         cpy_self = copy(self)
         cpy_self._features.clear()
@@ -97,17 +93,6 @@ class ReplicableGraphElement(GraphElement):
     def master_part(self) -> int:
         return self._master
 
-    def get_integer_clock(self):
-        return self._clock
-
-    def set_integer_clock(self, value: int):
-        self._clock = value
-
-    def del_integer_clock(self):
-        del self._clock
-
-    integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
-
     @property
     def is_halo(self) -> bool:
         return self._halo
@@ -126,12 +111,27 @@ class ReplicableGraphElement(GraphElement):
     def is_replicable(self) -> bool:
         return True
 
+    def __copy__(self):
+        element = super(ReplicableGraphElement, self).__copy__()
+        element.__dict__.update({
+            "_master": self.master_part,
+            "_halo": self.is_halo
+        })
+        return element
+
+    def __deepcopy__(self, memodict={}):
+        element = super(ReplicableGraphElement, self).__deepcopy__()
+        element.__dict__.update({
+            "_master": self.master_part,
+            "_halo": self.is_halo
+        })
+        return element
+
     def __getstate__(self):
         """ No need to serialize the parts """
         state = super(ReplicableGraphElement, self).__getstate__()
         state.update({
             "_master": self.master_part,
-            "_clock": self.integer_clock,
             "_halo": self.is_halo
         })
         return state
@@ -140,7 +140,6 @@ class ReplicableGraphElement(GraphElement):
         metadata = super(ReplicableGraphElement, self).__get_save_data__()
         metadata.update({
             "_master": self.master_part,
-            "_clock": self.integer_clock,
             "_halo": self.is_halo
         })
         return metadata

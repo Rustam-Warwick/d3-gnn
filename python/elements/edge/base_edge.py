@@ -38,10 +38,24 @@ class BaseEdge(GraphElement):
         self.destination.detach_storage()
         super(BaseEdge, self).detach_storage()
 
+    def __deepcopy__(self, memodict={}):
+        element = super(BaseEdge, self).__deepcopy__()
+        element.source = self.source
+        element.destination = self.destination
+        return element
+
+    def __copy__(self):
+        element = super(BaseEdge, self).__copy__()
+        element.source = self.source
+        element.destination = self.destination
+        return element
+
     def __getstate__(self):
         state = super(BaseEdge, self).__getstate__()
-        state['source'] = self.source
-        state['destination'] = self.destination
+        state.update({
+            "source": self.source,
+            "destination": self.destination
+        })
         return state
 
     @property

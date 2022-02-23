@@ -27,7 +27,7 @@ def run():
                                           update_fn_params=update_fn_params,
                                           element_id="gnn_layer"
                                           )
-    predict_fn = MultiLayerDense(features=[16, 32, 7], activations=[relu, relu, None])
+    predict_fn = MultiLayerDense(features=[16, 32, 7], activations=[relu, relu, relu])
     predict_fn_params = predict_fn.init(random.PRNGKey(0), random.uniform(random.PRNGKey(0), (7,)))
 
     output_predictor = StreamingOutputPredictionJAX(
@@ -40,7 +40,7 @@ def run():
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
          "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
-    graphstream.train_test_split(StreamingTrainSplitter(0.05))
+    graphstream.train_test_split(StreamingTrainSplitter(0.1))
 
     graphstream.gnn_layer(
         KeyedGNNLayerProcess().with_aggregator(inferencer).with_aggregator(

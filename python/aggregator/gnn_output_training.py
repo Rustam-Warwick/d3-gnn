@@ -17,7 +17,7 @@ from copy import copy
 class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=5, *args, **kwargs):
+    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=2, *args, **kwargs):
         super(BaseStreamingOutputTraining, self).__init__(element_id="trainer", *args, **kwargs)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
@@ -49,20 +49,34 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
         ft = vertex['feature']
         vertex._features.clear()
         vertex['feature_label'] = ft
-        el = self.storage.get_element(query.element, False)
+        el = self.storage.get_element(vertex, False)
         if el is None:
             # Late Event
-            el = copy(query.element)
+            el = vertex
             el.attach_storage(self.storage)
             el.create_element()
         else:
             el.external_update(query.element)
 
+    def add_element_callback(self, element: "GraphElement"):
+        super(BaseStreamingOutputTraining, self).add_element_callback(element)
+        if element.element_type is ElementTypes.FEATURE:
+            if element.element.id not in self.ready and element.element.get('feature_label') and element.element.get(
+                    'feature'):
+                self.ready.add(element.element.id)
+                self.start_training_if_batch_filled()
+
     def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
         super(BaseStreamingOutputTraining, self).update_element_callback(element, old_element)
-        if element.element_type is ElementTypes.VERTEX and element.id not in self.ready:
-            if element.get('feature') and element.get('feature_label'):  # If both labels and predictions exist
+        if element.element_type is ElementTypes.VERTEX:
+            if element.id not in self.ready and element.get('feature') and element.get('feature_label'):
                 self.ready.add(element.id)
+                self.start_training_if_batch_filled()
+        if element.element_type is ElementTypes.FEATURE and element.field_name == 'feature':
+            # Feature update
+            if element.element.id not in self.ready and element.element.get('feature_label') and element.element.get(
+                    'feature'):
+                self.ready.add(element.element.id)
                 self.start_training_if_batch_filled()
 
     def start_training_if_batch_filled(self):
@@ -77,12 +91,12 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
     def __init__(self, *args, **kwargs):
         super(StreamingOutputTrainingJAX, self).__init__(*args, **kwargs)
         self.learning_rate = 0.01
-        self.grad_acc = None # Holding the accumulator for the gradients
+        params_dict = self.inference_agg['predict_params'].value
+        self.grad_acc = jax.tree_map(lambda x: jax.numpy.zeros_like(x), params_dict)
 
     def on_watermark(self):
-        if self.storage.is_first:
-            self.update_model(self.grad_acc)
-            self.grad_acc = None
+        self.update_model(self.grad_acc)
+        self.grad_acc = jax.tree_map(lambda x: jax.numpy.zeros_like(x), self.grad_acc)
 
     def loss(self, parameters, embedding, label):
         prediction = self.inference_agg.predict(embedding, parameters)
@@ -107,10 +121,7 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         print("Loss is {%s}" % loss)
         # print("Loss is {%s}" % loss)
         predict_grads, embedding_grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
-        if self.grad_acc is None:
-            self.grad_acc = predict_grads
-        else:
-            self.grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), self.grad_acc,
-                                              predict_grads)
+        self.grad_acc = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), self.grad_acc,
+                                          predict_grads)
         # self.inference_agg['predict_params'].update(predict_grads)  # Apply the updates for model parameters
         self.backward(vertex_ids, embedding_grads)

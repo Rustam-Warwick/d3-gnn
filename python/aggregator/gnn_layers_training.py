@@ -17,7 +17,7 @@ class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
         self.inference_agg: "BaseStreamingGNNInference" = inference_agg  # Reference to inference. Created on open()
         self.epochs = epochs  # Number of epochs on batch of training should go
         params_dict = self.inference_agg['params'].value
-        self.params_local_acc = list(jax.tree_map(lambda x: 0, params_dict))
+        self.params_local_acc = jax.tree_map(lambda x: jax.numpy.zeros_like(x), params_dict)
         self.params_grad_list = []
         self.msg_received = set()
 
@@ -42,7 +42,7 @@ class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
 class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
     def on_watermark(self):
         self.update_model(self.params_local_acc)
-        self.params_local_acc = list(jax.tree_map(lambda x: 0, self.params_local_acc))
+        self.params_local_acc = jax.tree_map(lambda x: jax.numpy.zeros_like(x), self.params_local_acc)
 
     @rpc(is_procedure=True, iteration=IterationState.ITERATE, destination=RPCDestination.CUSTOM)
     def msg_backward(self, vertex_ids: Sequence[str], msg_grad: jax.numpy.array, part_id, part_version):
@@ -57,9 +57,9 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
                 filter(lambda edge: edge.source.get('feature'), in_edges))  # Pick edges which have features
             if len(in_edges) == 0: continue
             in_features = jax.numpy.vstack([e.source["feature"].value for e in in_edges])
-            loss, grad_fn = jax.vjp(jax.vmap(self.inference_agg.message, [0, None]),
-                                    in_features, self.inference_agg['message_params'].value)
-            message_grad, in_feature_grad = grad_fn(jax.numpy.tile(msg_grad[i], (len(in_edges), 1)))
+            loss, grad_fn = jax.vjp(jax.vmap(self.inference_agg.message, [0, None]), in_features,
+                                    self.inference_agg['params'].value[0])
+            in_feature_grad, message_grad  = grad_fn(jax.numpy.tile(msg_grad[i], (len(in_edges), 1)))
             msg_grads.append(message_grad)
             source_vertices.extend([e.source for e in in_edges])
             if source_vertex_grads is None:
@@ -96,8 +96,8 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
         batch_aggregations = jax.numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))
         batch_features = jax.numpy.vstack(list(map(lambda x: x['feature'].value, vertices)))
         loss, grad_fn = jax.vjp(jax.vmap(self.inference_agg.update, (0, 0, None)),
-                                batch_aggregations, batch_features, self.inference_agg['update_params'].value)
-        update_fn_grads, agg_grad, feature_grad = grad_fn(grad_vector)
+                                batch_features, batch_aggregations, self.inference_agg['params'].value[1])
+        feature_grad, agg_grad, update_fn_grads = grad_fn(grad_vector)
 
         msg_grad = jax.numpy.vstack(
             [vertex['agg'].grad(agg_grad[ind]) for ind, vertex in enumerate(vertices)])  # dloss/dmessage

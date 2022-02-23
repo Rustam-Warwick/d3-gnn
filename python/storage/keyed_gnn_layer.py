@@ -17,7 +17,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         super(KeyedGNNLayerProcess, self).__init__(*args, **kwargs)
         self.out: list = list()  # List storing the message to be sent
         self.last_watermark = 0
-        self.part_version = 0
+        self.part_version = 1
         self.part_id: int = -1  # Index of this parallel task
         self.parallelism: int = 0
         self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
@@ -70,9 +70,15 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
             self.custom_on_watermark()
         # ctx.timer_service().register_event_time_timer(0)
         if value.is_topology_change and not self.is_last:
+            el = value
+            if self.is_first:
+                """ Clear all the feature they should reside only in the layer """
+                el = copy(value)
+                el.element = copy(el.element)
+                el.element._features.clear()
             # Redirect to the next operator.
             # Should be here so that subsequent layers have received updated topology state before any other thing
-            yield value
+            yield el
         try:
             if value.op is Op.RPC:
                 # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
@@ -111,3 +117,4 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         except Exception as e:
             print_exc()
         yield from self.out
+        self.out.clear()

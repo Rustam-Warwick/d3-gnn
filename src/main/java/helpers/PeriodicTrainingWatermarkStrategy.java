@@ -9,7 +9,7 @@ public class PeriodicTrainingWatermarkStrategy<T> implements WatermarkStrategy<T
 
 
     public class PeriodicTrainingWatermarkGenerator<T> implements WatermarkGenerator<T> {
-        int modelVersion = 0;
+        public int modelVersion = 0;
         @Override
         public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
 
@@ -32,4 +32,3 @@ public class PeriodicTrainingWatermarkStrategy<T> implements WatermarkStrategy<T
         return WatermarkStrategy.super.createTimestampAssigner(context);
     }
 }
-

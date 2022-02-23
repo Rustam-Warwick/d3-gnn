@@ -27,8 +27,6 @@ class ElementTypes(Enum):
 
 class GraphElement(metaclass=ABCMeta):
     """GraphElement is the main parent class of all Vertex, Edge, Feature classes"""
-    deep_copy_fields = ()  # Fields to be copied during deepcopy
-    copy_fields = ("_features",)  # Fields to be copied during copy
 
     def __init__(self, element_id: str = None, part_id=None, storage: "GNNLayerProcess" = None) -> None:
         self.id: str = element_id
@@ -45,11 +43,9 @@ class GraphElement(metaclass=ABCMeta):
         else:
             # Non-procedure RPCs do change the state of element so need to be handled carefully
             # @todo deep_copy might throw errors when trying to call rpc for anything other than Feature
-            new_element = copy.deepcopy(self)
-            if not getattr(new_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs):
-                return False, self
-            new_element.integer_clock += 1  # Increment integer clock just in case it is actually updated
-            return self.update_element(new_element)
+            copy_element = copy.deepcopy(self)
+            getattr(copy_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+            return self.update_element(copy_element)
 
     def create_element(self) -> bool:
         """ Save this Graph Element in storage """
@@ -81,7 +77,6 @@ class GraphElement(metaclass=ABCMeta):
                 GraphElement.create_element(value)  # Omit all Replication Stuff
                 is_updated |= True
         if is_updated:
-            self.integer_clock = max(new_element.integer_clock, self.integer_clock)
             self.storage.update_element(self)
             self.storage.for_aggregator(lambda x: x.update_element_callback(self, memento))
         return is_updated, memento
@@ -92,7 +87,6 @@ class GraphElement(metaclass=ABCMeta):
 
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         """ Unconditional Update function """
-        self.integer_clock += 1
         return self.update_element(new_element)
 
     def __iter__(self) -> Dict[str, "GraphElement"]:
@@ -130,67 +124,54 @@ class GraphElement(metaclass=ABCMeta):
         return list()
 
     @property
-    def is_initialized(self) -> bool:
-        """ Initialized means that it is safe to use the features and data in this element """
-        return self.state is ReplicaState.MASTER or self.integer_clock > 0
-
-    @property
     def is_halo(self) -> bool:
         return False
-
-    def get_integer_clock(self):
-        return 1
-
-    def set_integer_clock(self, value: int):
-        pass
-
-    def del_integer_clock(self):
-        pass
-
-    integer_clock = property(get_integer_clock, set_integer_clock, del_integer_clock)
 
     def __eq__(self, other):
         return self.id == other.id
 
     def __deepcopy__(self, memodict={}):
+        """ Deep copy need to be subclassed """
         cls = self.__class__
         result = cls.__new__(cls)
-        memodict[id(self)] = result
-        result.__dict__.update(self.__getstate__())
-        for key in self.deep_copy_fields:
-            if key in self.__dict__.keys():
-                setattr(result, key, copy.deepcopy(self.__dict__[key]))
+        result.__dict__.update({
+            "id": self.id,
+            "storage": self.storage,
+            "part_id": self.part_id,
+            "_features": self._features.copy(),
+        })
         return result
 
     def __copy__(self):
-        """
-            Using get_state to populated newly created element
-            storage, element will be undefined
-         """
+        """ Shallow copy """
         cls = self.__class__
         result = cls.__new__(cls)
-        result.__dict__.update(self.__getstate__())
-        for key in self.copy_fields:
-            if key in self.__dict__.keys():
-                setattr(result, key, copy.copy(self.__dict__[key]))
+        result.__dict__.update({
+            "id": self.id,
+            "storage": self.storage,
+            "part_id": self.part_id,
+            "_features": self._features.copy(),
+        })
         return result
 
     def __setstate__(self, state: dict):
-        """ Set the object values from the state dict, used for deserialization """
+        """ Set state used for de-serialization with python """
         if "_features" in state:
             for i in state['_features'].values():
                 #  Add element to element_feature
-                if isinstance(i, GraphElement) and i.element_type == ElementTypes.FEATURE:
+                if i.element_type == ElementTypes.FEATURE:
                     i.element = self
         self.__dict__.update(state)
 
     def __getstate__(self):
-        """ Serialization, remove storage reference. <id, part_id, _features>.
-            Note that _features which are fetched from storage are going to be serialized
+        """ Get state for serialization with python
          """
-        res = self.__dict__.copy()
-        res['storage'] = None
-        return res
+        return {
+            "id": self.id,
+            "storage": None,
+            "part_id": self.part_id,
+            "_features": self._features,
+        }
 
     def __get_save_data__(self):
         return {}

@@ -1,7 +1,7 @@
 from pyflink.datastream import MapFunction, RuntimeContext
 from elements.vertex import BaseVertex
 from elements.edge import BaseEdge
-from elements.element_feature.tensor_feature import TensorReplicableFeature
+from elements.element_feature.tensor_feature import VersionedTensorReplicableFeature, TensorReplicableFeature
 from elements import GraphQuery, Op
 import jax.numpy as jnp
 from typing import Dict, List
@@ -36,6 +36,6 @@ class EdgeListParser(MapFunction):
             source_id = values[0]
             category = self.one_hot_encoding[values[1]]
             vertex = BaseVertex(element_id=source_id)
-            vertex['feature'] = TensorReplicableFeature(value=category)
+            vertex['feature'] = VersionedTensorReplicableFeature(value=category)
             query = GraphQuery(Op.UPDATE, vertex)
         return query
