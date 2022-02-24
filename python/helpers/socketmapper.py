@@ -31,11 +31,11 @@ class EdgeListParser(MapFunction):
             a = BaseVertex(element_id=values[0])
             b = BaseVertex(element_id=values[1])
             edge = BaseEdge(src=a, dest=b)
-            query = GraphQuery(Op.ADD, edge)
+            query = GraphQuery(Op.ADDUPDATE, edge)
         except Exception:
             source_id = values[0]
             category = self.one_hot_encoding[values[1]]
             vertex = BaseVertex(element_id=source_id)
             vertex['feature'] = VersionedTensorReplicableFeature(value=category)
-            query = GraphQuery(Op.UPDATE, vertex)
+            query = GraphQuery(Op.ADDUPDATE, vertex)
         return query

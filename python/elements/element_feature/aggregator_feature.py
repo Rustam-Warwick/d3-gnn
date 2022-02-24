@@ -121,6 +121,7 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
         return min_seen == max_seen
 
     def reset(self):
+        """ Reseting aggregator to initial state """
         self._value[0] = jax.numpy.zeros_like(self._value[0])
         self._value[1] = 0
 
@@ -130,5 +131,5 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
 
     def grad(self, grad_agg: jnp.array):
         if self._value[1] == 0:
-            return jax.numpy.zeros_like(grad_agg)
+            return grad_agg
         return grad_agg / self._value[1]

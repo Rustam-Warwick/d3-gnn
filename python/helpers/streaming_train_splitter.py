@@ -12,7 +12,7 @@ class StreamingTrainSplitter(MapFunction):
         self.l = l
 
     def map(self, value: "GraphQuery") -> "GraphQuery":
-        if value.op is Op.UPDATE and value.element.element_type is ElementTypes.VERTEX:
+        if value.op is Op.ADDUPDATE and value.element.element_type is ElementTypes.VERTEX:
             n = random()
             if n < self.l:
                 # Interpret this as training data

@@ -18,12 +18,12 @@ class GraphStream:
         self.LAYERS = LAYERS
         self.env: StreamExecutionEnvironment = StreamExecutionEnvironment.get_execution_environment()
         self.env.add_classpaths(
-            "file:///home/rustambaku13/Documents/Warwick/flink-streaming-gnn/build/libs/Flink-Partitioningrg.bytedeco.openblas.platform {-1.0-SNAPSHOT.jar")
+            "file:///home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/helpers/Flink-Partitioningrg.bytedeco.openblas.platform {-1.0-SNAPSHOT.jar")
 
         # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
         self.env.set_max_parallelism(self.PARALLELISM)
-        self.env.get_config().set_auto_watermark_interval(60000)  # Retraining each 10000 seconds
+        self.env.get_config().set_auto_watermark_interval(120000)  # Retraining each 10000 seconds
         self.position_index = 1
         self.last: "DataStream" = None  # Last DataStream in this pipeline
         self.train_stream: "DataStream" = None
@@ -60,22 +60,23 @@ class GraphStream:
         """ Add Storage engine as well as iteration with 2 filters. Iteration depends on @GraphQuery.iterate filed """
         storageProcess.layers = self.LAYERS
         storageProcess.position = self.position_index
-        if self.position_index == 1:
-            self.last = self.last.assign_timestamps_and_watermarks(MyWaterMarkStrategy.for_periodic_retraining())
-        self.position_index += 1
+        slot_group = "inference" + str(self.position_index)
+
         last = self.last
-        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
+        iterator = last._j_data_stream.iterate().name("Self Iteration Source").slotSharingGroup(slot_group)  # Java Class need to somehow handle it
         ds = key_by_custom(DataStream(iterator))
 
-        st = ds.process(storageProcess).name("GNN Process")
-        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
+        st = ds.process(storageProcess).name("GNN Process").slot_sharing_group(slot_group)
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter").slot_sharing_group(slot_group)
         continue_filter = st.filter(lambda x: x.iterate is False).name("Next layer Filter")
         if self.iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
-            self.iterator.closeWith(back_filter._j_data_stream)
-        iterator.closeWith(iterate_filter._j_data_stream)
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter").slot_sharing_group("inference"+str(self.position_index - 1))
+            self.iterator.closeWith(back_filter._j_data_stream).slotSharingGroup("inference"+str(self.position_index - 1))
+        iterator.closeWith(iterate_filter._j_data_stream).slotSharingGroup(slot_group)
         self.last = continue_filter
         self.iterator = iterator
+
+        self.position_index += 1
         return self.last
 
     def training_inference_layer(self, storageProcess: "GNNLayerProcess"):
@@ -86,26 +87,26 @@ class GraphStream:
         storageProcess.layers = self.LAYERS
         storageProcess.position = self.position_index
         last = self.last.union(self.train_stream)
-
+        slot_group = "training" + str(self.position_index)
         # layer and training samples
-        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
+        iterator = last._j_data_stream.iterate().name("Self Iteration Source").slotSharingGroup(slot_group)  # Java Class need to somehow handle it
         ds = DataStream(iterator)
         keyed_ds = key_by_custom(ds)
-        st = keyed_ds.process(storageProcess).name("Training Process")
-        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
+        st = keyed_ds.process(storageProcess).name("Training Process").slot_sharing_group(slot_group)
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter").slot_sharing_group(slot_group)
         continue_filter = st.filter(lambda x: x.iterate is False).name("Next Layer Filter")
         if self.iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
-            self.iterator.closeWith(back_filter._j_data_stream)
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter").slot_sharing_group("inference"+str(self.position_index - 1))
+            self.iterator.closeWith(back_filter._j_data_stream).slotSharingGroup("inference"+str(self.position_index - 1))
 
-        iterator.closeWith(iterate_filter._j_data_stream)
+        iterator.closeWith(iterate_filter._j_data_stream).slotSharingGroup(slot_group)
 
         self.last = continue_filter
         self.iterator = None
         return self.last
 
     def train_test_split(self, splitter: "MapFunction"):
-        splitter = self.last.map(splitter)
+        splitter = self.last.map(splitter).assign_timestamps_and_watermarks(MyWaterMarkStrategy.for_periodic_retraining())
         self.last = splitter.filter(lambda x: not (x.op is Op.AGG and x.aggregator_name == '3trainer')).name(
             "Normal Data")
         self.train_stream = splitter.filter(lambda x: (x.op is Op.AGG and x.aggregator_name == '3trainer')).name(

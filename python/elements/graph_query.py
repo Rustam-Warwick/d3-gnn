@@ -9,7 +9,7 @@ class Op(Enum):
     NONE = 0  # Not useful
     ADD = 1  # Element being added
     REMOVE = 2  # Element being removed
-    UPDATE = 3  # Element being updated
+    ADDUPDATE = 3  # Element being updated
     SYNC = 4  # Replicated Element being Synced i.e. Master - Replica communication within 1 parallel instance
     RPC = 5  # RPC Call
     AGG = 6  # Call for some attached function aggregator .run() method
@@ -35,7 +35,7 @@ class GraphQuery:
 
     @property
     def is_topology_change(self):
-        return self.op is Op.ADD or self.op is Op.REMOVE
+        return self.op is Op.ADDUPDATE or self.op is Op.REMOVE
 
     def get_iteration_state(self) -> IterationState:
         if self.iterate is False:

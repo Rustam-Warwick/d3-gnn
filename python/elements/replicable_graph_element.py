@@ -51,7 +51,7 @@ class ReplicableGraphElement(GraphElement):
     def external_update(self, new_element: "GraphElement") -> Tuple[bool, "GraphElement"]:
         if self.state is ReplicaState.REPLICA:
             # External Updates only done in master part
-            query = GraphQuery(Op.UPDATE, new_element, self.master_part, True)
+            query = GraphQuery(Op.ADDUPDATE, new_element, self.master_part, True)
             self.storage.message(query)
             return False, self
         elif self.state is ReplicaState.MASTER:

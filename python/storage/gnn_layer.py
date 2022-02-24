@@ -98,7 +98,7 @@ class GNNLayerProcess(LinkedListStorage, ProcessFunction):
                     el = self.get_element(value.element, False)
                 el.sync_element(value.element)
 
-            if value.op is Op.UPDATE:
+            if value.op is Op.ADDUPDATE:
                 # @todo This is never later because updates get distributed in partitioning stage
                 el = self.get_element(value.element)
                 el.external_update(value.element)

@@ -87,6 +87,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
                 element(el)
             if value.op is Op.ADD:
                 # because there might be late events it is always good to create element first
+                print("Deprecated")
                 value.element.attach_storage(self)
                 value.element.create_element()
             if value.op is Op.SYNC:
@@ -98,7 +99,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
                     el = self.get_element(value.element)
                 el.sync_element(value.element)
 
-            if value.op is Op.UPDATE:
+            if value.op is Op.ADDUPDATE:
                 el = self.get_element(value.element, False)
                 if el is None:
                     el = copy(value.element)  # This copy is needed, so we don't lose the part_id after attach_storage
