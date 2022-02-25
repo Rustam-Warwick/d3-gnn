@@ -1,5 +1,5 @@
 import abc
-import copy
+import jax
 from abc import ABCMeta
 from aggregator import BaseAggregator
 from elements import GraphQuery, RPCDestination, IterationState, ElementTypes
@@ -21,7 +21,7 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     def run(self, *args, **kwargs):
         pass
 
-    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.ITERATE)
+    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def forward(self, vertex_id, feature, part_id, part_version):
         if part_version < self.storage.part_version:
             # Previous is behind ignore this message

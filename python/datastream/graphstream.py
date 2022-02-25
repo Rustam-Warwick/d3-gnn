@@ -23,7 +23,7 @@ class GraphStream:
         # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
         self.env.set_max_parallelism(self.PARALLELISM)
-        self.env.get_config().set_auto_watermark_interval(120000)  # Retraining each 10000 seconds
+        self.env.get_config().set_auto_watermark_interval(180000)  # Retraining each 10000 seconds
         self.position_index = 1
         self.last: "DataStream" = None  # Last DataStream in this pipeline
         self.train_stream: "DataStream" = None
@@ -63,16 +63,16 @@ class GraphStream:
         slot_group = "inference" + str(self.position_index)
 
         last = self.last
-        iterator = last._j_data_stream.iterate().name("Self Iteration Source").slotSharingGroup(slot_group)  # Java Class need to somehow handle it
+        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
         ds = key_by_custom(DataStream(iterator))
 
-        st = ds.process(storageProcess).name("GNN Process").slot_sharing_group(slot_group)
-        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter").slot_sharing_group(slot_group)
+        st = ds.process(storageProcess).name("GNN Process")
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
         continue_filter = st.filter(lambda x: x.iterate is False).name("Next layer Filter")
         if self.iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter").slot_sharing_group("inference"+str(self.position_index - 1))
-            self.iterator.closeWith(back_filter._j_data_stream).slotSharingGroup("inference"+str(self.position_index - 1))
-        iterator.closeWith(iterate_filter._j_data_stream).slotSharingGroup(slot_group)
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
+            self.iterator.closeWith(back_filter._j_data_stream)
+        iterator.closeWith(iterate_filter._j_data_stream)
         self.last = continue_filter
         self.iterator = iterator
 
@@ -89,17 +89,17 @@ class GraphStream:
         last = self.last.union(self.train_stream)
         slot_group = "training" + str(self.position_index)
         # layer and training samples
-        iterator = last._j_data_stream.iterate().name("Self Iteration Source").slotSharingGroup(slot_group)  # Java Class need to somehow handle it
+        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
         ds = DataStream(iterator)
         keyed_ds = key_by_custom(ds)
-        st = keyed_ds.process(storageProcess).name("Training Process").slot_sharing_group(slot_group)
-        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter").slot_sharing_group(slot_group)
+        st = keyed_ds.process(storageProcess).name("Training Process")
+        iterate_filter = st.filter(lambda x: x.iterate is True).name("Self Iteration Filter")
         continue_filter = st.filter(lambda x: x.iterate is False).name("Next Layer Filter")
         if self.iterator:
-            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter").slot_sharing_group("inference"+str(self.position_index - 1))
-            self.iterator.closeWith(back_filter._j_data_stream).slotSharingGroup("inference"+str(self.position_index - 1))
+            back_filter = st.filter(lambda x: x.iterate is None).name("Backward Iteration Filter")
+            self.iterator.closeWith(back_filter._j_data_stream)
 
-        iterator.closeWith(iterate_filter._j_data_stream).slotSharingGroup(slot_group)
+        iterator.closeWith(iterate_filter._j_data_stream)
 
         self.last = continue_filter
         self.iterator = None

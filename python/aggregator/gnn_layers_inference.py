@@ -1,7 +1,6 @@
 import abc
 
-import jax
-
+from jax import jit
 from exceptions import GraphElementNotFound
 from decorators import rpc
 from aggregator import BaseAggregator
@@ -42,13 +41,20 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
             # New embedding should come in soon
             pass
         else:
-            vertex = self.storage.get_vertex(vertex_id)
-            if vertex.get("feature"):
-                # Feature exists
-                vertex['feature'].version = part_version
-                vertex['feature'].update_value(feature)  # Update value
-            else:
+            try:
+                vertex = self.storage.get_vertex(vertex_id)
+                if vertex.get("feature"):
+                    # Feature exists
+                    vertex['feature'].version = part_version
+                    vertex['feature'].update_value(feature)  # Update value
+                else:
+                    vertex['feature'] = VersionedTensorReplicableFeature(value=feature, version=part_version)
+            except GraphElementNotFound:
+                vertex = BaseVertex(master=self.part_id)
+                vertex.id = vertex_id
                 vertex['feature'] = VersionedTensorReplicableFeature(value=feature, version=part_version)
+                vertex.attach_storage(self.storage)
+                vertex.create_element()
 
     def add_element_callback(self, element: "GraphElement"):
         super(BaseStreamingGNNInference, self).add_element_callback(element)
@@ -169,6 +175,7 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         self.update_fn: "Module" = update_fn
         self['params'] = JaxParamsFeature(value=[message_fn_params, update_fn_params])  # message params
         # self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
+
 
     def message(self, source_feature: jnp.array, params):
         return self.message_fn.apply(params, source_feature)
