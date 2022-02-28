@@ -1,5 +1,6 @@
 package elements;
 
+import iterations.IterationState;
 import scala.Tuple2;
 
 public class ReplicableGraphElement extends GraphElement {
@@ -26,6 +27,7 @@ public class ReplicableGraphElement extends GraphElement {
             }
             else{
                 // Send Query
+                this.storage.message(new GraphOp(Op.SYNC, this.masterPart(), this, IterationState.ITERATE));
             }
         }
         return is_created;
@@ -33,6 +35,25 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
-        return super.syncElement(newElement);
+        if(this.state() == ReplicaState.MASTER){
+
+
+        }else if(this.state() == ReplicaState.REPLICA){
+            return this.updateElement(newElement);
+        }
+
+        return super.syncElement(this);
+
+    }
+
+
+    @Override
+    public short masterPart() {
+        return this.master;
+    }
+
+    @Override
+    public Boolean isHalo() {
+        return this.halo;
     }
 }

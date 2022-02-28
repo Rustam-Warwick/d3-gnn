@@ -26,5 +26,16 @@ class JaxParamsFeature(ReplicableFeature, JaxParamMixin):
     def __init__(self, value: "FrozenDict" = None, *args, **kwargs):
         super(JaxParamsFeature, self).__init__(*args, value=value, **kwargs)
 
+    def equals(self, old_value: "FrozenDict", new_value: "FrozenDict") -> bool:
+        """ This is the actual compare function """
+        this_leaves = jax.tree_leaves(old_value)
+        old_leaves = jax.tree_leaves(new_value)
+        for i, arr in enumerate(this_leaves):
+            if not jax.numpy.array_equal(arr, old_leaves):
+                return False
+
+        return True
+
     def _value_eq_(self, old_value: "FrozenDict", new_value: "FrozenDict") -> bool:
+        """ Update should always happen to trigger the model version update """
         return False

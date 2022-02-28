@@ -29,6 +29,9 @@ class BaseAggregator(ReplicableGraphElement, metaclass=ABCMeta):
     def element_type(self) -> ElementTypes:
         return ElementTypes.AGG
 
+    def open(self, runtime_context):
+        pass
+
     def run(self, *args, **kwargs):
         """ Called with query in *args, when there is associated AGG event coming in with corresponding aggregator
         name """

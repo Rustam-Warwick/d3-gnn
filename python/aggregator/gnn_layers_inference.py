@@ -107,6 +107,12 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
                 # arrived earlier than this model syced with previous version
                 self.storage.part_version += 1
                 vertices = self.storage.get_vertices()
+                # if element.equals(element.value, old_element.value):
+                #     for vertex in vertices:
+                #         if vertex.get("feature"):
+                #             vertex['feature'].version = self.storage.part_version
+                #             self.storage.update_vertex(vertex)
+                # else:
                 for vertex in vertices:
                     self.reduce_in_edges(vertex)
 
@@ -175,7 +181,6 @@ class StreamingGNNInferenceJAX(BaseStreamingGNNInference):
         self.update_fn: "Module" = update_fn
         self['params'] = JaxParamsFeature(value=[message_fn_params, update_fn_params])  # message params
         # self['update_params'] = JaxParamsFeature(value=update_fn_params)  # update params
-
 
     def message(self, source_feature: jnp.array, params):
         return self.message_fn.apply(params, source_feature)

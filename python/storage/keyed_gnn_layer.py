@@ -53,6 +53,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         self.part_id = runtime_context.get_index_of_this_subtask()
         self.parallelism = runtime_context.get_number_of_parallel_subtasks()
         for agg in self.aggregators.values():
+            agg.open(runtime_context)
             agg_init(agg)
         del self.aggregators
         super(KeyedGNNLayerProcess, self).open(runtime_context)

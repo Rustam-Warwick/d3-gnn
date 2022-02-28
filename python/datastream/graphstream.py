@@ -23,7 +23,7 @@ class GraphStream:
         # self.env.get_config().disable_closure_cleaner()
         self.env.set_parallelism(self.PARALLELISM)
         self.env.set_max_parallelism(self.PARALLELISM)
-        self.env.get_config().set_auto_watermark_interval(180000)  # Retraining each 10000 seconds
+        self.env.get_config().set_auto_watermark_interval(200000)  # Retraining each 6 minutes
         self.position_index = 1
         self.last: "DataStream" = None  # Last DataStream in this pipeline
         self.train_stream: "DataStream" = None

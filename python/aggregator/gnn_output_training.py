@@ -17,11 +17,14 @@ from copy import copy
 class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     """ Base Class for GNN Final Layer when the predictions happen """
 
-    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=5, *args, **kwargs):
+    def __init__(self, inference_agg: "BaseStreamingOutputPrediction", batch_size=16, *args, **kwargs):
         super(BaseStreamingOutputTraining, self).__init__(element_id="trainer", *args, **kwargs)
         self.ready = set()  # Ids of vertices that have both features and labels, hence ready to be trained on
         self.batch_size = batch_size  # Size of self.ready when training should be triggered
         self.inference_agg: "BaseStreamingOutputPrediction" = inference_agg  # Reference to inference. Created on open()
+
+    # def open(self, runtime_context):
+    #     self.meter = runtime_context.get_metric_group().meter("loss", time_span_in_seconds=120)
 
     @abc.abstractmethod
     def update_model(self, grad_acc, *args, **kwargs):
@@ -120,8 +123,8 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         loss, grad_fn = jax.vjp(lambda p, e: self.batch_loss(p, e, batch_labels),
                                 self.inference_agg['params'].value,
                                 batch_embeddings)
+
         print("Loss is {%s}" % loss)
-        # print("Loss is {%s}" % loss)
         predict_grads, embedding_grads = jax.tree_map(lambda x: x * self.learning_rate, grad_fn(1.))
         if self.grad_acc is None:
             self.grad_acc = predict_grads

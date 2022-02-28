@@ -1,0 +1,28 @@
+package elements;
+
+import iterations.IterationState;
+
+public class GraphOp {
+    public Op op;
+    public short part_id = -1;
+    public GraphElement element;
+    public IterationState state = IterationState.FORWARD;
+
+    public GraphOp(Op op, short part_id, GraphElement element) {
+        this.op = op;
+        this.part_id = part_id;
+        this.element = element;
+    }
+
+    public GraphOp(Op op, short part_id, GraphElement element, IterationState state) {
+        this.op = op;
+        this.part_id = part_id;
+        this.element = element;
+        this.state = state;
+    }
+
+    public boolean isTopologyChange(){
+        return (this.op == Op.COMMIT || this.op == Op.REMOVE) && (this.element.elementType() == ElementType.EDGE) && (this.element.elementType() == ElementType.VERTEX);
+    }
+
+}

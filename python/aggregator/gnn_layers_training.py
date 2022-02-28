@@ -50,7 +50,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             update_grads = list(filter(lambda x: x is not None, map(lambda x: x[1], self.grad_list)))
             msg_grads.append(
                 jax.tree_multimap(lambda x: jax.numpy.zeros_like(x), self.inference_agg['params'].value[0]))
-            update_grads.append(
+            update_grads.append( 
                 jax.tree_multimap(lambda x: jax.numpy.zeros_like(x), self.inference_agg['params'].value[1]))
             sum_msgs = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), *msg_grads)
             sum_updates = jax.tree_multimap(lambda *x: jax.numpy.sum(jax.numpy.vstack(x), axis=0), *update_grads)
