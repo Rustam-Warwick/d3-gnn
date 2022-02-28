@@ -15,13 +15,14 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         super(id);
         this.value = value;
     }
-
-    public Feature(String id) {
+    public Feature(String id, Object value, boolean isHalo){
         super(id);
+        this.value = value;
     }
 
-    public Feature(String id, short part_id) {
+    public Feature(String id, Object value, short part_id) {
         super(id, part_id);
+        this.value = value;
     }
     // Main Logic
     @Override
@@ -42,7 +43,18 @@ public abstract class Feature<T> extends ReplicableGraphElement {
 
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        return super.updateElement(newElement);
+        boolean isUpdated;
+        Feature<T> memento = (Feature<T>) this.copy();
+        Feature<T> newFeature = (Feature<T>) newElement;
+        if(Objects.isNull(this.value) && Objects.isNull(newFeature.value)) isUpdated = false;
+        else if(Objects.isNull(this.value) || Objects.isNull(newFeature.value)) isUpdated = true;
+        else isUpdated = !this.valuesEqual(newFeature.value, this.value);
+        if(isUpdated){
+            this.value = newFeature.value;
+            this.storage.updateFeature(this);
+            this.storage.getAggregators().forEach(item->item.updateElementCallback(this,memento));
+        }
+        return new Tuple2<>(isUpdated, memento);
     }
 
 

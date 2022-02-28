@@ -1,9 +1,13 @@
 package elements;
 
+import features.SetFeature;
 import iterations.IterationState;
 import scala.Tuple2;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ReplicableGraphElement extends GraphElement {
     public short master = -1;
@@ -19,6 +23,8 @@ public class ReplicableGraphElement extends GraphElement {
 
     public ReplicableGraphElement(String id, short part_id, short master){super(id, part_id); this.master = master;}
 
+    public ReplicableGraphElement(String id, short part_id, short master, boolean isHalo){super(id, part_id); this.master = master; this.halo = isHalo;}
+
     @Override
     public Boolean createElement() {
         if (this.state() == ReplicaState.REPLICA){
@@ -28,7 +34,7 @@ public class ReplicableGraphElement extends GraphElement {
         if(is_created){
             if(this.state() == ReplicaState.MASTER){
                 // Add setFeature
-                // @todo add SetFeature here
+                this.setFeature(new SetFeature<Integer>("parts", new HashSet<>(Arrays.asList((int) this.partId))));
             }
             else{
                 // Send Query
@@ -41,7 +47,8 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if(this.state() == ReplicaState.MASTER){
-
+            SetFeature<Integer> tmp = (SetFeature<Integer>) this.getFeature("parts");
+            this.syncReplica(newElement.getPartId());
 
         }else if(this.state() == ReplicaState.REPLICA){
             return this.updateElement(newElement);
@@ -55,6 +62,7 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
         if(this.state() == ReplicaState.MASTER){
             Tuple2<Boolean, GraphElement> tmp = super.externalUpdate(newElement);
+            if(tmp._1)this.syncReplicas(true);
             return tmp;
         }
         else if(this.state() == ReplicaState.REPLICA){

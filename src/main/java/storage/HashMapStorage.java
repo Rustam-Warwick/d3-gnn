@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class HashMapStorage extends BaseStorage{
+public abstract class HashMapStorage extends BaseStorage{
     public MapState<String, Integer> translationTable;
     public MapState<Integer, String> reverseTranslationTable;
     public MapState<Integer, Vertex> vertexTable;
@@ -97,12 +97,26 @@ public class HashMapStorage extends BaseStorage{
 
     @Override
     public boolean updateFeature(Feature feature) {
-        return false;
+        try{
+            int featureId = this.translationTable.get(feature.getId());
+            this.featureTable.put(featureId, feature);
+            return true;
+        }
+        catch (Exception e){
+            return false;
+        }
     }
 
     @Override
     public boolean updateVertex(Vertex vertex) {
-        return false;
+        try{
+            int vertexId = this.translationTable.get(vertex.getId());
+            this.vertexTable.put(vertexId, vertex);
+            return true;
+        }
+        catch (Exception e){
+            return false;
+        }
     }
 
     @Override
@@ -112,12 +126,25 @@ public class HashMapStorage extends BaseStorage{
 
     @Override
     public Vertex getVertex(String id) {
-        return null;
+        try{
+            int vertexId = this.translationTable.get(id);
+            Vertex res = this.vertexTable.get(vertexId);
+            res.setStorage(this);
+            return res;
+        }catch (Exception e){
+            return null;
+        }
+
     }
 
     @Override
-    public Stream<Vertex> getVertices() {
-        return null;
+    public Iterable<Vertex> getVertices() {
+        try{
+            return this.vertexTable.values();
+        }catch (Exception e){
+            return null;
+        }
+
     }
 
     @Override
@@ -126,8 +153,34 @@ public class HashMapStorage extends BaseStorage{
     }
 
     @Override
-    public Stream<Edge> getIncidentEdges(Vertex vertex, String edge_type) {
-        return null;
+    public Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+        try{
+            int vertex_id = this.translationTable.get(vertex.getId());
+            switch (edge_type){
+                case IN:
+                    return this.vertexInEdges.get(vertex_id).stream().map(srcId -> {
+                        try {
+                            Vertex src = this.vertexTable.get(srcId);
+                            return new Edge(src, vertex);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    });
+                case OUT:
+                    return this.vertexOutEdges.get(vertex_id).stream().map(destId -> {
+                        try {
+                            Vertex dest = this.vertexTable.get(destId);
+                            return new Edge(vertex, dest);
+                        } catch (Exception e) {
+                            return null;
+                        }
+                    });
+                default:
+                    return null;
+            }
+        }catch (Exception e){
+            return null;
+        }
     }
 
     @Override
@@ -148,10 +201,5 @@ public class HashMapStorage extends BaseStorage{
     @Override
     public Stream<Aggregator> getAggregators() {
         return null;
-    }
-
-    @Override
-    public void message(GraphOp op) {
-
     }
 }

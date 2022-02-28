@@ -17,9 +17,9 @@ abstract public class BaseStorage {
     public abstract boolean updateVertex(Vertex vertex);
     public abstract boolean updateEdge(Edge edge);
     public abstract Vertex getVertex(String id);
-    public abstract Stream<Vertex> getVertices();
+    public abstract Iterable<Vertex> getVertices();
     public abstract Edge getEdge(String id);
-    public abstract Stream<Edge> getIncidentEdges(Vertex vertex, String edge_type);
+    public abstract Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeatures(GraphElement e);
     public abstract Aggregator getAggregator(String id);
@@ -77,5 +77,6 @@ abstract public class BaseStorage {
                 return null;
         }
     }
+
 
 }

@@ -42,13 +42,13 @@ public class GraphElement {
         boolean is_updated = false;
         for(Map.Entry<String, Feature> entry: newElement.features.entrySet()){
             Feature thisFeature = this.getFeature(entry.getKey());
-            if(thisFeature != null){
+            if(Objects.nonNull(thisFeature)){
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(entry.getValue());
                 is_updated |= tmp._1();
                 memento.features.put(entry.getKey(), (Feature) tmp._2());
             }else{
                 this.setFeature(entry.getValue());
-                is_updated |= true;
+                is_updated = true;
             }
 
         }
@@ -136,23 +136,23 @@ public class GraphElement {
     public void setFeature(Feature feature){
         Feature exists = this.getFeature(feature.id);
         exists.setElement(this);
+        exists.setStorage(this.storage);
         if(Objects.nonNull(exists))return;
         if(Objects.nonNull(this.storage)){
-            if (feature.createElement() == true){
+            if (feature.createElement()){
                 this.features.put(feature.id, feature);
             }
-
         }else{
             this.features.put(feature.id, feature);
         }
     }
 
     public void cacheFeatures(){
-
         for(Map.Entry<String, Feature> feature: this.features.entrySet()){
             feature.getValue().cacheFeatures();
         }
     }
+
     @Override
     public String toString() {
         return "GraphElement{" +
