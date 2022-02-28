@@ -1,12 +1,14 @@
 package storage;
 
 import elements.*;
-import elements.features.Feature;
+import elements.Feature;
 
 import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage {
+    public short partId = -1;
+
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);

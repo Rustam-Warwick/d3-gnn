@@ -3,6 +3,8 @@ package elements;
 import iterations.IterationState;
 import scala.Tuple2;
 
+import java.util.Map;
+
 public class ReplicableGraphElement extends GraphElement {
     public short master = -1;
     public boolean halo = false;
@@ -15,6 +17,8 @@ public class ReplicableGraphElement extends GraphElement {
         super(id, part_id);
     }
 
+    public ReplicableGraphElement(String id, short part_id, short master){super(id, part_id); this.master = master;}
+
     @Override
     public Boolean createElement() {
         if (this.state() == ReplicaState.REPLICA){
@@ -24,6 +28,7 @@ public class ReplicableGraphElement extends GraphElement {
         if(is_created){
             if(this.state() == ReplicaState.MASTER){
                 // Add setFeature
+                // @todo add SetFeature here
             }
             else{
                 // Send Query
@@ -46,6 +51,35 @@ public class ReplicableGraphElement extends GraphElement {
 
     }
 
+    @Override
+    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
+        if(this.state() == ReplicaState.MASTER){
+            Tuple2<Boolean, GraphElement> tmp = super.externalUpdate(newElement);
+            return tmp;
+        }
+        else if(this.state() == ReplicaState.REPLICA){
+            this.storage.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationState.ITERATE));
+            return new Tuple2<>(false, this);
+        }
+        else return super.externalUpdate(newElement);
+    }
+
+    public void syncReplicas(boolean skipHalo){
+        if((this.state() != ReplicaState.MASTER) || (this.replicaParts().length == 0) || (this.isHalo() && skipHalo)){
+            return;
+        }
+        this.cacheFeatures();
+        ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
+        cpy.features.clear();
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            if(skipHalo && feature.getValue().isHalo())continue;
+
+        }
+    }
+
+    public void syncReplica(short part_id){
+
+    }
 
     @Override
     public short masterPart() {
@@ -55,5 +89,15 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Boolean isHalo() {
         return this.halo;
+    }
+
+    @Override
+    public short[] replicaParts() {
+        return super.replicaParts();
+    }
+
+    @Override
+    public Boolean isReplicable() {
+        return true;
     }
 }

@@ -1,16 +1,15 @@
 package elements;
 
-import elements.features.Feature;
-import org.apache.flink.api.python.shaded.org.apache.arrow.flatbuf.Bool;
 import scala.Tuple2;
 import storage.BaseStorage;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class GraphElement {
     public String id;
-    public short part_id = -1; // not in storage yet
+    public short partId = -1; // not in storage yet
     public BaseStorage storage = null;
     public HashMap<String,Feature> features = new HashMap<>();
 
@@ -20,11 +19,11 @@ public class GraphElement {
 
     public GraphElement(String id, short part_id) {
         this.id = id;
-        this.part_id = part_id;
+        this.partId = part_id;
     }
 
     public GraphElement copy(){
-        return new GraphElement(this.id, this.part_id);
+        return new GraphElement(this.id, this.partId);
     }
     // Main Logical Stuff
     public Boolean createElement(){
@@ -42,13 +41,14 @@ public class GraphElement {
         GraphElement memento = this.copy();
         boolean is_updated = false;
         for(Map.Entry<String, Feature> entry: newElement.features.entrySet()){
-            Feature thisFeature = this.get(entry.getKey());
+            Feature thisFeature = this.getFeature(entry.getKey());
             if(thisFeature != null){
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(entry.getValue());
                 is_updated |= tmp._1();
                 memento.features.put(entry.getKey(), (Feature) tmp._2());
             }else{
-
+                this.setFeature(entry.getValue());
+                is_updated |= true;
             }
 
         }
@@ -68,7 +68,10 @@ public class GraphElement {
     public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement){
         return this.updateElement(newElement);
     }
-    // Getters
+
+
+
+    // Typing stuff
     public ElementType elementType(){
         return ElementType.NONE;
     }
@@ -78,12 +81,12 @@ public class GraphElement {
     }
 
     public short masterPart(){
-        return this.part_id;
+        return this.partId;
     }
 
     public ReplicaState state(){
-        if(this.part_id == -1) return ReplicaState.UNDEFINED;
-        if(this.part_id == this.masterPart()) return ReplicaState.MASTER;
+        if(this.partId == -1) return ReplicaState.UNDEFINED;
+        if(this.partId == this.masterPart()) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
 
@@ -94,8 +97,34 @@ public class GraphElement {
     public Boolean isHalo(){
         return false;
     }
+    // Getters and Setters
 
-    public Feature get(String id){
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+
+    public short getPartId() {
+        return partId;
+    }
+
+    public void setPartId(short partId) {
+        this.partId = partId;
+    }
+
+    public void setStorage(BaseStorage storage){
+        this.storage = storage;
+        this.partId = storage.partId;
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            feature.getValue().setStorage(storage);
+        }
+    }
+
+    public Feature getFeature(String id){
         Feature result = this.features.getOrDefault(id, null);
         if(result == null && this.storage!=null){
             result = this.storage.getFeature(id);
@@ -104,4 +133,45 @@ public class GraphElement {
         return result;
     }
 
+    public void setFeature(Feature feature){
+        Feature exists = this.getFeature(feature.id);
+        exists.setElement(this);
+        if(Objects.nonNull(exists))return;
+        if(Objects.nonNull(this.storage)){
+            if (feature.createElement() == true){
+                this.features.put(feature.id, feature);
+            }
+
+        }else{
+            this.features.put(feature.id, feature);
+        }
+    }
+
+    public void cacheFeatures(){
+
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            feature.getValue().cacheFeatures();
+        }
+    }
+    @Override
+    public String toString() {
+        return "GraphElement{" +
+                "id='" + id + '\'' +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GraphElement that = (GraphElement) o;
+        return id.equals(that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
+    }
+
+    
 }
