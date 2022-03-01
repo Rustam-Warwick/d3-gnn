@@ -1,30 +1,38 @@
 package elements;
 
-import features.SetFeature;
+import features.Set;
 import iterations.IterationState;
+import iterations.Rpc;
 import scala.Tuple2;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class ReplicableGraphElement extends GraphElement {
     public short master = -1;
     public boolean halo = false;
 
+    public ReplicableGraphElement(){
+        super();
+    }
     public ReplicableGraphElement(String id) {
         super(id);
     }
 
-    public ReplicableGraphElement(String id, short part_id) {
-        super(id, part_id);
+    public ReplicableGraphElement(String id, boolean halo){
+        super(id);
+        this.halo = halo;
     }
 
-    public ReplicableGraphElement(String id, short part_id, short master){super(id, part_id); this.master = master;}
+    @Override
+    public GraphElement copy() {
+        ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo);
+        tmp.setPartId(this.getPartId());
+        tmp.setStorage(this.storage);
+        tmp.features.putAll(this.features);
+        return tmp;
+    }
 
-    public ReplicableGraphElement(String id, short part_id, short master, boolean isHalo){super(id, part_id); this.master = master; this.halo = isHalo;}
-
+    // Main Logical Stuff
     @Override
     public Boolean createElement() {
         if (this.state() == ReplicaState.REPLICA){
@@ -34,7 +42,7 @@ public class ReplicableGraphElement extends GraphElement {
         if(is_created){
             if(this.state() == ReplicaState.MASTER){
                 // Add setFeature
-                this.setFeature(new SetFeature<Integer>("parts", new HashSet<>(Arrays.asList((int) this.partId))));
+                this.setFeature("parts", new Set<Short>(new HashSet(Arrays.asList(this.partId))));
             }
             else{
                 // Send Query
@@ -47,7 +55,8 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if(this.state() == ReplicaState.MASTER){
-            SetFeature<Integer> tmp = (SetFeature<Integer>) this.getFeature("parts");
+            Set<Integer> tmp = (Set<Integer>) this.getFeature("parts");
+            Rpc.call(tmp,"add",newElement.getPartId());
             this.syncReplica(newElement.getPartId());
 
         }else if(this.state() == ReplicaState.REPLICA){
@@ -73,7 +82,7 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     public void syncReplicas(boolean skipHalo){
-        if((this.state() != ReplicaState.MASTER) || (this.replicaParts().length == 0) || (this.isHalo() && skipHalo)){
+        if((this.state() != ReplicaState.MASTER) ||  (this.isHalo() && skipHalo)){
             return;
         }
         this.cacheFeatures();
@@ -100,8 +109,10 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    public short[] replicaParts() {
-        return super.replicaParts();
+    public Iterator<Short> replicaParts() {
+        Set<Short> parts = (Set<Short>) this.getFeature("parts");
+        if(Objects.isNull(parts)) return super.replicaParts();
+        else return parts.getValue().iterator();
     }
 
     @Override

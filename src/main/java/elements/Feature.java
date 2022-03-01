@@ -1,35 +1,41 @@
 package elements;
 
-import elements.ElementType;
-import elements.GraphElement;
-import elements.ReplicableGraphElement;
 import scala.Tuple2;
 
+import java.util.Iterator;
 import java.util.Objects;
 
 public abstract class Feature<T> extends ReplicableGraphElement {
-    public Object value = null;
+    public Object value;
     public GraphElement element = null;
     public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
+    public Feature(){
+        super();
+        this.value = null;
+    }
+    public Feature(Object value){
+        super();
+        this.value = value;
+    }
+    public Feature(Object value, boolean halo){
+        super(null, halo);
+        this.value = value;
+    }
     public Feature(String id, Object value){
         super(id);
         this.value = value;
     }
-    public Feature(String id, Object value, boolean isHalo){
-        super(id);
+    public Feature(String id, Object value, boolean halo){
+        super(id, halo);
         this.value = value;
     }
 
-    public Feature(String id, Object value, short part_id) {
-        super(id, part_id);
-        this.value = value;
-    }
     // Main Logic
     @Override
     public Boolean createElement() {
         if(this.attachedTo._1 == ElementType.NONE) return super.createElement();
         else{
-            boolean is_created = this.storage.addElement(this);
+            boolean is_created = this.storage.addFeature(this);
             if(is_created){
                 for(GraphElement el: this.features.values()){
                     el.createElement();
@@ -77,7 +83,7 @@ public abstract class Feature<T> extends ReplicableGraphElement {
     }
 
     @Override
-    public short[] replicaParts() {
+    public Iterator<Short> replicaParts() {
         if(Objects.nonNull(this.getElement())){
             return this.getElement().replicaParts();
         }

@@ -5,9 +5,11 @@ import iterations.IterationState;
 public class GraphOp {
     public Op op;
     public short part_id = -1;
-    public GraphElement element;
+    public GraphElement element = null;
     public IterationState state = IterationState.FORWARD;
-
+    public GraphOp(){
+        this.op = Op.COMMIT;
+    }
     public GraphOp(Op op, GraphElement element) {
         this.op = op;
         this.element = element;

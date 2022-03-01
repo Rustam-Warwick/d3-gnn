@@ -21,7 +21,10 @@ dependencies {
             'org.apache.flink:flink-python_2.12:1.14.3',
             'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
             'org.apache.flink:flink-ml-core_2.12:2.0.0',
-            'org.apache.flink:flink-ml-lib_2.12:2.0.0'
+            'org.apache.flink:flink-ml-lib_2.12:2.0.0',
+            'ai.djl:api:0.15.0',
+            'ai.djl.pytorch:pytorch-engine:0.15.0',
+            'ai.djl.pytorch:pytorch-native-auto:1.9.1'
     ])
 }
 tasks.named('jar') {

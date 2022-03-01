@@ -3,27 +3,28 @@ package elements;
 import scala.Tuple2;
 import storage.BaseStorage;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class GraphElement {
     public String id;
     public short partId = -1; // not in storage yet
-    public BaseStorage storage = null;
-    public HashMap<String,Feature> features = new HashMap<>();
+    public transient BaseStorage storage = null;
+    public HashMap<String, Feature> features = new HashMap<>();
+
+    public GraphElement(){
+        this.id = null;
+    }
 
     public GraphElement(String id) {
         this.id = id;
     }
 
-    public GraphElement(String id, short part_id) {
-        this.id = id;
-        this.partId = part_id;
-    }
-
     public GraphElement copy(){
-        return new GraphElement(this.id, this.partId);
+        GraphElement tmp =  new GraphElement(this.id);
+        tmp.setPartId(this.getPartId());
+        tmp.setStorage(this.storage);
+        tmp.features.putAll(this.features);
+        return tmp;
     }
     // Main Logical Stuff
     public Boolean createElement(){
@@ -47,7 +48,7 @@ public class GraphElement {
                 is_updated |= tmp._1();
                 memento.features.put(entry.getKey(), (Feature) tmp._2());
             }else{
-                this.setFeature(entry.getValue());
+                this.setFeature(entry.getKey(), entry.getValue());
                 is_updated = true;
             }
 
@@ -90,8 +91,8 @@ public class GraphElement {
         return ReplicaState.REPLICA;
     }
 
-    public short[] replicaParts(){
-        return new short[0];
+    public Iterator<Short> replicaParts(){
+        return null;
     }
 
     public Boolean isHalo(){
@@ -118,32 +119,36 @@ public class GraphElement {
 
     public void setStorage(BaseStorage storage){
         this.storage = storage;
-        this.partId = storage.partId;
+        this.partId = Objects.nonNull(storage)?storage.partId:-1;
         for(Map.Entry<String, Feature> feature: this.features.entrySet()){
             feature.getValue().setStorage(storage);
         }
     }
 
-    public Feature getFeature(String id){
-        Feature result = this.features.getOrDefault(id, null);
+    public Feature getFeature(String name){
+        Feature result = this.features.getOrDefault(name, null);
         if(result == null && this.storage!=null){
-            result = this.storage.getFeature(id);
-            this.features.put(id, result);
+            result = this.storage.getFeature(this.getId() + name);
+        }
+        if(Objects.nonNull(result)){
+            result.setElement(this);
+            this.features.put(name, result);
         }
         return result;
     }
 
-    public void setFeature(Feature feature){
-        Feature exists = this.getFeature(feature.id);
-        exists.setElement(this);
-        exists.setStorage(this.storage);
+    public void setFeature(String name,Feature feature){
+        Feature exists = this.getFeature(name);
         if(Objects.nonNull(exists))return;
+        feature.setId(this.getId() + name);
+        feature.setElement(this);
+        feature.setStorage(this.storage);
         if(Objects.nonNull(this.storage)){
             if (feature.createElement()){
-                this.features.put(feature.id, feature);
+                this.features.put(name, feature);
             }
         }else{
-            this.features.put(feature.id, feature);
+            this.features.put(name, feature);
         }
     }
 

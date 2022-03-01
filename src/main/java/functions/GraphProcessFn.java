@@ -14,10 +14,6 @@ public class GraphProcessFn extends HashMapStorage {
     public short position = 1;
     public short layers = 1;
 
-    public GraphProcessFn(short position, short layers){
-        this.position = position;
-        this.layers = layers;
-    }
     public boolean isLast(){
         return this.position >= this.layers;
     }
@@ -25,11 +21,7 @@ public class GraphProcessFn extends HashMapStorage {
         return this.position == 1;
     }
 
-    @Override
-    public void open(Configuration parameters) throws Exception {
-        super.open(parameters);
-        this.partId = (short) this.getRuntimeContext().getIndexOfThisSubtask();
-    }
+
 
     @Override
     public void message(GraphOp op) {
@@ -46,9 +38,8 @@ public class GraphProcessFn extends HashMapStorage {
             case COMMIT:
                 GraphElement thisElement = this.getElement(value.element);
                 if(Objects.isNull(thisElement)){
-                    thisElement = value.element.copy();
-                    thisElement.setStorage(this);
-                    thisElement.createElement();
+                    value.element.setStorage(this);
+                    value.element.createElement();
                 }
                 else{
                     thisElement.externalUpdate(value.element);

@@ -3,30 +3,61 @@ package storage;
 import elements.*;
 import elements.Feature;
 import org.apache.flink.api.common.state.MapState;
+import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.configuration.Configuration;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 public abstract class HashMapStorage extends BaseStorage{
-    public MapState<String, Integer> translationTable;
-    public MapState<Integer, String> reverseTranslationTable;
-    public MapState<Integer, Vertex> vertexTable;
-    public MapState<Integer, Feature> featureTable;
-    public MapState<Integer, List<Integer>> elementFeatures;
-    public MapState<Integer, List<Integer>> vertexOutEdges;
-    public MapState<Integer, List<Integer>> vertexInEdges;
-    public ValueState<Integer> lastId;
+    public transient MapState<String, Integer> translationTable;
+    public transient MapState<Integer, String> reverseTranslationTable;
+    public transient MapState<Integer, Vertex> vertexTable;
+    public transient MapState<Integer, Feature> featureTable;
+    public transient MapState<Integer, List<Integer>> elementFeatures;
+    public transient MapState<Integer, List<Integer>> vertexOutEdges;
+    public transient MapState<Integer, List<Integer>> vertexInEdges;
+    public transient ValueState<Integer> lastId;
+    public ArrayList<Aggregator> aggregators = new ArrayList<>();
 
-
-
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
+        MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable",Integer.class, String.class);
+        MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable",Integer.class, Vertex.class);
+        MapStateDescriptor<Integer, Feature> featureTableDesc = new MapStateDescriptor("featureTable",Integer.class, Feature.class);
+        MapStateDescriptor<Integer, List<Integer>> elementFeaturesDesc = new MapStateDescriptor("elementFeatures",Integer.class, List.class);
+        MapStateDescriptor<Integer, List<Integer>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges",Integer.class, List.class);
+        MapStateDescriptor<Integer, List<Integer>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges",Integer.class, List.class);
+        ValueStateDescriptor<Integer> lastIdDesc = new ValueStateDescriptor<Integer>("lastId", Integer.class);
+        this.translationTable = getRuntimeContext().getMapState(translationTableDesc);
+        this.reverseTranslationTable = getRuntimeContext().getMapState(reverseTranslationTableDesc);
+        this.vertexTable = getRuntimeContext().getMapState(vertexTableDesc);
+        this.featureTable = getRuntimeContext().getMapState(featureTableDesc);
+        this.elementFeatures = getRuntimeContext().getMapState(elementFeaturesDesc);
+        this.vertexOutEdges = getRuntimeContext().getMapState(vertexOutEdgesDesc);
+        this.vertexInEdges = getRuntimeContext().getMapState(vertexInEdgesDesc);
+        this.lastId = getRuntimeContext().getState(lastIdDesc);
+    }
+    private int getLastId() throws IOException {
+        Integer last_id = this.lastId.value();
+        if(last_id == null){
+            this.lastId.update(0);
+            return 0;
+        }
+        return last_id;
+    }
     @Override
     public boolean addFeature(Feature feature) {
         try{
             if(this.translationTable.contains(feature.getId()))return false;
-            int last_id = this.lastId.value();
+            int last_id = this.getLastId();
             this.translationTable.put(feature.getId(),last_id);
             this.reverseTranslationTable.put(last_id, feature.getId());
             this.featureTable.put(last_id, feature);
@@ -52,7 +83,7 @@ public abstract class HashMapStorage extends BaseStorage{
     public boolean addVertex(Vertex vertex){
         try{
             if(this.translationTable.contains(vertex.getId()))return false;
-            int last_id = this.lastId.value();
+            int last_id = this.getLastId();
             this.translationTable.put(vertex.getId(),last_id);
             this.reverseTranslationTable.put(last_id, vertex.getId());
             this.vertexTable.put(last_id, vertex);
@@ -92,7 +123,8 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public boolean addAggregator(Aggregator agg) {
-        return false;
+        this.aggregators.add(agg);
+        return true;
     }
 
     @Override
@@ -185,7 +217,14 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Feature getFeature(String id) {
-        return null;
+        try{
+            int featureId = this.translationTable.get(id);
+            Feature res = this.featureTable.get(featureId);
+            res.setStorage(this);
+            return res;
+        }catch (Exception e){
+            return null;
+        }
     }
 
     @Override
@@ -200,6 +239,6 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Stream<Aggregator> getAggregators() {
-        return null;
+        return this.aggregators.stream();
     }
 }

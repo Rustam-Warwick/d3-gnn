@@ -2,6 +2,7 @@ package storage;
 
 import elements.*;
 import elements.Feature;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 
 import java.util.Map;
@@ -26,6 +27,12 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     public abstract Aggregator getAggregator(String id);
     public abstract Stream<Aggregator> getAggregators();
     public abstract void message(GraphOp op);
+
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        this.partId = (short) getRuntimeContext().getIndexOfThisSubtask();
+    }
 
     public boolean addElement(GraphElement element){
         switch (element.elementType()){
