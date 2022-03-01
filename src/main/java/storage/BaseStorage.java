@@ -2,11 +2,12 @@ package storage;
 
 import elements.*;
 import elements.Feature;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 
 import java.util.Map;
 import java.util.stream.Stream;
 
-abstract public class BaseStorage {
+abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> {
     public short partId = -1;
 
     public abstract boolean addFeature(Feature feature);

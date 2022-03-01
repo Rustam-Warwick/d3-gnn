@@ -1,11 +1,12 @@
 plugins {
-    id 'java-library'
+    id 'application'
 }
 
-group 'org.example'
+group 'org.apache.flink.rustam.gnn'
 version '1.0-SNAPSHOT'
-//def mainClassName = "StreamPartitionTest"
-
+application{
+    mainClass = "helpers.Main"
+}
 repositories {
     mavenCentral()
 }
@@ -15,6 +16,7 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
     implementation([
+            'org.apache.flink:flink-clients_2.12:1.14.3',
             'org.apache.flink:flink-streaming-java_2.12:1.14.3',
             'org.apache.flink:flink-python_2.12:1.14.3',
             'org.apache.flink:flink-ml-iteration_2.12:2.0.0',

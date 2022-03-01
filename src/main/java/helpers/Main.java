@@ -3,26 +3,16 @@ package helpers;
 import elements.Vertex;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import partitioner.RandomPartitioner;
 
 import java.util.Arrays;
 
 public class Main {
 
-    public static void main(String[] args) {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        DataStream<Vertex> s = env.fromCollection(Arrays.asList(
-                new Vertex("1111"),
-                new Vertex("123"),
-                new Vertex("1333"),
-                new Vertex("133")
-        ));
-
-        s.map(vertex -> {
-            vertex.setPartId((short) 1);
-            return vertex;
-        });
-        s.print();
-
+    public static void main(String[] args) throws Exception {
+        GraphStream gs = new GraphStream((short)5, (short)2);
+        gs.readSocket(new EdgeStreamParser(), "localhost", 9090 );
+        gs.partition(new RandomPartitioner());
 
     }
 }

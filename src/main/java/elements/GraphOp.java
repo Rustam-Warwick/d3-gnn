@@ -8,9 +8,8 @@ public class GraphOp {
     public GraphElement element;
     public IterationState state = IterationState.FORWARD;
 
-    public GraphOp(Op op, short part_id, GraphElement element) {
+    public GraphOp(Op op, GraphElement element) {
         this.op = op;
-        this.part_id = part_id;
         this.element = element;
     }
 
