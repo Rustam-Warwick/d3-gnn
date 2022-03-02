@@ -1,5 +1,6 @@
 package helpers;
 
+import aggregators.GNNLayerInference;
 import elements.GraphElement;
 import elements.GraphOp;
 import functions.GraphProcessFn;
@@ -14,7 +15,7 @@ public class Main {
         gs.readSocket(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
                 "Probabilistic_Methods"}), "localhost", 9090 );
         gs.partition(new RandomPartitioner());
-        gs.gnnLayer(new GraphProcessFn());
+        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().addAggregator(new GNNLayerInference("inferece")));
         gs.last.print();
         gs.env.execute();
     }

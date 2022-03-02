@@ -23,11 +23,10 @@ public abstract class HashMapStorage extends BaseStorage{
     public transient MapState<Integer, List<Integer>> vertexOutEdges;
     public transient MapState<Integer, List<Integer>> vertexInEdges;
     public transient ValueState<Integer> lastId;
-    public ArrayList<Aggregator> aggregators = new ArrayList<>();
+
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        super.open(parameters);
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
         MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable",Integer.class, String.class);
         MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable",Integer.class, Vertex.class);
@@ -44,6 +43,7 @@ public abstract class HashMapStorage extends BaseStorage{
         this.vertexOutEdges = getRuntimeContext().getMapState(vertexOutEdgesDesc);
         this.vertexInEdges = getRuntimeContext().getMapState(vertexInEdgesDesc);
         this.lastId = getRuntimeContext().getState(lastIdDesc);
+        super.open(parameters);
     }
     private int getLastId() throws IOException {
         Integer last_id = this.lastId.value();
@@ -119,12 +119,6 @@ public abstract class HashMapStorage extends BaseStorage{
        }catch (Exception e){
            return false;
        }
-    }
-
-    @Override
-    public boolean addAggregator(Aggregator agg) {
-        this.aggregators.add(agg);
-        return true;
     }
 
     @Override
@@ -232,13 +226,5 @@ public abstract class HashMapStorage extends BaseStorage{
         return null;
     }
 
-    @Override
-    public Aggregator getAggregator(String id) {
-        return null;
-    }
 
-    @Override
-    public Stream<Aggregator> getAggregators() {
-        return this.aggregators.stream();
-    }
 }

@@ -8,7 +8,7 @@ public class Rpc extends GraphElement {
     public Object[] args;
     public String methodName;
     public Rpc() {
-
+        super();
     }
 
     public Rpc(String id, String methodName, Object[] args) {
@@ -20,7 +20,7 @@ public class Rpc extends GraphElement {
     public static void call(GraphElement el, String methodName, Object ...args){
         Rpc rpc = new Rpc(el.getId(), methodName, args);
         rpc.setStorage(el.storage);
-        rpc.storage.message(new GraphOp(Op.RPC,el.masterPart(), rpc, ));
+        rpc.storage.message(new GraphOp(Op.RPC,el.masterPart(), rpc, IterationState.ITERATE));
     }
 
 

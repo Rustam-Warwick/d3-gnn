@@ -16,4 +16,8 @@ public class Aggregator extends GraphElement{
 
     }
 
+    public void open(){
+
+    }
+
 }

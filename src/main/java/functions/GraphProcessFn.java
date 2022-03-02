@@ -10,7 +10,7 @@ import storage.HashMapStorage;
 import java.util.Objects;
 
 public class GraphProcessFn extends HashMapStorage {
-    public Collector<GraphOp> out;
+    public transient Collector<GraphOp> out;
     public short position = 1;
     public short layers = 1;
 

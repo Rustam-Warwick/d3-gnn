@@ -5,16 +5,18 @@ import elements.Feature;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> {
     public short partId = -1;
+    public HashMap<String,Aggregator> aggregators = new HashMap<>();
 
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);
-    public abstract boolean addAggregator(Aggregator agg);
     public abstract boolean updateFeature(Feature feature);
     public abstract boolean updateVertex(Vertex vertex);
     public abstract boolean updateEdge(Edge edge);
@@ -24,14 +26,13 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     public abstract Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeatures(GraphElement e);
-    public abstract Aggregator getAggregator(String id);
-    public abstract Stream<Aggregator> getAggregators();
     public abstract void message(GraphOp op);
 
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         this.partId = (short) getRuntimeContext().getIndexOfThisSubtask();
+        this.getAggregators().forEach(item->{item.setStorage(this);item.open();});
     }
 
     public boolean addElement(GraphElement element){
@@ -86,5 +87,17 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
         }
     }
 
+    public BaseStorage addAggregator(Aggregator agg) {
+        this.aggregators.put(agg.getId(), agg);
+        return this;
+    }
+
+    public Aggregator getAggregator(String id) {
+        return this.aggregators.get(id);
+    }
+
+    public Stream<Aggregator> getAggregators() {
+        return this.aggregators.values().stream();
+    }
 
 }
