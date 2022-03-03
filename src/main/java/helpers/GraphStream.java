@@ -25,8 +25,8 @@ public class GraphStream {
     public short layers;
     public short position_index = 1;
     public StreamExecutionEnvironment env;
-    public DataStream last = null;
-    private IterativeStream iterator = null;
+    public DataStream<GraphOp> last = null;
+    private IterativeStream<GraphOp> iterator = null;
 
     public GraphStream(short parallelism, short layers){
         this.parallelism = parallelism;
@@ -44,7 +44,8 @@ public class GraphStream {
         partitioner.partitions = this.parallelism;
         short part_parallelism = this.parallelism;
         if(!partitioner.isParallel())part_parallelism = 1;
-        this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner").map(item->item);
+        this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
+        this.last = this.last.map(item->item);
         return this.last;
     }
     public KeyedStream<GraphOp, Short> keyBy(DataStream<GraphOp> last){
@@ -55,7 +56,7 @@ public class GraphStream {
             KeySelector<GraphOp, Short> keySelector = new KeySelector<GraphOp, Short>() {
                 @Override
                 public Short getKey(GraphOp value) throws Exception {
-                    return Short.valueOf(value.part_id);
+                    return value.part_id;
                 }
             };
             return constructor.newInstance(
@@ -75,10 +76,11 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
+
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
-        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").returns(GraphOp.class);
-        DataStream<GraphOp> iterateFilter = res.filter(item->item.state == IterationState.ITERATE).returns(GraphOp.class);
-        DataStream<GraphOp> forwardFilter = res.filter(item->item.state == IterationState.FORWARD).returns(GraphOp.class);
+        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
+        DataStream<GraphOp> iterateFilter = res.filter(item->item.state == IterationState.ITERATE);
+        DataStream<GraphOp> forwardFilter = res.filter(item->item.state == IterationState.FORWARD);
         if(Objects.nonNull(this.iterator)){
             DataStream<GraphOp> backFilter = res.filter(item->item.state == IterationState.BACKWARD).returns(GraphOp.class);
             this.iterator.closeWith(backFilter);

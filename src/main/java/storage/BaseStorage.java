@@ -11,8 +11,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> {
-    public short partId = -1;
-    public HashMap<String,Aggregator> aggregators = new HashMap<>();
+    public transient short currentKey = -1;
+    public final HashMap<String,Aggregator> aggregators = new HashMap<>();
 
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
@@ -31,7 +31,6 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.partId = (short) getRuntimeContext().getIndexOfThisSubtask();
         this.getAggregators().forEach(item->{item.setStorage(this);item.open();});
     }
 

@@ -1,13 +1,16 @@
 package elements;
 
+import iterations.IterationState;
 import scala.Tuple2;
 
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public abstract class Feature<T> extends ReplicableGraphElement {
     public Object value;
-    public GraphElement element = null;
+    public transient GraphElement element = null;
     public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
     public Feature(){
         super();
@@ -21,6 +24,10 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         super(null, halo);
         this.value = value;
     }
+    public Feature(Object value, boolean halo, short master){
+        super(null, halo, master);
+        this.value = value;
+    }
     public Feature(String id, Object value){
         super(id);
         this.value = value;
@@ -29,6 +36,11 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         super(id, halo);
         this.value = value;
     }
+    public Feature(String id, Object value, boolean halo, short master){
+        super(id, halo, master);
+        this.value = value;
+    }
+
 
     // Main Logic
     @Override
@@ -63,11 +75,42 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         return new Tuple2<>(isUpdated, memento);
     }
 
-
-    @Override
-    public ElementType elementType() {
-       return ElementType.FEATURE;
+    public void syncReplicas(boolean skipHalo){
+        if((this.state() != ReplicaState.MASTER) ||  (this.isHalo() && skipHalo) || this.replicaParts()==null || this.replicaParts().isEmpty()) return;
+        this.cacheFeatures();
+        Feature cpy = (Feature) this.copy();
+        if(this.isHalo()) cpy.value = null;
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            if(skipHalo && feature.getValue().isHalo())continue;
+            Feature tmp = feature.getValue();
+            if(tmp.isHalo()){
+                tmp = (Feature) tmp.copy();
+                tmp.value = null;
+            }
+            cpy.setFeature(feature.getKey(), tmp);
+        }
+        this.replicaParts().forEach(part_id-> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
     }
+
+    public void syncReplica(short part_id){
+        if(this.state() != ReplicaState.MASTER) return;
+        this.cacheFeatures();
+        Feature cpy = (Feature) this.copy();
+        if(this.isHalo()) cpy.value = null;
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            Feature tmp = feature.getValue();
+            if(tmp.isHalo()){
+                tmp = (Feature) tmp.copy();
+                tmp.value = null;
+            }
+            cpy.setFeature(feature.getKey(), tmp);
+        }
+
+        this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));
+    }
+
+
+
     // Abstract Methods and
     abstract public T getValue();
     abstract public boolean valuesEqual(Object v1, Object v2);
@@ -83,7 +126,12 @@ public abstract class Feature<T> extends ReplicableGraphElement {
     }
 
     @Override
-    public Iterator<Short> replicaParts() {
+    public ElementType elementType() {
+        return ElementType.FEATURE;
+    }
+
+    @Override
+    public List<Short> replicaParts() {
         if(Objects.nonNull(this.getElement())){
             return this.getElement().replicaParts();
         }
@@ -93,7 +141,7 @@ public abstract class Feature<T> extends ReplicableGraphElement {
 
     public GraphElement getElement() {
         if(this.attachedTo._1 == ElementType.NONE) return null;
-        if(this.element == null){
+        if(this.element == null && this.storage != null){
             this.element = this.storage.getElement(this.attachedTo._2, this.attachedTo._1);
         }
         return this.element;

@@ -8,22 +8,21 @@ import elements.Op;
 import elements.Vertex;
 import features.Tensor;
 import ai.djl.ndarray.NDManager;
-import ai.djl.pytorch.engine.PtEngine;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 
 import java.util.HashMap;
 
 public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
-    private final String[] categories;
-    private final HashMap<String, NDArray> oneHotFeatures = new HashMap<>();
+    public final String[] categories;
+    public final HashMap<String, NDArray> oneHotFeatures = new HashMap<>();
     public EdgeStreamParser(String[] categories){
         this.categories = categories;
     }
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        NDManager manager = PtEngine.getInstance().newBaseManager();
+        NDManager manager = NDManager.newBaseManager();
         NDArray tmp = manager.ones(new Shape(this.categories.length, this.categories.length));
         for(int i=0; i<this.categories.length;i++){
             this.oneHotFeatures.put(this.categories[i], tmp.get(i));
@@ -49,7 +48,6 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
             vrt.setFeature("feature", new Tensor(categoryOneHot));
             tmp = new GraphOp(Op.COMMIT, vrt);
         }
-
         return tmp;
     }
 }

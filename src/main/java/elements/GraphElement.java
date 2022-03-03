@@ -3,6 +3,7 @@ package elements;
 import scala.Tuple2;
 import storage.BaseStorage;
 
+import java.io.Serializable;
 import java.util.*;
 
 public class GraphElement {
@@ -20,7 +21,13 @@ public class GraphElement {
     }
 
     public GraphElement copy(){
-        GraphElement tmp =  new GraphElement(this.id);
+        GraphElement tmp = new GraphElement(this.id);
+        tmp.setPartId(this.getPartId());
+        tmp.setStorage(this.storage);
+        return tmp;
+    }
+    public GraphElement deepCopy(){
+        GraphElement tmp = new GraphElement(this.id);
         tmp.setPartId(this.getPartId());
         tmp.setStorage(this.storage);
         tmp.features.putAll(this.features);
@@ -91,7 +98,7 @@ public class GraphElement {
         return ReplicaState.REPLICA;
     }
 
-    public Iterator<Short> replicaParts(){
+    public List<Short> replicaParts(){
         return null;
     }
 
@@ -119,7 +126,7 @@ public class GraphElement {
 
     public void setStorage(BaseStorage storage){
         this.storage = storage;
-        this.partId = Objects.nonNull(storage)?storage.partId:-1;
+        this.partId = Objects.nonNull(storage)?storage.currentKey:-1;
         for(Map.Entry<String, Feature> feature: this.features.entrySet()){
             feature.getValue().setStorage(storage);
         }
@@ -153,8 +160,11 @@ public class GraphElement {
     }
 
     public void cacheFeatures(){
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+        Map<String, Feature> myFeatures = this.storage.getFeatures(this);
+        for(Map.Entry<String, Feature> feature: myFeatures.entrySet()){
+            feature.getValue().setElement(this);
             feature.getValue().cacheFeatures();
+            this.features.put(feature.getKey(),feature.getValue());
         }
     }
 

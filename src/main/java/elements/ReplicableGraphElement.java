@@ -3,6 +3,7 @@ package elements;
 import features.Set;
 import iterations.IterationState;
 import iterations.Rpc;
+import org.apache.commons.collections.IteratorUtils;
 import scala.Tuple2;
 
 import java.util.*;
@@ -22,10 +23,23 @@ public class ReplicableGraphElement extends GraphElement {
         super(id);
         this.halo = halo;
     }
+    public ReplicableGraphElement(String id, boolean halo, short master){
+        super(id);
+        this.halo = halo;
+        this.master = master;
+    }
 
     @Override
     public GraphElement copy() {
-        ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo);
+        ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
+        tmp.setPartId(this.getPartId());
+        tmp.setStorage(this.storage);
+        return tmp;
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
         tmp.setPartId(this.getPartId());
         tmp.setStorage(this.storage);
         tmp.features.putAll(this.features);
@@ -42,7 +56,7 @@ public class ReplicableGraphElement extends GraphElement {
         if(is_created){
             if(this.state() == ReplicaState.MASTER){
                 // Add setFeature
-                this.setFeature("parts", new Set<Short>(new HashSet(Arrays.asList(this.partId))));
+                this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             }
             else{
                 // Send Query
@@ -82,20 +96,35 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     public void syncReplicas(boolean skipHalo){
-        if((this.state() != ReplicaState.MASTER) ||  (this.isHalo() && skipHalo)){
-            return;
-        }
+        if((this.state() != ReplicaState.MASTER) ||  (this.isHalo() && skipHalo) || this.replicaParts()==null || this.replicaParts().isEmpty()) return;
         this.cacheFeatures();
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
-        cpy.features.clear();
         for(Map.Entry<String, Feature> feature: this.features.entrySet()){
             if(skipHalo && feature.getValue().isHalo())continue;
-
+            Feature tmp = feature.getValue();
+            if(tmp.isHalo()){
+                tmp = (Feature) tmp.copy();
+                tmp.value = null;
+            }
+            cpy.setFeature(feature.getKey(), tmp);
         }
+        this.replicaParts().forEach(part_id-> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
     }
 
     public void syncReplica(short part_id){
+        if(this.state() != ReplicaState.MASTER) return;
+        this.cacheFeatures();
+        ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
+        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
+            Feature tmp = feature.getValue();
+            if(tmp.isHalo()){
+                tmp = (Feature) tmp.copy();
+                tmp.value = null;
+            }
+            cpy.setFeature(feature.getKey(), tmp);
+        }
 
+        this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));
     }
 
     @Override
@@ -109,10 +138,12 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    public Iterator<Short> replicaParts() {
+    public List<Short> replicaParts() {
         Set<Short> parts = (Set<Short>) this.getFeature("parts");
         if(Objects.isNull(parts)) return super.replicaParts();
-        else return parts.getValue().iterator();
+        else{
+            return parts.getValue();
+        }
     }
 
     @Override

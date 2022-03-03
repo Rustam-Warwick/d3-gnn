@@ -1,6 +1,10 @@
 package helpers;
 
 import aggregators.GNNLayerInference;
+import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
+import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.PtEngine;
 import elements.GraphElement;
 import elements.GraphOp;
 import functions.GraphProcessFn;
@@ -15,8 +19,8 @@ public class Main {
         gs.readSocket(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
                 "Probabilistic_Methods"}), "localhost", 9090 );
         gs.partition(new RandomPartitioner());
-        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().addAggregator(new GNNLayerInference("inferece")));
-        gs.last.print();
+        gs.gnnLayer(new GraphProcessFn());
+        System.out.println(gs.env.getExecutionPlan());
         gs.env.execute();
     }
 }

@@ -10,6 +10,7 @@ import org.apache.flink.configuration.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -223,7 +224,24 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Map<String, Feature> getFeatures(GraphElement e) {
-        return null;
+        HashMap<String, Feature> result = new HashMap<>();
+        try {
+
+            int element_id = this.translationTable.get(e.getId());
+            List<Integer> features_found = this.elementFeatures.get(element_id);
+            for(int id: features_found){
+                Feature tmp = this.featureTable.get(id);
+                tmp.setStorage(this);
+                String featureName = tmp.getId().substring(((String)tmp.attachedTo._2).length());
+                result.put(featureName, tmp);
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }finally {
+            return result;
+        }
+
+
     }
 
 
