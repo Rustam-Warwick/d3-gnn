@@ -20,7 +20,7 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         self.part_version = 1
         self.part_id: int = -1  # Index of this parallel task
         self.parallelism: int = 0
-        self.aggregators: Dict[str, BaseAggregator] = dict()  # Dict of aggregators attached
+        self.plugins: Dict[str, BaseAggregator] = dict()  # Dict of plugins attached
         self.position = position  # Is this GraphStorageProcess the last one in the pipeline
         self.layers = layers  # Is this GraphStorageProcess the last one in the pipeline
 
@@ -34,9 +34,9 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
 
     def with_aggregator(self, agg: "BaseAggregator") -> "GNNLayerProcess":
         """ Attaching aggregator to this process function """
-        if agg.id in self.aggregators:
+        if agg.id in self.plugins:
             raise AggregatorExistsException
-        self.aggregators[agg.id] = agg
+        self.plugins[agg.id] = agg
         return self
 
     def for_aggregator(self, fn):
@@ -52,10 +52,10 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
 
         self.part_id = runtime_context.get_index_of_this_subtask()
         self.parallelism = runtime_context.get_number_of_parallel_subtasks()
-        for agg in self.aggregators.values():
+        for agg in self.plugins.values():
             agg.open(runtime_context)
             agg_init(agg)
-        del self.aggregators
+        del self.plugins
         super(KeyedGNNLayerProcess, self).open(runtime_context)
 
     def message(self, query: "GraphQuery"):

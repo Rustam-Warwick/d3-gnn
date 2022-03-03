@@ -5,14 +5,13 @@ import elements.Feature;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> {
     public transient short currentKey = -1;
-    public final HashMap<String,Aggregator> aggregators = new HashMap<>();
+    public final HashMap<String, Plugin> plugins = new HashMap<>();
 
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
@@ -26,12 +25,13 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     public abstract Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeatures(GraphElement e);
+
     public abstract void message(GraphOp op);
 
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.getAggregators().forEach(item->{item.setStorage(this);item.open();});
+        this.plugins.values().forEach(item->{item.setStorage(this);item.createElement();item.open();});
     }
 
     public boolean addElement(GraphElement element){
@@ -63,11 +63,13 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     public GraphElement getElement(GraphElement element){
         switch (element.elementType()){
             case VERTEX:
-                return this.getVertex(element.id);
+                return this.getVertex(element.getId());
             case FEATURE:
-                return this.getFeature(element.id);
+                return this.getFeature(element.getId());
             case EDGE:
-                return this.getEdge(element.id);
+                return this.getEdge(element.getId());
+            case PLUGIN:
+                return this.getPlugin(element.getId());
             default:
                 return null;
         }
@@ -81,22 +83,29 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
                 return this.getFeature(id);
             case EDGE:
                 return this.getEdge(id);
+            case PLUGIN:
+                return this.getPlugin(id);
             default:
                 return null;
         }
     }
 
-    public BaseStorage addAggregator(Aggregator agg) {
-        this.aggregators.put(agg.getId(), agg);
+    /**
+     * Adds Plugins to storage engine, this will be recorded in the state after open()
+     * @param plugin Plugin to be added to the storage engine
+     * @return
+     */
+    public BaseStorage withPlugin(Plugin plugin) {
+        this.plugins.put(plugin.getId(), plugin);
         return this;
     }
 
-    public Aggregator getAggregator(String id) {
-        return this.aggregators.get(id);
+    public Plugin getPlugin(String id){
+        return this.plugins.get(id);
     }
 
-    public Stream<Aggregator> getAggregators() {
-        return this.aggregators.values().stream();
+    public Stream<Plugin> getPlugins(){
+        return this.plugins.values().stream();
     }
 
 }

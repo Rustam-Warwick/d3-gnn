@@ -9,19 +9,24 @@ import scala.Tuple2;
 import java.util.*;
 
 public class ReplicableGraphElement extends GraphElement {
-    public short master = -1;
-    public boolean halo = false;
+    public short master;
+    public boolean halo;
 
     public ReplicableGraphElement(){
         super();
+        this.master = -1;
+        this.halo = false;
     }
     public ReplicableGraphElement(String id) {
         super(id);
+        this.master = -1;
+        this.halo = false;
     }
 
     public ReplicableGraphElement(String id, boolean halo){
         super(id);
         this.halo = halo;
+        this.master = -1;
     }
     public ReplicableGraphElement(String id, boolean halo, short master){
         super(id);

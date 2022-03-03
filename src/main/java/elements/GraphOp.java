@@ -22,6 +22,10 @@ public class GraphOp {
         this.state = state;
     }
 
+    public GraphOp copy(){
+        return new GraphOp(this.op, this.part_id, this.element.copy(), this.state);
+    }
+
     public boolean isTopologyChange(){
         return (this.op == Op.COMMIT || this.op == Op.REMOVE) && (this.element.elementType() == ElementType.EDGE) && (this.element.elementType() == ElementType.VERTEX);
     }

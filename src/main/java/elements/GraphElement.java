@@ -1,23 +1,29 @@
 package elements;
 
+import scala.Serializable;
 import scala.Tuple2;
 import storage.BaseStorage;
 
-import java.io.Serializable;
 import java.util.*;
 
 public class GraphElement {
     public String id;
-    public short partId = -1; // not in storage yet
-    public transient BaseStorage storage = null;
-    public HashMap<String, Feature> features = new HashMap<>();
+    public short partId;
+    public transient BaseStorage storage;
+    public HashMap<String, Feature> features;
 
     public GraphElement(){
         this.id = null;
+        this.partId = -1;
+        this.storage = null;
+        this.features = new HashMap<>();
     }
 
     public GraphElement(String id) {
         this.id = id;
+        this.partId = -1;
+        this.storage = null;
+        this.features = new HashMap<>();
     }
 
     public GraphElement copy(){
@@ -26,6 +32,7 @@ public class GraphElement {
         tmp.setStorage(this.storage);
         return tmp;
     }
+
     public GraphElement deepCopy(){
         GraphElement tmp = new GraphElement(this.id);
         tmp.setPartId(this.getPartId());
@@ -40,7 +47,7 @@ public class GraphElement {
             for(GraphElement el: this.features.values()){
                 el.createElement();
             }
-            this.storage.getAggregators().forEach(item->item.addElementCallback(this));
+            this.storage.getPlugins().forEach(item->item.addElementCallback(this));
         }
         return is_created;
     }
@@ -62,7 +69,7 @@ public class GraphElement {
         }
         if(is_updated){
             this.storage.updateElement(this);
-            this.storage.getAggregators().forEach(item->item.updateElementCallback(this, memento));
+            this.storage.getPlugins().forEach(item->item.updateElementCallback(this, memento));
         }
 
         return new Tuple2<>(is_updated, memento);
@@ -127,8 +134,9 @@ public class GraphElement {
     public void setStorage(BaseStorage storage){
         this.storage = storage;
         this.partId = Objects.nonNull(storage)?storage.currentKey:-1;
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
-            feature.getValue().setStorage(storage);
+        for(Map.Entry<String, Feature> ft: this.features.entrySet()){
+            ft.getValue().storage = storage
+            ft.getValue().partId = this.partId;
         }
     }
 
@@ -147,7 +155,7 @@ public class GraphElement {
     public void setFeature(String name,Feature feature){
         Feature exists = this.getFeature(name);
         if(Objects.nonNull(exists))return;
-        feature.setId(this.getId() + name);
+        feature.setId(name);
         feature.setElement(this);
         feature.setStorage(this.storage);
         if(Objects.nonNull(this.storage)){
@@ -163,7 +171,6 @@ public class GraphElement {
         Map<String, Feature> myFeatures = this.storage.getFeatures(this);
         for(Map.Entry<String, Feature> feature: myFeatures.entrySet()){
             feature.getValue().setElement(this);
-            feature.getValue().cacheFeatures();
             this.features.put(feature.getKey(),feature.getValue());
         }
     }

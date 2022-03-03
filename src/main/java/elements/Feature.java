@@ -3,14 +3,13 @@ package elements;
 import iterations.IterationState;
 import scala.Tuple2;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class Feature<T> extends ReplicableGraphElement {
     public Object value;
-    public transient GraphElement element = null;
+    public transient GraphElement element;
     public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
     public Feature(){
         super();
@@ -52,7 +51,7 @@ public abstract class Feature<T> extends ReplicableGraphElement {
                 for(GraphElement el: this.features.values()){
                     el.createElement();
                 }
-                this.storage.getAggregators().forEach(item->item.addElementCallback(this));
+                this.storage.getPlugins().forEach(item->item.addElementCallback(this));
                 if(this.state() == ReplicaState.MASTER) this.syncReplicas(false);
             }
             return is_created;
@@ -70,7 +69,7 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         if(isUpdated){
             this.value = newFeature.value;
             this.storage.updateFeature(this);
-            this.storage.getAggregators().forEach(item->item.updateElementCallback(this,memento));
+            this.storage.getPlugins().forEach(item->item.updateElementCallback(this,memento));
         }
         return new Tuple2<>(isUpdated, memento);
     }
@@ -138,6 +137,11 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         return this.replicaParts();
     }
 
+    @Override
+    public String getId() {
+        if(this.attachedTo._1 == ElementType.NONE) return super.getId();
+        return this.attachedTo._2 + this.id;
+    }
 
     public GraphElement getElement() {
         if(this.attachedTo._1 == ElementType.NONE) return null;

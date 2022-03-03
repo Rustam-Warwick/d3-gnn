@@ -52,8 +52,10 @@ public abstract class HashMapStorage extends BaseStorage{
             this.lastId.update(0);
             return 0;
         }
+        this.lastId.update(last_id + 1); // Increment, better sooner than later
         return last_id;
     }
+
     @Override
     public boolean addFeature(Feature feature) {
         try{
@@ -72,13 +74,13 @@ public abstract class HashMapStorage extends BaseStorage{
                 featureIds.add(last_id);
                 this.elementFeatures.put(elementId, featureIds);
             }
-            this.lastId.update(last_id + 1);
             return true;
         }catch (Exception e){
             return false;
         }
 
     }
+
 
     @Override
     public boolean addVertex(Vertex vertex){
@@ -88,7 +90,6 @@ public abstract class HashMapStorage extends BaseStorage{
             this.translationTable.put(vertex.getId(),last_id);
             this.reverseTranslationTable.put(last_id, vertex.getId());
             this.vertexTable.put(last_id, vertex);
-            this.lastId.update(last_id + 1);
             return true;
         }
         catch (Exception e){
@@ -232,14 +233,12 @@ public abstract class HashMapStorage extends BaseStorage{
             for(int id: features_found){
                 Feature tmp = this.featureTable.get(id);
                 tmp.setStorage(this);
-                String featureName = tmp.getId().substring(((String)tmp.attachedTo._2).length());
-                result.put(featureName, tmp);
+                result.put(tmp.id, tmp);
             }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }finally {
-            return result;
+        } catch (Exception ignored) {
+
         }
+        return result;
 
 
     }

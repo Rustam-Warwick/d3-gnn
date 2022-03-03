@@ -33,7 +33,7 @@ public class Rpc extends GraphElement {
         try {
             if(message.hasUpdate){
                 GraphElement deepCopyElement = element.deepCopy();
-                Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item->item.getName() == message.methodName).findFirst().get();
+                Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item-> item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(deepCopyElement, message.args);
                 element.externalUpdate(deepCopyElement);
 

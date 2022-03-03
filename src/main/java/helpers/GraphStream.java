@@ -4,6 +4,7 @@ import elements.GraphOp;
 import functions.GraphProcessFn;
 import iterations.IterationState;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.functions.KeySelector;
@@ -76,7 +77,6 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
-
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
         DataStream<GraphOp> iterateFilter = res.filter(item->item.state == IterationState.ITERATE);

@@ -1,9 +1,9 @@
-package aggregators;
+package plugins;
 
-import elements.Aggregator;
+import elements.Plugin;
 import elements.GraphElement;
 
-public class GNNLayerInference  extends Aggregator {
+public class GNNLayerInference  extends Plugin {
     public GNNLayerInference(String id) {
         super(id);
     }
@@ -13,11 +13,11 @@ public class GNNLayerInference  extends Aggregator {
 
     @Override
     public void addElementCallback(GraphElement element) {
-        super.addElementCallback(element);
+        System.out.println(element);
     }
 
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-        super.updateElementCallback(newElement, oldElement);
+
     }
 }

@@ -1,7 +1,7 @@
 package elements;
 
 public enum ElementType {
-    AGG,
+    PLUGIN,
     EDGE,
     FEATURE,
     NONE,

@@ -33,8 +33,8 @@ public class GraphProcessFn extends HashMapStorage {
     public void processElement(GraphOp value, KeyedProcessFunction<Short, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         this.currentKey = ctx.getCurrentKey();
         this.out = out;
-        if(!this.isLast()){
-
+        if(!this.isLast() && value.isTopologyChange()){
+            this.message(value.copy());
         }
         try{
             switch (value.op){
@@ -48,20 +48,19 @@ public class GraphProcessFn extends HashMapStorage {
                         thisElement.externalUpdate(value.element);
                     }
                     break;
-                case SYNC:
-                    GraphElement el = this.getElement(value.element);
-                    if(Objects.isNull(el)){
-                        el = value.element.copy();
-                        el.setStorage(this);
-                        el.createElement();
-                    }
-                    el.syncElement(value.element);
-                    break;
+//                case SYNC:
+//                    GraphElement el = this.getElement(value.element);
+//                    if(Objects.isNull(el)){
+//                        el = value.element.copy();
+//                        el.setStorage(this);
+//                        el.createElement();
+//                    }
+//                    el.syncElement(value.element);
+//                    break;
                 case RPC:
                     GraphElement rpcElement = this.getElement(value.element.getId(),value.element.elementType());
                     Rpc.execute(rpcElement, (Rpc) value.element);
                     break;
-
             }
         }catch (Exception e){
             e.printStackTrace();

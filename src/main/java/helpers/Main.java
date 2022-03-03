@@ -1,15 +1,8 @@
 package helpers;
 
-import aggregators.GNNLayerInference;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.PtEngine;
-import elements.GraphElement;
-import elements.GraphOp;
 import functions.GraphProcessFn;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import partitioner.RandomPartitioner;
+import plugins.GNNLayerInference;
 
 
 public class Main {

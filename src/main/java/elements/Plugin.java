@@ -1,13 +1,17 @@
 package elements;
 
-public class Aggregator extends GraphElement{
-    public Aggregator(){
+public class Plugin extends GraphElement{
+    public Plugin(){
         super();
     }
-    public Aggregator(String id) {
+    public Plugin(String id) {
         super(id);
     }
 
+    @Override
+    public ElementType elementType() {
+        return ElementType.PLUGIN;
+    }
 
     public void addElementCallback(GraphElement element){
 
@@ -15,7 +19,6 @@ public class Aggregator extends GraphElement{
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement){
 
     }
-
     public void open(){
 
     }

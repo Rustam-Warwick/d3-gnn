@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class AggregatorFeatureMixin:
-    """ Base class for all feature aggregators """
+    """ Base class for all feature plugins """
 
     @abc.abstractmethod
     def reduce(self, new_element: object, count=1, part_id=None):
