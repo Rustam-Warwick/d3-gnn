@@ -4,6 +4,7 @@ import elements.*;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class Rpc extends GraphElement {
@@ -33,7 +34,7 @@ public class Rpc extends GraphElement {
         try {
             if(message.hasUpdate){
                 GraphElement deepCopyElement = element.deepCopy();
-                Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item-> item.getName().equals(message.methodName)).findFirst().get();
+                Method method = Arrays.stream(deepCopyElement.getClass().getDeclaredMethods()).filter(item-> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(deepCopyElement, message.args);
                 element.externalUpdate(deepCopyElement);
 
@@ -51,6 +52,12 @@ public class Rpc extends GraphElement {
         }
     }
 
+    /**
+     * Send Update RPC Message to master of this element
+     * @param el
+     * @param methodName
+     * @param args
+     */
     public static void call(GraphElement el, String methodName, Object ...args){
         Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType());
         rpc.setStorage(el.storage);
@@ -62,6 +69,12 @@ public class Rpc extends GraphElement {
         }
     }
 
+    /**
+     * Send Procedure RPC Message to master of this element
+     * @param el
+     * @param methodName
+     * @param args
+     */
     public static void callProcedure(GraphElement el, String methodName, Object ...args){
         Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(),false);
         rpc.setStorage(el.storage);
@@ -70,6 +83,33 @@ public class Rpc extends GraphElement {
         }
         else{
             rpc.storage.message(new GraphOp(Op.RPC,el.masterPart(), rpc, IterationState.ITERATE));
+        }
+    }
+
+    public static void callProcedure(GraphElement el, String methodName, IterationState iterationState, RemoteDestination remoteDestination, Object ...args){
+        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(),false);
+        rpc.setStorage(el.storage);
+        ArrayList<Short> destinations = new ArrayList<>();
+        switch (remoteDestination){
+            case SELF:
+                destinations.add(el.getPartId());
+                break;
+            case MASTER:
+                destinations.add(el.masterPart());
+                break;
+            case REPLICAS:
+                destinations.addAll(el.replicaParts());
+                break;
+            case ALL:
+                destinations.addAll(el.replicaParts());
+                destinations.add(el.masterPart());
+        }
+        for(Short part : destinations){
+            if(part == el.masterPart() && iterationState == IterationState.ITERATE){
+                Rpc.execute(el, rpc);
+            }else{
+                rpc.storage.message(new GraphOp(Op.RPC,part, rpc, iterationState));
+            }
         }
     }
 

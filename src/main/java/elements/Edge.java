@@ -21,14 +21,21 @@ public class Edge extends GraphElement{
     public GraphElement copy() {
         Vertex srcCpy = (Vertex) this.src.copy();
         Vertex destCpy = (Vertex) this.dest.copy();
-        return new Edge(srcCpy, destCpy);
+        Edge tmp = new Edge(srcCpy, destCpy);
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
+        return tmp;
     }
 
     @Override
     public GraphElement deepCopy() {
         Vertex srcCpy = (Vertex) this.src.deepCopy();
         Vertex destCpy = (Vertex) this.dest.deepCopy();
-        return new Edge(srcCpy, destCpy);
+        Edge tmp = new Edge(srcCpy, destCpy);
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
+        tmp.features.putAll(this.features);
+        return tmp;
     }
 
     @Override

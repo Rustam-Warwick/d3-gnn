@@ -49,8 +49,7 @@ public abstract class HashMapStorage extends BaseStorage{
     private int getLastId() throws IOException {
         Integer last_id = this.lastId.value();
         if(last_id == null){
-            this.lastId.update(0);
-            return 0;
+            last_id = 0;
         }
         this.lastId.update(last_id + 1); // Increment, better sooner than later
         return last_id;

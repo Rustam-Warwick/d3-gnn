@@ -7,35 +7,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class Feature<T> extends ReplicableGraphElement {
-    public Object value;
+public abstract class Feature<T, V> extends ReplicableGraphElement {
+    public T value;
     public transient GraphElement element;
     public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
     public Feature(){
         super();
         this.value = null;
     }
-    public Feature(Object value){
+    public Feature(T value){
         super();
         this.value = value;
     }
-    public Feature(Object value, boolean halo){
+    public Feature(T value, boolean halo){
         super(null, halo);
         this.value = value;
     }
-    public Feature(Object value, boolean halo, short master){
+    public Feature(T value, boolean halo, short master){
         super(null, halo, master);
         this.value = value;
     }
-    public Feature(String id, Object value){
+    public Feature(String id, T value){
         super(id);
         this.value = value;
     }
-    public Feature(String id, Object value, boolean halo){
+    public Feature(String id, T value, boolean halo){
         super(id, halo);
         this.value = value;
     }
-    public Feature(String id, Object value, boolean halo, short master){
+    public Feature(String id, T value, boolean halo, short master){
         super(id, halo, master);
         this.value = value;
     }
@@ -61,8 +61,8 @@ public abstract class Feature<T> extends ReplicableGraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
         boolean isUpdated;
-        Feature<T> memento = (Feature<T>) this.copy();
-        Feature<T> newFeature = (Feature<T>) newElement;
+        Feature<T, V> memento = (Feature<T,V>) this.copy();
+        Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if(Objects.isNull(this.value) && Objects.isNull(newFeature.value)) isUpdated = false;
         else if(Objects.isNull(this.value) || Objects.isNull(newFeature.value)) isUpdated = true;
         else isUpdated = !this.valuesEqual(newFeature.value, this.value);
@@ -111,8 +111,8 @@ public abstract class Feature<T> extends ReplicableGraphElement {
 
 
     // Abstract Methods and
-    abstract public T getValue();
-    abstract public boolean valuesEqual(Object v1, Object v2);
+    abstract public V getValue();
+    abstract public boolean valuesEqual(T v1, T v2);
     // Getters and setters
 
 
@@ -142,6 +142,9 @@ public abstract class Feature<T> extends ReplicableGraphElement {
         if(this.attachedTo._1 == ElementType.NONE) return super.getId();
         return this.attachedTo._2 + this.id;
     }
+    public String getFieldName(){
+        return this.id;
+    }
 
     public GraphElement getElement() {
         if(this.attachedTo._1 == ElementType.NONE) return null;
@@ -153,6 +156,9 @@ public abstract class Feature<T> extends ReplicableGraphElement {
 
     public void setElement(GraphElement element) {
         this.element = element;
-        this.attachedTo = new Tuple2<>(element.elementType(), element.getId());
+        if(Objects.nonNull(element)){
+            this.attachedTo = new Tuple2<>(element.elementType(), element.getId());
+        }
+
     }
 }

@@ -1,7 +1,15 @@
 package plugins;
 
-import elements.Plugin;
-import elements.GraphElement;
+import aggregators.MeanAggregator;
+import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.types.Shape;
+import elements.*;
+import features.Tensor;
+import iterations.RemoteFunction;
+import iterations.Rpc;
+import storage.BaseStorage;
+
+import java.util.Objects;
 
 public class GNNLayerInference  extends Plugin {
     public GNNLayerInference(String id) {
@@ -11,13 +19,104 @@ public class GNNLayerInference  extends Plugin {
         super();
     }
 
+    @RemoteFunction
+    public void forward(String elementId, NDArray embedding){
+
+    }
+
     @Override
     public void addElementCallback(GraphElement element) {
-        System.out.println(element);
+        switch (element.elementType()){
+            case VERTEX:{
+                if(element.state() == ReplicaState.MASTER) {
+                    element.setFeature("agg", new MeanAggregator(BaseStorage.tensorManager.zeros(new Shape(32)), true));
+                    if(this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))){
+                        element.setFeature("feature", new Tensor(BaseStorage.tensorManager.zeros(new Shape(7))));
+                    }
+                }
+                break;
+            }
+            case EDGE:{
+                Edge edge = (Edge) element;
+                NDArray message = this.getMessage(edge);
+                if(Objects.nonNull(message)){
+                    ((MeanAggregator)edge.dest.getFeature("agg")).reduce(message, 1);
+                }
+                break;
+            }
+            case FEATURE:{
+                Feature feature = (Feature) element;
+                switch (feature.getFieldName()){
+                    case "feature":{
+                        Vertex parent = (Vertex) feature.getElement();
+                        NDArray update = this.getUpdate(parent);
+                        if(Objects.nonNull(update)){
+                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                        }
+                        this.reduceOutEdges(parent);
+                        break;
+                    }
+                    case "agg":{
+                        Vertex parent = (Vertex) feature.getElement();
+                        this.reduceInEdges(parent);
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+
+
+
     }
 
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
+        switch (newElement.elementType()){
+            case FEATURE:{
+                Feature feature = (Feature) newElement;
+                Feature oldFeature = (Feature) oldElement;
+                switch (feature.getFieldName()){
+                    case "feature":{
+                        Vertex parent = (Vertex) feature.getElement();
+                        this.updateOutEdges(parent, (NDArray) oldFeature.getValue());
+                        NDArray update = this.getUpdate(parent);
+                        if(Objects.nonNull(update)){
+                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                        }
+                        break;
+                    }
 
+                    case "agg":{
+                        Vertex parent = (Vertex) feature.getElement();
+                        NDArray update = this.getUpdate(parent);
+                        if(Objects.nonNull(update)){
+                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    public void updateOutEdges(Vertex vertex, NDArray oldFeature){
+
+    }
+
+    public void reduceOutEdges(Vertex vertex){
+
+    }
+
+    public void reduceInEdges(Vertex vertex){
+
+    }
+
+    public NDArray getMessage(Edge edge){
+        return null;
+    }
+
+    public NDArray getUpdate(Vertex vertex){
+        return null;
     }
 }

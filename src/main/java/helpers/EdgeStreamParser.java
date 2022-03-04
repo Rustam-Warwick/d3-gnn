@@ -23,7 +23,7 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         NDManager manager = NDManager.newBaseManager();
-        NDArray tmp = manager.ones(new Shape(this.categories.length, this.categories.length));
+        NDArray tmp = manager.eye(this.categories.length);
         for(int i=0; i<this.categories.length;i++){
             this.oneHotFeatures.put(this.categories[i], tmp.get(i));
         }

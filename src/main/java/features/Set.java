@@ -2,12 +2,13 @@ package features;
 
 import elements.Feature;
 import elements.GraphElement;
+import iterations.RemoteFunction;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 
-public class Set<T> extends Feature<List<T>> {
+public class Set<T> extends Feature<List<T>, List<T>> {
     public Set() {
     }
 
@@ -37,35 +38,31 @@ public class Set<T> extends Feature<List<T>> {
 
     @Override
     public GraphElement copy() {
-        Set<T> tmp = new Set<T>(this.id, (List<T>) this.value, this.halo, this.master);
-        tmp.setPartId(this.getPartId());
-        tmp.setStorage(this.storage);
+        Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
+        tmp.attachedTo = this.attachedTo;
+        tmp.element = this.element;
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
         return tmp;
     }
 
     @Override
     public GraphElement deepCopy() {
-        List<T> valueCopy = ((List<T>)this.value);
-        Set<T> tmp = new Set<T>(this.id, valueCopy, this.halo, this.master);
-        tmp.setPartId(this.getPartId());
-        tmp.setStorage(this.storage);
-        tmp.features.putAll(this.features);
-        return tmp;
+        return this.copy();
     }
-
+    @RemoteFunction()
     public void add(T element){
-        if(((List<T>) this.value).contains(element))return;
-        ((List<T>) this.value).add(element);
-        
+        if(this.value.contains(element))return;
+        this.value.add(element);
     }
 
     @Override
     public List<T> getValue() {
-        return (List<T>) this.value;
+        return this.value;
     }
 
     @Override
-    public boolean valuesEqual(Object v1, Object v2) {
+    public boolean valuesEqual(List<T> v1, List<T> v2) {
         return false;
     }
 }

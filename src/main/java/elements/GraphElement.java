@@ -6,7 +6,7 @@ import storage.BaseStorage;
 
 import java.util.*;
 
-public class GraphElement {
+public class GraphElement implements Serializable {
     public String id;
     public short partId;
     public transient BaseStorage storage;
@@ -28,15 +28,15 @@ public class GraphElement {
 
     public GraphElement copy(){
         GraphElement tmp = new GraphElement(this.id);
-        tmp.setPartId(this.getPartId());
-        tmp.setStorage(this.storage);
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
         return tmp;
     }
 
     public GraphElement deepCopy(){
         GraphElement tmp = new GraphElement(this.id);
-        tmp.setPartId(this.getPartId());
-        tmp.setStorage(this.storage);
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
         tmp.features.putAll(this.features);
         return tmp;
     }
@@ -65,7 +65,6 @@ public class GraphElement {
                 this.setFeature(entry.getKey(), entry.getValue());
                 is_updated = true;
             }
-
         }
         if(is_updated){
             this.storage.updateElement(this);
@@ -135,8 +134,7 @@ public class GraphElement {
         this.storage = storage;
         this.partId = Objects.nonNull(storage)?storage.currentKey:-1;
         for(Map.Entry<String, Feature> ft: this.features.entrySet()){
-            ft.getValue().storage = storage
-            ft.getValue().partId = this.partId;
+            ft.getValue().setStorage(storage);
         }
     }
 

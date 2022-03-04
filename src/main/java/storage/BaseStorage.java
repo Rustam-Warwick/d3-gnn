@@ -1,5 +1,6 @@
 package storage;
 
+import ai.djl.ndarray.NDManager;
 import elements.*;
 import elements.Feature;
 import org.apache.flink.configuration.Configuration;
@@ -11,8 +12,10 @@ import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> {
     public transient short currentKey = -1;
+    public short position = 1;
+    public short layers = 1;
     public final HashMap<String, Plugin> plugins = new HashMap<>();
-
+    public static NDManager tensorManager;
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);
@@ -27,11 +30,17 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     public abstract Map<String, Feature> getFeatures(GraphElement e);
 
     public abstract void message(GraphOp op);
-
+    public boolean isLast(){
+        return this.position >= this.layers;
+    }
+    public boolean isFirst(){
+        return this.position == 1;
+    }
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         this.plugins.values().forEach(item->{item.setStorage(this);item.createElement();item.open();});
+        BaseStorage.tensorManager = NDManager.newBaseManager();
     }
 
     public boolean addElement(GraphElement element){
@@ -41,7 +50,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
             case EDGE:
                 return this.addEdge((Edge) element);
             case FEATURE:
-                return this.addFeature((Feature<?>) element);
+                return this.addFeature((Feature<?, ?>) element);
             default:
                 return false;
         }

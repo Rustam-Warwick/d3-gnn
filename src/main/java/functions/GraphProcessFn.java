@@ -12,15 +12,6 @@ import java.util.Objects;
 
 public class GraphProcessFn extends HashMapStorage {
     public transient Collector<GraphOp> out;
-    public short position = 1;
-    public short layers = 1;
-
-    public boolean isLast(){
-        return this.position >= this.layers;
-    }
-    public boolean isFirst(){
-        return this.position == 1;
-    }
 
 
 
@@ -48,15 +39,15 @@ public class GraphProcessFn extends HashMapStorage {
                         thisElement.externalUpdate(value.element);
                     }
                     break;
-//                case SYNC:
-//                    GraphElement el = this.getElement(value.element);
-//                    if(Objects.isNull(el)){
-//                        el = value.element.copy();
-//                        el.setStorage(this);
-//                        el.createElement();
-//                    }
-//                    el.syncElement(value.element);
-//                    break;
+                case SYNC:
+                    GraphElement el = this.getElement(value.element);
+                    if(Objects.isNull(el)){
+                        el = value.element.copy();
+                        el.setStorage(this);
+                        el.createElement();
+                    }
+                    el.syncElement(value.element);
+                    break;
                 case RPC:
                     GraphElement rpcElement = this.getElement(value.element.getId(),value.element.elementType());
                     Rpc.execute(rpcElement, (Rpc) value.element);
