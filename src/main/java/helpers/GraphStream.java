@@ -1,5 +1,6 @@
 package helpers;
 
+import ai.djl.BaseModel;
 import elements.GraphOp;
 import functions.GraphProcessFn;
 import iterations.IterationState;
@@ -34,6 +35,7 @@ public class GraphStream {
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
+//        this.env.registerTypeWithKryoSerializer(BaseModel.class, ModelSerializer.class);
     }
 
     public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port){

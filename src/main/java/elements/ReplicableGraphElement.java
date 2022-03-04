@@ -3,7 +3,6 @@ package elements;
 import features.Set;
 import iterations.IterationState;
 import iterations.Rpc;
-import org.apache.commons.collections.IteratorUtils;
 import scala.Tuple2;
 
 import java.util.*;

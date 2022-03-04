@@ -1,8 +1,14 @@
 package plugins;
 
 import aggregators.MeanAggregator;
+import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.nn.Block;
+import ai.djl.training.LocalParameterServer;
+import ai.djl.training.ParameterStore;
+import ai.djl.translate.NoopTranslator;
 import elements.*;
 import features.Tensor;
 import iterations.RemoteFunction;
@@ -11,7 +17,10 @@ import storage.BaseStorage;
 
 import java.util.Objects;
 
-public class GNNLayerInference  extends Plugin {
+public abstract class GNNLayerInference extends Plugin {
+    public Model messageModel;
+    public Model updateModel;
+    public ParameterStore paramStore;
     public GNNLayerInference(String id) {
         super(id);
     }
@@ -19,13 +28,26 @@ public class GNNLayerInference  extends Plugin {
         super();
     }
 
+    public abstract Model createMessageModel();
+    public abstract Model createUpdateModel();
+
     @RemoteFunction
     public void forward(String elementId, NDArray embedding){
 
     }
 
     @Override
+    public void open() {
+        super.open();
+        this.paramStore = new ParameterStore(BaseStorage.tensorManager,false);
+        this.messageModel = this.createMessageModel();
+        this.updateModel = this.createUpdateModel();
+
+    }
+
+    @Override
     public void addElementCallback(GraphElement element) {
+        super.addElementCallback(element);
         switch (element.elementType()){
             case VERTEX:{
                 if(element.state() == ReplicaState.MASTER) {
@@ -72,6 +94,7 @@ public class GNNLayerInference  extends Plugin {
 
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
+        super.updateElementCallback(newElement, oldElement);
         switch (newElement.elementType()){
             case FEATURE:{
                 Feature feature = (Feature) newElement;
@@ -107,12 +130,18 @@ public class GNNLayerInference  extends Plugin {
     public void reduceOutEdges(Vertex vertex){
 
     }
+    public boolean tensorReady(Tensor e){
+        return true;
+    }
 
     public void reduceInEdges(Vertex vertex){
 
     }
 
     public NDArray getMessage(Edge edge){
+        if(Objects.nonNull(edge.dest.getFeature("agg")) && Objects.nonNull(edge.src.getFeature("feature")) && this.tensorReady((Tensor) edge.src.getFeature("feature"))){
+            NDList inference = this.messageModel.getBlock().forward(this.paramStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
+        }
         return null;
     }
 

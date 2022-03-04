@@ -39,8 +39,8 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.plugins.values().forEach(item->{item.setStorage(this);item.createElement();item.open();});
         BaseStorage.tensorManager = NDManager.newBaseManager();
+        this.plugins.values().forEach(item->{item.setStorage(this);item.createElement();item.open();});
     }
 
     public boolean addElement(GraphElement element){
