@@ -1,6 +1,9 @@
 package helpers;
 
 import ai.djl.BaseModel;
+import ai.djl.engine.Engine;
+import ai.djl.mxnet.engine.MxNDArray;
+import ai.djl.ndarray.NDArray;
 import elements.GraphOp;
 import functions.GraphProcessFn;
 import iterations.IterationState;
@@ -17,6 +20,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import partitioner.BasePartitioner;
+import serializers.TensorSerializer;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -35,7 +39,7 @@ public class GraphStream {
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
-//        this.env.registerTypeWithKryoSerializer(BaseModel.class, ModelSerializer.class);
+//        this.env.registerTypeWithKryoSerializer(MxNDArray.class, TensorSerializer.class);
     }
 
     public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port){

@@ -26,6 +26,7 @@ public abstract class HashMapStorage extends BaseStorage{
     public transient ValueState<Integer> lastId;
 
 
+
     @Override
     public void open(Configuration parameters) throws Exception {
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
