@@ -27,7 +27,7 @@ public class GraphOp {
     }
 
     public boolean isTopologyChange(){
-        return (this.op == Op.COMMIT || this.op == Op.REMOVE) && (this.element.elementType() == ElementType.EDGE) && (this.element.elementType() == ElementType.VERTEX);
+        return (this.op == Op.COMMIT || this.op == Op.REMOVE) && (this.element.elementType() == ElementType.EDGE || (this.element.elementType() == ElementType.VERTEX));
     }
 
 }

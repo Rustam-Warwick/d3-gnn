@@ -1,11 +1,45 @@
 package elements;
 
-public class Plugin extends GraphElement{
+import scala.Tuple2;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+public class Plugin extends ReplicableGraphElement{
+    public List<Short> replicaList=null;
     public Plugin(){
-        super();
+        super(null, false, (short) 1);
     }
     public Plugin(String id) {
-        super(id);
+        super(id, false, (short) 0);
+    }
+
+    @Override
+    public Boolean createElement() {
+        return false;
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
+        return null;
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
+        return null;
+    }
+
+    @Override
+    public List<Short> replicaParts() {
+        if(Objects.isNull(this.replicaList)){
+            this.replicaList = new ArrayList<>();
+            for(short i=1;i<this.storage.parallelism;i++){
+                replicaList.add(i);
+            }
+        }
+
+        return this.replicaList;
     }
 
     @Override

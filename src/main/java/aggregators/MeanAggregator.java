@@ -1,23 +1,18 @@
 package aggregators;
 
-import ai.djl.engine.Engine;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
-import elements.Feature;
 import elements.GraphElement;
-import features.Set;
-import scala.Int;
+import iterations.RemoteFunction;
 import scala.Tuple3;
 
 import java.util.HashMap;
-import java.util.List;
 
-public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>>{
+public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>> {
     public MeanAggregator() {
         super();
     }
 
-    public MeanAggregator(NDArray tensor, boolean halo){
+    public MeanAggregator(NDArray tensor, boolean halo) {
         this(new Tuple3<>(tensor, 0, new HashMap<>()), halo);
     }
 
@@ -60,6 +55,7 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
         return this.copy();
     }
 
+    @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
 
@@ -70,6 +66,7 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
 
     }
 
+    @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
 

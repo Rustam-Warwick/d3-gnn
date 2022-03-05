@@ -1,5 +1,6 @@
 package functions;
 
+import elements.ElementType;
 import elements.GraphElement;
 import elements.GraphOp;
 import iterations.Rpc;
@@ -24,14 +25,14 @@ public class GraphProcessFn extends HashMapStorage {
     public void processElement(GraphOp value, KeyedProcessFunction<Short, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         this.currentKey = ctx.getCurrentKey();
         this.out = out;
-        if(!this.isLast() && value.isTopologyChange()){
-            this.message(value.copy());
-        }
         try{
             switch (value.op){
                 case COMMIT:
                     GraphElement thisElement = this.getElement(value.element);
                     if(Objects.isNull(thisElement)){
+                        if(!this.isLast() && (value.element.elementType()== ElementType.EDGE || value.element.elementType()== ElementType.VERTEX)){
+                            this.message(value.copy());
+                        }
                         value.element.setStorage(this);
                         value.element.createElement();
                     }

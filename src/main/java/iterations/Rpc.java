@@ -34,17 +34,15 @@ public class Rpc extends GraphElement {
         try {
             if(message.hasUpdate){
                 GraphElement deepCopyElement = element.deepCopy();
-                Method method = Arrays.stream(deepCopyElement.getClass().getDeclaredMethods()).filter(item-> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
+                Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item-> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(deepCopyElement, message.args);
                 element.externalUpdate(deepCopyElement);
 
             }else{
-                Method method = element.getClass().getMethod(message.methodName);
+                Method method = Arrays.stream(element.getClass().getMethods()).filter(item-> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(element, message.args);
             }
 
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
         } catch (InvocationTargetException e) {
             e.printStackTrace();
         } catch (IllegalAccessException e) {

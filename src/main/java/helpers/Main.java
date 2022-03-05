@@ -1,18 +1,12 @@
 package helpers;
 
 import ai.djl.Model;
-import ai.djl.engine.Engine;
-import ai.djl.mxnet.engine.MxModel;
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.*;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.core.Prelu;
-import ai.djl.repository.zoo.Criteria;
-import ai.djl.repository.zoo.ZooModel;
-import ai.djl.translate.Translator;
 import functions.GraphProcessFn;
 import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
@@ -44,7 +38,6 @@ public class Main {
 
     public static Model generateMessageFunction(){
         SequentialBlock myBlock = new SequentialBlock();
-
         myBlock.add(Linear.builder().setUnits(32).build());
         myBlock.add(Activation::relu);
         myBlock.add(Linear.builder().setUnits(32).build());
@@ -81,18 +74,57 @@ public class Main {
             @Override
             public Model createUpdateModel() {
                 SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(new LambdaBlock(inputs->(
+                    new NDList(inputs.get(0).concat(inputs.get(1)))
+                )));
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(16).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(7).build());
                 myBlock.add(Activation::relu);
-                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(37));
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
                 Model model = Model.newInstance("message");
                 model.setBlock(myBlock);
                 return model;
             }
         }));
+
+        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+            @Override
+            public Model createMessageModel() {
+                SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                Model model = Model.newInstance("inference");
+                model.setBlock(myBlock);
+                return model;
+            }
+
+            @Override
+            public Model createUpdateModel() {
+                SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(new LambdaBlock(inputs->(
+                        new NDList(inputs.get(0).concat(inputs.get(1)))
+                )));
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(16).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(7).build());
+                myBlock.add(Activation::relu);
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
+                Model model = Model.newInstance("message");
+                model.setBlock(myBlock);
+                return model;
+            }
+        }));
+
         System.out.println(gs.env.getExecutionPlan());
         gs.env.execute();
     }

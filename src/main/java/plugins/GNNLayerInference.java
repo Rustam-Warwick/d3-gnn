@@ -1,6 +1,7 @@
 package plugins;
 
 import aggregators.MeanAggregator;
+import ai.djl.Device;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
@@ -11,6 +12,10 @@ import ai.djl.training.ParameterStore;
 import ai.djl.translate.NoopTranslator;
 import elements.*;
 import features.Tensor;
+import helpers.MyParameterServer;
+import helpers.MyParameterStore;
+import iterations.IterationState;
+import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import storage.BaseStorage;
@@ -20,7 +25,7 @@ import java.util.Objects;
 public abstract class GNNLayerInference extends Plugin {
     public Model messageModel;
     public Model updateModel;
-    public ParameterStore paramStore;
+    public MyParameterStore parameterStore;
     public GNNLayerInference(String id) {
         super(id);
     }
@@ -39,10 +44,9 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void open() {
         super.open();
-        this.paramStore = new ParameterStore(BaseStorage.tensorManager,false);
+        this.parameterStore = new MyParameterStore(BaseStorage.tensorManager, false);
         this.messageModel = this.createMessageModel();
         this.updateModel = this.createUpdateModel();
-
     }
 
     @Override
@@ -62,7 +66,7 @@ public abstract class GNNLayerInference extends Plugin {
                 Edge edge = (Edge) element;
                 NDArray message = this.getMessage(edge);
                 if(Objects.nonNull(message)){
-                    ((MeanAggregator)edge.dest.getFeature("agg")).reduce(message, 1);
+                    Rpc.call(edge.dest.getFeature("agg"), "reduce", message, 1);
                 }
                 break;
             }
@@ -73,7 +77,7 @@ public abstract class GNNLayerInference extends Plugin {
                         Vertex parent = (Vertex) feature.getElement();
                         NDArray update = this.getUpdate(parent);
                         if(Objects.nonNull(update)){
-                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                            Rpc.callProcedure(this,"forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), update);
                         }
                         this.reduceOutEdges(parent);
                         break;
@@ -87,9 +91,6 @@ public abstract class GNNLayerInference extends Plugin {
                 break;
             }
         }
-
-
-
     }
 
     @Override
@@ -102,11 +103,11 @@ public abstract class GNNLayerInference extends Plugin {
                 switch (feature.getFieldName()){
                     case "feature":{
                         Vertex parent = (Vertex) feature.getElement();
-                        this.updateOutEdges(parent, (NDArray) oldFeature.getValue());
                         NDArray update = this.getUpdate(parent);
                         if(Objects.nonNull(update)){
-                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                            Rpc.callProcedure(this,"forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), update);
                         }
+                        this.updateOutEdges(parent, (NDArray) oldFeature.getValue());
                         break;
                     }
 
@@ -114,7 +115,7 @@ public abstract class GNNLayerInference extends Plugin {
                         Vertex parent = (Vertex) feature.getElement();
                         NDArray update = this.getUpdate(parent);
                         if(Objects.nonNull(update)){
-                            Rpc.callProcedure(this,"forward", parent.getId(), update);
+                            Rpc.callProcedure(this,"forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), update);
                         }
                         break;
                     }
@@ -140,12 +141,18 @@ public abstract class GNNLayerInference extends Plugin {
 
     public NDArray getMessage(Edge edge){
         if(Objects.nonNull(edge.dest.getFeature("agg")) && Objects.nonNull(edge.src.getFeature("feature")) && this.tensorReady((Tensor) edge.src.getFeature("feature"))){
-            NDList inference = this.messageModel.getBlock().forward(this.paramStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
+            NDList message = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
+            return message.get(0);
         }
         return null;
     }
 
     public NDArray getUpdate(Vertex vertex){
+        if(vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && Objects.nonNull(vertex.getFeature("agg"))){
+            NDList inference = this.updateModel.getBlock().forward(this.parameterStore, new NDList((NDArray) vertex.getFeature("feature").getValue(),(NDArray) vertex.getFeature("agg").getValue()), false);
+            return inference.get(0);
+        }
+
         return null;
     }
 }

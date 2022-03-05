@@ -1,18 +1,12 @@
 package helpers;
 
-import ai.djl.BaseModel;
-import ai.djl.engine.Engine;
-import ai.djl.mxnet.engine.MxNDArray;
-import ai.djl.ndarray.NDArray;
+import ai.djl.pytorch.engine.PtNDArray;
 import elements.GraphOp;
 import functions.GraphProcessFn;
 import iterations.IterationState;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.Partitioner;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.shaded.guava30.com.google.common.graph.Graph;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
@@ -34,28 +28,29 @@ public class GraphStream {
     public DataStream<GraphOp> last = null;
     private IterativeStream<GraphOp> iterator = null;
 
-    public GraphStream(short parallelism, short layers){
+    public GraphStream(short parallelism, short layers) {
         this.parallelism = parallelism;
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
-//        this.env.registerTypeWithKryoSerializer(MxNDArray.class, TensorSerializer.class);
+        this.env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
     }
 
-    public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port){
+    public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port) {
         this.last = this.env.socketTextStream(host, port).map(parser).name("Input Stream Parser");
         return this.last;
     }
 
-    public DataStream<GraphOp> partition(BasePartitioner partitioner){
+    public DataStream<GraphOp> partition(BasePartitioner partitioner) {
         partitioner.partitions = this.parallelism;
         short part_parallelism = this.parallelism;
-        if(!partitioner.isParallel())part_parallelism = 1;
+        if (!partitioner.isParallel()) part_parallelism = 1;
         this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
-        this.last = this.last.map(item->item);
+        this.last = this.last.map(item -> item);
         return this.last;
     }
-    public KeyedStream<GraphOp, Short> keyBy(DataStream<GraphOp> last){
+
+    public KeyedStream<GraphOp, Short> keyBy(DataStream<GraphOp> last) {
         Constructor<KeyedStream> constructor = null;
         try {
             constructor = KeyedStream.class.getDeclaredConstructor(DataStream.class, PartitionTransformation.class, KeySelector.class, TypeInformation.class);
@@ -79,16 +74,17 @@ public class GraphStream {
             return null;
         }
     }
-    public DataStream<GraphOp> gnnLayer(GraphProcessFn storageProcess){
+
+    public DataStream<GraphOp> gnnLayer(GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
-        DataStream<GraphOp> iterateFilter = res.filter(item->item.state == IterationState.ITERATE);
-        DataStream<GraphOp> forwardFilter = res.filter(item->item.state == IterationState.FORWARD);
-        if(Objects.nonNull(this.iterator)){
-            DataStream<GraphOp> backFilter = res.filter(item->item.state == IterationState.BACKWARD).returns(GraphOp.class);
+        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
+        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD);
+        if (Objects.nonNull(this.iterator)) {
+            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class);
             this.iterator.closeWith(backFilter);
         }
         iterator.closeWith(iterateFilter);

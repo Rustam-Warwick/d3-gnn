@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> implements CheckpointedFunction {
     public transient short currentKey = -1;
+    public short parallelism = 1;
     public short position = 1;
     public short layers = 1;
     public final HashMap<String, Plugin> plugins = new HashMap<>();
@@ -43,8 +44,9 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
+        this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         BaseStorage.tensorManager = NDManager.newBaseManager();
-        this.plugins.values().forEach(item->{item.setStorage(this);item.createElement();item.open();});
+        this.plugins.values().forEach(item->{item.setStorage(this);item.open();});
     }
 
     @Override
@@ -84,18 +86,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
     }
 
     public GraphElement getElement(GraphElement element){
-        switch (element.elementType()){
-            case VERTEX:
-                return this.getVertex(element.getId());
-            case FEATURE:
-                return this.getFeature(element.getId());
-            case EDGE:
-                return this.getEdge(element.getId());
-            case PLUGIN:
-                return this.getPlugin(element.getId());
-            default:
-                return null;
-        }
+        return this.getElement(element.getId(), element.elementType());
     }
 
     public GraphElement getElement(String id, ElementType t){

@@ -2,6 +2,7 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
+import iterations.RemoteFunction;
 
 public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public BaseAggregator() {
