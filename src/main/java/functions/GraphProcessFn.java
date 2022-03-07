@@ -3,8 +3,11 @@ package functions;
 import elements.ElementType;
 import elements.GraphElement;
 import elements.GraphOp;
+import elements.Op;
+import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import storage.HashMapStorage;
@@ -13,8 +16,6 @@ import java.util.Objects;
 
 public class GraphProcessFn extends HashMapStorage {
     public transient Collector<GraphOp> out;
-
-
 
     @Override
     public void message(GraphOp op) {
@@ -31,7 +32,7 @@ public class GraphProcessFn extends HashMapStorage {
                     GraphElement thisElement = this.getElement(value.element);
                     if(Objects.isNull(thisElement)){
                         if(!this.isLast() && (value.element.elementType()== ElementType.EDGE || value.element.elementType()== ElementType.VERTEX)){
-                            this.message(value.copy());
+                            this.message(new GraphOp(Op.COMMIT, this.currentKey, value.element.copy(), IterationState.FORWARD));
                         }
                         value.element.setStorage(this);
                         value.element.createElement();
@@ -43,6 +44,9 @@ public class GraphProcessFn extends HashMapStorage {
                 case SYNC:
                     GraphElement el = this.getElement(value.element);
                     if(Objects.isNull(el)){
+                        if(!this.isLast() && (value.element.elementType()== ElementType.EDGE || value.element.elementType()== ElementType.VERTEX)){
+                            this.message(new GraphOp(Op.COMMIT, this.currentKey, value.element.copy(), IterationState.FORWARD));
+                        }
                         el = value.element.copy();
                         el.setStorage(this);
                         el.createElement();

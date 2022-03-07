@@ -25,15 +25,23 @@ dependencies {
             'org.apache.flink:flink-ml-core_2.12:2.0.0',
             'org.apache.flink:flink-ml-lib_2.12:2.0.0',
             'ai.djl:api:0.15.0',
-            'ai.djl.pytorch:pytorch-engine:0.15.0',
-            'ai.djl.pytorch:pytorch-native-cu113:1.10.0',
-//            'ai.djl.mxnet:mxnet-engine:0.15.0',
-//            'ai.djl.mxnet:mxnet-native-auto:1.8.0'
-//            'ai.djl.mxnet:mxnet-native-auto:1.8.0'
+//            'ai.djl.pytorch:pytorch-engine:0.15.0',
+//            'ai.djl.pytorch:pytorch-native-cu113:1.10.0',
+            'ai.djl.mxnet:mxnet-engine:0.15.0',
+            'ai.djl.mxnet:mxnet-native-auto:1.8.0',
+            'ai.djl.mxnet:mxnet-native-auto:1.8.0'
     ])
 }
-tasks.named('jar') {
+jar{
     manifest {
-        attributes('Automatic-Module-Name': 'org.apache.flink.rustam.gnn')
+        attributes (
+                'Automatic-Module-Name': 'org.apache.flink.rustam.gnn',
+                'Main-Class': "helpers.Main"
+        )
     }
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy("exclude")
 }

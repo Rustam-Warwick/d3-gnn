@@ -1,6 +1,5 @@
 package helpers;
-
-import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.mxnet.engine.MxNDArray;
 import elements.GraphOp;
 import functions.GraphProcessFn;
 import iterations.IterationState;
@@ -33,11 +32,15 @@ public class GraphStream {
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
-        this.env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
+        this.env.registerTypeWithKryoSerializer(MxNDArray.class, TensorSerializer.class);
     }
 
     public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port) {
         this.last = this.env.socketTextStream(host, port).map(parser).name("Input Stream Parser");
+        return this.last;
+    }
+    public DataStream<GraphOp> readTextFile(MapFunction<String, GraphOp> parser, String fileName){
+        this.last = this.env.readTextFile(fileName).map(parser).name("Input Stream Parser");
         return this.last;
     }
 
@@ -78,7 +81,7 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLayer(GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
-        IterativeStream<GraphOp> iterator = this.last.iterate();
+        IterativeStream<GraphOp> iterator = this.last.iterate(0000);
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
         DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
@@ -90,6 +93,25 @@ public class GraphStream {
         iterator.closeWith(iterateFilter);
         this.last = forwardFilter;
         this.iterator = iterator;
+        this.position_index++;
+        return this.last;
+    }
+
+    public DataStream<GraphOp> outputLayer(GraphProcessFn storageProcess) {
+        storageProcess.layers = this.layers;
+        storageProcess.position = this.position_index;
+        IterativeStream<GraphOp> iterator = this.last.iterate(60000);
+        KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
+        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
+        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
+        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD);
+        if (Objects.nonNull(this.iterator)) {
+            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class);
+            this.iterator.closeWith(backFilter);
+        }
+        iterator.closeWith(iterateFilter);
+        this.last = forwardFilter;
+        this.iterator = null; // No more backward after this
         this.position_index++;
         return this.last;
     }

@@ -4,8 +4,6 @@ import elements.Feature;
 import elements.GraphElement;
 import iterations.RemoteFunction;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 
 public class Set<T> extends Feature<List<T>, List<T>> {

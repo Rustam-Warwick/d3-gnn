@@ -5,7 +5,10 @@ import iterations.IterationState;
 import iterations.Rpc;
 import scala.Tuple2;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class ReplicableGraphElement extends GraphElement {
     public short master;
@@ -74,6 +77,9 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if(this.state() == ReplicaState.MASTER){
             Set<Integer> tmp = (Set<Integer>) this.getFeature("parts");
+            if(Objects.isNull(tmp)){
+                System.out.println("SA");
+            }
             Rpc.call(tmp,"add",newElement.getPartId());
             this.syncReplica(newElement.getPartId());
 

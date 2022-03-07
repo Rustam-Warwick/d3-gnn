@@ -121,7 +121,7 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         if(Objects.nonNull(this.getElement())){
             return this.getElement().masterPart();
         }
-        return this.masterPart();
+        return super.masterPart();
     }
 
     @Override
@@ -134,7 +134,7 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         if(Objects.nonNull(this.getElement())){
             return this.getElement().replicaParts();
         }
-        return this.replicaParts();
+        return super.replicaParts();
     }
 
     @Override
@@ -143,6 +143,9 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         return this.attachedTo._2 + this.id;
     }
     public String getFieldName(){
+        if(this.id==null){
+            System.out.println('s');
+        }
         return this.id;
     }
 

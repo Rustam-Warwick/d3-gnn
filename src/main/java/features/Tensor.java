@@ -1,46 +1,42 @@
 package features;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import elements.Feature;
 import elements.GraphElement;
-import storage.BaseStorage;
+import scala.Tuple2;
 
-import java.util.HashSet;
+public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
-public class Tensor extends Feature<NDArray, NDArray> {
-    public int version = 0;
     public Tensor() {
     }
 
-    public Tensor(NDArray value) {
+    public Tensor(Tuple2<NDArray, Integer> value) {
         super(value);
     }
 
-    public Tensor(NDArray value, boolean halo) {
+    public Tensor(Tuple2<NDArray, Integer> value, boolean halo) {
         super(value, halo);
     }
 
-    public Tensor(NDArray value, boolean halo, short master) {
+    public Tensor(Tuple2<NDArray, Integer> value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public Tensor(String id, NDArray value) {
+    public Tensor(String id, Tuple2<NDArray, Integer> value) {
         super(id, value);
     }
 
-    public Tensor(String id, NDArray value, boolean halo) {
+    public Tensor(String id, Tuple2<NDArray, Integer> value, boolean halo) {
         super(id, value, halo);
     }
 
-    public Tensor(String id, NDArray value, boolean halo, short master) {
+    public Tensor(String id, Tuple2<NDArray, Integer> value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
     @Override
     public GraphElement copy() {
         Tensor tmp = new Tensor(this.id, this.value, this.halo, this.master);
-        tmp.version = this.version;
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
@@ -50,10 +46,9 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     @Override
     public GraphElement deepCopy() {
-        NDArray emptyArray = BaseStorage.tensorManager.create(this.value.getShape());
-        this.value.copyTo(emptyArray);
-        Tensor tmp = new Tensor(this.id, emptyArray, this.halo, this.master);
-        tmp.version = this.version;
+        NDArray copyArray = this.value._1.toDevice(this.value._1.getDevice(), true);
+
+        Tensor tmp = new Tensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
@@ -64,11 +59,19 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     @Override
     public NDArray getValue() {
-        return this.value;
+        return this.value._1;
+    }
+
+    public boolean isReady(int modelVersion){
+        return true;
+//        if (this.storage.isFirst()) {
+//            return true;
+//        }
+//        return modelVersion == this.version;
     }
 
     @Override
-    public boolean valuesEqual(NDArray v1, NDArray v2) {
+    public boolean valuesEqual(Tuple2<NDArray, Integer> v1, Tuple2<NDArray, Integer> v2) {
         return false;
     }
 }

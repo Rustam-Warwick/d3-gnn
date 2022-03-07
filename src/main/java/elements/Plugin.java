@@ -9,7 +9,7 @@ import java.util.Objects;
 public class Plugin extends ReplicableGraphElement{
     public List<Short> replicaList=null;
     public Plugin(){
-        super(null, false, (short) 1);
+        super(null, false, (short) 0);
     }
     public Plugin(String id) {
         super(id, false, (short) 0);

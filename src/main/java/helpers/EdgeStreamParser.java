@@ -1,13 +1,10 @@
 package helpers;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.types.Shape;
 import elements.Edge;
 import elements.GraphOp;
 import elements.Op;
 import elements.Vertex;
-import features.Tensor;
-import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 
@@ -22,11 +19,11 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        NDManager manager = NDManager.newBaseManager();
-        NDArray tmp = manager.eye(this.categories.length);
-        for(int i=0; i<this.categories.length;i++){
-            this.oneHotFeatures.put(this.categories[i], tmp.get(i));
-        }
+//        NDManager manager = NDManager.newBaseManager();
+//        NDArray tmp = manager.eye(this.categories.length);
+//        for(int i=0; i<this.categories.length;i++){
+//            this.oneHotFeatures.put(this.categories[i], tmp.get(i));
+//        }
     }
 
 
@@ -43,9 +40,9 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
             tmp = new GraphOp(Op.COMMIT, edge);
         }catch (Exception e){
             String sourceId = res[0];
-            NDArray categoryOneHot = this.oneHotFeatures.get(res[1]);
+//            NDArray categoryOneHot = this.oneHotFeatures.get(res[1]);
             Vertex vrt = new Vertex(sourceId);
-            vrt.setFeature("feature", new Tensor(categoryOneHot));
+//            vrt.setFeature("feature", new Tensor(categoryOneHot));
             tmp = new GraphOp(Op.COMMIT, vrt);
         }
         return tmp;

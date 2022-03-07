@@ -2,8 +2,6 @@ package helpers;
 
 import org.apache.flink.api.common.eventtime.*;
 
-import java.time.Duration;
-
 
 public class PeriodicTrainingWatermarkStrategy<T> implements WatermarkStrategy<T>{
 

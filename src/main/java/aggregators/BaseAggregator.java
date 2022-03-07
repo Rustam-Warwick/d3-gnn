@@ -2,7 +2,7 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import iterations.RemoteFunction;
+import scala.Tuple2;
 
 public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public BaseAggregator() {
@@ -36,7 +36,7 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public abstract void reduce(NDArray newElement, int count);
     public abstract void bulkReduce(NDArray ...newElements);
     public abstract void replace(NDArray newElement, NDArray oldElement);
-    public abstract void bulkReplace();
-    public abstract boolean isReady();
+    public abstract void bulkReplace(Tuple2<NDArray, NDArray>...elements);
+    public abstract boolean isReady(int modelVersion);
     public abstract void reset();
 }

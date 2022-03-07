@@ -2,13 +2,11 @@ package storage;
 
 import ai.djl.ndarray.NDManager;
 import elements.*;
-import elements.Feature;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.util.Collector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +45,12 @@ abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, G
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         BaseStorage.tensorManager = NDManager.newBaseManager();
         this.plugins.values().forEach(item->{item.setStorage(this);item.open();});
+    }
+
+    @Override
+    public void close() throws Exception {
+        super.close();
+        BaseStorage.tensorManager.close();
     }
 
     @Override

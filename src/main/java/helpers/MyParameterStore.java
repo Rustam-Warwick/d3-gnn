@@ -9,7 +9,7 @@ import ai.djl.training.ParameterStore;
 import storage.BaseStorage;
 
 public class MyParameterStore extends ParameterStore {
-
+    public int MODEL_VERSION = 0;
     public MyParameterStore() {
 
     }

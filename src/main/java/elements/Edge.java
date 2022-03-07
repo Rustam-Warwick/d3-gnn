@@ -1,6 +1,5 @@
 package elements;
 
-import scala.Tuple2;
 import storage.BaseStorage;
 
 public class Edge extends GraphElement{

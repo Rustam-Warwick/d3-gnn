@@ -1,7 +1,6 @@
 package storage;
 
 import elements.*;
-import elements.Feature;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
@@ -204,10 +203,10 @@ public abstract class HashMapStorage extends BaseStorage{
                         }
                     });
                 default:
-                    return null;
+                    return Stream.of();
             }
         }catch (Exception e){
-            return null;
+            return Stream.of();
         }
     }
 

@@ -5,11 +5,16 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.*;
+import ai.djl.nn.Activation;
+import ai.djl.nn.LambdaBlock;
+import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import functions.GraphProcessFn;
+import partitioner.HDRF;
 import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
+import plugins.GNNOutputInference;
+import plugins.ReportReplicationFactor;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -52,10 +57,10 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
-        gs.readSocket(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "localhost", 9090 );
+        gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
+                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv" );
         gs.partition(new RandomPartitioner());
-        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new ReportReplicationFactor()).withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -124,7 +129,22 @@ public class Main {
                 return model;
             }
         }));
-
+        gs.outputLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
+            @Override
+            public Model createOutputModel() {
+                SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(Linear.builder().setUnits(16).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(8).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(7).build());
+                myBlock.add(Activation::relu);
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                Model model = Model.newInstance("prediction");
+                model.setBlock(myBlock);
+                return model;
+            }
+        }));
         System.out.println(gs.env.getExecutionPlan());
         gs.env.execute();
     }
