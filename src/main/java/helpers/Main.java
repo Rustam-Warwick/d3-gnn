@@ -14,7 +14,6 @@ import partitioner.HDRF;
 import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputInference;
-import plugins.ReportReplicationFactor;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,7 +33,7 @@ public class Main {
         Model model = Model.newInstance("message");
         model.setBlock(myBlock);
         try {
-            model.save(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/"),"model");
+            model.save(Path.of("~/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv"),"model");
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -58,8 +57,8 @@ public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
         gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/edges.csv" );
-        gs.partition(new RandomPartitioner());
+                "Probabilistic_Methods"}), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv" );
+        gs.partition(new HDRF());
         gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -146,6 +145,6 @@ public class Main {
             }
         }));
         System.out.println(gs.env.getExecutionPlan());
-        gs.env.execute("RandomPartitionerJob");
+        gs.env.execute("HDRFPartitionerJOB");
     }
 }

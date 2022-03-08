@@ -77,9 +77,6 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if(this.state() == ReplicaState.MASTER){
             Set<Integer> tmp = (Set<Integer>) this.getFeature("parts");
-            if(Objects.isNull(tmp)){
-                System.out.println("SA");
-            }
             Rpc.call(tmp,"add",newElement.getPartId());
             this.syncReplica(newElement.getPartId());
 
@@ -111,9 +108,8 @@ public class ReplicableGraphElement extends GraphElement {
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
         for(Feature feature: this.features){
             if(skipHalo && feature.isHalo())continue;
-            Feature tmp = feature;
+            Feature tmp = (Feature) feature.copy();
             if(tmp.isHalo()){
-                tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
             cpy.setFeature(feature.getFieldName(), tmp);
@@ -126,9 +122,8 @@ public class ReplicableGraphElement extends GraphElement {
         this.cacheFeatures();
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
         for(Feature feature: this.features){
-            Feature tmp = feature;
+            Feature tmp = (Feature) feature.copy();
             if(tmp.isHalo()){
-                tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
             cpy.setFeature(feature.getFieldName(), tmp);

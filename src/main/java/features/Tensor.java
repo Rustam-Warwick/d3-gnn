@@ -38,7 +38,7 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     public GraphElement copy() {
         Tensor tmp = new Tensor(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
-        tmp.element = this.element;
+//        tmp.element = this.element;
         tmp.partId = this.partId;
 //        tmp.storage = this.storage;
         return tmp;

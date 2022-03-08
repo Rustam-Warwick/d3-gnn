@@ -38,7 +38,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
     public GraphElement copy() {
         Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
-        tmp.element = this.element;
+//        tmp.element = this.element;
         tmp.partId = this.partId;
 //        tmp.storage = this.storage;
         return tmp;

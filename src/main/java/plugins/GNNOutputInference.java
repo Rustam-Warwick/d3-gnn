@@ -59,7 +59,6 @@ public abstract class GNNOutputInference extends Plugin {
                         NDArray msg = this.getPrediction((Tensor) feature);
                         if(Objects.nonNull(msg)){
                             // DO SMT
-//                            System.out.println(msg);
                         }
                     }
                 }

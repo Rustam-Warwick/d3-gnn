@@ -81,9 +81,8 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         if(this.isHalo()) cpy.value = null;
         for(Feature feature: this.features){
             if(skipHalo && feature.isHalo())continue;
-            Feature tmp = feature;
+            Feature tmp = (Feature) feature.copy();
             if(tmp.isHalo()){
-                tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
             cpy.setFeature(feature.getFieldName(), tmp);
@@ -97,9 +96,8 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         Feature cpy = (Feature) this.copy();
         if(this.isHalo()) cpy.value = null;
         for(Feature feature: this.features){
-            Feature tmp = feature;
+            Feature tmp = (Feature) feature.copy();
             if(tmp.isHalo()){
-                tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
             cpy.setFeature(feature.getFieldName(), tmp);
@@ -143,9 +141,6 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         return this.attachedTo._2 + this.id;
     }
     public String getFieldName(){
-        if(this.id==null){
-            System.out.println('s');
-        }
         return this.id;
     }
 

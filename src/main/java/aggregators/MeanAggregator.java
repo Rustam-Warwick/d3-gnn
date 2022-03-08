@@ -47,7 +47,7 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
     public GraphElement copy() {
         MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
-        tmp.element = this.element;
+//        tmp.element = this.element;
         tmp.partId = this.partId;
 //        tmp.storage = this.storage;
         return tmp;
@@ -55,7 +55,12 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
 
     @Override
     public GraphElement deepCopy() {
-        return this.copy();
+        MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
+        tmp.attachedTo = this.attachedTo;
+        tmp.element = this.element;
+        tmp.partId = this.partId;
+        tmp.storage = this.storage;
+        return tmp;
     }
 
     @RemoteFunction
@@ -105,6 +110,10 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
 
     @Override
     public NDArray getValue() {
+        if(this.value == null){
+
+            System.out.println("salam");
+        }
         return this.value._1();
     }
 
