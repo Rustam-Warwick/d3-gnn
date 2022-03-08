@@ -48,7 +48,7 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         else{
             boolean is_created = this.storage.addFeature(this);
             if(is_created){
-                for(GraphElement el: this.features.values()){
+                for(GraphElement el: this.features){
                     el.createElement();
                 }
                 this.storage.getPlugins().forEach(item->item.addElementCallback(this));
@@ -79,14 +79,14 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         this.cacheFeatures();
         Feature cpy = (Feature) this.copy();
         if(this.isHalo()) cpy.value = null;
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
-            if(skipHalo && feature.getValue().isHalo())continue;
-            Feature tmp = feature.getValue();
+        for(Feature feature: this.features){
+            if(skipHalo && feature.isHalo())continue;
+            Feature tmp = feature;
             if(tmp.isHalo()){
                 tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
-            cpy.setFeature(feature.getKey(), tmp);
+            cpy.setFeature(feature.getFieldName(), tmp);
         }
         this.replicaParts().forEach(part_id-> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
     }
@@ -96,13 +96,13 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         this.cacheFeatures();
         Feature cpy = (Feature) this.copy();
         if(this.isHalo()) cpy.value = null;
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
-            Feature tmp = feature.getValue();
+        for(Feature feature: this.features){
+            Feature tmp = feature;
             if(tmp.isHalo()){
                 tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
-            cpy.setFeature(feature.getKey(), tmp);
+            cpy.setFeature(feature.getFieldName(), tmp);
         }
 
         this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));

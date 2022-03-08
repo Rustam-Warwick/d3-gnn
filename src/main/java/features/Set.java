@@ -40,7 +40,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 

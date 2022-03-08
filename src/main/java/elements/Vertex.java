@@ -21,7 +21,7 @@ public class Vertex extends ReplicableGraphElement {
     public GraphElement copy() {
         Vertex tmp = new Vertex(this.id, this.halo, this.master);
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -30,7 +30,7 @@ public class Vertex extends ReplicableGraphElement {
         Vertex tmp = new Vertex(this.id, this.halo, this.master);
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.putAll(this.features);
+        tmp.features.addAll(this.features);
         return tmp;
     }
 

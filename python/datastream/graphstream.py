@@ -54,6 +54,7 @@ class GraphStream:
         partitioner.partitions = self.PARALLELISM
         if not partitioner.is_parallel(): partitioner_par = 1  # Partitioner does not support parallelism in itself
         self.last = self.last.map(partitioner).set_parallelism(partitioner_par).name("Partitioner")
+        self.last = self.last.map(lambda x: x)
         return self.last
 
     def gnn_layer(self, storageProcess: "GNNLayerProcess") -> DataStream:
@@ -86,10 +87,11 @@ class GraphStream:
          """
         storageProcess.layers = self.LAYERS
         storageProcess.position = self.position_index
-        last = self.last.union(self.train_stream)
+        if self.train_stream:
+            self.last = self.last.union(self.train_stream)
         slot_group = "training" + str(self.position_index)
         # layer and training samples
-        iterator = last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
+        iterator = self.last._j_data_stream.iterate().name("Self Iteration Source")  # Java Class need to somehow handle it
         ds = DataStream(iterator)
         keyed_ds = key_by_custom(ds)
         st = keyed_ds.process(storageProcess).name("Training Process")

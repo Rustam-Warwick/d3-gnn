@@ -58,15 +58,15 @@ public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
         gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv" );
+                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/edges.csv" );
         gs.partition(new RandomPartitioner());
-        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new ReportReplicationFactor()).withPlugin(new GNNLayerInference() {
+        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
-                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Linear.builder().setUnits(64).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
@@ -101,7 +101,7 @@ public class Main {
                 SequentialBlock myBlock = new SequentialBlock();
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
-                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Linear.builder().setUnits(64).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
@@ -135,7 +135,7 @@ public class Main {
                 SequentialBlock myBlock = new SequentialBlock();
                 myBlock.add(Linear.builder().setUnits(16).build());
                 myBlock.add(Activation::relu);
-                myBlock.add(Linear.builder().setUnits(8).build());
+                myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(7).build());
                 myBlock.add(Activation::relu);
@@ -146,6 +146,6 @@ public class Main {
             }
         }));
         System.out.println(gs.env.getExecutionPlan());
-        gs.env.execute();
+        gs.env.execute("RandomPartitionerJob");
     }
 }

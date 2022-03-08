@@ -40,7 +40,7 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -53,7 +53,7 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
         tmp.element = this.element;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.putAll(this.features);
+        tmp.features.addAll(this.features);
         return tmp;
     }
 

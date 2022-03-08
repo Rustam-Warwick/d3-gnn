@@ -1,5 +1,6 @@
 import abc
 
+import jax.random
 from jax import jit
 from exceptions import GraphElementNotFound
 from decorators import rpc
@@ -36,11 +37,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
 
     @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def forward(self, vertex_id, feature, part_id, part_version):
-        if part_version < self.storage.part_version:
-            # Previous is behind ignore this message
-            # New embedding should come in soon
-            pass
-        else:
+        if part_version >= self.storage.part_version:
             try:
                 vertex = self.storage.get_vertex(vertex_id)
                 if vertex.get("feature"):
@@ -61,9 +58,9 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
         if element.element_type is ElementTypes.VERTEX and element.state is ReplicaState.MASTER:
             element['agg'] = JACMeanAggregatorReplicableFeature(tensor=jnp.zeros((32,), dtype=jnp.float32),
                                                                 is_halo=True)
-            if element.storage.is_first:
+            if element.storage.is_first and not element.get("feature"):
                 element['feature'] = VersionedTensorReplicableFeature(
-                    value=jnp.zeros((7,), dtype=jnp.float32))
+                    value=jax.random.normal(jax.random.PRNGKey(0), (7,), dtype=jnp.float32))
 
         if element.element_type is ElementTypes.EDGE:
             element: "BaseEdge"

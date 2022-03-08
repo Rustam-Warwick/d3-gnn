@@ -40,7 +40,7 @@ public class ReplicableGraphElement extends GraphElement {
     public GraphElement copy() {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -49,7 +49,7 @@ public class ReplicableGraphElement extends GraphElement {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.putAll(this.features);
+        tmp.features.addAll(this.features);
         return tmp;
     }
 
@@ -109,14 +109,14 @@ public class ReplicableGraphElement extends GraphElement {
         if((this.state() != ReplicaState.MASTER) ||  (this.isHalo() && skipHalo) || this.replicaParts()==null || this.replicaParts().isEmpty()) return;
         this.cacheFeatures();
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
-            if(skipHalo && feature.getValue().isHalo())continue;
-            Feature tmp = feature.getValue();
+        for(Feature feature: this.features){
+            if(skipHalo && feature.isHalo())continue;
+            Feature tmp = feature;
             if(tmp.isHalo()){
                 tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
-            cpy.setFeature(feature.getKey(), tmp);
+            cpy.setFeature(feature.getFieldName(), tmp);
         }
         this.replicaParts().forEach(part_id-> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
     }
@@ -125,13 +125,13 @@ public class ReplicableGraphElement extends GraphElement {
         if(this.state() != ReplicaState.MASTER) return;
         this.cacheFeatures();
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
-        for(Map.Entry<String, Feature> feature: this.features.entrySet()){
-            Feature tmp = feature.getValue();
+        for(Feature feature: this.features){
+            Feature tmp = feature;
             if(tmp.isHalo()){
                 tmp = (Feature) tmp.copy();
                 tmp.value = null;
             }
-            cpy.setFeature(feature.getKey(), tmp);
+            cpy.setFeature(feature.getFieldName(), tmp);
         }
 
         this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));

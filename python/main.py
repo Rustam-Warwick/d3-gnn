@@ -2,6 +2,7 @@ from jax import lax, random, numpy as jnp
 from flax.linen import relu, log_softmax, sigmoid
 from nn.jax.multi_layer_dense import MultiLayerDense
 from datastream import GraphStream
+from traceback import print_exc
 from pyflink.datastream import StreamExecutionEnvironment, DataStream, MapFunction
 
 from storage.gnn_layer import GNNLayerProcess
@@ -35,25 +36,21 @@ def run():
         predict_fn_params=predict_fn_params,
         element_id="gnn_layer")
 
-    graphstream = GraphStream(4, 2)  # GraphStream with parallelism of 5
-    graphstream.read_socket(EdgeListParser(
+    graphstream = GraphStream(5, 2)  # GraphStream with parallelism of 5
+    graphstream.read_file(EdgeListParser(
         ["Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-         "Probabilistic_Methods"]), "localhost", 9090)  # Parse the incoming socket lines to GraphQueries
+         "Probabilistic_Methods"]), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv")  # Parse the incoming socket lines to GraphQueries
     graphstream.partition(RandomPartitioner())  # Partition the incoming GraphQueries to random partitions
-    graphstream.train_test_split(StreamingTrainSplitter(0.1))
+    # graphstream.train_test_split(StreamingTrainSplitter(0.1))
 
     graphstream.gnn_layer(
-        KeyedGNNLayerProcess().with_aggregator(inferencer).with_aggregator(
-            StreamingLayerTrainingJAX(inference_agg=inferencer)))
+        KeyedGNNLayerProcess().with_aggregator(inferencer))
     graphstream.gnn_layer(
-        KeyedGNNLayerProcess().with_aggregator(inferencer).with_aggregator(
-            StreamingLayerTrainingJAX(inference_agg=inferencer)))
+        KeyedGNNLayerProcess().with_aggregator(inferencer))
 
     graphstream.training_inference_layer(
         KeyedGNNLayerProcess().
-            with_aggregator(output_predictor).
-            with_aggregator(StreamingOutputTrainingJAX(inference_agg=output_predictor))
-    )
+            with_aggregator(output_predictor))
 
     print(graphstream.env.get_execution_plan())
     graphstream.env.execute("Test Python job")
@@ -63,4 +60,4 @@ if __name__ == '__main__':
     try:
         run()
     except Exception as e:
-        print(e)
+        print_exc()

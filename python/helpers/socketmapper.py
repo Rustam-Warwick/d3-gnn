@@ -15,8 +15,6 @@ class EdgeListParser(MapFunction):
         for i, category in enumerate(categories):
             self.one_hot_encoding[category] = eye[i]
 
-    def open(self, runtime_context: "RuntimeContext"):
-        print(runtime_context.get_index_of_this_subtask())
 
     def map(self, value: str) -> GraphQuery:
         """
@@ -34,8 +32,8 @@ class EdgeListParser(MapFunction):
             query = GraphQuery(Op.ADDUPDATE, edge)
         except Exception:
             source_id = values[0]
-            category = self.one_hot_encoding[values[1]]
+            # category = self.one_hot_encoding[values[1]]
             vertex = BaseVertex(element_id=source_id)
-            vertex['feature'] = VersionedTensorReplicableFeature(value=category)
+            # vertex['feature'] = VersionedTensorReplicableFeature(value=category)
             query = GraphQuery(Op.ADDUPDATE, vertex)
         return query

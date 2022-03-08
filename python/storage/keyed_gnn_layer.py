@@ -66,46 +66,35 @@ class KeyedGNNLayerProcess(LinkedListStorage, KeyedProcessFunction):
         for agg in self.get_aggregators(): agg.on_watermark()
 
     def process_element(self, value: "GraphQuery", ctx: 'KeyedProcessFunction.Context'):
-        if ctx.timer_service().current_watermark() > self.last_watermark:
-            self.last_watermark = ctx.timer_service().current_watermark()
-            self.custom_on_watermark()
-        # ctx.timer_service().register_event_time_timer(0)
-        if value.is_topology_change and not self.is_last:
-            el = value
-            if self.is_first:
-                """ Clear all the feature they should reside only in the layer """
-                el = copy(value)
-                el.element = copy(el.element)
-                el.element._features.clear()
-            # Redirect to the next operator.
-            # Should be here so that subsequent layers have received updated topology state before any other thing
-            yield el
+        # if ctx.timer_service().current_watermark() > self.last_watermark:
+        #     self.last_watermark = ctx.timer_service().current_watermark()
+        #     self.custom_on_watermark()
+        self.part_id = ctx.get_current_key()
         try:
             if value.op is Op.RPC:
                 # Exceptional case when the value is not GraphQuery! in all other cases element is a graphQuery
                 el: "Rpc" = value.element
                 element = self.get_element_by_id(el.id)
                 element(el)
-            if value.op is Op.ADD:
-                # because there might be late events it is always good to create element first
-                print("Deprecated")
-                value.element.attach_storage(self)
-                value.element.create_element()
             if value.op is Op.SYNC:
                 el = self.get_element(value.element, False)
                 if el is None:
+                    if not self.is_last and (value.element.element_type is ElementTypes.EDGE or value.element.element_type is ElementTypes.VERTEX):
+                        next_query = GraphQuery(Op.ADDUPDATE, copy(value.element), value.part, IterationState.FORWARD)
+                        yield next_query
                     el = copy(value.element)  # This copy is needed, so we don't lose the part_id after attach_storage
                     el.attach_storage(self)
                     el.create_element()
                     el = self.get_element(value.element)
                 el.sync_element(value.element)
-
             if value.op is Op.ADDUPDATE:
                 el = self.get_element(value.element, False)
                 if el is None:
-                    el = copy(value.element)  # This copy is needed, so we don't lose the part_id after attach_storage
-                    el.attach_storage(self)
-                    el.create_element()
+                    if not self.is_last and (value.element.element_type is ElementTypes.EDGE or value.element.element_type is ElementTypes.VERTEX):
+                        next_query = GraphQuery(Op.ADDUPDATE, copy(value.element), value.part, IterationState.FORWARD)
+                        yield next_query
+                    value.element.attach_storage(self)
+                    value.element.create_element()
                 else:
                     el.external_update(value.element)
             if value.op is Op.AGG:

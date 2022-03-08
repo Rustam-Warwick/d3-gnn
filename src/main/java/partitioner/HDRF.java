@@ -4,6 +4,8 @@ import elements.Edge;
 import elements.ElementType;
 import elements.GraphOp;
 import elements.Vertex;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Gauge;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +16,9 @@ public class HDRF extends BasePartitioner{
     public HashMap<String, Integer> partialDegTable = new HashMap<>();
     public HashMap<String, List<Short>> partitionTable = new HashMap<>();
     public HashMap<Short, Integer> partitionsSize = new HashMap<>();
+    public transient double replicationFactor = 0f;
+    public transient int totalNumberOfVertices = 1;
+    public transient int totalNumberOfReplicas = 0;
     public int maxSize = 0;
     public int minSize = 0;
     public float lamb = 0.7f;
@@ -30,6 +35,17 @@ public class HDRF extends BasePartitioner{
     public HDRF(float lambda, float eps) {
         this.lamb = lambda;
         this.eps = eps;
+    }
+
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Double>(){
+            @Override
+            public Double getValue() {
+                return replicationFactor;
+            }
+        });
     }
 
     @Override
@@ -80,11 +96,12 @@ public class HDRF extends BasePartitioner{
         minSize = this.partitionsSize.values().stream().min(Integer::compareTo).get();
         if(!this.partitionTable.get(edge.src.getId()).contains(selected)){
             this.partitionTable.get(edge.src.getId()).add(selected);
+            if(this.partitionTable.get(edge.src.getId()).get(0) != selected) this.totalNumberOfReplicas++;
         }
         if(!this.partitionTable.get(edge.dest.getId()).contains(selected)){
             this.partitionTable.get(edge.dest.getId()).add(selected);
+            if(this.partitionTable.get(edge.dest.getId()).get(0) != selected) this.totalNumberOfReplicas++;
         }
-
 
         return selected;
     }
@@ -98,7 +115,7 @@ public class HDRF extends BasePartitioner{
             short selected = 0;
             for(short i=0; i < this.partitions; i++){
                 float score = BAL(i);
-                if(score < maxScore){
+                if(score > maxScore){
                     maxScore = score;
                     selected = i;
                 }
@@ -117,6 +134,8 @@ public class HDRF extends BasePartitioner{
         if(value.element.elementType() == ElementType.EDGE){
             // Main partitioning logic, otherwise just assign edges
             Edge edge = (Edge) value.element;
+            if(!this.partitionTable.containsKey(edge.src.getId()))this.totalNumberOfVertices++;
+            if(!this.partitionTable.containsKey(edge.dest.getId()))this.totalNumberOfVertices++;
             short partition = this.computePartition(edge);
             edge.src.master = this.partitionTable.get(edge.src.getId()).get(0);
             edge.dest.master = this.partitionTable.get(edge.dest.getId()).get(0);
@@ -124,11 +143,12 @@ public class HDRF extends BasePartitioner{
         }
         else if(value.element.elementType() == ElementType.VERTEX){
             Vertex vertex = (Vertex) value.element;
+            if(!this.partitionTable.containsKey(vertex.getId()))this.totalNumberOfVertices++;
             short partition = this.computePartition(vertex);
             vertex.master = this.partitionTable.get(vertex.getId()).get(0);
             value.part_id = partition;
         }
-
+        this.replicationFactor = (float) this.totalNumberOfReplicas / this.totalNumberOfVertices;
         return value;
 
     }

@@ -4,35 +4,32 @@ import scala.Serializable;
 import scala.Tuple2;
 import storage.BaseStorage;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 public class GraphElement implements Serializable {
     public String id;
     public short partId;
     public transient BaseStorage storage;
-    public HashMap<String, Feature> features;
+    public List<Feature> features;
 
     public GraphElement(){
         this.id = null;
         this.partId = -1;
         this.storage = null;
-        this.features = new HashMap<>();
+        this.features = new ArrayList<>();
     }
 
     public GraphElement(String id) {
         this.id = id;
         this.partId = -1;
         this.storage = null;
-        this.features = new HashMap<>();
+        this.features = new ArrayList<>();
     }
 
     public GraphElement copy(){
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -40,14 +37,14 @@ public class GraphElement implements Serializable {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.putAll(this.features);
+        tmp.features.addAll(this.features);
         return tmp;
     }
     // Main Logical Stuff
     public Boolean createElement(){
         boolean is_created = this.storage.addElement(this);
         if(is_created){
-            for(GraphElement el: this.features.values()){
+            for(GraphElement el: this.features){
                 el.createElement();
             }
             this.storage.getPlugins().forEach(item->item.addElementCallback(this));
@@ -58,24 +55,24 @@ public class GraphElement implements Serializable {
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement){
         GraphElement memento = this.copy();
         boolean is_updated = false;
-        for(Map.Entry<String, Feature> entry: newElement.features.entrySet()){
-            Feature thisFeature = this.getFeature(entry.getKey());
+        for(Feature feature: newElement.features){
+            Feature thisFeature = this.getFeature(feature.getFieldName());
             if(Objects.nonNull(thisFeature)){
-                Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(entry.getValue());
+                Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
                 is_updated |= tmp._1();
-                memento.features.put(entry.getKey(), (Feature) tmp._2());
+                addIfNotExists(memento.features, feature);
             }else{
-                this.setFeature(entry.getKey(), entry.getValue());
+                this.setFeature(feature.getFieldName(), feature);
                 is_updated = true;
             }
         }
+
         if(is_updated){
             this.storage.updateElement(this);
             this.storage.getPlugins().forEach(item->item.updateElementCallback(this, memento));
         }
 
         return new Tuple2<>(is_updated, memento);
-
     }
 
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement){
@@ -134,22 +131,29 @@ public class GraphElement implements Serializable {
         this.partId = partId;
     }
 
+
     public void setStorage(BaseStorage storage){
         this.storage = storage;
-        this.partId = Objects.nonNull(storage)?storage.currentKey:-1;
-        for(Map.Entry<String, Feature> ft: this.features.entrySet()){
-            ft.getValue().setStorage(storage);
+        if(Objects.nonNull(storage))this.partId = storage.currentKey;
+        for(Feature ft: this.features){
+            ft.setStorage(storage);
+        }
+    }
+
+    public static void addIfNotExists(List<Feature> list, Feature feature){
+        if(!list.contains(feature)){
+            list.add(feature);
         }
     }
 
     public Feature getFeature(String name){
-        Feature result = this.features.getOrDefault(name, null);
+        Feature result = this.features.stream().filter(item->item.getFieldName().equals(name)).findAny().orElse(null);
         if(result == null && this.storage!=null){
             result = this.storage.getFeature(this.getId() + name);
-        }
-        if(Objects.nonNull(result)){
-            result.setElement(this);
-            this.features.put(name, result);
+            if(Objects.nonNull(result)){
+                result.setElement(this);
+                addIfNotExists(this.features, result);
+            }
         }
         return result;
     }
@@ -162,10 +166,10 @@ public class GraphElement implements Serializable {
         feature.setStorage(this.storage);
         if(Objects.nonNull(this.storage)){
             if (feature.createElement()){
-                this.features.put(name, feature);
+                addIfNotExists(this.features, feature);
             }
         }else{
-            this.features.put(name, feature);
+            addIfNotExists(this.features, feature);
         }
     }
 
@@ -173,7 +177,7 @@ public class GraphElement implements Serializable {
         Map<String, Feature> myFeatures = this.storage.getFeatures(this);
         for(Map.Entry<String, Feature> feature: myFeatures.entrySet()){
             feature.getValue().setElement(this);
-            this.features.put(feature.getKey(),feature.getValue());
+            this.setFeature(feature.getKey(), feature.getValue());
         }
     }
 

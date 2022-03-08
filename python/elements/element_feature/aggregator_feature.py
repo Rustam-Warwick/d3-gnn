@@ -115,6 +115,7 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
             All accumulated messages should be from same version of this storage part
         """
         # max_seen_version = self._value[2].get(self.part_id, self.storage.part_version)
+        return True
         seen_versions = self._value[2].values()
         min_seen = min([self.storage.part_version, *seen_versions])
         max_seen = max([self.storage.part_version, *seen_versions])

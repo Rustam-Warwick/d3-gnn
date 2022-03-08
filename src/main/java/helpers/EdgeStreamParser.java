@@ -29,7 +29,7 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
 
     @Override
     public GraphOp map(String value) throws Exception {
-        String[] res = value.split("\t");
+        String[] res = value.split(",");
         GraphOp tmp;
         try{
             Integer.valueOf(res[0]);

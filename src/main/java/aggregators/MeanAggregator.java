@@ -49,7 +49,7 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 

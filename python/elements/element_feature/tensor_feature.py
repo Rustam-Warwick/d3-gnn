@@ -27,6 +27,7 @@ class VersionedTensorReplicableFeature(ReplicableFeature, TensorFeatureMixin):
     @property
     def is_ready(self) -> bool:
         """ First layer does not have versioning requirements, hence it is always true """
+        return True
         if self.storage.is_first:
             return True
         return self.storage.part_version == self.version

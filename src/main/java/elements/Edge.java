@@ -22,7 +22,7 @@ public class Edge extends GraphElement{
         Vertex destCpy = (Vertex) this.dest.copy();
         Edge tmp = new Edge(srcCpy, destCpy);
         tmp.partId = this.partId;
-        tmp.storage = this.storage;
+//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -33,7 +33,7 @@ public class Edge extends GraphElement{
         Edge tmp = new Edge(srcCpy, destCpy);
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.putAll(this.features);
+        tmp.features.addAll(this.features);
         return tmp;
     }
 

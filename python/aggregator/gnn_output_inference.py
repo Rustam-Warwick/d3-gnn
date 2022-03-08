@@ -4,6 +4,7 @@ from abc import ABCMeta
 from aggregator import BaseAggregator
 from elements import GraphQuery, RPCDestination, IterationState, ElementTypes
 from elements.vertex import BaseVertex
+from elements.element_feature import ReplicableFeature
 from elements.element_feature.jax_params import JaxParamsFeature
 from elements.element_feature.tensor_feature import VersionedTensorReplicableFeature
 from decorators import rpc
@@ -43,6 +44,19 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
                 vertex.attach_storage(self.storage)
                 vertex.create_element()
 
+    def add_element_callback(self, element: "GraphElement"):
+        if element.element_type is ElementTypes.FEATURE:
+            feature:"ReplicableFeature" = element
+            if feature.field_name == 'feature':
+                predict = self.predict(feature.value, self['params'].value)
+                print(predict)
+
+    def update_element_callback(self, element: "GraphElement", old_element: "GraphElement"):
+        if element.element_type is ElementTypes.FEATURE:
+            feature:"ReplicableFeature" = element
+            if feature.field_name == 'feature':
+                predict = self.predict(feature.value, self['params'].value)
+                print(predict)
 
 class StreamingOutputPredictionJAX(BaseStreamingOutputPrediction):
     def __init__(self, predict_fn: "Module", predict_fn_params, *args, **kwargs):

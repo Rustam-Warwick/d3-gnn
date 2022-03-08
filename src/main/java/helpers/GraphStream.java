@@ -40,7 +40,7 @@ public class GraphStream {
         return this.last;
     }
     public DataStream<GraphOp> readTextFile(MapFunction<String, GraphOp> parser, String fileName){
-        this.last = this.env.readTextFile(fileName).map(parser).name("Input Stream Parser");
+        this.last = this.env.readTextFile(fileName).setParallelism(1).map(parser).setParallelism(1).name("Input Stream Parser");
         return this.last;
     }
 
@@ -81,7 +81,7 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLayer(GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
-        IterativeStream<GraphOp> iterator = this.last.iterate(0000);
+        IterativeStream<GraphOp> iterator = this.last.iterate();
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
         DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
@@ -100,7 +100,7 @@ public class GraphStream {
     public DataStream<GraphOp> outputLayer(GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
-        IterativeStream<GraphOp> iterator = this.last.iterate(60000);
+        IterativeStream<GraphOp> iterator = this.last.iterate();
         KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
         DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
