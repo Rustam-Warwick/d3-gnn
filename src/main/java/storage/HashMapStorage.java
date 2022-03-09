@@ -24,8 +24,6 @@ public abstract class HashMapStorage extends BaseStorage{
     public transient MapState<Integer, List<Integer>> vertexInEdges;
     public transient ValueState<Integer> lastId;
 
-
-
     @Override
     public void open(Configuration parameters) throws Exception {
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
@@ -46,6 +44,7 @@ public abstract class HashMapStorage extends BaseStorage{
         this.lastId = getRuntimeContext().getState(lastIdDesc);
         super.open(parameters);
     }
+
     private int getLastId() throws IOException {
         Integer last_id = this.lastId.value();
         if(last_id == null){

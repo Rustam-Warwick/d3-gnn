@@ -40,10 +40,10 @@ public class HDRF extends BasePartitioner{
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Double>(){
+        getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>(){
             @Override
-            public Double getValue() {
-                return replicationFactor;
+            public Integer getValue() {
+                return (int) (replicationFactor * 1000);
             }
         });
     }

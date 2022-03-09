@@ -10,10 +10,12 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import functions.GraphProcessFn;
+import org.apache.flink.util.MathUtils;
 import partitioner.HDRF;
 import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputInference;
+import state.KeyGroupRangeAssignment;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -92,7 +94,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        }), false);
         gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -126,8 +128,8 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
-        gs.outputLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
+        }), false);
+        gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -142,7 +144,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        }), false);
         System.out.println(gs.env.getExecutionPlan());
         gs.env.execute("HDRFPartitionerJOB");
     }

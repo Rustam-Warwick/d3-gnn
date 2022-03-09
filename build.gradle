@@ -2,7 +2,7 @@ plugins {
     id 'application'
 }
 
-group 'org.apache.flink.rustam.gnn'
+group 'org.apache.flink.runtime'
 version '1.0-SNAPSHOT'
 application{
     mainClass = "helpers.Main"
@@ -35,7 +35,7 @@ dependencies {
 jar{
     manifest {
         attributes (
-                'Automatic-Module-Name': 'org.apache.flink.rustam.gnn',
+                'Automatic-Module-Name': 'org.apache.flink.runtime',
                 'Main-Class': "helpers.Main"
         )
     }
