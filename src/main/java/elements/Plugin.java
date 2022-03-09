@@ -31,6 +31,12 @@ public class Plugin extends ReplicableGraphElement{
     }
 
     @Override
+    public short getPartId() {
+        if(Objects.nonNull(this.storage))return this.storage.currentKey;
+        return super.getPartId();
+    }
+
+    @Override
     public List<Short> replicaParts() {
         if(Objects.isNull(this.replicaList)){
             this.replicaList = new ArrayList<>();

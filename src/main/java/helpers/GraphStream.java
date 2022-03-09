@@ -23,6 +23,7 @@ public class GraphStream {
     public short parallelism;
     public short layers;
     public short position_index = 1;
+    public short layer_parallelism = 2;
     public StreamExecutionEnvironment env;
     public DataStream<GraphOp> last = null;
     private IterativeStream<GraphOp> iterator = null;
@@ -45,11 +46,11 @@ public class GraphStream {
     }
 
     public DataStream<GraphOp> partition(BasePartitioner partitioner) {
-        partitioner.partitions = this.parallelism;
+        partitioner.partitions = (short)(Math.pow(this.layer_parallelism, this.layers + 1));
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
         this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
-        this.last = this.last.map(item -> item);
+        this.last = this.last.map(item -> item).setParallelism(this.layer_parallelism);
         return this.last;
     }
 
@@ -82,12 +83,12 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
-        KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
-        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
-        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
-        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD);
+        KeyedStream<GraphOp, Short> ks = iterator.keyBy(item->item.part_id);
+        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
+        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
+        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index + 1));
         if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class);
+            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index - 1));
             this.iterator.closeWith(backFilter);
         }
         iterator.closeWith(iterateFilter);
@@ -101,12 +102,12 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
-        KeyedStream<GraphOp, Short> ks = this.keyBy(iterator);
-        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process");
-        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE);
-        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD);
+        KeyedStream<GraphOp, Short> ks = iterator.keyBy(item->item.part_id);
+        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
+        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
+        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
         if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class);
+            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index - 1));
             this.iterator.closeWith(backFilter);
         }
         iterator.closeWith(iterateFilter);

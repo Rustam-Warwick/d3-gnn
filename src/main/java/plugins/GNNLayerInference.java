@@ -48,8 +48,10 @@ public abstract class GNNLayerInference extends Plugin {
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
             if(Objects.isNull(vertex.getFeature("feature"))){
+                System.out.println("Feature create");
                 vertex.setFeature("feature", new Tensor(embedding));
             }else{
+                System.out.println("Normal");
                 vertex.getFeature("feature").externalUpdate(new Tensor(embedding));
             }
         }
