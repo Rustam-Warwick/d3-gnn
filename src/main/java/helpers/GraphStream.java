@@ -6,13 +6,16 @@ import iterations.IterationState;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import partitioner.BasePartitioner;
+import partitioner.PartKeySelector;
 import serializers.TensorSerializer;
 
 import java.lang.reflect.Constructor;
@@ -33,6 +36,8 @@ public class GraphStream {
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
+//        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
+        this.env.setMaxParallelism(128);
         this.env.registerTypeWithKryoSerializer(MxNDArray.class, TensorSerializer.class);
     }
 
@@ -46,10 +51,10 @@ public class GraphStream {
     }
 
     public DataStream<GraphOp> partition(BasePartitioner partitioner) {
-        partitioner.partitions = (short)(Math.pow(this.layer_parallelism, this.layers + 1));
+        partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
+        this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner").keyBy(new PartKeySelector());
         this.last = this.last.map(item -> item).setParallelism(this.layer_parallelism);
         return this.last;
     }
@@ -83,12 +88,12 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
-        KeyedStream<GraphOp, Short> ks = iterator.keyBy(item->item.part_id);
-        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
-        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
-        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index + 1));
+        KeyedStream<GraphOp, Short> ks = DataStreamUtils.reinterpretAsKeyedStream(iterator, new PartKeySelector());
+        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers))).keyBy(new PartKeySelector());
+        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism(iterator.getParallelism());
+        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
         if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index - 1));
+            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class).setParallelism(this.iterator.getParallelism());
             this.iterator.closeWith(backFilter);
         }
         iterator.closeWith(iterateFilter);
