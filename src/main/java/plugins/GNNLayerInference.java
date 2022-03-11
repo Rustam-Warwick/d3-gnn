@@ -13,6 +13,7 @@ import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
+import partitioner.HDRF;
 import scala.Tuple2;
 import storage.BaseStorage;
 
@@ -124,6 +125,9 @@ public abstract class GNNLayerInference extends Plugin {
                         if (Objects.nonNull(update)) {
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
+                        if(parent.getId().equals("434")){
+                            System.out.println("s");
+                        }
                         this.updateOutEdges(parent, (NDArray) oldFeature.getValue());
                         break;
                     }
@@ -134,9 +138,7 @@ public abstract class GNNLayerInference extends Plugin {
                         if (Objects.nonNull(update)) {
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(),new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
-                        if(parent.getId().equals("434")){
-                            System.out.println(((SumAggregator)feature).value._2() + " " + this.storage.position);
-                        }
+
                         break;
                     }
                 }
@@ -148,12 +150,10 @@ public abstract class GNNLayerInference extends Plugin {
         Stream<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
         NDArray msgOld = this.messageModel.getBlock().forward(this.parameterStore, new NDList(oldFeature), false).get(0);
         outEdges.forEach(edge->{
-            if(edge.dest.getId().equals("434") && this.storage.isLast()){
-                System.out.println("s");
-            }
+
             NDArray msgNew = this.getMessage(edge);
             if(Objects.nonNull(msgNew)){
-                Rpc.call(edge.dest.getFeature("agg"), "replace",msgNew,msgOld);
+                Rpc.call(edge.dest.getFeature("agg"), "replace",msgNew, msgOld);
             }
         });
 
