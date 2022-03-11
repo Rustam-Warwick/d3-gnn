@@ -90,6 +90,7 @@ public abstract class GNNLayerInference extends Plugin {
             }
             case FEATURE: {
                 Feature feature = (Feature) element;
+
                 switch (feature.getFieldName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
@@ -162,6 +163,9 @@ public abstract class GNNLayerInference extends Plugin {
     public void reduceOutEdges(Vertex vertex) {
         Stream<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
         outEdges.forEach(edge->{
+            if(this.storage.isLast() && edge.dest.getId().equals("434")){
+                System.out.println("s");
+            }
             NDArray msgNew = this.getMessage(edge);
             if(Objects.nonNull(msgNew)){
                 Rpc.call(edge.dest.getFeature("agg"), "reduce",msgNew, 1);
@@ -170,6 +174,9 @@ public abstract class GNNLayerInference extends Plugin {
     }
 
     public void reduceInEdges(Vertex vertex) {
+        if(this.storage.isLast() && vertex.getId().equals("434")){
+            System.out.println("s");
+        }
         Stream<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
         List<NDArray> bulkReduceMessages = new ArrayList<>();
         inEdges.forEach(edge->{

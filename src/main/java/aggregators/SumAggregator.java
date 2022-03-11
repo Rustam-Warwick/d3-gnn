@@ -66,11 +66,12 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
+
+        NDArray newTensor = this.value._1().add(newElement);
+        this.value = new Tuple3<>(newTensor, this.value._2() + count, this.value._3());
         if(this.attachedTo._2.equals("434")){
             System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
         }
-        NDArray newTensor = this.value._1().add(newElement);
-        this.value = new Tuple3<>(newTensor, this.value._2() + count, this.value._3());
     }
 
     @Override
