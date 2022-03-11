@@ -23,8 +23,8 @@ public class GraphProcessFn extends HashMapStorage {
     }
 
     @Override
-    public void processElement(GraphOp value, KeyedProcessFunction<Short, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        this.currentKey = (short)(ctx.getCurrentKey() / 1000);
+    public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+        this.currentKey = Short.parseShort(ctx.getCurrentKey());
         this.out = out;
         try{
             switch (value.op){

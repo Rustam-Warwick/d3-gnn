@@ -2,6 +2,7 @@ package plugins;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
+import aggregators.SumAggregator;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
@@ -70,7 +71,7 @@ public abstract class GNNLayerInference extends Plugin {
         switch (element.elementType()) {
             case VERTEX: {
                 if (element.state() == ReplicaState.MASTER) {
-                    element.setFeature("agg", new MeanAggregator(BaseStorage.tensorManager.zeros(this.messageModel.describeOutput().get(0).getValue()), true));
+                    element.setFeature("agg", new SumAggregator(BaseStorage.tensorManager.zeros(this.messageModel.describeOutput().get(0).getValue()), true));
                     if (this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                         NDArray embeddingRandom = BaseStorage.tensorManager.randomNormal(this.messageModel.describeInput().get(0).getValue());
                         element.setFeature("feature", new Tensor(new Tuple2<>(embeddingRandom, this.parameterStore.MODEL_VERSION)));
@@ -133,6 +134,9 @@ public abstract class GNNLayerInference extends Plugin {
                         if (Objects.nonNull(update)) {
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(),new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
+                        if(parent.getId().equals("434")){
+                            System.out.println(((SumAggregator)feature).value._2() + " " + this.storage.position);
+                        }
                         break;
                     }
                 }
@@ -144,6 +148,9 @@ public abstract class GNNLayerInference extends Plugin {
         Stream<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
         NDArray msgOld = this.messageModel.getBlock().forward(this.parameterStore, new NDList(oldFeature), false).get(0);
         outEdges.forEach(edge->{
+            if(edge.dest.getId().equals("434") && this.storage.isLast()){
+                System.out.println("s");
+            }
             NDArray msgNew = this.getMessage(edge);
             if(Objects.nonNull(msgNew)){
                 Rpc.call(edge.dest.getFeature("agg"), "replace",msgNew,msgOld);

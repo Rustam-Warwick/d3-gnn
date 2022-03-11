@@ -12,7 +12,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-abstract public class BaseStorage extends KeyedProcessFunction<Short, GraphOp, GraphOp> implements CheckpointedFunction {
+abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction {
     public transient short currentKey = -1;
     public short parallelism = 1;
     public short position = 1;

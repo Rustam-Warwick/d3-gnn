@@ -59,6 +59,11 @@ public abstract class GNNOutputInference extends Plugin {
                         NDArray msg = this.getPrediction((Tensor) feature);
                         if(Objects.nonNull(msg)){
                             // DO SMT
+//                            if(feature.attachedTo._2.equals("434")){
+//                                Number[] array = msg.toArray();
+//                                for(int i=0;i<array.length;i++) System.out.print(array[i] + "  ");
+//                                System.out.println("\n");
+//                            }
                         }
                     }
                 }
@@ -77,6 +82,12 @@ public abstract class GNNOutputInference extends Plugin {
                         NDArray msg = this.getPrediction((Tensor) feature);
                         if(Objects.nonNull(msg)){
                             // Do smt
+                            if(feature.attachedTo._2.equals("434")){
+                                Number[] array = msg.toArray();
+                                for(int i=0;i<array.length;i++) System.out.print(array[i] + "  ");
+                                System.out.println("\n");
+
+                            }
                         }
                     }
                 }

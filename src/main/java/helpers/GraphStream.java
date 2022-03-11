@@ -6,18 +6,22 @@ import iterations.IterationState;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import partitioner.BasePartitioner;
 import partitioner.PartKeySelector;
 import serializers.TensorSerializer;
 
+import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
@@ -37,7 +41,7 @@ public class GraphStream {
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.setMaxParallelism(128);
+        this.env.setMaxParallelism(8);
         this.env.registerTypeWithKryoSerializer(MxNDArray.class, TensorSerializer.class);
     }
 
@@ -46,7 +50,7 @@ public class GraphStream {
         return this.last;
     }
     public DataStream<GraphOp> readTextFile(MapFunction<String, GraphOp> parser, String fileName){
-        this.last = this.env.readTextFile(fileName).setParallelism(1).map(parser).setParallelism(1).name("Input Stream Parser");
+        this.last = this.env.readFile(new TextInputFormat(Path.fromLocalFile(new File(fileName))), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 120000).setParallelism(1).map(parser).setParallelism(1).name("Input Stream Parser");
         return this.last;
     }
 
@@ -88,7 +92,7 @@ public class GraphStream {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> iterator = this.last.iterate();
-        KeyedStream<GraphOp, Short> ks = DataStreamUtils.reinterpretAsKeyedStream(iterator, new PartKeySelector());
+        KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(iterator, new PartKeySelector());
         DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers))).keyBy(new PartKeySelector());
         DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism(iterator.getParallelism());
         DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
@@ -103,22 +107,4 @@ public class GraphStream {
         return this.last;
     }
 
-    public DataStream<GraphOp> outputLayer(GraphProcessFn storageProcess) {
-        storageProcess.layers = this.layers;
-        storageProcess.position = this.position_index;
-        IterativeStream<GraphOp> iterator = this.last.iterate();
-        KeyedStream<GraphOp, Short> ks = iterator.keyBy(item->item.part_id);
-        DataStream<GraphOp> res = ks.process(storageProcess).name("Gnn Process").setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
-        DataStream<GraphOp> iterateFilter = res.filter(item -> item.state == IterationState.ITERATE).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
-        DataStream<GraphOp> forwardFilter = res.filter(item -> item.state == IterationState.FORWARD).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index));
-        if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = res.filter(item -> item.state == IterationState.BACKWARD).returns(GraphOp.class).setParallelism((int) Math.pow(this.layer_parallelism, this.position_index - 1));
-            this.iterator.closeWith(backFilter);
-        }
-        iterator.closeWith(iterateFilter);
-        this.last = forwardFilter;
-        this.iterator = null; // No more backward after this
-        this.position_index++;
-        return this.last;
-    }
 }
