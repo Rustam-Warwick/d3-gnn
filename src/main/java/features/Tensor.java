@@ -38,22 +38,18 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     public GraphElement copy() {
         Tensor tmp = new Tensor(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
-//        tmp.element = this.element;
         tmp.partId = this.partId;
-//        tmp.storage = this.storage;
         return tmp;
     }
 
     @Override
     public GraphElement deepCopy() {
         NDArray copyArray = this.value._1.toDevice(this.value._1.getDevice(), true);
-
         Tensor tmp = new Tensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
         return tmp;
     }
 
@@ -72,6 +68,6 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public boolean valuesEqual(Tuple2<NDArray, Integer> v1, Tuple2<NDArray, Integer> v2) {
-        return false;
+        return v1==v2;
     }
 }

@@ -126,6 +126,6 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @Override
     public boolean valuesEqual(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v1, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v2) {
-        return false;
+        return v1._1() == v2._1();
     }
 }

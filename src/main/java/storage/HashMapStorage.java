@@ -202,10 +202,10 @@ public abstract class HashMapStorage extends BaseStorage{
                         }
                     });
                 default:
-                    return Stream.of();
+                    return Stream.empty();
             }
         }catch (Exception e){
-            return Stream.of();
+            return Stream.empty();
         }
     }
 

@@ -43,9 +43,7 @@ public class Rpc extends GraphElement {
                 method.invoke(element, message.args);
             }
 
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
+        } catch (InvocationTargetException | IllegalAccessException e) {
             e.printStackTrace();
         }
     }

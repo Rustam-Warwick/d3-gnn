@@ -16,11 +16,7 @@ public class MyParameterStore extends ParameterStore {
 
     public MyParameterStore(NDManager manager, boolean copy) {
         super(manager, copy);
-        this.setParameterServer(new MyParameterServer());
-    }
-
-    public void setParameterServer(ParameterServer parameterServer) {
-        super.setParameterServer(parameterServer, BaseStorage.tensorManager.getEngine().getDevices());
+        this.setParameterServer(new MyParameterServer(), manager.getEngine().getDevices());
     }
 
     @Override

@@ -10,15 +10,19 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import functions.GraphProcessFn;
+import org.apache.beam.vendor.grpc.v1p26p0.org.bouncycastle.tsp.TSPUtil;
 import org.apache.flink.util.MathUtils;
 import partitioner.HDRF;
 import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputInference;
+import scala.Int;
 import state.KeyGroupRangeAssignment;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.stream.Stream;
 
 
 public class Main {
@@ -57,9 +61,11 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
+
+
         GraphStream gs = new GraphStream((short)5, (short)2);
         gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv" );
+                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/edges.csv" );
         gs.partition(new RandomPartitioner());
         gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override

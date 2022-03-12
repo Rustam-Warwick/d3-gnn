@@ -18,7 +18,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public short position = 1;
     public short layers = 1;
     public final HashMap<String, Plugin> plugins = new HashMap<>();
-    public static NDManager tensorManager;
+    public NDManager tensorManager;
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);
@@ -43,14 +43,14 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
-        BaseStorage.tensorManager = NDManager.newBaseManager();
+        this.tensorManager = NDManager.newBaseManager();
         this.plugins.values().forEach(item->{item.setStorage(this);item.open();});
     }
 
     @Override
     public void close() throws Exception {
         super.close();
-        BaseStorage.tensorManager.close();
+        this.tensorManager.close();
     }
 
     @Override
