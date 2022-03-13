@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 public abstract class HashMapStorage extends BaseStorage{
     public transient MapState<String, Integer> translationTable;
@@ -179,7 +179,7 @@ public abstract class HashMapStorage extends BaseStorage{
     }
 
     @Override
-    public Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try{
             int vertex_id = this.translationTable.get(vertex.getId());
             switch (edge_type){
@@ -187,25 +187,29 @@ public abstract class HashMapStorage extends BaseStorage{
                     return this.vertexInEdges.get(vertex_id).stream().map(srcId -> {
                         try {
                             Vertex src = this.vertexTable.get(srcId);
-                            return new Edge(src, vertex);
+                            Edge tmp = new Edge(src, vertex);
+                            tmp.setStorage(this);
+                            return tmp;
                         } catch (Exception e) {
                             return null;
                         }
-                    });
+                    }).collect(Collectors.toList());
                 case OUT:
                     return this.vertexOutEdges.get(vertex_id).stream().map(destId -> {
                         try {
                             Vertex dest = this.vertexTable.get(destId);
-                            return new Edge(vertex, dest);
+                            Edge tmp = new Edge(vertex, dest);
+                            tmp.setStorage(this);
+                            return tmp;
                         } catch (Exception e) {
                             return null;
                         }
-                    });
+                    }).collect(Collectors.toList());
                 default:
-                    return Stream.empty();
+                    return new ArrayList<>();
             }
         }catch (Exception e){
-            return Stream.empty();
+            return new ArrayList<>();
         }
     }
 

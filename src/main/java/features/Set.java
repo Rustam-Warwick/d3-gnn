@@ -64,6 +64,6 @@ public class Set<T> extends Feature<List<T>, List<T>> {
 
     @Override
     public boolean valuesEqual(List<T> v1, List<T> v2) {
-        return v1.size() == v2.size();
+        return v1==v2;
     }
 }

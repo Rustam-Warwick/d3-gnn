@@ -3,9 +3,9 @@ package helpers;
 import elements.GraphOp;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
-import state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.runtime.partitioner.KeyGroupStreamPartitioner;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import state.KeyGroupRangeAssignment;
 
 public class MyKeyGroupPartitioner extends KeyGroupStreamPartitioner<GraphOp, Short> {
     private final KeySelector<GraphOp, Short> keySelector;

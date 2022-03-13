@@ -4,7 +4,6 @@ import iterations.IterationState;
 import scala.Tuple2;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public abstract class Feature<T, V> extends ReplicableGraphElement {

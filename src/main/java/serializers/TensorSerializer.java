@@ -8,7 +8,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import storage.BaseStorage;
 
 import java.io.DataInputStream;
 import java.io.IOException;

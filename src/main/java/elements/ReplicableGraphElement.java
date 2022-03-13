@@ -7,7 +7,6 @@ import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class ReplicableGraphElement extends GraphElement {
@@ -40,7 +39,6 @@ public class ReplicableGraphElement extends GraphElement {
     public GraphElement copy() {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
         tmp.partId = this.partId;
-//        tmp.storage = this.storage;
         return tmp;
     }
 

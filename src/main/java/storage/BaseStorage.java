@@ -7,6 +7,7 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.util.Collector;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +29,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public abstract Vertex getVertex(String id);
     public abstract Iterable<Vertex> getVertices();
     public abstract Edge getEdge(String id);
-    public abstract Stream<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+    public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeatures(GraphElement e);
 
@@ -44,13 +45,21 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         super.open(parameters);
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         this.tensorManager = NDManager.newBaseManager();
-        this.plugins.values().forEach(item->{item.setStorage(this);item.open();});
+        this.plugins.values().forEach(plugin -> {plugin.setStorage(this);});
+        this.plugins.values().forEach(Plugin::open);
     }
 
     @Override
     public void close() throws Exception {
         super.close();
         this.tensorManager.close();
+        this.plugins.values().forEach(Plugin::close);
+    }
+
+    @Override
+    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
+        super.onTimer(timestamp, ctx, out);
+        this.plugins.values().forEach(plugin->plugin.onTimer(timestamp, ctx, out));
     }
 
     @Override
@@ -115,6 +124,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
      */
     public BaseStorage withPlugin(Plugin plugin) {
         this.plugins.put(plugin.getId(), plugin);
+        plugin.setStorage(this);
         return this;
     }
 

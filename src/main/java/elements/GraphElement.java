@@ -4,7 +4,10 @@ import scala.Serializable;
 import scala.Tuple2;
 import storage.BaseStorage;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class GraphElement implements Serializable {
     public String id;
@@ -29,7 +32,6 @@ public class GraphElement implements Serializable {
     public GraphElement copy(){
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
-//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -40,7 +42,7 @@ public class GraphElement implements Serializable {
         tmp.features.addAll(this.features);
         return tmp;
     }
-    // Main Logical Stuff
+
     public Boolean createElement(){
         boolean is_created = this.storage.addElement(this);
         if(is_created){

@@ -11,7 +11,6 @@ import features.Tensor;
 import helpers.MyParameterStore;
 import iterations.RemoteFunction;
 import scala.Tuple2;
-import storage.BaseStorage;
 
 import java.util.Objects;
 
@@ -56,15 +55,7 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) element;
                 switch (feature.getFieldName()){
                     case "feature":{
-                        NDArray msg = this.getPrediction((Tensor) feature);
-                        if(Objects.nonNull(msg)){
-                            // DO SMT
-//                            if(feature.attachedTo._2.equals("434")){
-//                                Number[] array = msg.toArray();
-//                                for(int i=0;i<array.length;i++) System.out.print(array[i] + "  ");
-//                                System.out.println("\n");
-//                            }
-                        }
+//                        NDArray msg = this.getPrediction((Tensor) feature);
                     }
                 }
             }
@@ -79,16 +70,7 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) newElement;
                 switch (feature.getFieldName()){
                     case "feature":{
-                        NDArray msg = this.getPrediction((Tensor) feature);
-                        if(Objects.nonNull(msg)){
-                            // Do smt
-                            if(feature.attachedTo._2.equals("434")){
-                                Number[] array = msg.toArray();
-                                for(int i=0;i<array.length;i++) System.out.print(array[i] + "  ");
-                                System.out.println("\n");
 
-                            }
-                        }
                     }
                 }
             }

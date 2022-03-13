@@ -47,9 +47,7 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     public GraphElement copy() {
         SumAggregator tmp = new SumAggregator(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
-//        tmp.element = this.element;
         tmp.partId = this.partId;
-//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -66,9 +64,8 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-
-        NDArray newTensor = this.value._1().add(newElement);
-        this.value = new Tuple3<>(newTensor, this.value._2() + count, this.value._3());
+        this.value._1().addi(newElement);
+        this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
         if(this.attachedTo._2.equals("434")){
             System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
         }
@@ -86,11 +83,9 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        if(this.attachedTo._2.equals("434")){
-            System.out.println("SL");
-        }
-        NDArray difference = newElement.sub(oldElement);
-        this.value = new Tuple3<>(this.value._1().add(difference), this.value._2(), this.value._3());
+        newElement.subi(oldElement);
+        this.value._1().addi(newElement);
+        this.value = new Tuple3<>(this.value._1(), this.value._2(), this.value._3());
     }
 
     @Override
@@ -117,15 +112,11 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @Override
     public NDArray getValue() {
-        if(this.value == null){
-
-            System.out.println("salam");
-        }
         return this.value._1();
     }
 
     @Override
     public boolean valuesEqual(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v1, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v2) {
-        return v1._1() == v2._1();
+        return (v1._1() == v2._1()) && (v1._2() == v2._2()) && (v1._3() == v2._3());
     }
 }

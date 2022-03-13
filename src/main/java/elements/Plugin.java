@@ -1,5 +1,7 @@
 package elements;
 
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.util.Collector;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -38,14 +40,12 @@ public class Plugin extends ReplicableGraphElement{
 
     @Override
     public List<Short> replicaParts() {
-        if(Objects.isNull(this.replicaList)){
-            this.replicaList = new ArrayList<>();
-            for(short i=1;i<this.storage.parallelism;i++){
-                replicaList.add(i);
-            }
-        }
-
         return this.replicaList;
+    }
+
+    @Override
+    public short masterPart() {
+        return 0;
     }
 
     @Override
@@ -59,8 +59,21 @@ public class Plugin extends ReplicableGraphElement{
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement){
 
     }
-    public void open(){
+    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out){
 
+    }
+
+    public void close(){
+
+    }
+
+    public void open(){
+        if(Objects.isNull(this.replicaList)){
+            this.replicaList = new ArrayList<>();
+            for(short i=1;i<this.storage.getRuntimeContext().getMaxNumberOfParallelSubtasks();i++){
+                replicaList.add(i);
+            }
+        }
     }
 
 }

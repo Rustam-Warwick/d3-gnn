@@ -1,8 +1,6 @@
 package iterations;
 
 import elements.GraphOp;
-import elements.Op;
-import elements.ReplicaState;
 import org.apache.flink.api.common.functions.FilterFunction;
 
 public class IterateFilter implements FilterFunction<GraphOp> {

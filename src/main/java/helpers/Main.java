@@ -10,63 +10,17 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import functions.GraphProcessFn;
-import org.apache.beam.vendor.grpc.v1p26p0.org.bouncycastle.tsp.TSPUtil;
-import org.apache.flink.util.MathUtils;
 import partitioner.HDRF;
-import partitioner.RandomPartitioner;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputInference;
-import scala.Int;
-import state.KeyGroupRangeAssignment;
-
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.stream.Stream;
 
 
 public class Main {
-
-    public static Model generateInferenceFunction(){
-        SequentialBlock myBlock = new SequentialBlock();
-        myBlock.add(Linear.builder().setUnits(32).build());
-        myBlock.add(Activation::relu);
-        myBlock.add(Linear.builder().setUnits(16).build());
-        myBlock.add(Activation::relu);
-        myBlock.add(Linear.builder().setUnits(7).build());
-        myBlock.add(Activation::relu);
-        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(37));
-        Model model = Model.newInstance("message");
-        model.setBlock(myBlock);
-        try {
-            model.save(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv"),"model");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return model;
-    }
-
-    public static Model generateMessageFunction(){
-        SequentialBlock myBlock = new SequentialBlock();
-        myBlock.add(Linear.builder().setUnits(32).build());
-        myBlock.add(Activation::relu);
-        myBlock.add(Linear.builder().setUnits(32).build());
-        myBlock.add(Activation::relu);
-        myBlock.add(Linear.builder().setUnits(32).build());
-        myBlock.add(Activation::relu);
-        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
-        Model model = Model.newInstance("inference");
-        model.setBlock(myBlock);
-        return model;
-    }
-
     public static void main(String[] args) throws Exception {
-
-
         GraphStream gs = new GraphStream((short)5, (short)2);
         gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/edges.csv" );
-        gs.partition(new RandomPartitioner());
+                "Probabilistic_Methods"}), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv");
+        gs.partition(new HDRF());
         gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {

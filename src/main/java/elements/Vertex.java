@@ -28,13 +28,6 @@ public class Vertex extends ReplicableGraphElement {
 
     @Override
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
-        if(this.getId().equals("434") && this.storage.isLast()){
-            if(this.state() == ReplicaState.MASTER){
-                System.out.println("Sync Request From Replica: "+newElement.getPartId() + "To Master: "+this.getPartId());
-            }
-            else{
-                System.out.println("Sync Request From Master: "+newElement.getPartId() + "To Replica: "+this.getPartId());            }
-        }
         return super.syncElement(newElement);
     }
 

@@ -60,10 +60,6 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     public boolean isReady(int modelVersion){
         return true;
-//        if (this.storage.isFirst()) {
-//            return true;
-//        }
-//        return modelVersion == this.version;
     }
 
     @Override

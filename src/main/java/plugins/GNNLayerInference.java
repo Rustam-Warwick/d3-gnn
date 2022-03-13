@@ -1,7 +1,6 @@
 package plugins;
 
 import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
 import aggregators.SumAggregator;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
@@ -13,23 +12,16 @@ import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
-import partitioner.HDRF;
 import scala.Tuple2;
-import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public abstract class GNNLayerInference extends Plugin {
     public Model messageModel;
     public Model updateModel;
     public MyParameterStore parameterStore;
-
-    public GNNLayerInference(String id) {
-        super(id);
-    }
 
     public GNNLayerInference() {
         super("inference");
@@ -44,7 +36,7 @@ public abstract class GNNLayerInference extends Plugin {
         if(embedding._2 >= this.parameterStore.MODEL_VERSION){
             Vertex vertex = this.storage.getVertex(elementId);
             if(Objects.isNull(vertex)){
-//                System.out.println("How come this is null");
+                System.out.println("How come this is null");
                 vertex = new Vertex(elementId, false, this.storage.currentKey);
                 vertex.setStorage(this.storage);
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
@@ -82,20 +74,19 @@ public abstract class GNNLayerInference extends Plugin {
             }
             case EDGE: {
                 Edge edge = (Edge) element;
-                NDArray message = this.getMessage(edge);
-                if (Objects.nonNull(message)) {
-                    Rpc.call(edge.dest.getFeature("agg"), "reduce", message, 1);
+                if(this.messageReady(edge)){
+                    NDArray msg = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false).get(0);
+                    Rpc.call(edge.dest.getFeature("agg"), "reduce", msg, 1);
                 }
                 break;
             }
             case FEATURE: {
                 Feature feature = (Feature) element;
-
                 switch (feature.getFieldName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
-                        NDArray update = this.getUpdate(parent);
-                        if (Objects.nonNull(update)) {
+                        if(this.updateReady(parent)){
+                            NDArray update = this.updateModel.getBlock().forward(this.parameterStore, new NDList((NDArray) parent.getFeature("feature").getValue(), (NDArray) parent.getFeature("agg").getValue()), false).get(0);
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
                         this.reduceOutEdges(parent);
@@ -122,25 +113,21 @@ public abstract class GNNLayerInference extends Plugin {
                 switch (feature.getFieldName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
-                        if(this.storage.isLast() && feature.state() == ReplicaState.REPLICA && List.of("114","10798", "8703", "6213", "4649").contains(feature.attachedTo._2)){
-                            System.out.println("Feature Update");
-                        }
-                        this.updateOutEdges(parent,null);
-                        NDArray update = this.getUpdate(parent);
-                        if(Objects.nonNull(update)) {
+                        if(this.updateReady(parent)){
+                            NDArray update = this.updateModel.getBlock().forward(this.parameterStore, new NDList((NDArray) parent.getFeature("feature").getValue(), (NDArray) parent.getFeature("agg").getValue()), false).get(0);
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
 
+                        this.updateOutEdges(parent,((Tensor)oldFeature).getValue());
                         break;
                     }
 
                     case "agg": {
                         Vertex parent = (Vertex) feature.getElement();
-                        NDArray update = this.getUpdate(parent);
-                        if (Objects.nonNull(update)) {
-                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(),new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
+                        if(this.updateReady(parent)){
+                            NDArray update = this.updateModel.getBlock().forward(this.parameterStore, new NDList((NDArray) parent.getFeature("feature").getValue(), (NDArray) parent.getFeature("agg").getValue()), false).get(0);
+                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.parameterStore.MODEL_VERSION));
                         }
-
                         break;
                     }
                 }
@@ -149,54 +136,50 @@ public abstract class GNNLayerInference extends Plugin {
     }
 
     public void updateOutEdges(Vertex vertex, NDArray oldFeature) {
-        Stream<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
-//        NDArray msgOld = this.messageModel.getBlock().forward(this.parameterStore, new NDList(oldFeature), false).get(0);
-        outEdges.forEach(edge->{
-            NDArray msgNew = this.getMessage(edge);
-            if(Objects.nonNull(msgNew)){
-                Rpc.call(edge.dest.getFeature("agg"), "replace",msgNew, msgNew);
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
+        NDArray msgOld = null;
+        NDArray msgNew = null;
+        for(Edge edge:outEdges){
+            if(this.messageReady(edge)){
+                if(Objects.isNull(msgOld)){
+                    msgOld = this.messageModel.getBlock().forward(this.parameterStore, new NDList(oldFeature), false).get(0);
+                    msgNew = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false).get(0);
+                }
+                Rpc.call(edge.dest.getFeature("agg"), "replace", msgNew, msgOld);
             }
-        });
+        }
     }
 
     public void reduceOutEdges(Vertex vertex) {
-        Stream<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
-        outEdges.forEach(edge->{
-            if(this.storage.isLast() && edge.dest.getId().equals("434")){
-                System.out.println("");
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
+        NDArray msg = null;
+        for(Edge edge: outEdges){
+            if(this.messageReady(edge)){
+                if(Objects.isNull(msg)){
+                    msg = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false).get(0);
+                }
+                Rpc.call(edge.dest.getFeature("agg"), "reduce",msg, 1);
             }
-            NDArray msgNew = this.getMessage(edge);
-            if(Objects.nonNull(msgNew)){
-                Rpc.call(edge.dest.getFeature("agg"), "reduce",msgNew, 1);
-            }
-        });
+        }
     }
 
     public void reduceInEdges(Vertex vertex) {
-        Stream<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
+        Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
         List<NDArray> bulkReduceMessages = new ArrayList<>();
-        inEdges.forEach(edge->{
-            NDArray msgNew = this.getMessage(edge);
-            if(Objects.nonNull(msgNew)){
-                bulkReduceMessages.add(msgNew);
+        for(Edge edge: inEdges){
+            if(this.messageReady(edge)){
+                NDArray msg = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false).get(0);
+                bulkReduceMessages.add(msg);
             }
-        });
+        }
         ((BaseAggregator)vertex.getFeature("agg")).bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
     }
 
-    public NDArray getMessage(Edge edge) {
-        if (Objects.nonNull(edge.dest.getFeature("agg")) && Objects.nonNull(edge.src.getFeature("feature")) && ((Tensor) edge.src.getFeature("feature")).isReady(0)) {
-            NDList message = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
-            return message.get(0);
-        }
-        return null;
+    public boolean messageReady(Edge edge){
+        return Objects.nonNull(edge.dest.getFeature("agg")) && Objects.nonNull(edge.src.getFeature("feature")) && ((Tensor) edge.src.getFeature("feature")).isReady(0);
     }
 
-    public NDArray getUpdate(Vertex vertex) {
-        if (vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && ((Tensor) vertex.getFeature("feature")).isReady(0) && Objects.nonNull(vertex.getFeature("agg")) && ((BaseAggregator) vertex.getFeature("agg")).isReady(0)) {
-            NDList inference = this.updateModel.getBlock().forward(this.parameterStore, new NDList((NDArray) vertex.getFeature("feature").getValue(), (NDArray) vertex.getFeature("agg").getValue()), false);
-            return inference.get(0);
-        }
-        return null;
+    public boolean updateReady(Vertex vertex){
+        return vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && ((Tensor) vertex.getFeature("feature")).isReady(0) && Objects.nonNull(vertex.getFeature("agg")) && ((BaseAggregator) vertex.getFeature("agg")).isReady(0);
     }
 }

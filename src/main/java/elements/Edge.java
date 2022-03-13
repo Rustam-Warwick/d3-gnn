@@ -22,7 +22,6 @@ public class Edge extends GraphElement{
         Vertex destCpy = (Vertex) this.dest.copy();
         Edge tmp = new Edge(srcCpy, destCpy);
         tmp.partId = this.partId;
-//        tmp.storage = this.storage;
         return tmp;
     }
 
@@ -48,8 +47,6 @@ public class Edge extends GraphElement{
         this.dest.createElement();
         return super.createElement();
     }
-
-
 
     @Override
     public void setStorage(BaseStorage storage) {

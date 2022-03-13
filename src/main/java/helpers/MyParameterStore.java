@@ -4,9 +4,7 @@ import ai.djl.Device;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
-import ai.djl.training.ParameterServer;
 import ai.djl.training.ParameterStore;
-import storage.BaseStorage;
 
 public class MyParameterStore extends ParameterStore {
     public int MODEL_VERSION = 0;
