@@ -18,10 +18,13 @@ dependencies {
 
     implementation([
             'org.slf4j:slf4j-simple:1.7.26',
-            'org.apache.flink:flink-clients_2.12:1.14.3',
-            'org.apache.flink:flink-streaming-java_2.12:1.14.3',
-            'org.apache.flink:flink-statebackend-rocksdb_2.11:1.14.3',
-            'org.apache.flink:flink-python_2.12:1.14.3',
+            'org.apache.flink:flink-clients_2.12:1.14.4',
+            'org.apache.flink:flink-table-planner_2.12:1.14.4',
+            'org.apache.flink:flink-streaming-java_2.12:1.14.4',
+            'org.apache.flink:flink-table-api-java:1.14.4',
+            'org.apache.flink:flink-table-api-java-bridge_2.12:1.14.4',
+            'org.apache.flink:flink-statebackend-rocksdb_2.12:1.14.4',
+            'org.apache.flink:flink-python_2.12:1.14.4',
 //            'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
 //            'org.apache.flink:flink-ml-core_2.12:2.0.0',
 //            'org.apache.flink:flink-ml-lib_2.12:2.0.0',

@@ -5,32 +5,32 @@ import elements.Feature;
 import elements.GraphElement;
 import scala.Tuple2;
 
-public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
+public class Tensor extends Feature<NDArray, NDArray> {
 
     public Tensor() {
     }
 
-    public Tensor(Tuple2<NDArray, Integer> value) {
+    public Tensor(NDArray value) {
         super(value);
     }
 
-    public Tensor(Tuple2<NDArray, Integer> value, boolean halo) {
+    public Tensor(NDArray value, boolean halo) {
         super(value, halo);
     }
 
-    public Tensor(Tuple2<NDArray, Integer> value, boolean halo, short master) {
+    public Tensor(NDArray value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public Tensor(String id, Tuple2<NDArray, Integer> value) {
+    public Tensor(String id, NDArray value) {
         super(id, value);
     }
 
-    public Tensor(String id, Tuple2<NDArray, Integer> value, boolean halo) {
+    public Tensor(String id, NDArray value, boolean halo) {
         super(id, value, halo);
     }
 
-    public Tensor(String id, Tuple2<NDArray, Integer> value, boolean halo, short master) {
+    public Tensor(String id, NDArray value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
@@ -44,8 +44,8 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public GraphElement deepCopy() {
-        NDArray copyArray = this.value._1.toDevice(this.value._1.getDevice(), true);
-        Tensor tmp = new Tensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
+        NDArray copyArray = this.value.toDevice(this.value.getDevice(), true);
+        Tensor tmp = new Tensor(this.id, copyArray, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
@@ -55,7 +55,7 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public NDArray getValue() {
-        return this.value._1;
+        return this.value;
     }
 
     public boolean isReady(int modelVersion){
@@ -63,7 +63,7 @@ public class Tensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     }
 
     @Override
-    public boolean valuesEqual(Tuple2<NDArray, Integer> v1, Tuple2<NDArray, Integer> v2) {
+    public boolean valuesEqual(NDArray v1, NDArray v2) {
         return v1==v2;
     }
 }

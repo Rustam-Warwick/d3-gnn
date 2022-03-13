@@ -3,12 +3,11 @@ package plugins;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import elements.Feature;
-import elements.GraphElement;
-import elements.Plugin;
-import elements.Vertex;
+import elements.*;
 import features.Tensor;
+import features.VTensor;
 import helpers.MyParameterStore;
+import iterations.IterationState;
 import iterations.RemoteFunction;
 import scala.Tuple2;
 
@@ -33,9 +32,9 @@ public abstract class GNNOutputInference extends Plugin {
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
             if(Objects.isNull(vertex.getFeature("feature"))){
-                vertex.setFeature("feature", new Tensor(embedding));
+                vertex.setFeature("feature", new VTensor(embedding));
             }else{
-                vertex.getFeature("feature").externalUpdate(new Tensor(embedding));
+                vertex.getFeature("feature").externalUpdate(new VTensor(embedding));
             }
         }
     }
@@ -55,7 +54,7 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) element;
                 switch (feature.getFieldName()){
                     case "feature":{
-//                        NDArray msg = this.getPrediction((Tensor) feature);
+                        this.makePrediction((VTensor) feature);
                     }
                 }
             }
@@ -70,15 +69,18 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) newElement;
                 switch (feature.getFieldName()){
                     case "feature":{
-
+                        this.makePrediction((VTensor) feature);
                     }
                 }
             }
         }
     }
 
-    public NDArray getPrediction(Tensor embedding){
+    public void makePrediction(VTensor embedding){
         NDList message = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false);
-        return message.get(0);
+        NDArray res = message.get(0);
+        Vertex a = new Vertex(embedding.attachedTo._2);
+        a.setFeature("logits", new Tensor(res));
+        this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a.getFeature("logits"), IterationState.FORWARD ));
     }
 }
