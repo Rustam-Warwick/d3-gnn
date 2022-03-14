@@ -2,7 +2,6 @@ package helpers;
 
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.CoGroupedStreams;
-import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
 import org.apache.flink.streaming.api.windowing.evictors.Evictor;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;

@@ -42,7 +42,7 @@ public class HDRF extends BasePartitioner{
         getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>(){
             @Override
             public Integer getValue() {
-                return (int) (replicationFactor * 1000);
+                return (int)((float) totalNumberOfReplicas / totalNumberOfVertices) * 1000;
             }
         });
     }

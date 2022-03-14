@@ -6,7 +6,7 @@ import scala.Tuple2;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class Feature<T, V> extends ReplicableGraphElement {
+public class Feature<T, V> extends ReplicableGraphElement {
     public T value;
     public transient GraphElement element;
     public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
@@ -39,6 +39,23 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
+    @Override
+    public GraphElement copy() {
+        Feature<T,V> tmp = new Feature<T,V>(this.id, this.value, this.halo, this.master);
+        tmp.attachedTo = this.attachedTo;
+        tmp.partId = this.partId;
+        return tmp;
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        Feature<T,V> tmp = new Feature<T,V>(this.id, this.value, this.halo, this.master);
+        tmp.attachedTo = this.attachedTo;
+        tmp.partId = this.partId;
+        tmp.element = this.element;
+        tmp.storage = this.storage;
+        return tmp;
+    }
 
     // Main Logic
     @Override
@@ -108,8 +125,12 @@ public abstract class Feature<T, V> extends ReplicableGraphElement {
 
 
     // Abstract Methods and
-    abstract public V getValue();
-    abstract public boolean valuesEqual(T v1, T v2);
+    public V getValue(){
+        return (V) this.value;
+    };
+    public boolean valuesEqual(T v1, T v2){
+        return v1.equals(v2);
+    };
     // Getters and setters
 
 

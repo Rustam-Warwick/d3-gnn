@@ -1,38 +1,30 @@
 package helpers;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
-import elements.Edge;
-import elements.GraphOp;
-import elements.Op;
-import elements.Vertex;
-import features.TString;
-import features.Tensor;
-import org.apache.flink.api.common.functions.MapFunction;
+import elements.*;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 
-import java.util.HashMap;
+import java.util.List;
 
 public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
-    public final HashMap<String, NDArray> oneHotFeatures = new HashMap<>();
-    public final String[] categories;
+    public final List<String> categories;
+    public final String delimiter;
 
     public EdgeStreamParser(String[] categories){
-        this.categories = categories;
+        this.categories = List.of(categories);
+        this.delimiter = ",";
+    }
+    public EdgeStreamParser(String[] categories, String delimiter){
+        this.categories = List.of(categories);
+        this.delimiter = delimiter;
     }
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        NDManager manager = NDManager.newBaseManager();
-        NDArray tmp = manager.eye(this.categories.length);
-        for(int i=0; i<this.categories.length;i++){
-            this.oneHotFeatures.put(this.categories[i], tmp.get(i));
-        }
     }
     @Override
     public GraphOp map(String value) throws Exception {
-        String[] res = value.split(",");
+        String[] res = value.split(this.delimiter);
         GraphOp tmp;
         try{
             Integer.valueOf(res[0]);
@@ -44,7 +36,8 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
         }catch (Exception e){
             String sourceId = res[0];
             Vertex vrt = new Vertex(sourceId);
-            vrt.setFeature("label",new Tensor(this.oneHotFeatures.get(res[1])));
+            int shallowLabel = this.categories.indexOf(res[1]);
+            vrt.setFeature("label",new Feature<Integer, Integer>(shallowLabel));
             tmp = new GraphOp(Op.COMMIT, vrt);
         }
         return tmp;

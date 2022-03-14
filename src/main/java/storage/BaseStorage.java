@@ -31,7 +31,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public abstract Edge getEdge(String id);
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
-    public abstract Map<String, Feature> getFeatures(GraphElement e);
+    public abstract Map<String, Feature> getFeaturesOf(GraphElement e);
 
     public abstract void message(GraphOp op);
     public boolean isLast(){

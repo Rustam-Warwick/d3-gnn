@@ -30,4 +30,13 @@ public class GraphOp {
         return (this.op == Op.COMMIT || this.op == Op.REMOVE) && (this.element.elementType() == ElementType.EDGE || (this.element.elementType() == ElementType.VERTEX));
     }
 
+    @Override
+    public String toString() {
+        return "GraphOp{" +
+                "op=" + op +
+                ", part_id=" + part_id +
+                ", element=" + element +
+                ", state=" + state +
+                '}';
+    }
 }

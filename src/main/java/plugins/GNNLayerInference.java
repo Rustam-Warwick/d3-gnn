@@ -24,7 +24,7 @@ public abstract class GNNLayerInference extends Plugin {
     public MyParameterStore parameterStore;
 
     public GNNLayerInference() {
-        super("inference");
+        super("inferencer");
     }
 
     public abstract Model createMessageModel();

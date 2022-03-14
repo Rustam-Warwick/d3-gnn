@@ -17,7 +17,7 @@ public abstract class GNNOutputInference extends Plugin {
     public Model outputModel;
     public MyParameterStore parameterStore;
 
-    public GNNOutputInference(){super("inference");}
+    public GNNOutputInference(){super("inferencer");}
     public GNNOutputInference(String id){super(id);}
 
     public abstract Model createOutputModel();
@@ -54,7 +54,8 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) element;
                 switch (feature.getFieldName()){
                     case "feature":{
-                        this.makePrediction((VTensor) feature);
+                        this.makePredictionAndSendForward((VTensor) feature);
+                        break;
                     }
                 }
             }
@@ -69,18 +70,20 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) newElement;
                 switch (feature.getFieldName()){
                     case "feature":{
-                        this.makePrediction((VTensor) feature);
+                        this.makePredictionAndSendForward((VTensor) feature);
                     }
                 }
             }
         }
     }
 
-    public void makePrediction(VTensor embedding){
+    public void makePredictionAndSendForward(VTensor embedding){
         NDList message = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false);
         NDArray res = message.get(0);
         Vertex a = new Vertex(embedding.attachedTo._2);
         a.setFeature("logits", new Tensor(res));
         this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
     }
+
+
 }

@@ -2,9 +2,6 @@ package features;
 
 import elements.Feature;
 import elements.GraphElement;
-import iterations.RemoteFunction;
-
-import java.util.List;
 
 public class TString extends Feature<String, String> {
     public TString() {

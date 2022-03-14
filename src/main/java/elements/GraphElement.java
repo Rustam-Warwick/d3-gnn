@@ -176,7 +176,7 @@ public class GraphElement implements Serializable {
     }
 
     public void cacheFeatures(){
-        Map<String, Feature> myFeatures = this.storage.getFeatures(this);
+        Map<String, Feature> myFeatures = this.storage.getFeaturesOf(this);
         for(Map.Entry<String, Feature> feature: myFeatures.entrySet()){
             this.setFeature(feature.getKey(), feature.getValue());
         }

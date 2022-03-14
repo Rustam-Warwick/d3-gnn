@@ -225,8 +225,9 @@ public abstract class HashMapStorage extends BaseStorage{
         }
     }
 
+
     @Override
-    public Map<String, Feature> getFeatures(GraphElement e) {
+    public Map<String, Feature> getFeaturesOf(GraphElement e) {
         HashMap<String, Feature> result = new HashMap<>();
         try {
 
