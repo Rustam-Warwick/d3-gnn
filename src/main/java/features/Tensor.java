@@ -3,7 +3,6 @@ package features;
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
-import scala.Tuple2;
 
 public class Tensor extends Feature<NDArray, NDArray> {
 

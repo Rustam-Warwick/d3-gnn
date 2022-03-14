@@ -12,26 +12,23 @@ import functions.GraphLossFn;
 import functions.GraphProcessFn;
 import iterations.ForwardFilter;
 import iterations.IterateFilter;
-import org.apache.flink.api.common.functions.CoGroupFunction;
+import org.apache.flink.api.common.functions.JoinFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.core.fs.Path;
-import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamUtils;
-import org.apache.flink.streaming.api.datastream.IterativeStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
+import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.streaming.api.graph.StreamGraphGenerator;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
+import org.apache.flink.streaming.api.windowing.evictors.Evictor;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.util.Collector;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import partitioner.BasePartitioner;
-import partitioner.PartKeySelector;
-import partitioner.FeatureParentKeySelector;
 import serializers.TensorSerializer;
 
 import java.io.File;
@@ -84,7 +81,7 @@ public class GraphStream {
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        this.last = this.last.map(partitioner).setParallelism(part_parallelism).name("Partitioner").keyBy(new PartKeySelector());
+        this.last = stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner").keyBy(new PartKeySelector());
         this.last = this.last.map(item -> item).setParallelism(this.layer_parallelism);
         return this.last;
     }
@@ -134,10 +131,13 @@ public class GraphStream {
     }
 
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp>labelStream) {
-        this.last.coGroup(labelStream)
-                .where(new FeatureParentKeySelector()).equalTo(new FeatureParentKeySelector())
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(3)))
+        return this.last.join(labelStream)
+                .where(new ElementIdSelector()).equalTo(new ElementIdSelector())
+                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .evictor(new KeepLastElement())
                 .apply(new GraphLossFn());
+
+
     }
 
 }

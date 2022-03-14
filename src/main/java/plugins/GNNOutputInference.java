@@ -81,6 +81,6 @@ public abstract class GNNOutputInference extends Plugin {
         NDArray res = message.get(0);
         Vertex a = new Vertex(embedding.attachedTo._2);
         a.setFeature("logits", new Tensor(res));
-        this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a.getFeature("logits"), IterationState.FORWARD ));
+        this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
     }
 }

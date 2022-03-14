@@ -1,32 +1,35 @@
 package helpers;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
 import elements.Edge;
 import elements.GraphOp;
 import elements.Op;
 import elements.Vertex;
+import features.TString;
+import features.Tensor;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 
 import java.util.HashMap;
 
 public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
-    public final String[] categories;
     public final HashMap<String, NDArray> oneHotFeatures = new HashMap<>();
+    public final String[] categories;
+
     public EdgeStreamParser(String[] categories){
         this.categories = categories;
     }
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-//        NDManager manager = NDManager.newBaseManager();
-//        NDArray tmp = manager.eye(this.categories.length);
-//        for(int i=0; i<this.categories.length;i++){
-//            this.oneHotFeatures.put(this.categories[i], tmp.get(i));
-//        }
+        NDManager manager = NDManager.newBaseManager();
+        NDArray tmp = manager.eye(this.categories.length);
+        for(int i=0; i<this.categories.length;i++){
+            this.oneHotFeatures.put(this.categories[i], tmp.get(i));
+        }
     }
-
-
     @Override
     public GraphOp map(String value) throws Exception {
         String[] res = value.split(",");
@@ -40,9 +43,8 @@ public class EdgeStreamParser extends RichMapFunction<String, GraphOp> {
             tmp = new GraphOp(Op.COMMIT, edge);
         }catch (Exception e){
             String sourceId = res[0];
-//            NDArray categoryOneHot = this.oneHotFeatures.get(res[1]);
             Vertex vrt = new Vertex(sourceId);
-//            vrt.setFeature("feature", new Tensor(categoryOneHot));
+            vrt.setFeature("label",new Tensor(this.oneHotFeatures.get(res[1])));
             tmp = new GraphOp(Op.COMMIT, vrt);
         }
         return tmp;

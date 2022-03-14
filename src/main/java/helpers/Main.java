@@ -1,7 +1,6 @@
 package helpers;
 
 import ai.djl.Model;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
@@ -11,17 +10,11 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import elements.GraphOp;
-import features.Tensor;
 import functions.GraphProcessFn;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
 import partitioner.HDRF;
-import partitioner.PartKeySelector;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputInference;
-import scala.Tuple3;
 
 
 public class Main {
@@ -29,8 +22,10 @@ public class Main {
         GraphStream gs = new GraphStream((short)5, (short)2);
 //        StreamTableEnvironment tableEnv = StreamTableEnvironment.create(gs.env);
 
-        DataStream<GraphOp> edges = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/edges.csv");
+        DataStream<GraphOp> edges = gs.readTextFile(new EdgeStreamParser(new String[0]), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/edges.csv");
+        DataStream<GraphOp> features = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
+                "Probabilistic_Methods"}), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/group-edges.csv");
+
         gs.partition(edges, new HDRF());
         gs.gnnLayer((GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
@@ -116,15 +111,7 @@ public class Main {
                 return model;
             }
         }));
-//        DataStream<Row> mapper = gs.last.keyBy(new PartKeySelector()).map(item->{
-//            Tensor el = (Tensor) item.element;
-//            return Row.of(el.attachedTo._2, el.getValue(), item.part_id);
-//        });
-//        Table inputTable = tableEnv.fromDataStream(mapper);
-//
-////        tableEnv.createTemporaryView("InputTable", inputTable);
-//        DataStream<Row> resultStream = tableEnv.toChangelogStream(inputTable);
-//        resultStream.print();
+        gs.gnnLoss(features);
         System.out.println(gs.env.getExecutionPlan());
         gs.env.execute("HDRFPartitionerJOB");
     }

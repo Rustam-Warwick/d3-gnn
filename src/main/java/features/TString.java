@@ -6,37 +6,37 @@ import iterations.RemoteFunction;
 
 import java.util.List;
 
-public class Set<T> extends Feature<List<T>, List<T>> {
-    public Set() {
+public class TString extends Feature<String, String> {
+    public TString() {
     }
 
-    public Set(List<T> value) {
+    public TString(String value) {
         super(value);
     }
 
-    public Set(List<T> value, boolean halo) {
+    public TString(String value, boolean halo) {
         super(value, halo);
     }
 
-    public Set(List<T> value, boolean halo, short master) {
+    public TString(String value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public Set(String id, List<T> value) {
+    public TString(java.lang.String id, String value) {
         super(id, value);
     }
 
-    public Set(String id, List<T> value, boolean halo) {
+    public TString(java.lang.String id, String value, boolean halo) {
         super(id, value, halo);
     }
 
-    public Set(String  id, List<T> value, boolean halo, short master) {
+    public TString(java.lang.String id, String value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
     @Override
     public GraphElement copy() {
-        Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
+        TString tmp = new TString(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         return tmp;
@@ -44,26 +44,22 @@ public class Set<T> extends Feature<List<T>, List<T>> {
 
     @Override
     public GraphElement deepCopy() {
-        Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
+        TString tmp = new TString(this.id, this.value, this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
         return tmp;
     }
-    @RemoteFunction()
-    public void add(T element){
-        if(this.value.contains(element))return;
-        this.value.add(element);
-    }
+
 
     @Override
-    public List<T> getValue() {
+    public String getValue() {
         return this.value;
     }
 
     @Override
-    public boolean valuesEqual(List<T> v1, List<T> v2) {
-        return v1==v2;
+    public boolean valuesEqual(String v1, String v2) {
+        return v1.equals(v2);
     }
 }
