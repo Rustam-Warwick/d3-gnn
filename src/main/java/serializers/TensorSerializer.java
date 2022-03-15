@@ -16,7 +16,8 @@ import java.nio.ByteBuffer;
 public class TensorSerializer extends Serializer<NDArray> {
     private static final String MAGIC_NUMBER = "NDAR";
     private static final Integer VERSION = 3;
-    private final NDManager manager = NDManager.newBaseManager();
+    private static final NDManager manager = NDManager.newBaseManager();
+
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
         // magic string for version identification
@@ -87,6 +88,7 @@ public class TensorSerializer extends Serializer<NDArray> {
         data.put(x);
         data.rewind();
         NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
+        array.detach(); // Useful to not overpollute the TensorSerializers Manager
         array.setName(name);
         return array;
     }

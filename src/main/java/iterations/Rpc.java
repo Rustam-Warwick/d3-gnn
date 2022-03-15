@@ -2,10 +2,13 @@ package iterations;
 
 import elements.*;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 public class Rpc extends GraphElement {
     public Object[] args;
@@ -100,6 +103,19 @@ public class Rpc extends GraphElement {
                 destinations.addAll(el.replicaParts());
                 destinations.add(el.masterPart());
         }
+        for(Short part : destinations){
+            if(part == el.masterPart() && iterationState == IterationState.ITERATE){
+                Rpc.execute(el, rpc);
+            }else{
+                rpc.storage.message(new GraphOp(Op.RPC,part, rpc, iterationState));
+            }
+        }
+    }
+
+    public static void callProcedure(GraphElement el, String methodName, IterationState iterationState, List<Short> destinations, Object ...args){
+        if(Objects.isNull(destinations))return;
+        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(),false);
+        rpc.setStorage(el.storage);
         for(Short part : destinations){
             if(part == el.masterPart() && iterationState == IterationState.ITERATE){
                 Rpc.execute(el, rpc);

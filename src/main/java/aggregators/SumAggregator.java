@@ -101,6 +101,11 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     }
 
     @Override
+    public NDArray grad() {
+        return this.value._1().getGradient();
+    }
+
+    @Override
     public boolean isReady(int modelVersion) {
         return true;
     }

@@ -7,6 +7,7 @@ import iterations.Rpc;
 import scala.Tuple2;
 import scala.Tuple3;
 
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -94,6 +95,11 @@ public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, Hash
         NDArray sumOld = Arrays.stream(elements).map(item->item._2).reduce(NDArray::addi).get();
         Rpc.call(this, "replace", sumNew, sumOld);
 
+    }
+
+    @Override
+    public NDArray grad() {
+        return null;
     }
 
     @Override

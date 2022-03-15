@@ -37,6 +37,7 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public abstract void bulkReduce(NDArray ...newElements);
     public abstract void replace(NDArray newElement, NDArray oldElement);
     public abstract void bulkReplace(Tuple2<NDArray, NDArray>...elements);
+    public abstract NDArray grad();
     public abstract boolean isReady(int modelVersion);
     public abstract void reset();
 }

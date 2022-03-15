@@ -4,6 +4,7 @@ import scala.Serializable;
 import scala.Tuple2;
 import storage.BaseStorage;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -106,6 +107,7 @@ public class GraphElement implements Serializable {
         return ReplicaState.REPLICA;
     }
 
+    @Nullable
     public List<Short> replicaParts(){
         return null;
     }

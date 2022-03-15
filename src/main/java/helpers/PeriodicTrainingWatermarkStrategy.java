@@ -4,8 +4,6 @@ import org.apache.flink.api.common.eventtime.*;
 
 
 public class PeriodicTrainingWatermarkStrategy<T> implements WatermarkStrategy<T>{
-
-
     public class PeriodicTrainingWatermarkGenerator<T> implements WatermarkGenerator<T> {
         public int modelVersion = 0;
         @Override

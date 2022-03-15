@@ -1,6 +1,8 @@
 package helpers;
 
 import ai.djl.Model;
+import ai.djl.engine.Engine;
+import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
@@ -15,6 +17,7 @@ import functions.GraphProcessFn;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
+import plugins.GNNLayerTraining;
 import plugins.GNNOutputInference;
 import plugins.GNNOutputTraining;
 
@@ -23,7 +26,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
         DataStream<GraphOp> dataset = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}, "\t"), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/merged.csv");
+                "Probabilistic_Methods"}, "\t"), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv");
         DataStream<GraphOp> edges = dataset.filter(item->item.element.elementType() == ElementType.EDGE);
         DataStream<GraphOp> features = dataset.filter(item->item.element.elementType() == ElementType.VERTEX);
 
@@ -61,7 +64,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        }).withPlugin(new GNNLayerTraining()));
         DataStream<GraphOp> gnn2 = gs.gnnLayer(gnn1, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -95,7 +98,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        }).withPlugin(new GNNLayerTraining()));
         DataStream<GraphOp> predictions = gs.gnnLayer(gnn2, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
             @Override
             public Model createOutputModel() {

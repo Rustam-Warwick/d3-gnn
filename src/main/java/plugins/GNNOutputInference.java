@@ -42,7 +42,7 @@ public abstract class GNNOutputInference extends Plugin {
     @Override
     public void open() {
         super.open();
-        this.parameterStore = new MyParameterStore(this.storage.tensorManager, false);
+        this.parameterStore = new MyParameterStore(this.storage.tensorManager);
         this.outputModel = this.createOutputModel();
     }
 

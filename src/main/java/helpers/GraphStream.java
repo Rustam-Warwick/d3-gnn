@@ -15,6 +15,8 @@ import iterations.ForwardFilter;
 import iterations.IterateFilter;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
@@ -53,11 +55,14 @@ public class GraphStream {
         env.registerType(MeanAggregator.class);
         env.registerType(SumAggregator.class);
     }
+
     public GraphStream(short parallelism, short layers) {
         this.parallelism = parallelism;
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
+//        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
+        this.env.getConfig().setAutoWatermarkInterval(30000);
         this.env.setMaxParallelism(8);
         configureSerializers(this.env);
     }
@@ -117,6 +122,10 @@ public class GraphStream {
         }
         localIterator.closeWith(iterateFilter);
         this.iterator = localIterator;
+
+        if(storageProcess.isFirst()){
+            forwardFilter.assignTimestampsAndWatermarks(new PeriodicTrainingWatermarkStrategy<>());
+        }
         this.position_index++;
         return forwardFilter;
     }

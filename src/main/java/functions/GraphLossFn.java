@@ -15,6 +15,7 @@ import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.api.common.functions.RichJoinFunction;
 import org.apache.flink.configuration.Configuration;
+import scala.Tuple2;
 
 
 /**
@@ -35,19 +36,28 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
 
     @Override
     public GraphOp join(GraphOp first, GraphOp second) throws Exception {
+        // 1. Prepare data
         NDManager manager = NDManager.newBaseManager();
         GradientCollector collector = manager.getEngine().newGradientCollector();
         NDArray logit = ((NDArray) first.element.getFeature("logits").getValue()).expandDims(0);
         logit.setRequiresGradient(true);
         Integer tmp = (Integer) second.element.getFeature("label").getValue();
         NDArray label = manager.create(tmp).expandDims(0);
+
+        // 2. Loss and backward
         NDArray loss = this.loss.evaluate(new NDList(label), new NDList(logit));
         collector.backward(loss);
+
+        // 3. Prepare send data
+        Tensor grad = new Tensor("grad", logit.getGradient());
+        grad.attachedTo = new Tuple2<>(first.element.elementType(), first.element.getId());
+        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+
+        // 4. Cleanup
         collector.close();
         manager.close();
-        GraphElement el = first.element.copy();
-        el.setFeature("grad",new Tensor(logit.getGradient()));
-        Rpc backward = new Rpc("trainer", "backward", new Object[]{el.getFeature("grad")}, ElementType.PLUGIN, false);
+        logit.setRequiresGradient(false);
+
         return new GraphOp(Op.RPC, first.part_id, backward, IterationState.BACKWARD);
     }
 }

@@ -31,6 +31,7 @@ public abstract class GNNLayerInference extends Plugin {
 
     public abstract Model createUpdateModel();
 
+
     @RemoteFunction
     public void forward(String elementId, Tuple2<NDArray, Integer> embedding) {
         if(embedding._2 >= this.parameterStore.MODEL_VERSION){
@@ -53,7 +54,7 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void open() {
         super.open();
-        this.parameterStore = new MyParameterStore(this.storage.tensorManager, false);
+        this.parameterStore = new MyParameterStore(this.storage.tensorManager);
         this.messageModel = this.createMessageModel();
         this.updateModel = this.createUpdateModel();
     }
@@ -142,6 +143,7 @@ public abstract class GNNLayerInference extends Plugin {
         for(Edge edge:outEdges){
             if(this.messageReady(edge)){
                 if(Objects.isNull(msgOld)){
+
                     msgOld = this.messageModel.getBlock().forward(this.parameterStore, new NDList(oldFeature), false).get(0);
                     msgNew = this.messageModel.getBlock().forward(this.parameterStore, new NDList((NDArray) edge.src.getFeature("feature").getValue()), false).get(0);
                 }
@@ -172,6 +174,7 @@ public abstract class GNNLayerInference extends Plugin {
                 bulkReduceMessages.add(msg);
             }
         }
+
         ((BaseAggregator)vertex.getFeature("agg")).bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
     }
 

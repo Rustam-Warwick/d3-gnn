@@ -11,15 +11,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MyParameterStore extends ParameterStore {
     public int MODEL_VERSION = 0;
-    private Map<String, Parameter> parameterMap;
+    public Map<String, Parameter> parameterMap;
+    public Map<String, NDArray> gradientMap;
     private NDManager manager;
     public MyParameterStore() {
 
     }
 
-    public MyParameterStore(NDManager manager, boolean copy) {
+    public MyParameterStore(NDManager manager) {
         this.manager = manager;
         this.parameterMap = new ConcurrentHashMap<>();
+        this.gradientMap = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -31,7 +33,17 @@ public class MyParameterStore extends ParameterStore {
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
         this.parameterMap.putIfAbsent(parameter.getId(), parameter);
-        return this.parameterMap.get(parameter.getId()).getArray();
+        this.gradientMap.putIfAbsent(parameter.getId(), this.manager.zeros(parameter.getArray().getShape()));
+        NDArray valueParam = this.parameterMap.get(parameter.getId()).getArray();
+        if(valueParam.hasGradient() && !training){
+            this.gradientMap.get(parameter.getId()).addi(valueParam.getGradient());
+            valueParam.setRequiresGradient(training);
+        }
+        else if(!valueParam.hasGradient() && training){
+            valueParam.setRequiresGradient(training);
+        }
+
+        return valueParam;
     }
 
     @Override
