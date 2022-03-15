@@ -22,6 +22,7 @@ import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
+import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import partitioner.BasePartitioner;
@@ -137,7 +138,7 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp>predictionStream, DataStream<GraphOp>labelStream) {
        DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
                 .where(new ElementIdSelector()).equalTo(new ElementIdSelector())
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(10)))
+                .window(SlidingProcessingTimeWindows.of(Time.seconds(30), Time.seconds(10)))
                 .evictor(new KeepLastElement())
                 .apply(new GraphLossFn())
                 .keyBy(new PartKeySelector()).map(item->item).setParallelism(this.iterator.getParallelism());

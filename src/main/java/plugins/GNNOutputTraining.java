@@ -21,6 +21,7 @@ public class GNNOutputTraining extends Plugin {
         grad.setStorage(this.storage);
         VTensor feature = (VTensor) grad.getElement().getFeature("feature");
         GradientCollector collector = this.storage.tensorManager.getEngine().newGradientCollector();
+
         feature.getValue().setRequiresGradient(true);
 
         NDArray prediction = this.inference.outputModel.getBlock().forward(this.inference.parameterStore, new NDList(feature.getValue()), false).get(0);

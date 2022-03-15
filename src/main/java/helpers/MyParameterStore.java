@@ -6,15 +6,20 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
 import ai.djl.training.ParameterStore;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 public class MyParameterStore extends ParameterStore {
     public int MODEL_VERSION = 0;
+    private Map<String, Parameter> parameterMap;
+    private NDManager manager;
     public MyParameterStore() {
 
     }
 
     public MyParameterStore(NDManager manager, boolean copy) {
-        super(manager, copy);
-        this.setParameterServer(new MyParameterServer(), manager.getEngine().getDevices());
+        this.manager = manager;
+        this.parameterMap = new ConcurrentHashMap<>();
     }
 
     @Override
