@@ -24,12 +24,14 @@ public class MyParameterStore extends ParameterStore {
 
     @Override
     public void updateAllParameters() {
-        super.updateAllParameters();
+        System.out.println("Update all parameters");
+
     }
 
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        return super.getValue(parameter, device, training);
+        this.parameterMap.putIfAbsent(parameter.getId(), parameter);
+        return this.parameterMap.get(parameter.getId()).getArray();
     }
 
     @Override

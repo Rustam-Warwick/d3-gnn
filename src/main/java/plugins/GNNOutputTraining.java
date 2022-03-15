@@ -26,9 +26,7 @@ public class GNNOutputTraining extends Plugin {
 
         NDArray prediction = this.inference.outputModel.getBlock().forward(this.inference.parameterStore, new NDList(feature.getValue()), false).get(0);
         JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
-
-
-
+        this.inference.parameterStore.updateAllParameters();
         collector.close();
         feature.getValue().setRequiresGradient(false);
     }

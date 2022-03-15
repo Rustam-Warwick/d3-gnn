@@ -23,7 +23,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
         DataStream<GraphOp> dataset = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}, "\t"), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv");
+                "Probabilistic_Methods"}, "\t"), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/merged.csv");
         DataStream<GraphOp> edges = dataset.filter(item->item.element.elementType() == ElementType.EDGE);
         DataStream<GraphOp> features = dataset.filter(item->item.element.elementType() == ElementType.VERTEX);
 
