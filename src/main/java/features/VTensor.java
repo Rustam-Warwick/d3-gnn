@@ -12,11 +12,13 @@ import scala.Tuple2;
 public class VTensor extends Feature<Tuple2<NDTensor, Integer>, NDArray> {
 
     public VTensor() {
+
     }
 
     public VTensor(NDArray tmp) {
         super(new Tuple2<>(new NDTensor(tmp), 0));
     }
+
     public VTensor(NDArray tmp, int version) {
         super(new Tuple2<>(new NDTensor(tmp), version));
     }
@@ -67,9 +69,6 @@ public class VTensor extends Feature<Tuple2<NDTensor, Integer>, NDArray> {
 
     @Override
     public NDArray getValue() {
-        if(this.storage == null){
-            System.out.println();
-        }
         return this.value._1.get(this.storage.manager.getTempManager());
     }
 

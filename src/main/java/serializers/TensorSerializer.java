@@ -4,10 +4,12 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.PtNDArray;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import org.apache.flink.api.java.tuple.Tuple;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -81,7 +83,6 @@ public class TensorSerializer extends Serializer<NDArray> {
         }
 
         // Data
-
 
         int length = input.readInt();
         if(!manager.get().isOpen())manager.set(NDManager.newBaseManager());
