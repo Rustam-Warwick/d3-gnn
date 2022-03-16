@@ -2,6 +2,7 @@ package storage;
 
 import ai.djl.ndarray.NDManager;
 import elements.*;
+import helpers.TaskNDManager;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -18,8 +19,8 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public short parallelism = 1;
     public short position = 1;
     public short layers = 1;
+    public transient TaskNDManager manager;
     public final HashMap<String, Plugin> plugins = new HashMap<>();
-    public NDManager tensorManager;
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);
@@ -40,11 +41,12 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public boolean isFirst(){
         return this.position == 1;
     }
+
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
+        this.manager = new TaskNDManager();
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
-        this.tensorManager = NDManager.newBaseManager();
         this.plugins.values().forEach(plugin -> {plugin.setStorage(this);});
         this.plugins.values().forEach(Plugin::open);
     }
@@ -52,7 +54,6 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     @Override
     public void close() throws Exception {
         super.close();
-        this.tensorManager.close();
         this.plugins.values().forEach(Plugin::close);
     }
 
@@ -128,10 +129,19 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         return this;
     }
 
+    /**
+     * Get a Plugin given its Id
+     * @param id
+     * @return
+     */
     public Plugin getPlugin(String id){
         return this.plugins.get(id);
     }
 
+    /**
+     * Returns Stream over Plugins
+     * @return
+     */
     public Stream<Plugin> getPlugins(){
         return this.plugins.values().stream();
     }

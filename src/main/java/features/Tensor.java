@@ -60,9 +60,4 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public boolean isReady(int modelVersion){
         return true;
     }
-
-    @Override
-    public boolean valuesEqual(NDArray v1, NDArray v2) {
-        return v1==v2;
-    }
 }

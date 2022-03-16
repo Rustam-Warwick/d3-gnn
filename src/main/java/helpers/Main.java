@@ -1,8 +1,6 @@
 package helpers;
 
 import ai.djl.Model;
-import ai.djl.engine.Engine;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
@@ -13,13 +11,14 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import elements.ElementType;
 import elements.GraphOp;
+import functions.EdgeStreamParser;
 import functions.GraphProcessFn;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
-import plugins.GNNLayerTraining;
+//import plugins.GNNLayerTraining;
 import plugins.GNNOutputInference;
-import plugins.GNNOutputTraining;
+//import plugins.GNNOutputTraining;
 
 
 public class Main {
@@ -64,7 +63,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }).withPlugin(new GNNLayerTraining()));
+        }));
         DataStream<GraphOp> gnn2 = gs.gnnLayer(gnn1, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -98,7 +97,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }).withPlugin(new GNNLayerTraining()));
+        }));
         DataStream<GraphOp> predictions = gs.gnnLayer(gnn2, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
             @Override
             public Model createOutputModel() {
@@ -113,9 +112,9 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }).withPlugin(new GNNOutputTraining()));
+        }));
 
-        gs.gnnLoss(predictions, features);
+//        gs.gnnLoss(predictions, features);
         gs.env.execute("HDRFPartitionerJOB");
     }
 }

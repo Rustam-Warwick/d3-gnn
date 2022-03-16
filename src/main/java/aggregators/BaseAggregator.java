@@ -2,7 +2,7 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import scala.Tuple2;
+import helpers.NDTensor;
 
 public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public BaseAggregator() {
@@ -33,10 +33,9 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
         super(id, value, halo, master);
     }
 
-    public abstract void reduce(NDArray newElement, int count);
+    public abstract void reduce(NDTensor newElement, int count);
     public abstract void bulkReduce(NDArray ...newElements);
-    public abstract void replace(NDArray newElement, NDArray oldElement);
-    public abstract void bulkReplace(Tuple2<NDArray, NDArray>...elements);
+    public abstract void replace(NDTensor newElement, NDTensor oldElement);
     public abstract NDArray grad();
     public abstract boolean isReady(int modelVersion);
     public abstract void reset();

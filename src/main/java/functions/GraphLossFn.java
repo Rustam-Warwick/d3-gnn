@@ -7,7 +7,6 @@ import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
 import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.ElementType;
-import elements.GraphElement;
 import elements.GraphOp;
 import elements.Op;
 import features.Tensor;

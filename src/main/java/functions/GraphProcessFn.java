@@ -1,6 +1,7 @@
 package functions;
 
 import elements.*;
+import helpers.TaskNDManager;
 import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -58,6 +59,8 @@ public class GraphProcessFn extends HashMapStorage {
             }
         }catch (Exception e){
             e.printStackTrace();
+        }finally {
+            this.manager.clean();
         }
 
     }

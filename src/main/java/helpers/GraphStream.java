@@ -1,7 +1,6 @@
 package helpers;
 
 import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
 import aggregators.SumAggregator;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
@@ -15,8 +14,6 @@ import iterations.ForwardFilter;
 import iterations.IterateFilter;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
-import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
-import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamUtils;
@@ -25,7 +22,6 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import partitioner.BasePartitioner;
 import serializers.TensorSerializer;
@@ -52,7 +48,7 @@ public class GraphStream {
         env.registerType(Tensor.class);
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
-        env.registerType(MeanAggregator.class);
+//        env.registerType(MeanAggregator.class);
         env.registerType(SumAggregator.class);
     }
 

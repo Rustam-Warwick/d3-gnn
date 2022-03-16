@@ -16,7 +16,8 @@ import java.nio.ByteBuffer;
 public class TensorSerializer extends Serializer<NDArray> {
     private static final String MAGIC_NUMBER = "NDAR";
     private static final Integer VERSION = 3;
-    private static final NDManager manager = NDManager.newBaseManager();
+
+    public static final ThreadLocal<NDManager> manager = ThreadLocal.withInitial(NDManager::newBaseManager);
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -42,6 +43,7 @@ public class TensorSerializer extends Serializer<NDArray> {
         byte[] bb = o.toByteArray();
         output.writeInt(bb.length);
         output.write(bb);
+        manager.get().close();
 
     }
 
@@ -82,13 +84,13 @@ public class TensorSerializer extends Serializer<NDArray> {
 
 
         int length = input.readInt();
-        ByteBuffer data = manager.allocateDirect(length);
+        if(!manager.get().isOpen())manager.set(NDManager.newBaseManager());
+        ByteBuffer data = manager.get().allocateDirect(length);
 
         byte[] x = input.readBytes(length);
         data.put(x);
         data.rewind();
-        NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
-        array.detach(); // Useful to not overpollute the TensorSerializers Manager
+        NDArray array = manager.get().create(dataType.asDataType(data), shape, dataType);
         array.setName(name);
         return array;
     }

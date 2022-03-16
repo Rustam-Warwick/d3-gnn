@@ -2,44 +2,42 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
+import helpers.NDTensor;
 import iterations.RemoteFunction;
-import iterations.Rpc;
-import scala.Tuple2;
 import scala.Tuple3;
 
-import java.util.Arrays;
 import java.util.HashMap;
 
-public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>> {
+public class SumAggregator extends BaseAggregator<Tuple3<NDTensor, Integer, HashMap<Integer, Integer>>> {
     public SumAggregator() {
         super();
     }
 
     public SumAggregator(NDArray tensor, boolean halo) {
-        this(new Tuple3<>(tensor, 0, new HashMap<>()), halo);
+        this(new Tuple3<>(new NDTensor(tensor), 0, new HashMap<>()), halo);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value) {
         super(value);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value, boolean halo) {
         super(value, halo);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(String id, Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value) {
         super(id, value);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(String id, Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value, boolean halo) {
         super(id, value, halo);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(String id, Tuple3<NDTensor, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
@@ -63,46 +61,33 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @RemoteFunction
     @Override
-    public void reduce(NDArray newElement, int count) {
-        this.value._1().addi(newElement);
-        this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
+    public void reduce(NDTensor newElement, int count) {
+        NDArray res = this.value._1().get(this.storage.manager.getTempManager()).add(newElement.get(this.storage.manager.getTempManager()));
+        this.value = new Tuple3<>(new NDTensor(res), this.value._2() + count, this.value._3());
         if(this.attachedTo._2.equals("434")){
             System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
         }
+
     }
 
     @Override
     public void bulkReduce(NDArray... newElements) {
-        if(newElements.length <= 0) return;
-        NDArray copyFirst = newElements[0].toDevice(newElements[0].getDevice(), true);
-        newElements[0] = copyFirst;
-        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        Rpc.call(this, "reduce", sum, newElements.length);
+
     }
 
     @RemoteFunction
     @Override
-    public void replace(NDArray newElement, NDArray oldElement) {
-        newElement.subi(oldElement);
-        this.value._1().addi(newElement);
-        this.value = new Tuple3<>(this.value._1(), this.value._2(), this.value._3());
+    public void replace(NDTensor newElement, NDTensor oldElement) {
+//        newElement.subi(oldElement);
+//        this.value._1().addi(newElement);
+//        this.value = new Tuple3<>(this.value._1(), this.value._2(), this.value._3());
     }
 
-    @Override
-    public void bulkReplace(Tuple2<NDArray, NDArray> ...elements) {
-        if(elements.length <= 0) return;
-        NDArray copyFirstNew = elements[0]._1.toDevice(elements[0]._1.getDevice(), true);
-        NDArray copyFirstOld = elements[0]._2.toDevice(elements[0]._2.getDevice(), true);
-        elements[0] = new Tuple2<>(copyFirstNew, copyFirstOld);
-        NDArray sumNew = Arrays.stream(elements).map(item->item._1).reduce(NDArray::addi).get();
-        NDArray sumOld = Arrays.stream(elements).map(item->item._2).reduce(NDArray::addi).get();
-        Rpc.call(this, "replace", sumNew, sumOld);
-
-    }
 
     @Override
     public NDArray grad() {
-        return this.value._1().getGradient();
+//        return this.value._1().getGradient();
+        return null;
     }
 
     @Override
@@ -117,11 +102,7 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @Override
     public NDArray getValue() {
-        return this.value._1();
+        return this.value._1().get(this.storage.manager.getTempManager());
     }
 
-    @Override
-    public boolean valuesEqual(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v1, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v2) {
-        return (v1._1() == v2._1()) && (v1._2() == v2._2()) && (v1._3() == v2._3());
-    }
 }
