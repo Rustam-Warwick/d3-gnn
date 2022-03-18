@@ -6,6 +6,11 @@ import scala.Tuple2;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Represents a Feature
+ * @param <T> Type that is actually stored in the Feature Object
+ * @param <V> Type that is exposed through getValue method
+ */
 public class Feature<T, V> extends ReplicableGraphElement {
     public T value;
     public transient GraphElement element;

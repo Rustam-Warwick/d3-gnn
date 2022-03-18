@@ -2,37 +2,29 @@ package helpers;
 
 import ai.djl.ndarray.NDManager;
 
-/**
- * ND Manager per task
- * taskLifeCycleManager -> ND Manager that should be destroyed once the Task is finished
- * taskSingleProcessManager -> ND Manager that should be destroyed after each process
- * Implemented as a helper to manager memory issued by NDManager
- */
 public class TaskNDManager {
-    public final NDManager taskLifeCycleManager;
-    public  NDManager taskSingleProcessManager;
+    private transient NDManager lifeCycleManager;
+    private transient NDManager tempManager;
 
     public TaskNDManager(){
-        taskLifeCycleManager = NDManager.newBaseManager();
-        taskSingleProcessManager = taskLifeCycleManager.newSubManager();
+        this.lifeCycleManager = NDManager.newBaseManager();
+        this.tempManager = this.lifeCycleManager.newSubManager();
     }
 
-    public  NDManager getTempManager(){
-        return taskSingleProcessManager;
+    public NDManager getTempManager(){
+        return this.tempManager;
     }
 
-    public  NDManager getGlobalManager(){
-        return taskLifeCycleManager;
+    public NDManager getLifeCycleManager(){
+        return this.lifeCycleManager;
     }
 
-    public  void clean(){
-        taskSingleProcessManager.close();
-        taskSingleProcessManager = taskLifeCycleManager.newSubManager();
+    public void clean(){
+        this.tempManager.close();
+        this.tempManager = this.lifeCycleManager.newSubManager();
     }
 
-    public  void close(){
-        taskSingleProcessManager.close();
-        taskLifeCycleManager.close();
+    public void close(){
+        this.lifeCycleManager.close();
     }
-
 }

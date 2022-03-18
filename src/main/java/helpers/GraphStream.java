@@ -1,11 +1,11 @@
 package helpers;
 
 import aggregators.BaseAggregator;
+//import aggregators.MeanAggregator;
 import aggregators.SumAggregator;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
-import features.Tensor;
 import features.VTensor;
 import functions.GraphLossFn;
 import functions.GraphProcessFn;
@@ -25,7 +25,6 @@ import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeW
 import org.apache.flink.streaming.api.windowing.time.Time;
 import partitioner.BasePartitioner;
 import serializers.TensorSerializer;
-
 import java.io.File;
 import java.util.Objects;
 
@@ -38,6 +37,7 @@ public class GraphStream {
     private IterativeStream<GraphOp> iterator = null;
 
     public static void configureSerializers(StreamExecutionEnvironment env){
+        env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
@@ -45,7 +45,7 @@ public class GraphStream {
         env.registerType(Edge.class);
         env.registerType(Feature.class);
         env.registerType(Set.class);
-        env.registerType(Tensor.class);
+        env.registerType(JavaTensor.class);
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
 //        env.registerType(MeanAggregator.class);

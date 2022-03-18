@@ -162,7 +162,7 @@ public class GraphElement implements Serializable {
         return result;
     }
 
-    public void setFeature(String name,Feature feature){
+    public void setFeature(String name, Feature feature){
         Feature exists = this.getFeature(name);
         if(Objects.nonNull(exists))return;
         feature.setId(name);

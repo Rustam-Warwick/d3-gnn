@@ -9,7 +9,6 @@ import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.ElementType;
 import elements.GraphOp;
 import elements.Op;
-import features.Tensor;
 import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.api.common.functions.RichJoinFunction;
@@ -48,15 +47,15 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
         collector.backward(loss);
 
         // 3. Prepare send data
-        Tensor grad = new Tensor("grad", logit.getGradient());
-        grad.attachedTo = new Tuple2<>(first.element.elementType(), first.element.getId());
-        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+//        Tensor grad = new Tensor("grad", logit.getGradient());
+//        grad.attachedTo = new Tuple2<>(first.element.elementType(), first.element.getId());
+//        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
 
         // 4. Cleanup
         collector.close();
         manager.close();
         logit.setRequiresGradient(false);
-
-        return new GraphOp(Op.RPC, first.part_id, backward, IterationState.BACKWARD);
+        return null;
+//        return new GraphOp(Op.RPC, first.part_id, backward, IterationState.BACKWARD);
     }
 }

@@ -4,12 +4,11 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.PtNDArray;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import org.apache.flink.api.java.tuple.Tuple;
+import helpers.JavaTensor;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -18,8 +17,7 @@ import java.nio.ByteBuffer;
 public class TensorSerializer extends Serializer<NDArray> {
     private static final String MAGIC_NUMBER = "NDAR";
     private static final Integer VERSION = 3;
-
-    public static final ThreadLocal<NDManager> manager = ThreadLocal.withInitial(NDManager::newBaseManager);
+    private static final NDManager manager = NDManager.newBaseManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -45,7 +43,6 @@ public class TensorSerializer extends Serializer<NDArray> {
         byte[] bb = o.toByteArray();
         output.writeInt(bb.length);
         output.write(bb);
-        manager.get().close();
 
     }
 
@@ -84,21 +81,23 @@ public class TensorSerializer extends Serializer<NDArray> {
 
         // Data
 
+
         int length = input.readInt();
-        if(!manager.get().isOpen())manager.set(NDManager.newBaseManager());
-        ByteBuffer data = manager.get().allocateDirect(length);
+        ByteBuffer data = manager.allocateDirect(length);
 
         byte[] x = input.readBytes(length);
         data.put(x);
         data.rewind();
-        NDArray array = manager.get().create(dataType.asDataType(data), shape, dataType);
+        NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
+        array.detach(); // Useful to not overpollute the TensorSerializers Manager
         array.setName(name);
-        return array;
+        return JavaTensor.of(array);
     }
+
 
     @Override
     public NDArray copy(Kryo kryo, NDArray original) {
-        return original.toDevice(original.getDevice(), true);
+        return original.duplicate();
     }
 
 

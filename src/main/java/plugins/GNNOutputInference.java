@@ -6,8 +6,7 @@ import ai.djl.ndarray.NDList;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import helpers.NDTensor;
-import helpers.TaskNDManager;
+import helpers.JavaTensor;
 import iterations.IterationState;
 import iterations.RemoteFunction;
 import scala.Tuple2;
@@ -24,7 +23,7 @@ public abstract class GNNOutputInference extends Plugin {
     public abstract Model createOutputModel();
 
     @RemoteFunction
-    public void forward(String elementId, Tuple2<NDTensor, Integer> embedding){
+    public void forward(String elementId, Tuple2<NDArray, Integer> embedding){
         if(embedding._2 >= this.parameterStore.MODEL_VERSION){
             Vertex vertex = this.storage.getVertex(elementId);
             if(Objects.isNull(vertex)){
@@ -43,7 +42,7 @@ public abstract class GNNOutputInference extends Plugin {
     @Override
     public void open() {
         super.open();
-        this.parameterStore = new MyParameterStore(this.storage.manager.getGlobalManager());
+        this.parameterStore = new MyParameterStore(this.storage.manager.getLifeCycleManager());
         this.outputModel = this.createOutputModel();
     }
 
@@ -82,7 +81,7 @@ public abstract class GNNOutputInference extends Plugin {
         NDList message = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false);
         NDArray res = message.get(0);
         Vertex a = new Vertex(embedding.attachedTo._2);
-        a.setFeature("logits", new VTensor(res));
+        a.setFeature("logits", new VTensor(new Tuple2<>(JavaTensor.of(res), 0)));
         this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
     }
 
