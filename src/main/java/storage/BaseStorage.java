@@ -47,7 +47,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         super.open(parameters);
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         this.manager = new TaskNDManager();
-        this.plugins.values().forEach(plugin -> {plugin.setStorage(this);});
+        this.plugins.values().forEach(plugin->plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
 
@@ -62,6 +62,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         this.plugins.values().forEach(plugin->plugin.onTimer(timestamp, ctx, out));
+
     }
 
     @Override

@@ -3,6 +3,7 @@ package plugins;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.NDManager;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
@@ -78,11 +79,14 @@ public abstract class GNNOutputInference extends Plugin {
     }
 
     public void makePredictionAndSendForward(VTensor embedding){
-        NDList message = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false);
-        NDArray res = message.get(0);
+        NDManager oldManager = embedding.getValue().getManager();
+        embedding.getValue().attach(this.storage.manager.getTempManager());
+        NDArray res = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false).get(0);
+        embedding.getValue().attach(oldManager);
         Vertex a = new Vertex(embedding.attachedTo._2);
-        a.setFeature("logits", new VTensor(new Tuple2<>(JavaTensor.of(res), 0)));
+        a.setFeature("logits", new VTensor(new Tuple2<>(res, 0)));
         this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
+
     }
 
 

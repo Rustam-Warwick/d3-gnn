@@ -2,37 +2,42 @@ package plugins;
 
 import aggregators.BaseAggregator;
 import aggregators.SumAggregator;
+import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
-import ai.djl.training.TrainingConfig;
+import ai.djl.nn.ParameterList;
 import elements.*;
 import features.VTensor;
+import helpers.SerializableModel;
 import helpers.MyParameterStore;
 import helpers.JavaTensor;
+import helpers.SerializableParameters;
 import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import scala.Tuple2;
+import storage.BaseStorage;
 
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 public abstract class GNNLayerInference extends Plugin {
-    public Model messageModel;
-    public Model updateModel;
+    public transient Model messageModel;
+    public transient Model updateModel;
     public MyParameterStore parameterStore;
 
     public GNNLayerInference() {
         super("inferencer");
     }
 
-    public abstract Model createMessageModel();
+    public abstract Model createMessageModel(boolean initialize);
 
-    public abstract Model createUpdateModel();
+    public abstract Model createUpdateModel(boolean initialize);
 
 
     @RemoteFunction
@@ -55,11 +60,25 @@ public abstract class GNNLayerInference extends Plugin {
     }
 
     @Override
+    public void setStorage(BaseStorage storage) {
+        super.setStorage(storage);
+        if(Objects.isNull(this.parameterStore)){
+            // From Main call
+            this.parameterStore = new MyParameterStore(NDManager.newBaseManager());
+            this.messageModel = this.createMessageModel(true);
+            this.updateModel = this.createUpdateModel(true);
+            this.parameterStore.appendList(this.messageModel.getBlock().getParameters());
+            this.parameterStore.appendList(this.updateModel.getBlock().getParameters());
+        }
+
+    }
+
+    @Override
     public void open() {
         super.open();
-        this.parameterStore = new MyParameterStore(this.storage.manager.getLifeCycleManager());
-        this.messageModel = this.createMessageModel();
-        this.updateModel = this.createUpdateModel();
+        this.messageModel = this.createMessageModel(false);
+        this.updateModel = this.createUpdateModel(false);
+
     }
 
     @Override
@@ -68,11 +87,7 @@ public abstract class GNNLayerInference extends Plugin {
         switch (element.elementType()) {
             case VERTEX: {
                 if (element.state() == ReplicaState.MASTER) {
-                    element.setFeature("agg", new SumAggregator(JavaTensor.of(this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue())), true));
-                    if (this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))) {
-                        NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(this.messageModel.describeInput().get(0).getValue());
-                        element.setFeature("feature", new VTensor(new Tuple2<>(JavaTensor.of(embeddingRandom), this.parameterStore.MODEL_VERSION)));
-                    }
+                    this.initVertex((Vertex) element);
                 }
                 break;
             }
@@ -144,6 +159,16 @@ public abstract class GNNLayerInference extends Plugin {
                         break;
                     }
                 }
+            }
+        }
+    }
+
+    public void initVertex(Vertex element){
+        if (element.state() == ReplicaState.MASTER) {
+            element.setFeature("agg", new SumAggregator(JavaTensor.of(this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue())), true));
+            if (this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))) {
+                NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(this.messageModel.describeInput().get(0).getValue());
+                element.setFeature("feature", new VTensor(new Tuple2<>(JavaTensor.of(embeddingRandom), this.parameterStore.MODEL_VERSION)));
             }
         }
     }

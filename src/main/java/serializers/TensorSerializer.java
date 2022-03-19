@@ -89,7 +89,6 @@ public class TensorSerializer extends Serializer<NDArray> {
         data.put(x);
         data.rewind();
         NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
-        array.detach(); // Useful to not overpollute the TensorSerializers Manager
         array.setName(name);
         return JavaTensor.of(array);
     }

@@ -35,6 +35,7 @@ public class JavaTensor implements NDArray {
 
     public JavaTensor(NDArray arr){
         this.array = arr;
+        this.array.detach();
         tensorCleaner.register(this, new TensorCleaner(this.array));
     }
 
