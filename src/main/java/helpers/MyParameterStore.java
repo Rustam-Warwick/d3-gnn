@@ -2,6 +2,7 @@ package helpers;
 
 import ai.djl.Device;
 import ai.djl.MalformedModelException;
+import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
@@ -10,15 +11,19 @@ import ai.djl.training.ParameterStore;
 import ai.djl.training.initializer.ConstantInitializer;
 import ai.djl.util.Pair;
 
+import javax.xml.crypto.Data;
 import java.io.*;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MyParameterStore extends ParameterStore implements Serializable {
     public int MODEL_VERSION = 0;
-    public ParameterList parameterList;
-    public transient Map<String, Parameter> parameterMap;
-    public transient Map<String, NDArray> gradientMap;
+    public transient Map<String, NDArray> parameterArrays;
+
     private transient NDManager manager;
 
     public MyParameterStore(){
@@ -26,14 +31,13 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     }
     public MyParameterStore(NDManager manager) {
         this.manager = manager;
-        this.parameterList = new ParameterList();
-        this.parameterMap = new ConcurrentHashMap<>();
-        this.gradientMap = new ConcurrentHashMap<>();
+        this.parameterArrays = new ConcurrentHashMap<>();
     }
 
-
-    public void appendList(ParameterList modelParams){
-        modelParams.forEach(item->item.);
+    public void setNDManager(NDManager newManager){
+        this.parameterArrays.forEach((id, value)->{value.attach(newManager);});
+        manager.close();
+        this.manager = newManager;
     }
 
     @Override
@@ -42,13 +46,48 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     }
 
+    /**
+     * Make model parameters unique across the deivces
+     * @param model
+     */
+    public void canonizeModel(Model model){
+        String modelName = model.getName();
+        ParameterList params = model.getBlock().getParameters();
+        try {
+            Field idField = Parameter.class.getDeclaredField("id");
+            idField.setAccessible(true);
+            for (Pair<String, Parameter> param : params) {
+                idField.set(param.getValue(), modelName+param.getKey()+param.getValue().getName());
+            }
+        }catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Load the Model to ParameterStore intially
+     * @param model
+     */
+    public void loadModel(Model model){
+        model.getBlock().getParameters().forEach(item->{
+            this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
+        });
+    }
+
+    public void restoreModel(Model model){
+        model.getBlock().getParameters().forEach(item->{
+            NDArray thisArray = this.parameterArrays.get(item.getValue().getId());
+            item.getValue().close();
+            item.getValue().setShape(null);
+            item.getValue().setArray(thisArray);
+        });
+
+    }
+
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        this.parameterMap.putIfAbsent(parameter.getId(), parameter);
-        this.gradientMap.putIfAbsent(parameter.getId(), this.manager.zeros(parameter.getArray().getShape()));
-        NDArray valueParam = this.parameterMap.get(parameter.getId()).getArray();
+        NDArray valueParam = this.parameterArrays.get(parameter.getId());
         if(valueParam.hasGradient() && !training){
-            this.gradientMap.get(parameter.getId()).addi(valueParam.getGradient());
             valueParam.setRequiresGradient(training);
         }
         else if(!valueParam.hasGradient() && training){
@@ -58,36 +97,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         return valueParam;
     }
 
-    private void writeObject(ObjectOutputStream oos) throws IOException {
-        // default serialization
-        for(Pair<String, Parameter> pair: this.parameterList){
-            oos.writeBoolean(false);
-            oos.writeUTF(pair.getKey());
-            oos.writeUTF(pair.getValue().getName());
-            pair.getValue().save(new DataOutputStream(oos));
-        }
-        oos.writeBoolean(true);
-
-    }
-
-    private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException {
-        // default deserialization
-        NDManager manager = NDManager.newBaseManager();
-        this.parameterList = new ParameterList();
-        while(true){
-            try {
-                if(ois.readBoolean())break;
-                String key = ois.readUTF();
-                String name = ois.readUTF();
-                Parameter tmp = new Parameter.Builder().setName(name).optInitializer(new ConstantInitializer(0)).build();
-                tmp.load(manager, new DataInputStream(ois));
-                this.parameterList.add(key, tmp);
-            } catch (MalformedModelException e) {
-                e.printStackTrace();
-            }
-        }
-
-    }
     @Override
     public NDManager getManager() {
         return super.getManager();
@@ -96,5 +105,30 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     @Override
     public void sync() {
         super.sync();
+    }
+
+
+    private void writeObject(ObjectOutputStream oos) throws IOException {
+        DataOutputStream dos = new DataOutputStream(oos);
+        dos.writeInt(this.MODEL_VERSION);
+        dos.writeInt(this.parameterArrays.size());
+        for(Map.Entry<String, NDArray> entry: this.parameterArrays.entrySet()){
+            dos.writeUTF(entry.getKey());
+            dos.write(entry.getValue().encode());
+        }
+    }
+
+    private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
+        DataInputStream dis = new DataInputStream(ois);
+        this.manager = NDManager.newBaseManager();
+        this.parameterArrays = new ConcurrentHashMap<>();
+        this.MODEL_VERSION = dis.readInt();
+        int i = dis.readInt();
+        for(;i>0;i--){
+          String id = dis.readUTF();
+          NDArray value = this.manager.decode(dis);
+          this.parameterArrays.putIfAbsent(id, value);
+        }
+
     }
 }

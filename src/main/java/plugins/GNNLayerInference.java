@@ -2,18 +2,14 @@ package plugins;
 
 import aggregators.BaseAggregator;
 import aggregators.SumAggregator;
-import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
-import ai.djl.nn.ParameterList;
 import elements.*;
 import features.VTensor;
-import helpers.SerializableModel;
 import helpers.MyParameterStore;
 import helpers.JavaTensor;
-import helpers.SerializableParameters;
 import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
@@ -21,9 +17,10 @@ import iterations.Rpc;
 import scala.Tuple2;
 import storage.BaseStorage;
 
-import java.io.*;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public abstract class GNNLayerInference extends Plugin {
@@ -35,9 +32,9 @@ public abstract class GNNLayerInference extends Plugin {
         super("inferencer");
     }
 
-    public abstract Model createMessageModel(boolean initialize);
+    public abstract Model createMessageModel();
 
-    public abstract Model createUpdateModel(boolean initialize);
+    public abstract Model createUpdateModel();
 
 
     @RemoteFunction
@@ -62,23 +59,30 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if(Objects.isNull(this.parameterStore)){
-            // From Main call
-            this.parameterStore = new MyParameterStore(NDManager.newBaseManager());
-            this.messageModel = this.createMessageModel(true);
-            this.updateModel = this.createUpdateModel(true);
-            this.parameterStore.appendList(this.messageModel.getBlock().getParameters());
-            this.parameterStore.appendList(this.updateModel.getBlock().getParameters());
-        }
+    }
 
+    @Override
+    public void add() {
+        super.add();
+        this.messageModel = this.createMessageModel();
+        this.updateModel = this.createUpdateModel();
+        this.parameterStore = new MyParameterStore();
+        this.parameterStore.canonizeModel(this.messageModel);
+        this.parameterStore.canonizeModel(this.updateModel);
+        this.parameterStore.loadModel(this.messageModel);
+        this.parameterStore.loadModel(this.updateModel);
     }
 
     @Override
     public void open() {
         super.open();
-        this.messageModel = this.createMessageModel(false);
-        this.updateModel = this.createUpdateModel(false);
-
+        this.messageModel = this.createMessageModel();
+        this.updateModel = this.createUpdateModel();
+        this.parameterStore.canonizeModel(this.messageModel);
+        this.parameterStore.canonizeModel(this.updateModel);
+        this.parameterStore.restoreModel(this.messageModel);
+        this.parameterStore.restoreModel(this.updateModel);
+        this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
     }
 
     @Override
@@ -130,7 +134,7 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()) {
+        switch(newElement.elementType()) {
             case FEATURE: {
                 Feature feature = (Feature) newElement;
                 Feature oldFeature = (Feature) oldElement;

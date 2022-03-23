@@ -1,23 +1,33 @@
 package plugins;
 
 import aggregators.BaseAggregator;
+import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
+import ai.djl.nn.Parameter;
+import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
+import ai.djl.util.Pair;
 import elements.*;
 import features.VTensor;
 import helpers.JavaTensor;
 import iterations.IterationState;
+import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import scala.Tuple2;
+
+import java.lang.reflect.Field;
+import java.util.HashMap;
 
 public class GNNLayerTraining extends Plugin {
     public GNNLayerInference inference = null;
     public GNNLayerTraining(){
         super("trainer");
     }
+
+
 
     @RemoteFunction
     public void backward(VTensor grad){
@@ -70,9 +80,15 @@ public class GNNLayerTraining extends Plugin {
 //        }
     }
 
+    @RemoteFunction
+    public void updateParameters(HashMap<String, Parameter> incoming){
+
+    }
+
     @Override
     public void open() {
         super.open();
         inference = (GNNLayerInference) this.storage.getPlugin("inferencer");
+
     }
 }

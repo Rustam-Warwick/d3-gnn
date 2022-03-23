@@ -3,13 +3,15 @@ package elements;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import scala.Tuple2;
+import state.KeyGroupRangeAssignment;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
+/**
+ * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
+ */
 public class Plugin extends ReplicableGraphElement{
-    public List<Short> replicaList=null;
+    public List<Short> replicaList = null;
     public Plugin(){
         super(null, false, (short) 0);
     }
@@ -33,20 +35,11 @@ public class Plugin extends ReplicableGraphElement{
     }
 
     @Override
-    public short getPartId() {
-        if(Objects.nonNull(this.storage))return this.storage.currentKey;
-        return super.getPartId();
-    }
-
-    @Override
     public List<Short> replicaParts() {
         return this.replicaList;
     }
 
-    @Override
-    public short masterPart() {
-        return 0;
-    }
+
 
     @Override
     public ElementType elementType() {
@@ -56,9 +49,11 @@ public class Plugin extends ReplicableGraphElement{
     public void addElementCallback(GraphElement element){
 
     }
+
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement){
 
     }
+
     public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out){
 
     }
@@ -68,12 +63,30 @@ public class Plugin extends ReplicableGraphElement{
     }
 
     public void open(){
-        if(Objects.isNull(this.replicaList)){
-            this.replicaList = new ArrayList<>();
-            for(short i=1;i<this.storage.getRuntimeContext().getMaxNumberOfParallelSubtasks();i++){
-                replicaList.add(i);
+        this.replicaList = new ArrayList<>();
+        int[] seen = new int[this.storage.parallelism];
+        Arrays.fill(seen, -1);
+        for(short i=0;i<this.storage.getRuntimeContext().getMaxNumberOfParallelSubtasks();i++){
+            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), this.storage.maxParallelism, this.storage.parallelism);
+            if(seen[operatorIndex] == -1){
+                seen[operatorIndex] = i;
             }
         }
+        this.master = (short) Arrays.stream(seen).filter(item->item!=-1).findFirst().getAsInt(); // Master is the key closes to zero's parallel subtask
+        this.partId = (short) seen[this.storage.operatorIndex];
+        if(this.state() == ReplicaState.MASTER){
+            for(int i=0; i< this.storage.parallelism; i++){
+                if(seen[i] == -1 || seen[i] == this.partId)continue;
+                this.replicaList.add((short) seen[i]);
+            }
+        }
+    }
+
+    /**
+     * Callback when this plugin is first added to the storage
+     */
+    public void add(){
+
     }
 
 }

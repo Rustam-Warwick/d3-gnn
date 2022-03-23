@@ -41,8 +41,6 @@ public class GraphStream {
     public static void configureSerializers(StreamExecutionEnvironment env){
         env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
-        env.registerTypeWithKryoSerializer(SerializableModel.class, ModelSerializer.class);
-        env.registerTypeWithKryoSerializer(PtModel.class, ModelSerializer.class);
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);

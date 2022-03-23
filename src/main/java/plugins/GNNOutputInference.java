@@ -15,11 +15,10 @@ import scala.Tuple2;
 import java.util.Objects;
 
 public abstract class GNNOutputInference extends Plugin {
-    public Model outputModel;
+    public transient Model outputModel;
     public MyParameterStore parameterStore;
 
     public GNNOutputInference(){super("inferencer");}
-    public GNNOutputInference(String id){super(id);}
 
     public abstract Model createOutputModel();
 
@@ -41,13 +40,23 @@ public abstract class GNNOutputInference extends Plugin {
     }
 
     @Override
-    public void open() {
-        super.open();
-        this.parameterStore = new MyParameterStore(this.storage.manager.getLifeCycleManager());
+    public void add() {
+        super.add();
         this.outputModel = this.createOutputModel();
+        this.parameterStore = new MyParameterStore();
+        this.parameterStore.canonizeModel(this.outputModel);
+        this.parameterStore.loadModel(this.outputModel);
     }
 
     @Override
+    public void open() {
+        super.open();
+        this.outputModel = this.createOutputModel();
+        this.parameterStore.canonizeModel(this.outputModel);
+        this.parameterStore.restoreModel(this.outputModel);
+        this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
+    }
+
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         switch (element.elementType()){

@@ -15,12 +15,19 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction {
-    public transient short currentKey = -1;
-    public short parallelism = 1;
-    public short position = 1;
-    public short layers = 1;
-    public final HashMap<String, Plugin> plugins = new HashMap<>();
-    public TaskNDManager manager;
+    public short currentKey = 0; // Current Key being processes
+    public short operatorIndex = 0; // Index of this operator
+    public short maxParallelism = 1; // maxParallelism of this operator, also means max partitioning
+    public short parallelism = 1; // actual parallelism
+    public short position = 1; // horizontal positiion of this operator
+    public short layers = 1; // max horizontal number of GNN layers excluding the output layer
+
+    public final HashMap<String, Plugin> plugins = new HashMap<>(); // Plugins
+
+    public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
+
+    // Abstract Functions
+
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
     public abstract boolean addEdge(Edge edge);
@@ -45,8 +52,10 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         this.manager = new TaskNDManager();
+        this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
+        this.maxParallelism = (short) getRuntimeContext().getMaxNumberOfParallelSubtasks();
+        this.operatorIndex = (short) getRuntimeContext().getIndexOfThisSubtask();
         this.plugins.values().forEach(plugin->plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
@@ -128,6 +137,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public BaseStorage withPlugin(Plugin plugin) {
         this.plugins.put(plugin.getId(), plugin);
         plugin.setStorage(this);
+        plugin.add();
         return this;
     }
 
