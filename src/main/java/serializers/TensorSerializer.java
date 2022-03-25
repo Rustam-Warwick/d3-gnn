@@ -9,6 +9,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import helpers.JavaTensor;
+import helpers.TensorCleaner;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -90,7 +91,8 @@ public class TensorSerializer extends Serializer<NDArray> {
         data.rewind();
         NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
         array.setName(name);
-        return JavaTensor.of(array);
+        TensorCleaner.subscribe(array);
+        return array;
     }
 
 

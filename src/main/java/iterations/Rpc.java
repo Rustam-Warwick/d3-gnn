@@ -102,13 +102,7 @@ public class Rpc extends GraphElement {
                 destinations.addAll(el.replicaParts());
                 destinations.add(el.masterPart());
         }
-        for(Short part : destinations){
-            if(part == el.masterPart() && iterationState == IterationState.ITERATE){
-                Rpc.execute(el, rpc);
-            }else{
-                rpc.storage.message(new GraphOp(Op.RPC,part, rpc, iterationState));
-            }
-        }
+        callProcedure(el, methodName, iterationState, destinations, args);
     }
 
     public static void callProcedure(GraphElement el, String methodName, IterationState iterationState, List<Short> destinations, Object ...args){
@@ -116,7 +110,7 @@ public class Rpc extends GraphElement {
         Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(),false);
         rpc.setStorage(el.storage);
         for(Short part : destinations){
-            if(part == el.masterPart() && iterationState == IterationState.ITERATE){
+            if(part == el.getPartId() && iterationState == IterationState.ITERATE){
                 Rpc.execute(el, rpc);
             }else{
                 rpc.storage.message(new GraphOp(Op.RPC,part, rpc, iterationState));

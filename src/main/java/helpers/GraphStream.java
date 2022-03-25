@@ -1,7 +1,6 @@
 package helpers;
 
 import aggregators.BaseAggregator;
-//import aggregators.MeanAggregator;
 import aggregators.SumAggregator;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
@@ -60,7 +59,7 @@ public class GraphStream {
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.getConfig().setAutoWatermarkInterval(30000);
+        this.env.getConfig().setAutoWatermarkInterval(10000);
         this.env.setMaxParallelism(8);
         configureSerializers(this.env);
     }
@@ -109,6 +108,10 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
+        if(storageProcess.isFirst()){
+            last = last.assignTimestampsAndWatermarks(new PeriodicTrainingWatermarkStrategy<>());
+        }
+
         IterativeStream<GraphOp> localIterator = last.iterate();
         KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(localIterator, new PartKeySelector());
         KeyedStream<GraphOp, String> res = ks.process(storageProcess).name("Gnn Process").setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
@@ -121,9 +124,7 @@ public class GraphStream {
         localIterator.closeWith(iterateFilter);
         this.iterator = localIterator;
 
-        if(storageProcess.isFirst()){
-            forwardFilter.assignTimestampsAndWatermarks(new PeriodicTrainingWatermarkStrategy<>());
-        }
+
         this.position_index++;
         return forwardFilter;
     }

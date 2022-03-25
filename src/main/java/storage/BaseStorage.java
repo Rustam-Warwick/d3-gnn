@@ -9,12 +9,12 @@ import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
+import state.KeyGroupRangeAssignment;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Stream;
 
-abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction {
+abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction{
     public short currentKey = 0; // Current Key being processes
     public short operatorIndex = 0; // Index of this operator
     public short maxParallelism = 1; // maxParallelism of this operator, also means max partitioning
@@ -23,6 +23,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public short layers = 1; // max horizontal number of GNN layers excluding the output layer
 
     public final HashMap<String, Plugin> plugins = new HashMap<>(); // Plugins
+    public final List<Short> keys = new ArrayList<>(); // keys that get mapped to this operator
 
     public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
 
@@ -56,6 +57,7 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         this.maxParallelism = (short) getRuntimeContext().getMaxNumberOfParallelSubtasks();
         this.operatorIndex = (short) getRuntimeContext().getIndexOfThisSubtask();
+        findAllKeys(); // Find all keys of this operator
         this.plugins.values().forEach(plugin->plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
@@ -71,7 +73,6 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         this.plugins.values().forEach(plugin->plugin.onTimer(timestamp, ctx, out));
-
     }
 
     @Override
@@ -82,6 +83,15 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
 
+    }
+
+    private void findAllKeys(){
+        for(short i=0;i<maxParallelism;i++){
+            int resultingIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
+            if(resultingIndex == operatorIndex){
+                keys.add(i);
+            }
+        }
     }
 
     public boolean addElement(GraphElement element){

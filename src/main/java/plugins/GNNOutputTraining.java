@@ -16,7 +16,7 @@ import iterations.Rpc;
 import scala.Tuple2;
 
 public class GNNOutputTraining extends Plugin {
-    public GNNOutputInference inference = null;
+    public GNNOutputInference inference;
     public GNNOutputTraining(){
         super("trainer");
     }
@@ -27,13 +27,13 @@ public class GNNOutputTraining extends Plugin {
         grad.setStorage(this.storage);
         VTensor feature = (VTensor) grad.getElement().getFeature("feature");
         feature.getValue().setRequiresGradient(true);
-
         // 2. Backward
-        NDArray prediction = this.inference.outputModel.getBlock().forward(this.inference.parameterStore, new NDList(feature.getValue()), true).get(0);
-        JniUtils.backward((PtNDArray) prediction, null, false, false);
+        NDArray prediction = this.inference.output(feature.getValue(), true);
+//        NDArray prediction = this.inference.outputModel.getBlock().forward(this.inference.parameterStore, new NDList(feature.getValue()),true).get(0);
+        JniUtils.backward((PtNDArray) prediction, (PtNDArray)grad.getValue() ,false, false);
 
         // 3. Send Data back
-        grad.value = new Tuple2<>(JavaTensor.of(feature.getValue().getGradient()), 0);
+        grad.value = new Tuple2<>(feature.getValue().getGradient(), 0);
         Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
         this.storage.message(new GraphOp(Op.RPC, this.storage.currentKey, backward, IterationState.BACKWARD));
 

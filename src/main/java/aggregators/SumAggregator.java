@@ -2,7 +2,6 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
-import helpers.JavaTensor;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import scala.Tuple3;
@@ -10,36 +9,36 @@ import scala.Tuple3;
 import java.util.Arrays;
 import java.util.HashMap;
 
-public class SumAggregator extends BaseAggregator<Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>>> {
+public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>> {
     public SumAggregator() {
         super();
     }
 
-    public SumAggregator(JavaTensor tensor, boolean halo) {
+    public SumAggregator(NDArray tensor, boolean halo) {
         this(new Tuple3<>(tensor, 0, new HashMap<>()), halo);
     }
 
-    public SumAggregator(Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
         super(value);
     }
 
-    public SumAggregator(Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
         super(value, halo);
     }
 
-    public SumAggregator(Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public SumAggregator(String id, Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
         super(id, value);
     }
 
-    public SumAggregator(String id, Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
         super(id, value, halo);
     }
 
-    public SumAggregator(String id, Tuple3<JavaTensor, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
@@ -61,7 +60,7 @@ public class SumAggregator extends BaseAggregator<Tuple3<JavaTensor, Integer, Ha
 
     @RemoteFunction
     @Override
-    public void reduce(NDArray newElement, int count) {
+    public void reduce(int version, short partId, NDArray newElement, int count) {
         this.value._1().addi(newElement);
         this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
         if(this.attachedTo._2.equals("434")){
@@ -70,10 +69,10 @@ public class SumAggregator extends BaseAggregator<Tuple3<JavaTensor, Integer, Ha
     }
 
     @Override
-    public void bulkReduce(NDArray... newElements) {
+    public void bulkReduce(int version, short partId, NDArray... newElements) {
         if(newElements.length <= 0) return;
         NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        Rpc.call(this, "reduce", sum, newElements.length);
+        Rpc.call(this, "reduce", version, partId, sum, newElements.length);
     }
 
     @RemoteFunction

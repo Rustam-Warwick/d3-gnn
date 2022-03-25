@@ -63,6 +63,7 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     }
 
     public boolean isReady(int modelVersion){
-        return true;
+        if(this.storage.isFirst()) return true;
+        return this.value._2 == modelVersion;
     }
 }

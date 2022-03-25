@@ -51,7 +51,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         tmp.storage = this.storage;
         return tmp;
     }
-    @RemoteFunction()
+    @RemoteFunction
     public void add(T element){
         if(this.value.contains(element))return;
         this.value.add(element);

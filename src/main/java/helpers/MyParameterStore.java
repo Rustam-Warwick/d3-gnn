@@ -21,8 +21,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class MyParameterStore extends ParameterStore implements Serializable {
-    public int MODEL_VERSION = 0;
-    public transient Map<String, NDArray> parameterArrays;
+    public Map<String, NDArray> parameterArrays;
+    public Map<String, NDArray> gradientArrays;
 
     private transient NDManager manager;
 
@@ -32,22 +32,38 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     public MyParameterStore(NDManager manager) {
         this.manager = manager;
         this.parameterArrays = new ConcurrentHashMap<>();
+        this.gradientArrays = new HashMap<>();
     }
 
     public void setNDManager(NDManager newManager){
         this.parameterArrays.forEach((id, value)->{value.attach(newManager);});
+        this.gradientArrays.forEach((id, value)->{value.attach(newManager);});
         manager.close();
         this.manager = newManager;
     }
 
     @Override
     public void updateAllParameters() {
-        System.out.println("Update all parameters");
+       // Pass
+        parameterArrays.forEach((key, item)->{
+            item.setRequiresGradient(false);
+            NDArray grad = gradientArrays.get(key);
+            item.subi(grad);
+        });
 
+        resetGrads();
+    }
+
+    public void updateParameters(Map<String, NDArray> newParams){
+        parameterArrays.forEach((key, item)->{
+            item.setRequiresGradient(false);
+            NDArray param = newParams.get(key);
+            item.subi(item).addi(param);
+        });
     }
 
     /**
-     * Make model parameters unique across the deivces
+     * Change ids of model parameters to a single standard
      * @param model
      */
     public void canonizeModel(Model model){
@@ -71,9 +87,14 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     public void loadModel(Model model){
         model.getBlock().getParameters().forEach(item->{
             this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
+            this.gradientArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray().zerosLike());
         });
     }
 
+    /**
+     * Restore the model parameters saved here
+     * @param model
+     */
     public void restoreModel(Model model){
         model.getBlock().getParameters().forEach(item->{
             NDArray thisArray = this.parameterArrays.get(item.getValue().getId());
@@ -84,10 +105,25 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     }
 
+    public void addGrads(Map<String, NDArray> newGrads){
+        this.gradientArrays.forEach((key,items)->{
+            NDArray x = newGrads.get(key);
+            items.addi(x);
+        });
+    }
+
+    public void resetGrads(){
+        this.gradientArrays.forEach((key, item)->{
+            item.subi(item);
+        });
+    }
+
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
         NDArray valueParam = this.parameterArrays.get(parameter.getId());
         if(valueParam.hasGradient() && !training){
+            NDArray grad = valueParam.getGradient();
+            this.gradientArrays.compute(parameter.getId(), (key, value)->value.addi(grad) ); // Commit accumulator changes
             valueParam.setRequiresGradient(training);
         }
         else if(!valueParam.hasGradient() && training){
@@ -110,7 +146,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     private void writeObject(ObjectOutputStream oos) throws IOException {
         DataOutputStream dos = new DataOutputStream(oos);
-        dos.writeInt(this.MODEL_VERSION);
         dos.writeInt(this.parameterArrays.size());
         for(Map.Entry<String, NDArray> entry: this.parameterArrays.entrySet()){
             dos.writeUTF(entry.getKey());
@@ -122,12 +157,14 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         DataInputStream dis = new DataInputStream(ois);
         this.manager = NDManager.newBaseManager();
         this.parameterArrays = new ConcurrentHashMap<>();
-        this.MODEL_VERSION = dis.readInt();
+        this.gradientArrays = new HashMap<>();
         int i = dis.readInt();
         for(;i>0;i--){
           String id = dis.readUTF();
           NDArray value = this.manager.decode(dis);
+          value.setRequiresGradient(true);
           this.parameterArrays.putIfAbsent(id, value);
+          this.gradientArrays.putIfAbsent(id, value.zerosLike());
         }
 
     }

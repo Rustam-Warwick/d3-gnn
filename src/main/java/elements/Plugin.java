@@ -73,7 +73,7 @@ public class Plugin extends ReplicableGraphElement{
             }
         }
         this.master = (short) Arrays.stream(seen).filter(item->item!=-1).findFirst().getAsInt(); // Master is the key closes to zero's parallel subtask
-        this.partId = (short) seen[this.storage.operatorIndex];
+        this.partId = (short) seen[this.storage.operatorIndex]; // Part id of plugin is the first occurance of its key
         if(this.state() == ReplicaState.MASTER){
             for(int i=0; i< this.storage.parallelism; i++){
                 if(seen[i] == -1 || seen[i] == this.partId)continue;

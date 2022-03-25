@@ -16,15 +16,15 @@ import java.util.Objects;
 
 public abstract class GNNOutputInference extends Plugin {
     public transient Model outputModel;
-    public MyParameterStore parameterStore;
-
+    public MyParameterStore parameterStore = new MyParameterStore();
+    public int MODEL_VERSION = 0;
     public GNNOutputInference(){super("inferencer");}
 
     public abstract Model createOutputModel();
 
     @RemoteFunction
     public void forward(String elementId, Tuple2<NDArray, Integer> embedding){
-        if(embedding._2 >= this.parameterStore.MODEL_VERSION){
+        if(embedding._2 >= this.MODEL_VERSION){
             Vertex vertex = this.storage.getVertex(elementId);
             if(Objects.isNull(vertex)){
                 vertex = new Vertex(elementId, false, this.storage.currentKey);
@@ -42,8 +42,8 @@ public abstract class GNNOutputInference extends Plugin {
     @Override
     public void add() {
         super.add();
+        this.storage.withPlugin(new GNNOutputTraining());
         this.outputModel = this.createOutputModel();
-        this.parameterStore = new MyParameterStore();
         this.parameterStore.canonizeModel(this.outputModel);
         this.parameterStore.loadModel(this.outputModel);
     }
@@ -57,6 +57,13 @@ public abstract class GNNOutputInference extends Plugin {
         this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
     }
 
+    @Override
+    public void close() {
+        super.close();
+        this.outputModel.close();
+    }
+
+    @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         switch (element.elementType()){
@@ -87,15 +94,19 @@ public abstract class GNNOutputInference extends Plugin {
         }
     }
 
+    public NDArray output(NDArray feature, boolean training){
+        NDManager oldManager = feature.getManager();
+        feature.attach(this.storage.manager.getTempManager());
+        NDArray res =  this.outputModel.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
+        feature.attach(oldManager);
+        return res;
+    }
+
     public void makePredictionAndSendForward(VTensor embedding){
-        NDManager oldManager = embedding.getValue().getManager();
-        embedding.getValue().attach(this.storage.manager.getTempManager());
-        NDArray res = this.outputModel.getBlock().forward(this.parameterStore, new NDList(embedding.getValue()), false).get(0);
-        embedding.getValue().attach(oldManager);
+        NDArray res = this.output(embedding.getValue(), false);
         Vertex a = new Vertex(embedding.attachedTo._2);
         a.setFeature("logits", new VTensor(new Tuple2<>(res, 0)));
         this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
-
     }
 
 
