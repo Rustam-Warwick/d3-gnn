@@ -2,14 +2,16 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
+import helpers.JavaTensor;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import scala.Tuple3;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Optional;
 
-public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>> {
+public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Short, Integer>>> {
     public SumAggregator() {
         super();
     }
@@ -18,27 +20,27 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
         this(new Tuple3<>(tensor, 0, new HashMap<>()), halo);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Short, Integer>> value) {
         super(value);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Short, Integer>> value, boolean halo) {
         super(value, halo);
     }
 
-    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(Tuple3<NDArray, Integer, HashMap<Short, Integer>> value, boolean halo, short master) {
         super(value, halo, master);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Short, Integer>> value) {
         super(id, value);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Short, Integer>> value, boolean halo) {
         super(id, value, halo);
     }
 
-    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
+    public SumAggregator(String id, Tuple3<NDArray, Integer, HashMap<Short, Integer>> value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
@@ -61,11 +63,19 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     @RemoteFunction
     @Override
     public void reduce(int version, short partId, NDArray newElement, int count) {
+        Optional<Integer> maxVersion = this.value._3().values().stream().max(Integer::compare);
+
+        if(maxVersion.isPresent() && maxVersion.get() < version){
+            this.reset();
+        }
+
         this.value._1().addi(newElement);
+        this.value._3().put(partId, version);
         this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
         if(this.attachedTo._2.equals("434")){
             System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
         }
+
     }
 
     @Override
@@ -77,9 +87,10 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @RemoteFunction
     @Override
-    public void replace(NDArray newElement, NDArray oldElement) {
+    public void replace(int version, short partId, NDArray newElement, NDArray oldElement) {
         newElement.subi(oldElement);
         this.value._1().addi(newElement);
+        this.value._3().put(partId, version);
         this.value = new Tuple3<>(this.value._1(), this.value._2(), this.value._3());
     }
 
@@ -90,12 +101,15 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
 
     @Override
     public boolean isReady(int modelVersion) {
-        return true;
+        Optional<Integer> maxVersion = this.value._3().values().stream().max(Integer::compare);
+        Optional<Integer> minVersion = this.value._3().values().stream().min(Integer::compare);
+        return maxVersion.orElse(0) == minVersion.orElse(0);
     }
 
     @Override
     public void reset() {
-
+        this.value._1().subi(this.value._1());
+        this.value = new Tuple3<>(value._1(), 0, value._3());
     }
 
     @Override

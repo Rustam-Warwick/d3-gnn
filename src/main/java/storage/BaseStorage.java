@@ -8,9 +8,12 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.operators.OnWatermarkCallback;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import state.KeyGroupRangeAssignment;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Stream;
 
@@ -73,6 +76,11 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         this.plugins.values().forEach(plugin->plugin.onTimer(timestamp, ctx, out));
+    }
+
+    public void onWatermark(Watermark watermark){
+        System.out.println("Watermark on index: " + operatorIndex+" Position: "+ position);
+//        this.plugins.values().forEach(plugin->plugin.onWatermark(watermark));
     }
 
     @Override

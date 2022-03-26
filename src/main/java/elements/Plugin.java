@@ -1,6 +1,8 @@
 package elements;
 
+import org.apache.flink.api.common.functions.util.RuntimeUDFContext;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import scala.Tuple2;
 import state.KeyGroupRangeAssignment;
@@ -39,8 +41,6 @@ public class Plugin extends ReplicableGraphElement{
         return this.replicaList;
     }
 
-
-
     @Override
     public ElementType elementType() {
         return ElementType.PLUGIN;
@@ -58,6 +58,10 @@ public class Plugin extends ReplicableGraphElement{
 
     }
 
+    public void onWatermark(Watermark w){
+
+    }
+
     public void close(){
 
     }
@@ -66,7 +70,7 @@ public class Plugin extends ReplicableGraphElement{
         this.replicaList = new ArrayList<>();
         int[] seen = new int[this.storage.parallelism];
         Arrays.fill(seen, -1);
-        for(short i=0;i<this.storage.getRuntimeContext().getMaxNumberOfParallelSubtasks();i++){
+        for(short i=0;i<this.storage.maxParallelism;i++){
             int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), this.storage.maxParallelism, this.storage.parallelism);
             if(seen[operatorIndex] == -1){
                 seen[operatorIndex] = i;
@@ -74,11 +78,9 @@ public class Plugin extends ReplicableGraphElement{
         }
         this.master = (short) Arrays.stream(seen).filter(item->item!=-1).findFirst().getAsInt(); // Master is the key closes to zero's parallel subtask
         this.partId = (short) seen[this.storage.operatorIndex]; // Part id of plugin is the first occurance of its key
-        if(this.state() == ReplicaState.MASTER){
-            for(int i=0; i< this.storage.parallelism; i++){
-                if(seen[i] == -1 || seen[i] == this.partId)continue;
-                this.replicaList.add((short) seen[i]);
-            }
+        for(int i=0; i< this.storage.parallelism; i++){
+            if(seen[i] == -1 || i==storage.operatorIndex)continue;
+            this.replicaList.add((short) seen[i]);
         }
     }
 

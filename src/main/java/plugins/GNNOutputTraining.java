@@ -4,21 +4,32 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
-import elements.ElementType;
-import elements.GraphOp;
-import elements.Op;
-import elements.Plugin;
+import elements.*;
 import features.VTensor;
 import helpers.JavaTensor;
 import iterations.IterationState;
+import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.util.Collector;
 import scala.Tuple2;
+
+import java.util.Map;
 
 public class GNNOutputTraining extends Plugin {
     public GNNOutputInference inference;
+    public boolean waitingForUpdate = false;
+    public int collectedGradsSoFar = 0;
     public GNNOutputTraining(){
         super("trainer");
+    }
+
+
+    @Override
+    public void onWatermark(Watermark w) {
+        Rpc.callProcedure(this, "collectGradients", IterationState.ITERATE, RemoteDestination.MASTER, this.inference.parameterStore.gradientArrays);
     }
 
     @RemoteFunction
@@ -40,6 +51,26 @@ public class GNNOutputTraining extends Plugin {
         // 4. Cleanup
         feature.getValue().setRequiresGradient(false);
     }
+
+    @RemoteFunction
+    public void collectGradients(Map<String, NDArray> grads){
+        this.inference.parameterStore.addGrads(grads);
+        collectedGradsSoFar++;
+        if(collectedGradsSoFar == this.storage.parallelism){
+            this.inference.parameterStore.updateAllParameters();
+            Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.REPLICAS, this.inference.parameterStore.parameterArrays);
+            collectedGradsSoFar = 0;
+        }
+    }
+
+    @RemoteFunction
+    public void updateParameters(Map<String, NDArray> params){
+        this.inference.parameterStore.updateParameters(params);
+        this.inference.parameterStore.resetGrads();
+        waitingForUpdate = false;
+        this.inference.MODEL_VERSION++;
+    }
+
 
     @Override
     public void open() {

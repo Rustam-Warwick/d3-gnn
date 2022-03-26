@@ -115,12 +115,10 @@ public abstract class GNNLayerInference extends Plugin {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
                         if(this.updateReady(parent)){
-                            try(NDManager manager = this.storage.manager.getTempManager().newSubManager()){
-                                NDArray ft = ((VTensor) feature).getValue();
-                                NDArray agg = ((BaseAggregator<?>)parent.getFeature("agg")).getValue();
-                                NDArray update = this.update(ft, agg, false);
-                                Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
-                            }
+                            NDArray ft = ((VTensor)parent.getFeature("feature")).getValue();
+                            NDArray agg = ((BaseAggregator<?>)parent.getFeature("agg")).getValue();
+                            NDArray update = this.update(ft, agg, false);
+                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
                         this.reduceOutEdges((VTensor) feature);
                         break;
@@ -202,7 +200,7 @@ public abstract class GNNLayerInference extends Plugin {
                     msgOld = this.message(oldFeature.getValue(), false);
                     msgNew = this.message(newFeature.getValue(), false);
                 }
-                Rpc.call(edge.dest.getFeature("agg"), "replace", msgNew, msgOld);
+                Rpc.call(edge.dest.getFeature("agg"), "replace", MODEL_VERSION, storage.currentKey, msgNew, msgOld);
             }
         }
     }
@@ -228,7 +226,6 @@ public abstract class GNNLayerInference extends Plugin {
      * @param vertex
      */
     public void reduceInEdges(Vertex vertex) {
-        if(Objects.isNull(vertex.getFeature("agg")))return;
         Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
         List<NDArray> bulkReduceMessages = new ArrayList<>();
         for(Edge edge: inEdges){
@@ -237,10 +234,10 @@ public abstract class GNNLayerInference extends Plugin {
                 bulkReduceMessages.add(msg);
             }
         }
-
-        ((BaseAggregator)vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.currentKey, bulkReduceMessages.toArray(NDArray[]::new));
+        if(bulkReduceMessages.size() > 0){
+            ((BaseAggregator)vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.currentKey, bulkReduceMessages.toArray(NDArray[]::new));
+        }
     }
-
 
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager

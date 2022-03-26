@@ -14,6 +14,7 @@ import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import org.codehaus.janino.Java;
 import scala.Tuple2;
@@ -23,21 +24,15 @@ import java.util.Map;
 
 public class GNNLayerTraining extends Plugin {
     public GNNLayerInference inference;
-    public boolean waitingForUpdate = false; // Has sent gradients now waiting for results
     public int collectedGradsSoFar = 0; // Master node collected gradients count
     public GNNLayerTraining(){
         super("trainer");
     }
 
     @Override
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) {
-        super.onTimer(timestamp, ctx, out);
-        if(waitingForUpdate){
-            // Pass
-        }else{
-            Rpc.callProcedure(this, "collectGradients", IterationState.ITERATE, RemoteDestination.MASTER, this.inference.parameterStore.gradientArrays);
-            waitingForUpdate = true; // Do not trigger Rpc again for same parallel instance
-        }
+    public void onWatermark(Watermark w) {
+//        System.out.println("Update sent: "+ storage.operatorIndex+" Position: "+ storage.position+" To Master " + masterPart());
+        Rpc.callProcedure(this, "collectGradients", IterationState.ITERATE, RemoteDestination.MASTER, this.inference.parameterStore.gradientArrays);
     }
 
     @Override
@@ -108,17 +103,19 @@ public class GNNLayerTraining extends Plugin {
     }
 
     /**
-     * Pass gradients here so that this guy accumulates it
+     * Accumulates all the gradients in master operator
      * @param grads
      */
     @RemoteFunction
     public void collectGradients(Map<String, NDArray> grads){
         this.inference.parameterStore.addGrads(grads);
         collectedGradsSoFar++;
-        if(collectedGradsSoFar == this.storage.parallelism){
+//        System.out.println("Gradient Received: "+ storage.operatorIndex+" Position: "+ storage.position +" So far received: "+collectedGradsSoFar);
+        if(collectedGradsSoFar == replicaParts().size() + 1){
+            collectedGradsSoFar = 0;
             this.inference.parameterStore.updateAllParameters();
             Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.REPLICAS, this.inference.parameterStore.parameterArrays);
-            collectedGradsSoFar = 0;
+            this.updateParameters(this.inference.parameterStore.parameterArrays);
         }
     }
 
@@ -130,8 +127,8 @@ public class GNNLayerTraining extends Plugin {
     public void updateParameters(Map<String, NDArray> params){
         this.inference.parameterStore.updateParameters(params);
         this.inference.parameterStore.resetGrads();
-        waitingForUpdate = false;
         this.inference.MODEL_VERSION++;
+        System.out.println("Parameters Updated: "+ storage.operatorIndex + "position: "+ storage.position + " Model version " + inference.MODEL_VERSION);
         Rpc.callProcedure(this, "reInference", IterationState.ITERATE, this.storage.keys);
     }
 

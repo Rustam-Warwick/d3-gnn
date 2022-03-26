@@ -1,6 +1,7 @@
 package helpers;
 
 import ai.djl.Model;
+import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
@@ -10,6 +11,10 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.pytorch.jni.JniUtils;
+import ai.djl.repository.zoo.Criteria;
+import ai.djl.training.ParameterStore;
 import elements.ElementType;
 import elements.GraphOp;
 import functions.EdgeStreamParser;
@@ -23,17 +28,19 @@ import plugins.GNNOutputInference;
 
 
 public class Main {
+
+
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
         DataStream<GraphOp> dataset = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}, "\t"), "/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/python/dataset/cora/merged.csv");
+                "Probabilistic_Methods"}, "\t"), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/merged.csv");
         DataStream<GraphOp> edges = dataset.filter(item->item.element.elementType() == ElementType.EDGE);
         DataStream<GraphOp> features = dataset.filter(item->item.element.elementType() == ElementType.VERTEX);
 
         DataStream<GraphOp> partitioned = gs.partition(edges, new HDRF());
-        DataStream<GraphOp> gnn2 = gs.gnnLayer(partitioned, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+        DataStream<GraphOp> gnn1 = gs.gnnLayer(partitioned, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
-            public Model createMessageModel(boolean initialize) {
+            public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
@@ -41,29 +48,58 @@ public class Main {
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
-                if(initialize) {
-                    myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
-                }
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
                 Model model = Model.newInstance("inference");
                 model.setBlock(myBlock);
                 return model;
             }
 
             @Override
-            public Model createUpdateModel(boolean initialize) {
+            public Model createUpdateModel() {
                 SequentialBlock myBlock = new SequentialBlock();
                 myBlock.add(new LambdaBlock(inputs->(
                         new NDList(inputs.get(0).concat(inputs.get(1)))
                 )));
-                myBlock.add(Linear.builder().setUnits(32).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(16).build());
                 myBlock.add(Activation::relu);
                 myBlock.add(Linear.builder().setUnits(7).build());
                 myBlock.add(Activation::relu);
-                if(initialize){
-                    myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
-                }
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
+                Model model = Model.newInstance("message");
+                model.setBlock(myBlock);
+                return model;
+            }
+        }));
+
+        DataStream<GraphOp> gnn2 = gs.gnnLayer(gnn1, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+            @Override
+            public Model createMessageModel() {
+                SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(64).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(32).build());
+                myBlock.add(Activation::relu);
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                Model model = Model.newInstance("inference");
+                model.setBlock(myBlock);
+                return model;
+            }
+
+            @Override
+            public Model createUpdateModel() {
+                SequentialBlock myBlock = new SequentialBlock();
+                myBlock.add(new LambdaBlock(inputs->(
+                        new NDList(inputs.get(0).concat(inputs.get(1)))
+                )));
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(16).build());
+                myBlock.add(Activation::relu);
+                myBlock.add(Linear.builder().setUnits(7).build());
+                myBlock.add(Activation::relu);
+                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
                 Model model = Model.newInstance("message");
                 model.setBlock(myBlock);
                 return model;
