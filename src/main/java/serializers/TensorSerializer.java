@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.PtNDArray;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -91,8 +92,7 @@ public class TensorSerializer extends Serializer<NDArray> {
         data.rewind();
         NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
         array.setName(name);
-        TensorCleaner.subscribe(array);
-        return array;
+        return new JavaTensor((PtNDArray) array);
     }
 
 
