@@ -58,3 +58,11 @@ Miscellaneous classes
 - **JavaTensor**: A Special Proxy Tensor that is automatically freed from memory once dereferenced. 
 - **GraphStream**: A helper class to construct a full GNN Pipeline. 
 - **Main**: Main method that constructs the GNN pipeline and invokes it. 
+## How to Run
+1. Prepare the file to be streamed in. I use movielens ratings for now.
+2. Stream that file through helper python script `python /python/stream_file.py "path/to/file"`
+3. Write your GNN Pipeline on `helpers/Main.class` 
+4. Execute locally for testing
+
+- Note that we can use `readFile` primitives to read the file directly in Flink, but such way we have no control over the timing of the stream. In Python script throughput can be modified using `Thread.sleep` time 
+- Once tested we can use `gradle::jar` task to prepare a fat-jar file in `build/libs`. This jar then can be submitted to Flink cluster. 

@@ -98,9 +98,7 @@ public class Main {
             }
         }));
 
-        DataStream<GraphOp> features = partitioned.keyBy(new PartKeySelector()).filter(item->item.element.elementType() == ElementType.VERTEX).setParallelism(gnn2.getParallelism());
-        DataStream<GraphOp> finalStream = gnn2.union(features);
-        DataStream<GraphOp> predictions = gs.gnnLayer(finalStream, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
+        DataStream<GraphOp> predictions = gs.gnnLayer(gnn2, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();

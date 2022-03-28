@@ -127,23 +127,6 @@ public class GraphStream {
         this.position_index++;
         return forwardFilter;
     }
-    public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, DataStream<GraphOp> featureStream, GraphProcessFn storageProcess){
-        return null;
-    }
-
-    @Deprecated
-    /**
-     * Stacks this.layers number of gnnLayers with the given storageProcessFunction
-     * @param last Entry point of GNN, usually a partitioned GraphOp stream
-     * @param storageProcess Storage process with plugins for every layer
-     * @return DataStream of GraphOps to be stacked for prediction layer and etc
-     */
-    public DataStream<GraphOp> gnnLayers(DataStream<GraphOp> last, GraphProcessFn storageProcess){
-        while(this.position_index <= this.layers){
-            last = this.gnnLayer(last, storageProcess);
-        }
-        return last;
-    }
 
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp>predictionStream, DataStream<GraphOp>labelStream) {
        DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
