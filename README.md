@@ -24,7 +24,7 @@ Aggregators are Vertex @Features that aggregate messages from the previous layer
 - **SumAggregator**: 1-hop neighborhood sum aggregator
 
 ### Features
-Features can be instantiated through using new Feature. But this module contains Features that needed subclassing to have some custom logit inside.
+Features can be instantiated using `new Feature()`. But this module contains Features that needed subclassing to have some custom logic inside.
 - **Set**: Feature that stores a List. This one is used to store replica parts of @ReplicableGraphElements
 - **VTensor**: VersionedTensor. Important to store embeddings in gnn layers that are also aware about which model version did deliver them. This is a utility for that.
 
@@ -33,7 +33,8 @@ Stores all helpers and types that deal with Iterative Stream Processing
 - **Filters**: Straightforward from their name
 - **IterationState**: How the flowing GraphOp should be delivered, FORWARD(next-operator), ITERATE(same-operator), BACKWARD(previous-operator)
 - **RemoteDestination**: How to determine the part of next operator. Used to make code cleaner.
-- **Rpc**: **Asynchronous Remote Method Call** object. Rpc is also a type of GraphElement. Rpc object contains information about which GraphElement to execute the procedure on and with which arguments to execute procedure. 
+- **Rpc**: **Asynchronous Remote Method Call** object. Rpc is also a type of GraphElement. Rpc object contains information about which GraphElement to execute the procedure on, which method should be called and with which arguments to execute procedure. 
+- **RemoteFunction**: A special decorator for GraphElement's methods that can be using for Rpc calls. Failing to decorate as such will result in RuntimeErrors. 
 ### Plugins
 All the Plugins are contianed here
 - **GNNLayerInference**: Streaming Inference Logic contained here. This one is abstract **message** and **update** functions need to be implemented. 
