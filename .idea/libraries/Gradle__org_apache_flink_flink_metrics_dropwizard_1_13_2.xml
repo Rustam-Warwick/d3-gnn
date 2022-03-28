@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.flink:flink-metrics-dropwizard:1.13.2">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-metrics-dropwizard/1.13.2/d3aee135567d8194404cbd502ef9b601c9f13e1d/flink-metrics-dropwizard-1.13.2.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-metrics-dropwizard/1.13.2/99b70e3cf18c0e3c88592012712cae8e9c3947eb/flink-metrics-dropwizard-1.13.2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

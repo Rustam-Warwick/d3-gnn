@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: ai.djl.pytorch:pytorch-engine:0.15.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/ai.djl.pytorch/pytorch-engine/0.15.0/19ddac204c0604c46bd5084c447ab269d5397ac9/pytorch-engine-0.15.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/ai.djl.pytorch/pytorch-engine/0.15.0/8ec5c9fa7ac5eea63e3f2be31c67f833f49d6baf/pytorch-engine-0.15.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

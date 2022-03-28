@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: ai.djl.pytorch:pytorch-native-cpu:1.10.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/ai.djl.pytorch/pytorch-native-cpu/1.10.0/550290a5a3a83fc5081f1682759a3dd516adb698/pytorch-native-cpu-1.10.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/ai.djl.pytorch/pytorch-native-cpu/1.10.0/c6fa9a82d0dd2597ebbcd8575188bb4045cc0d9f/pytorch-native-cpu-1.10.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

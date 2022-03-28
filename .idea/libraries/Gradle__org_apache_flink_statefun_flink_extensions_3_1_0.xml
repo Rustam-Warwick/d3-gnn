@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.flink:statefun-flink-extensions:3.1.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/statefun-flink-extensions/3.1.0/58a8c5dd3ff99871e3ad67c234c3b14475069be7/statefun-flink-extensions-3.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/statefun-flink-extensions/3.1.0/399e9532197ca03f882d3af5d720b04a8e7e91ff/statefun-flink-extensions-3.1.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

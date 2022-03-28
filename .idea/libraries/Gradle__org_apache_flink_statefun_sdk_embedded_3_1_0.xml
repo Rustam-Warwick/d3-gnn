@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.flink:statefun-sdk-embedded:3.1.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/statefun-sdk-embedded/3.1.0/ca1921d7a4d0d9814cafa46c2ecf14c0d81275ee/statefun-sdk-embedded-3.1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/statefun-sdk-embedded/3.1.0/374eecdf7028f56b2302847723512de8c6cea77d/statefun-sdk-embedded-3.1.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
