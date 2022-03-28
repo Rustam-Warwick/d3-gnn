@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Optional;
 
+@Deprecated
 public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Short, Integer>>> {
     public SumAggregator() {
         super();

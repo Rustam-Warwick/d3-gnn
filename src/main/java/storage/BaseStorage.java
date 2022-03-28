@@ -15,26 +15,24 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction{
-    public short currentKey = 0; // Current Key being processes
-    public short operatorIndex = 0; // Index of this operator
-    public short maxParallelism = 1; // maxParallelism of this operator, also means max partitioning
+    public short currentKey = 0; // Current Key being processed
+    public short operatorIndex = 0; // Parallel Index of this operator
+    public short maxParallelism = 1; // maxParallelism of this operator, also means max partitioning keys
     public short parallelism = 1; // actual parallelism
-    public short position = 1; // horizontal positiion of this operator
+    public short position = 1; // Horizontal positiion of this operator
     public short layers = 1; // max horizontal number of GNN layers excluding the output layer
 
-    // DATA FROM Operator
+    // DATA FROM Actual Flink Operator
     public transient Collector<GraphOp> out;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
     public transient List<Short> thisKeys; // keys that get mapped to this operator
     public transient List<Short> otherKeys; // Keys of other operators
     public transient short thisMaster; // Master key of this subtask
-    // DATA FROM Operator
+    // End of Data From Actual Flink Operator
 
     public final HashMap<String, Plugin> plugins = new HashMap<>(); // Plugins
 
     public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
-
-    // Abstract Functions
 
     public abstract boolean addFeature(Feature feature);
     public abstract boolean addVertex(Vertex vertex);
@@ -48,6 +46,9 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeaturesOf(GraphElement e);
+    public abstract void process(GraphOp element);
+
+
 
     public boolean isLast(){
         return this.position >= this.layers;
@@ -71,8 +72,8 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     @Override
     public void close() throws Exception {
         super.close();
-        this.manager.close();
         this.plugins.values().forEach(Plugin::close);
+        this.manager.close();
     }
 
     @Override
@@ -161,4 +162,15 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         return this.plugins.values().stream();
     }
 
+    @Override
+    public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+        this.currentKey = Short.parseShort(ctx.getCurrentKey());
+        try{
+            process(value);
+        }catch (Exception e){
+            e.printStackTrace();
+        }finally {
+            manager.clean();
+        }
+    }
 }

@@ -6,6 +6,7 @@ import elements.Plugin;
 import elements.ReplicaState;
 import org.apache.flink.metrics.Gauge;
 
+@Deprecated
 public class ReportReplicationFactor extends Plugin {
     public transient int replicationFactor = 0;
     public int numberOfMasterVertices = 0;
