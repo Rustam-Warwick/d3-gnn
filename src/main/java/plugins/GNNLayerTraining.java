@@ -17,7 +17,8 @@ import java.util.Map;
 public class GNNLayerTraining extends Plugin {
     public GNNLayerInference inference;
     public int collectedGradsSoFar = 0; // Master node collected gradients count
-    public GNNLayerTraining(){
+
+    public GNNLayerTraining() {
         super("trainer");
     }
 
@@ -30,10 +31,11 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Backward trigger function
+     *
      * @param grad grad to be passed for VJP
      */
     @RemoteFunction
-    public void backward(VTensor grad){
+    public void backward(VTensor grad) {
         // 1. Get Data
         grad.setStorage(this.storage);
         VTensor feature = (VTensor) grad.getElement().getFeature("feature");
@@ -46,7 +48,7 @@ public class GNNLayerTraining extends Plugin {
         JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
 
         // 3. Send Update backward if this is not last layer
-        if(!this.storage.isFirst()){
+        if (!this.storage.isFirst()) {
             grad.value = new Tuple2<>(feature.getValue().getGradient(), 0);
             Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
             this.storage.message(new GraphOp(Op.RPC, this.storage.currentKey, backward, IterationState.BACKWARD));
@@ -65,20 +67,21 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Backward step for the message function
+     *
      * @param aggGrad grad of message output w.r.t loss
      */
     @RemoteFunction
-    public void messageBackward(VTensor aggGrad){
+    public void messageBackward(VTensor aggGrad) {
         aggGrad.setStorage(this.storage);
         Vertex vertex = (Vertex) aggGrad.getElement();
         Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
-        for(Edge edge: inEdges){
-            if(this.inference.messageReady(edge)){
+        for (Edge edge : inEdges) {
+            if (this.inference.messageReady(edge)) {
                 NDArray inFeature = (NDArray) edge.src.getFeature("feature").getValue();
                 inFeature.setRequiresGradient(true);
                 NDArray prediction = this.inference.message(inFeature, true);
                 JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
-                if(!this.storage.isFirst()){
+                if (!this.storage.isFirst()) {
                     VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), 0));
                     grad.attachedTo = new Tuple2<>(edge.src.elementType(), edge.src.getId());
                     Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
@@ -91,13 +94,14 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads
      */
     @RemoteFunction
-    public void collectGradients(Map<String, NDArray> grads){
+    public void collectGradients(Map<String, NDArray> grads) {
         this.inference.parameterStore.addGrads(grads);
         collectedGradsSoFar++;
-        if(collectedGradsSoFar == replicaParts().size() + 1){
+        if (collectedGradsSoFar == replicaParts().size() + 1) {
             collectedGradsSoFar = 0;
             this.inference.parameterStore.step();
             Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
@@ -106,10 +110,11 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params
      */
     @RemoteFunction
-    public void updateParameters(Map<String, NDArray> params){
+    public void updateParameters(Map<String, NDArray> params) {
         this.inference.parameterStore.updateParameters(params);
         this.inference.parameterStore.resetGrads();
         this.inference.MODEL_VERSION++;
@@ -121,13 +126,12 @@ public class GNNLayerTraining extends Plugin {
      * New Parameters have been committed, need to increment the model version
      */
     @RemoteFunction
-    public void reInference(){
+    public void reInference() {
         Iterable<Vertex> vertices = this.storage.getVertices();
-        for(Vertex v: vertices){
+        for (Vertex v : vertices) {
             this.inference.reduceInEdges(v);
         }
     }
-
 
 
 }

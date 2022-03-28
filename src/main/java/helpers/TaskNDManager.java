@@ -7,28 +7,28 @@ import ai.djl.ndarray.NDManager;
  * detached tensors should only be of class @JavaTensor to support auto-closure
  */
 public class TaskNDManager {
-    private transient NDManager lifeCycleManager;
+    private final transient NDManager lifeCycleManager;
     private transient NDManager tempManager;
 
-    public TaskNDManager(){
+    public TaskNDManager() {
         this.lifeCycleManager = NDManager.newBaseManager();
         this.tempManager = this.lifeCycleManager.newSubManager();
     }
 
-    public NDManager getTempManager(){
+    public NDManager getTempManager() {
         return this.tempManager;
     }
 
-    public NDManager getLifeCycleManager(){
+    public NDManager getLifeCycleManager() {
         return this.lifeCycleManager;
     }
 
-    public void clean(){
+    public void clean() {
         this.tempManager.close();
         this.tempManager = this.lifeCycleManager.newSubManager();
     }
 
-    public void close(){
+    public void close() {
         this.lifeCycleManager.close();
     }
 }

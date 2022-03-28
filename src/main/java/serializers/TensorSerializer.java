@@ -91,7 +91,7 @@ public class TensorSerializer extends Serializer<NDArray> {
         data.rewind();
         NDArray array = manager.create(dataType.asDataType(data), shape, dataType);
         array.setName(name);
-        return new JavaTensor((PtNDArray) array);
+        return new JavaTensor(array);
     }
 
 

@@ -3,8 +3,6 @@ package functions;
 import elements.*;
 import iterations.IterationState;
 import iterations.Rpc;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.util.Collector;
 import storage.HashMapStorage;
 
 import java.util.Objects;

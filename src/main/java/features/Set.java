@@ -30,7 +30,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         super(id, value, halo);
     }
 
-    public Set(String  id, List<T> value, boolean halo, short master) {
+    public Set(String id, List<T> value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
@@ -53,8 +53,8 @@ public class Set<T> extends Feature<List<T>, List<T>> {
     }
 
     @RemoteFunction
-    public void add(T element){
-        if(this.value.contains(element))return;
+    public void add(T element) {
+        if (this.value.contains(element)) return;
         this.value.add(element);
     }
 
@@ -65,6 +65,6 @@ public class Set<T> extends Feature<List<T>, List<T>> {
 
     @Override
     public boolean valuesEqual(List<T> v1, List<T> v2) {
-        return v1==v2;
+        return v1 == v2;
     }
 }

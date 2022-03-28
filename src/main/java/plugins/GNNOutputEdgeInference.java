@@ -19,22 +19,25 @@ public abstract class GNNOutputEdgeInference extends Plugin {
     public transient Model outputModel;
     public MyParameterStore parameterStore = new MyParameterStore();
     public int MODEL_VERSION = 0;
-    public GNNOutputEdgeInference(){super("inferencer");}
+
+    public GNNOutputEdgeInference() {
+        super("inferencer");
+    }
 
     public abstract Model createOutputModel();
 
     @RemoteFunction
-    public void forward(String elementId, Tuple2<NDArray, Integer> embedding){
-        if(embedding._2 >= this.MODEL_VERSION){
+    public void forward(String elementId, Tuple2<NDArray, Integer> embedding) {
+        if (embedding._2 >= this.MODEL_VERSION) {
             Vertex vertex = this.storage.getVertex(elementId);
-            if(Objects.isNull(vertex)){
+            if (Objects.isNull(vertex)) {
                 vertex = new Vertex(elementId, false, this.storage.currentKey);
                 vertex.setStorage(this.storage);
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
-            if(Objects.isNull(vertex.getFeature("feature"))){
+            if (Objects.isNull(vertex.getFeature("feature"))) {
                 vertex.setFeature("feature", new VTensor(embedding));
-            }else{
+            } else {
                 vertex.getFeature("feature").externalUpdate(new VTensor(embedding));
             }
         }
@@ -67,11 +70,11 @@ public abstract class GNNOutputEdgeInference extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        switch (element.elementType()){
-            case FEATURE:{
+        switch (element.elementType()) {
+            case FEATURE: {
                 Feature feature = (Feature) element;
-                switch (feature.getFieldName()){
-                    case "feature":{
+                switch (feature.getFieldName()) {
+                    case "feature": {
 //                        this.makePredictionAndSendForward((VTensor) feature);
                         break;
                     }
@@ -83,11 +86,11 @@ public abstract class GNNOutputEdgeInference extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()){
-            case FEATURE:{
+        switch (newElement.elementType()) {
+            case FEATURE: {
                 Feature feature = (Feature) newElement;
-                switch (feature.getFieldName()){
-                    case "feature":{
+                switch (feature.getFieldName()) {
+                    case "feature": {
 //                        this.makePredictionAndSendForward((VTensor) feature);
                     }
                 }
@@ -95,17 +98,16 @@ public abstract class GNNOutputEdgeInference extends Plugin {
         }
     }
 
-    public NDArray output(NDArray feature, NDArray feature2, boolean training){
+    public NDArray output(NDArray feature, NDArray feature2, boolean training) {
         NDManager oldManager = feature.getManager();
         NDManager oldManager2 = feature2.getManager();
         feature.attach(this.storage.manager.getTempManager());
         feature2.attach(this.storage.manager.getTempManager());
-        NDArray res =  this.outputModel.getBlock().forward(this.parameterStore, new NDList(feature, feature2), training).get(0);
+        NDArray res = this.outputModel.getBlock().forward(this.parameterStore, new NDList(feature, feature2), training).get(0);
         feature.attach(oldManager);
         feature2.attach(oldManager2);
         return res;
     }
-
 
 
 }

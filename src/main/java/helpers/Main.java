@@ -9,14 +9,12 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import elements.ElementType;
 import elements.GraphOp;
 import functions.GraphProcessFn;
 import functions.MovieLensStreamParser;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
-import plugins.GNNOutputEdgeInference;
 import plugins.GNNOutputInference;
 //import plugins.GNNOutputTraining;
 
@@ -25,10 +23,10 @@ public class Main {
 
 
     public static void main(String[] args) throws Exception {
-        GraphStream gs = new GraphStream((short)5, (short)2);
+        GraphStream gs = new GraphStream((short) 5, (short) 2);
         DataStream<GraphOp> dataset = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
 
-        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF()).keyBy(new PartKeySelector()).map(item->item).setParallelism(gs.layer_parallelism);
+        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF()).keyBy(new PartKeySelector()).map(item -> item).setParallelism(gs.layer_parallelism);
 
         DataStream<GraphOp> gnn1 = gs.gnnLayer(partitioned, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
@@ -49,7 +47,7 @@ public class Main {
             @Override
             public Model createUpdateModel() {
                 SequentialBlock myBlock = new SequentialBlock();
-                myBlock.add(new LambdaBlock(inputs->(
+                myBlock.add(new LambdaBlock(inputs -> (
                         new NDList(inputs.get(0).concat(inputs.get(1)))
                 )));
                 myBlock.add(Activation::relu);
@@ -83,7 +81,7 @@ public class Main {
             @Override
             public Model createUpdateModel() {
                 SequentialBlock myBlock = new SequentialBlock();
-                myBlock.add(new LambdaBlock(inputs->(
+                myBlock.add(new LambdaBlock(inputs -> (
                         new NDList(inputs.get(0).concat(inputs.get(1)))
                 )));
                 myBlock.add(Activation::relu);

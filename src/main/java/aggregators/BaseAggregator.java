@@ -35,10 +35,15 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
 
     @RemoteFunction
     public abstract void reduce(int version, short partId, NDArray newElement, int count);
-    public abstract void bulkReduce(int version, short partId, NDArray ...newElements);
+
+    public abstract void bulkReduce(int version, short partId, NDArray... newElements);
+
     @RemoteFunction
     public abstract void replace(int version, short partId, NDArray newElement, NDArray oldElement);
+
     public abstract NDArray grad();
+
     public abstract boolean isReady(int modelVersion);
+
     public abstract void reset();
 }

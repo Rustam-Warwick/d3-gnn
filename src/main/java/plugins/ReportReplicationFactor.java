@@ -11,10 +11,12 @@ public class ReportReplicationFactor extends Plugin {
     public transient int replicationFactor = 0;
     public int numberOfMasterVertices = 0;
     public int totalReplicaParts = 0;
-    public ReportReplicationFactor(){
+
+    public ReportReplicationFactor() {
         super("reporter/RF");
     }
-    public ReportReplicationFactor(String id){
+
+    public ReportReplicationFactor(String id) {
         super(id);
     }
 
@@ -22,7 +24,7 @@ public class ReportReplicationFactor extends Plugin {
     public void open() {
         super.open();
         ReportReplicationFactor el = this;
-        this.storage.getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>(){
+        this.storage.getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {
             @Override
             public Integer getValue() {
                 return el.replicationFactor;
@@ -33,9 +35,9 @@ public class ReportReplicationFactor extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        switch (element.elementType()){
-            case VERTEX:{
-                if(element.state() == ReplicaState.MASTER){
+        switch (element.elementType()) {
+            case VERTEX: {
+                if (element.state() == ReplicaState.MASTER) {
                     numberOfMasterVertices++;
                 }
             }
@@ -45,12 +47,12 @@ public class ReportReplicationFactor extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()){
-            case FEATURE:{
+        switch (newElement.elementType()) {
+            case FEATURE: {
                 Feature newFeature = (Feature) newElement;
-                if(newFeature.getFieldName().equals("parts")){
-                    totalReplicaParts ++;
-                    replicationFactor = (int)((float) totalReplicaParts / numberOfMasterVertices * 1000);
+                if (newFeature.getFieldName().equals("parts")) {
+                    totalReplicaParts++;
+                    replicationFactor = (int) ((float) totalReplicaParts / numberOfMasterVertices * 1000);
                 }
             }
         }

@@ -65,22 +65,22 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     public void reduce(int version, short partId, NDArray newElement, int count) {
         Optional<Integer> maxVersion = this.value._3().values().stream().max(Integer::compare);
 
-        if(maxVersion.isPresent() && maxVersion.get() < version){
+        if (maxVersion.isPresent() && maxVersion.get() < version) {
             this.reset();
         }
 
         this.value._1().addi(newElement);
         this.value._3().put(partId, version);
         this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
-        if(this.attachedTo._2.equals("434")){
-            System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
+        if (this.attachedTo._2.equals("434")) {
+            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.position);
         }
 
     }
 
     @Override
     public void bulkReduce(int version, short partId, NDArray... newElements) {
-        if(newElements.length <= 0) return;
+        if (newElements.length <= 0) return;
         NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
         Rpc.call(this, "reduce", version, partId, sum, newElements.length);
     }

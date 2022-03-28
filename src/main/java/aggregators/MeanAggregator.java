@@ -61,19 +61,19 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     @RemoteFunction
     @Override
     public void reduce(int version, short partId, NDArray newElement, int count) {
-        if(version < this.value._4()) return;
-        if(version > this.value._4()) reset();
+        if (version < this.value._4()) return;
+        if (version > this.value._4()) reset();
         this.value._1().muli(this.value._2()).addi(newElement).divi(this.value._2() + count);
         int newCount = this.value._2() + count;
         this.value = new Tuple4<>(this.value._1(), newCount, Math.max(this.value._3(), newCount), version);
-        if(this.attachedTo._2.equals("434")){
-            System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
+        if (this.attachedTo._2.equals("434")) {
+            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.position);
         }
     }
 
     @Override
     public void bulkReduce(int version, short partId, NDArray... newElements) {
-        if(newElements.length <= 0) return;
+        if (newElements.length <= 0) return;
         NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
         Rpc.call(this, "reduce", version, partId, sum, newElements.length);
     }
@@ -81,7 +81,7 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     @RemoteFunction
     @Override
     public void replace(int version, short partId, NDArray newElement, NDArray oldElement) {
-        if(version < this.value._4()) return;
+        if (version < this.value._4()) return;
         NDArray difference = newElement.sub(oldElement);
         this.value._1().addi(difference.div(this.value._2()));
     }

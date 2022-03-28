@@ -22,18 +22,23 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     private transient NDManager manager;
 
-    public MyParameterStore(){
+    public MyParameterStore() {
         this(NDManager.newBaseManager());
     }
+
     public MyParameterStore(NDManager manager) {
         this.manager = manager;
         this.parameterArrays = new ConcurrentHashMap<>();
         this.gradientArrays = new HashMap<>();
     }
 
-    public void setNDManager(NDManager newManager){
-        this.parameterArrays.forEach((id, value)->{value.attach(newManager);});
-        this.gradientArrays.forEach((id, value)->{value.attach(newManager);});
+    public void setNDManager(NDManager newManager) {
+        this.parameterArrays.forEach((id, value) -> {
+            value.attach(newManager);
+        });
+        this.gradientArrays.forEach((id, value) -> {
+            value.attach(newManager);
+        });
         manager.close();
         this.manager = newManager;
     }
@@ -42,41 +47,43 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      * Subtracts grads from parameter arrays
      */
     public void step() {
-        parameterArrays.forEach((key, item)->{
+        parameterArrays.forEach((key, item) -> {
             item.setRequiresGradient(false);
             NDArray grad = gradientArrays.get(key);
             item.subi(grad);
         });
     }
 
-    public void updateParameters(Map<String, NDArray> newParams){
+    public void updateParameters(Map<String, NDArray> newParams) {
         parameterArrays.putAll(newParams);
     }
 
     /**
      * Change ids of model parameters to a single standard
+     *
      * @param model
      */
-    public void canonizeModel(Model model){
+    public void canonizeModel(Model model) {
         String modelName = model.getName();
         ParameterList params = model.getBlock().getParameters();
         try {
             Field idField = Parameter.class.getDeclaredField("id");
             idField.setAccessible(true);
             for (Pair<String, Parameter> param : params) {
-                idField.set(param.getValue(), modelName+param.getKey()+param.getValue().getName());
+                idField.set(param.getValue(), modelName + param.getKey() + param.getValue().getName());
             }
-        }catch (NoSuchFieldException | IllegalAccessException e) {
+        } catch (NoSuchFieldException | IllegalAccessException e) {
             e.printStackTrace();
         }
     }
 
     /**
      * Load the Model to ParameterStore intially
+     *
      * @param model
      */
-    public void loadModel(Model model){
-        model.getBlock().getParameters().forEach(item->{
+    public void loadModel(Model model) {
+        model.getBlock().getParameters().forEach(item -> {
             this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
             this.gradientArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray().zerosLike());
         });
@@ -84,10 +91,11 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     /**
      * Restore the model parameters saved here
+     *
      * @param model
      */
-    public void restoreModel(Model model){
-        model.getBlock().getParameters().forEach(item->{
+    public void restoreModel(Model model) {
+        model.getBlock().getParameters().forEach(item -> {
             NDArray thisArray = this.parameterArrays.get(item.getValue().getId());
             item.getValue().close();
             item.getValue().setShape(null);
@@ -96,8 +104,8 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     }
 
-    public void addGrads(Map<String, NDArray> newGrads){
-        this.gradientArrays.forEach((key,items)->{
+    public void addGrads(Map<String, NDArray> newGrads) {
+        this.gradientArrays.forEach((key, items) -> {
             NDArray x = newGrads.get(key);
             items.addi(x);
         });
@@ -106,8 +114,8 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     /**
      * Nullify gradients
      */
-    public void resetGrads(){
-        this.gradientArrays.forEach((key, item)->{
+    public void resetGrads() {
+        this.gradientArrays.forEach((key, item) -> {
             item.subi(item);
         });
     }
@@ -115,12 +123,11 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
         NDArray valueParam = this.parameterArrays.get(parameter.getId());
-        if(valueParam.hasGradient() && !training){
+        if (valueParam.hasGradient() && !training) {
             NDArray grad = valueParam.getGradient();
-            this.gradientArrays.compute(parameter.getId(), (key, value)->value.addi(grad) ); // Commit accumulator changes
+            this.gradientArrays.compute(parameter.getId(), (key, value) -> value.addi(grad)); // Commit accumulator changes
             valueParam.setRequiresGradient(training);
-        }
-        else if(!valueParam.hasGradient() && training){
+        } else if (!valueParam.hasGradient() && training) {
             valueParam.setRequiresGradient(training);
         }
 
@@ -141,7 +148,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     private void writeObject(ObjectOutputStream oos) throws IOException {
         DataOutputStream dos = new DataOutputStream(oos);
         dos.writeInt(this.parameterArrays.size());
-        for(Map.Entry<String, NDArray> entry: this.parameterArrays.entrySet()){
+        for (Map.Entry<String, NDArray> entry : this.parameterArrays.entrySet()) {
             dos.writeUTF(entry.getKey());
             dos.write(entry.getValue().encode());
         }
@@ -153,12 +160,12 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.parameterArrays = new ConcurrentHashMap<>();
         this.gradientArrays = new HashMap<>();
         int i = dis.readInt();
-        for(;i>0;i--){
-          String id = dis.readUTF();
-          NDArray value = this.manager.decode(dis);
-          value.setRequiresGradient(true);
-          this.parameterArrays.putIfAbsent(id, value);
-          this.gradientArrays.putIfAbsent(id, value.zerosLike());
+        for (; i > 0; i--) {
+            String id = dis.readUTF();
+            NDArray value = this.manager.decode(dis);
+            value.setRequiresGradient(true);
+            this.parameterArrays.putIfAbsent(id, value);
+            this.gradientArrays.putIfAbsent(id, value.zerosLike());
         }
 
     }

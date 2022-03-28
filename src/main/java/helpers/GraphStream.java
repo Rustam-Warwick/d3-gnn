@@ -38,7 +38,18 @@ public class GraphStream {
     public StreamExecutionEnvironment env;
     private IterativeStream<GraphOp> iterator = null;
 
-    public static void configureSerializers(StreamExecutionEnvironment env){
+    public GraphStream(short parallelism, short layers) {
+        this.parallelism = parallelism;
+        this.layers = layers;
+        this.env = StreamExecutionEnvironment.getExecutionEnvironment();
+        this.env.setParallelism(this.parallelism);
+//        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
+        this.env.getConfig().setAutoWatermarkInterval(30000);
+        this.env.setMaxParallelism(32);
+        configureSerializers(this.env);
+    }
+
+    public static void configureSerializers(StreamExecutionEnvironment env) {
         env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
         env.registerType(GraphElement.class);
@@ -54,35 +65,26 @@ public class GraphStream {
         env.registerType(SumAggregator.class);
     }
 
-    public GraphStream(short parallelism, short layers) {
-        this.parallelism = parallelism;
-        this.layers = layers;
-        this.env = StreamExecutionEnvironment.getExecutionEnvironment();
-        this.env.setParallelism(this.parallelism);
-//        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.getConfig().setAutoWatermarkInterval(30000);
-        this.env.setMaxParallelism(32);
-        configureSerializers(this.env);
-    }
-
     /**
      * Read the socket stream and parse it
+     *
      * @param parser MapFunction to parse the incoming Strings to GraphElements
-     * @param host Host name
-     * @param port Port number
+     * @param host   Host name
+     * @param port   Port number
      * @return Datastream of GraphOps
      */
     public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port) {
         return this.env.socketTextStream(host, port).map(parser).name("Input Stream Parser");
     }
 
-    public DataStream<GraphOp> readSocket(FlatMapFunction<String, GraphOp> parser, String host, int port){
+    public DataStream<GraphOp> readSocket(FlatMapFunction<String, GraphOp> parser, String host, int port) {
         return this.env.socketTextStream(host, port).flatMap(parser).name("Input Stream Parser");
     }
 
     /**
      * Read the file and parse it
-     * @param parser MapFunction to parse the incoming Stringsto GraphElements
+     *
+     * @param parser   MapFunction to parse the incoming Stringsto GraphElements
      * @param fileName Name of the file in local or distributed file system
      * @return Datastream of GraphOps
      */
@@ -92,7 +94,8 @@ public class GraphStream {
 
     /**
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of subtasks
-     * @param stream Incoming GraphOp Stream
+     *
+     * @param stream      Incoming GraphOp Stream
      * @param partitioner Partitioner MapFunction class
      * @return Partitioned and keyed DataStream of GraphOps.
      */
@@ -105,7 +108,8 @@ public class GraphStream {
 
     /**
      * Given DataStream of GraphOps acts as storage layer with plugins to handle GNN-layers. Stack then for deeper GNNs
-     * @param last DataStream of GraphOp Records
+     *
+     * @param last           DataStream of GraphOp Records
      * @param storageProcess Process with attached plugins
      * @return DataStream of GraphOps to be stacked
      */
@@ -115,7 +119,7 @@ public class GraphStream {
         IterativeStream<GraphOp> localIterator = last.iterate();
         KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(localIterator, new PartKeySelector());
 
-        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator",TypeInformation.of(GraphOp.class), new MyKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
+        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new MyKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
         DataStream<GraphOp> iterateFilter = res.filter(new IterateFilter()).setParallelism(localIterator.getParallelism());
         DataStream<GraphOp> forwardFilter = res.filter(new ForwardFilter()).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
         if (Objects.nonNull(this.iterator)) {
@@ -128,13 +132,13 @@ public class GraphStream {
         return forwardFilter;
     }
 
-    public DataStream<GraphOp> gnnLoss(DataStream<GraphOp>predictionStream, DataStream<GraphOp>labelStream) {
-       DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
+    public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> predictionStream, DataStream<GraphOp> labelStream) {
+        DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
                 .where(new ElementIdSelector()).equalTo(new ElementIdSelector())
                 .window(SlidingEventTimeWindows.of(Time.seconds(1), Time.seconds(5)))
                 .evictor(new KeepLastElement())
                 .apply(new GraphLossFn())
-                .keyBy(new PartKeySelector()).map(item->item).setParallelism(this.iterator.getParallelism());
+                .keyBy(new PartKeySelector()).map(item -> item).setParallelism(this.iterator.getParallelism());
 
         this.iterator.closeWith(lossGrad);
         return lossGrad;

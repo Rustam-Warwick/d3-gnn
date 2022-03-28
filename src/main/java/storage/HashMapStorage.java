@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public abstract class HashMapStorage extends BaseStorage{
+public abstract class HashMapStorage extends BaseStorage {
     public transient MapState<String, Integer> translationTable;
     public transient MapState<Integer, String> reverseTranslationTable;
     public transient MapState<Integer, Vertex> vertexTable;
@@ -27,13 +27,13 @@ public abstract class HashMapStorage extends BaseStorage{
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
-        MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable",Integer.class, String.class);
-        MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable",Integer.class, Vertex.class);
-        MapStateDescriptor<Integer, Feature> featureTableDesc = new MapStateDescriptor("featureTable",Integer.class, Feature.class);
-        MapStateDescriptor<Integer, List<Integer>> elementFeaturesDesc = new MapStateDescriptor("elementFeatures",Integer.class, List.class);
-        MapStateDescriptor<Integer, List<Integer>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges",Integer.class, List.class);
-        MapStateDescriptor<Integer, List<Integer>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges",Integer.class, List.class);
+        MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable", String.class, Integer.class);
+        MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable", Integer.class, String.class);
+        MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable", Integer.class, Vertex.class);
+        MapStateDescriptor<Integer, Feature> featureTableDesc = new MapStateDescriptor("featureTable", Integer.class, Feature.class);
+        MapStateDescriptor<Integer, List<Integer>> elementFeaturesDesc = new MapStateDescriptor("elementFeatures", Integer.class, List.class);
+        MapStateDescriptor<Integer, List<Integer>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges", Integer.class, List.class);
+        MapStateDescriptor<Integer, List<Integer>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges", Integer.class, List.class);
         ValueStateDescriptor<Integer> lastIdDesc = new ValueStateDescriptor<Integer>("lastId", Integer.class);
         this.translationTable = getRuntimeContext().getMapState(translationTableDesc);
         this.reverseTranslationTable = getRuntimeContext().getMapState(reverseTranslationTableDesc);
@@ -47,7 +47,7 @@ public abstract class HashMapStorage extends BaseStorage{
 
     private int getLastId() throws IOException {
         Integer last_id = this.lastId.value();
-        if(last_id == null){
+        if (last_id == null) {
             last_id = 0;
         }
         this.lastId.update(last_id + 1); // Increment, better sooner than later
@@ -56,16 +56,16 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public boolean addFeature(Feature feature) {
-        try{
-            if(this.translationTable.contains(feature.getId()))return false;
+        try {
+            if (this.translationTable.contains(feature.getId())) return false;
             int last_id = this.getLastId();
-            this.translationTable.put(feature.getId(),last_id);
+            this.translationTable.put(feature.getId(), last_id);
             this.reverseTranslationTable.put(last_id, feature.getId());
             this.featureTable.put(last_id, feature);
-            if(feature.attachedTo._1 == ElementType.VERTEX){
+            if (feature.attachedTo._1 == ElementType.VERTEX) {
                 // Feature belongs to some other element
                 int elementId = this.translationTable.get((String) feature.attachedTo._2());
-                if(!this.elementFeatures.contains(elementId)){
+                if (!this.elementFeatures.contains(elementId)) {
                     this.elementFeatures.put(elementId, new ArrayList<>());
                 }
                 List<Integer> featureIds = this.elementFeatures.get(elementId);
@@ -73,7 +73,7 @@ public abstract class HashMapStorage extends BaseStorage{
                 this.elementFeatures.put(elementId, featureIds);
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             return false;
         }
 
@@ -81,66 +81,63 @@ public abstract class HashMapStorage extends BaseStorage{
 
 
     @Override
-    public boolean addVertex(Vertex vertex){
-        try{
-            if(this.translationTable.contains(vertex.getId()))return false;
+    public boolean addVertex(Vertex vertex) {
+        try {
+            if (this.translationTable.contains(vertex.getId())) return false;
             int last_id = this.getLastId();
-            this.translationTable.put(vertex.getId(),last_id);
+            this.translationTable.put(vertex.getId(), last_id);
             this.reverseTranslationTable.put(last_id, vertex.getId());
             this.vertexTable.put(last_id, vertex);
             return true;
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
 
     @Override
     public boolean addEdge(Edge edge) {
-       try{
-           int srcIntId = this.translationTable.get(edge.src.getId());
-           int destIntId = this.translationTable.get(edge.dest.getId());
-           if(!this.vertexInEdges.contains(destIntId)){
-               this.vertexInEdges.put(destIntId, new ArrayList<Integer>());
-           }
-           if(!this.vertexOutEdges.contains(srcIntId)){
-               this.vertexOutEdges.put(srcIntId, new ArrayList<Integer>());
-           }
+        try {
+            int srcIntId = this.translationTable.get(edge.src.getId());
+            int destIntId = this.translationTable.get(edge.dest.getId());
+            if (!this.vertexInEdges.contains(destIntId)) {
+                this.vertexInEdges.put(destIntId, new ArrayList<Integer>());
+            }
+            if (!this.vertexOutEdges.contains(srcIntId)) {
+                this.vertexOutEdges.put(srcIntId, new ArrayList<Integer>());
+            }
 
-           List<Integer> destInEdges = this.vertexInEdges.get(destIntId);
-           destInEdges.add(srcIntId);
-           this.vertexInEdges.put(destIntId, destInEdges);
+            List<Integer> destInEdges = this.vertexInEdges.get(destIntId);
+            destInEdges.add(srcIntId);
+            this.vertexInEdges.put(destIntId, destInEdges);
 
-           List<Integer> srcOutEdges = this.vertexOutEdges.get(srcIntId);
-           srcOutEdges.add(destIntId);
-           this.vertexOutEdges.put(srcIntId, srcOutEdges);
-           return true;
+            List<Integer> srcOutEdges = this.vertexOutEdges.get(srcIntId);
+            srcOutEdges.add(destIntId);
+            this.vertexOutEdges.put(srcIntId, srcOutEdges);
+            return true;
 
-       }catch (Exception e){
-           return false;
-       }
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
     public boolean updateFeature(Feature feature) {
-        try{
+        try {
             int featureId = this.translationTable.get(feature.getId());
             this.featureTable.put(featureId, feature);
             return true;
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
 
     @Override
     public boolean updateVertex(Vertex vertex) {
-        try{
+        try {
             int vertexId = this.translationTable.get(vertex.getId());
             this.vertexTable.put(vertexId, vertex);
             return true;
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
@@ -152,12 +149,12 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Vertex getVertex(String id) {
-        try{
+        try {
             int vertexId = this.translationTable.get(id);
             Vertex res = this.vertexTable.get(vertexId);
             res.setStorage(this);
             return res;
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
 
@@ -165,9 +162,9 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Iterable<Vertex> getVertices() {
-        try{
+        try {
             return this.vertexTable.values();
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
 
@@ -180,9 +177,9 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
-        try{
+        try {
             int vertex_id = this.translationTable.get(vertex.getId());
-            switch (edge_type){
+            switch (edge_type) {
                 case IN:
                     return this.vertexInEdges.get(vertex_id).stream().map(srcId -> {
                         try {
@@ -208,19 +205,19 @@ public abstract class HashMapStorage extends BaseStorage{
                 default:
                     return new ArrayList<>();
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             return new ArrayList<>();
         }
     }
 
     @Override
     public Feature getFeature(String id) {
-        try{
+        try {
             int featureId = this.translationTable.get(id);
             Feature res = this.featureTable.get(featureId);
             res.setStorage(this);
             return res;
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
     }
@@ -233,7 +230,7 @@ public abstract class HashMapStorage extends BaseStorage{
 
             int element_id = this.translationTable.get(e.getId());
             List<Integer> features_found = this.elementFeatures.get(element_id);
-            for(int id: features_found){
+            for (int id : features_found) {
                 Feature tmp = this.featureTable.get(id);
                 tmp.setStorage(this);
                 result.put(tmp.id, tmp);

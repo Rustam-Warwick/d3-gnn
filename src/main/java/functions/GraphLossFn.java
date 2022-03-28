@@ -32,7 +32,7 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
     public transient ValueState<Integer> correct;
     private transient Gauge<Integer> accuracy;
 
-    public Loss createLossFunction(){
+    public Loss createLossFunction() {
         return new SoftmaxCrossEntropyLoss();
     }
 
@@ -46,14 +46,14 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
         total = getRuntimeContext().getState(totalState);
         correct = getRuntimeContext().getState(correctState);
         accuracy = getRuntimeContext().getMetricGroup().gauge("accuracy", () -> {
-            try{
+            try {
                 Integer totalValue = total.value();
-                if(totalValue == null) totalValue = 0;
+                if (totalValue == null) totalValue = 0;
                 Integer correctValue = correct.value();
-                if(correctValue == null) correctValue = 0;
-                if(totalValue == 0)return 0;
+                if (correctValue == null) correctValue = 0;
+                if (totalValue == 0) return 0;
                 return (int) ((double) correctValue / totalValue) * 100;
-            }catch (IOException e){
+            } catch (IOException e) {
                 return 0;
             }
         });
@@ -66,6 +66,7 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
         return maxClassLabel == actualLabel;
 
     }
+
     @Override
     public GraphOp join(GraphOp first, GraphOp second) throws Exception {
         manager.clean();

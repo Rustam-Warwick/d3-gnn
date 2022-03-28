@@ -13,12 +13,12 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MyKeyedProcessOperator extends KeyedProcessOperator<String,GraphOp, GraphOp> {
+public class MyKeyedProcessOperator extends KeyedProcessOperator<String, GraphOp, GraphOp> {
     public MyKeyedProcessOperator(BaseStorage function) {
         super(function);
     }
 
-    public Short getOperatorMainKey(){
+    public Short getOperatorMainKey() {
         int index = getRuntimeContext().getIndexOfThisSubtask();
         int maxParallelism = getRuntimeContext().getMaxNumberOfParallelSubtasks();
         int parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
@@ -28,13 +28,19 @@ public class MyKeyedProcessOperator extends KeyedProcessOperator<String,GraphOp,
 
 
         short masterKey = 0;
-        for(short i=0; i < maxParallelism; i++){
+        for (short i = 0; i < maxParallelism; i++) {
             int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
-            if(seen[operatorIndex]){
-                if(operatorIndex == index) {thisKeysList.add(i);}
-            }else{
-                if(operatorIndex == index) {masterKey = i; thisKeysList.add(i);}
-                else {replicaKeysList.add(i);}
+            if (seen[operatorIndex]) {
+                if (operatorIndex == index) {
+                    thisKeysList.add(i);
+                }
+            } else {
+                if (operatorIndex == index) {
+                    masterKey = i;
+                    thisKeysList.add(i);
+                } else {
+                    replicaKeysList.add(i);
+                }
 
             }
 
@@ -55,7 +61,7 @@ public class MyKeyedProcessOperator extends KeyedProcessOperator<String,GraphOp,
         collectorField.setAccessible(true);
         contextField.setAccessible(true);
         TimestampedCollector<GraphOp> collector = (TimestampedCollector<GraphOp>) collectorField.get(this);
-        KeyedProcessFunction<String, GraphOp, GraphOp>.Context context = ( KeyedProcessFunction<String, GraphOp, GraphOp>.Context) contextField.get(this);
+        KeyedProcessFunction<String, GraphOp, GraphOp>.Context context = (KeyedProcessFunction<String, GraphOp, GraphOp>.Context) contextField.get(this);
         Short firstKey = getOperatorMainKey();
         ((BaseStorage) userFunction).out = collector;
         ((BaseStorage) userFunction).ctx = context;
@@ -65,7 +71,6 @@ public class MyKeyedProcessOperator extends KeyedProcessOperator<String,GraphOp,
         FunctionUtils.openFunction(userFunction, new Configuration());
 
     }
-
 
 
 }

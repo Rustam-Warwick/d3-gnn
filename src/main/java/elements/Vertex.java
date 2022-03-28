@@ -4,7 +4,7 @@ import scala.Tuple2;
 
 public class Vertex extends ReplicableGraphElement {
 
-    public Vertex(){
+    public Vertex() {
         super();
     }
 
@@ -15,6 +15,7 @@ public class Vertex extends ReplicableGraphElement {
     public Vertex(String id, boolean halo) {
         super(id, halo);
     }
+
     public Vertex(String id, boolean halo, short master) {
         super(id, halo, master);
     }

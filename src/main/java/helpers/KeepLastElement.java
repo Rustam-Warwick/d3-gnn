@@ -15,18 +15,18 @@ public class KeepLastElement implements Evictor<CoGroupedStreams.TaggedUnion<Gra
     public void evictBefore(Iterable<TimestampedValue<CoGroupedStreams.TaggedUnion<GraphOp, GraphOp>>> elements, int size, TimeWindow window, EvictorContext evictorContext) {
         int firstCount = 0;
         int secondCount = 0;
-        for(TimestampedValue<CoGroupedStreams.TaggedUnion<GraphOp, GraphOp>> el: elements){
-            if(Objects.nonNull(el.getValue().getOne()))firstCount++;
-            else if(Objects.nonNull(el.getValue().getTwo()))secondCount++;
+        for (TimestampedValue<CoGroupedStreams.TaggedUnion<GraphOp, GraphOp>> el : elements) {
+            if (Objects.nonNull(el.getValue().getOne())) firstCount++;
+            else if (Objects.nonNull(el.getValue().getTwo())) secondCount++;
         }
 
         for (Iterator<TimestampedValue<CoGroupedStreams.TaggedUnion<GraphOp, GraphOp>>> iterator = elements.iterator();
              iterator.hasNext(); ) {
             TimestampedValue<CoGroupedStreams.TaggedUnion<GraphOp, GraphOp>> el = iterator.next();
-            if(Objects.nonNull(el.getValue().getOne()) && firstCount > 1){
+            if (Objects.nonNull(el.getValue().getOne()) && firstCount > 1) {
                 firstCount--;
                 iterator.remove();
-            }else if(Objects.nonNull(el.getValue().getTwo()) && secondCount > 1){
+            } else if (Objects.nonNull(el.getValue().getTwo()) && secondCount > 1) {
                 secondCount--;
                 iterator.remove();
             }

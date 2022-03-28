@@ -31,27 +31,29 @@ public abstract class GNNLayerInference extends Plugin {
     public GNNLayerInference() {
         super("inferencer");
     }
-    public GNNLayerInference(boolean directedEdges){
+
+    public GNNLayerInference(boolean directedEdges) {
         this();
         this.directedEdges = directedEdges;
     }
+
     public abstract Model createMessageModel();
 
     public abstract Model createUpdateModel();
 
     @RemoteFunction
     public void forward(String elementId, Tuple2<NDArray, Integer> embedding) {
-        if(embedding._2 >= this.MODEL_VERSION){
+        if (embedding._2 >= this.MODEL_VERSION) {
             Vertex vertex = this.storage.getVertex(elementId);
-            if(Objects.isNull(vertex)){
+            if (Objects.isNull(vertex)) {
                 System.out.println("How come this is null");
                 vertex = new Vertex(elementId, false, this.storage.currentKey);
                 vertex.setStorage(this.storage);
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
-            if(Objects.isNull(vertex.getFeature("feature"))){
+            if (Objects.isNull(vertex.getFeature("feature"))) {
                 vertex.setFeature("feature", new VTensor(embedding));
-            }else{
+            } else {
                 vertex.getFeature("feature").externalUpdate(new VTensor(embedding));
             }
         }
@@ -104,7 +106,7 @@ public abstract class GNNLayerInference extends Plugin {
             }
             case EDGE: {
                 Edge edge = (Edge) element;
-                if(this.messageReady(edge)){
+                if (this.messageReady(edge)) {
                     NDArray feature = ((VTensor) edge.src.getFeature("feature")).getValue();
                     NDArray msg = this.message(feature, false);
                     Rpc.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.currentKey, msg, 1);
@@ -116,9 +118,9 @@ public abstract class GNNLayerInference extends Plugin {
                 switch (feature.getFieldName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
-                        if(this.updateReady(parent)){
-                            NDArray ft = ((VTensor)parent.getFeature("feature")).getValue();
-                            NDArray agg = ((BaseAggregator<?>)parent.getFeature("agg")).getValue();
+                        if (this.updateReady(parent)) {
+                            NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
+                            NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
@@ -139,16 +141,16 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch(newElement.elementType()) {
+        switch (newElement.elementType()) {
             case FEATURE: {
                 Feature feature = (Feature) newElement;
                 Feature oldFeature = (Feature) oldElement;
                 switch (feature.getFieldName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
-                        if(this.updateReady(parent)){
-                            NDArray ft = ((VTensor)parent.getFeature("feature")).getValue();
-                            NDArray agg = ((BaseAggregator<?>)parent.getFeature("agg")).getValue();
+                        if (this.updateReady(parent)) {
+                            NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
+                            NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
@@ -159,9 +161,9 @@ public abstract class GNNLayerInference extends Plugin {
 
                     case "agg": {
                         Vertex parent = (Vertex) feature.getElement();
-                        if(this.updateReady(parent)){
-                            NDArray ft = ((VTensor)parent.getFeature("feature")).getValue();
-                            NDArray agg = ((BaseAggregator<?>)parent.getFeature("agg")).getValue();
+                        if (this.updateReady(parent)) {
+                            NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
+                            NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
                             Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
@@ -174,9 +176,10 @@ public abstract class GNNLayerInference extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
+     *
      * @param element
      */
-    public void initVertex(Vertex element){
+    public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true));
@@ -190,6 +193,7 @@ public abstract class GNNLayerInference extends Plugin {
 
     /**
      * Given oldFeature value and new Feature value update the Out Edged aggregators
+     *
      * @param newFeature
      * @param oldFeature
      */
@@ -197,9 +201,9 @@ public abstract class GNNLayerInference extends Plugin {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDArray msgOld = null;
         NDArray msgNew = null;
-        for(Edge edge:outEdges){
-            if(this.messageReady(edge)){
-                if(Objects.isNull(msgOld)){
+        for (Edge edge : outEdges) {
+            if (this.messageReady(edge)) {
+                if (Objects.isNull(msgOld)) {
                     msgOld = this.message(oldFeature.getValue(), false);
                     msgNew = this.message(newFeature.getValue(), false);
                 }
@@ -214,42 +218,44 @@ public abstract class GNNLayerInference extends Plugin {
     public void reduceOutEdges(VTensor newFeature) {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDArray msg = null;
-        for(Edge edge: outEdges){
-            if(this.messageReady(edge)){
-                if(Objects.isNull(msg)){
+        for (Edge edge : outEdges) {
+            if (this.messageReady(edge)) {
+                if (Objects.isNull(msg)) {
                     msg = this.message(newFeature.getValue(), false);
                 }
-                Rpc.call(edge.dest.getFeature("agg"), "reduce",MODEL_VERSION, storage.currentKey, msg, 1);
+                Rpc.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.currentKey, msg, 1);
             }
         }
     }
 
     /**
      * Given Vertex reduce all the in-edges in bulk
+     *
      * @param vertex
      */
     public void reduceInEdges(Vertex vertex) {
         Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
         List<NDArray> bulkReduceMessages = new ArrayList<>();
-        for(Edge edge: inEdges){
-            if(this.messageReady(edge)){
-                NDArray msg = this.message(((VTensor)edge.src.getFeature("feature")).getValue(), false);
+        for (Edge edge : inEdges) {
+            if (this.messageReady(edge)) {
+                NDArray msg = this.message(((VTensor) edge.src.getFeature("feature")).getValue(), false);
                 bulkReduceMessages.add(msg);
             }
         }
-        if(bulkReduceMessages.size() > 0){
-            ((BaseAggregator)vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.currentKey, bulkReduceMessages.toArray(NDArray[]::new));
+        if (bulkReduceMessages.size() > 0) {
+            ((BaseAggregator) vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.currentKey, bulkReduceMessages.toArray(NDArray[]::new));
         }
     }
 
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager
+     *
      * @param feature
      * @param agg
      * @param training
      * @return
      */
-    public NDArray update(NDArray feature, NDArray agg, boolean training){
+    public NDArray update(NDArray feature, NDArray agg, boolean training) {
         NDManager oldFeatureManager = feature.getManager();
         NDManager oldAggManager = agg.getManager();
         feature.attach(this.storage.manager.getTempManager());
@@ -262,11 +268,12 @@ public abstract class GNNLayerInference extends Plugin {
 
     /**
      * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
+     *
      * @param feature
      * @param training
      * @return
      */
-    public NDArray message(NDArray feature, boolean training){
+    public NDArray message(NDArray feature, boolean training) {
         NDManager oldManager = feature.getManager();
         feature.attach(this.storage.manager.getTempManager());
         NDArray res = this.messageModel.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
@@ -276,19 +283,21 @@ public abstract class GNNLayerInference extends Plugin {
 
     /**
      * Is the Edge ready to pass on the message
+     *
      * @param edge
      * @return
      */
-    public boolean messageReady(Edge edge){
+    public boolean messageReady(Edge edge) {
         return Objects.nonNull(edge.dest.getFeature("agg")) && Objects.nonNull(edge.src.getFeature("feature")) && ((VTensor) edge.src.getFeature("feature")).isReady(MODEL_VERSION);
     }
 
     /**
      * Is the Vertex ready to be updated
+     *
      * @param vertex
      * @return
      */
-    public boolean updateReady(Vertex vertex){
+    public boolean updateReady(Vertex vertex) {
         return vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && ((VTensor) vertex.getFeature("feature")).isReady(MODEL_VERSION) && Objects.nonNull(vertex.getFeature("agg")) && ((BaseAggregator) vertex.getFeature("agg")).isReady(MODEL_VERSION);
     }
 }

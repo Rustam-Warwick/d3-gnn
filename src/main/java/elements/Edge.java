@@ -2,14 +2,16 @@ package elements;
 
 import storage.BaseStorage;
 
-public class Edge extends GraphElement{
+public class Edge extends GraphElement {
     public Vertex src;
     public Vertex dest;
-    public Edge(){
+
+    public Edge() {
         super();
         this.src = null;
         this.dest = null;
     }
+
     public Edge(Vertex src, Vertex dest) {
         super(src.id + ":" + dest.id);
         this.src = src;
@@ -36,7 +38,7 @@ public class Edge extends GraphElement{
         return tmp;
     }
 
-    public void reverse(){
+    public void reverse() {
         Vertex src = this.src;
         this.src = this.dest;
         this.dest = src;

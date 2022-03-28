@@ -13,7 +13,7 @@ import java.nio.ByteBuffer;
  * Note that all operations just return a normal NDArray
  * This is done because some tensors are intrinsic to the system and shouldn't be garbadge collected at all, like backward pass gradients and etc.
  */
-public class JavaTensor extends PtNDArray{
+public class JavaTensor extends PtNDArray {
     public static final Cleaner cleaer = Cleaner.create();
 
 
@@ -25,15 +25,16 @@ public class JavaTensor extends PtNDArray{
         super(manager, handle, data);
     }
 
-    public JavaTensor(NDArray arr){
-        this(((PtNDArray) arr).getManager(), ((PtNDArray) arr).getHandle(), ((PtNDArray) arr).toByteBuffer());
+    public JavaTensor(NDArray arr) {
+        this(((PtNDArray) arr).getManager(), ((PtNDArray) arr).getHandle(), arr.toByteBuffer());
         this.detach();
         cleaer.register(this, new State(arr));
     }
 
-    public static class State implements Runnable{
+    public static class State implements Runnable {
         public NDArray resource;
-        public State(NDArray resource){
+
+        public State(NDArray resource) {
             this.resource = resource;
         }
 

@@ -48,7 +48,7 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public GraphElement deepCopy() {
-        NDArray copyArray =  this.value._1.duplicate();
+        NDArray copyArray = this.value._1.duplicate();
         VTensor tmp = new VTensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
@@ -62,8 +62,8 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
         return this.value._1;
     }
 
-    public boolean isReady(int modelVersion){
-        if(this.storage.isFirst()) return true;
+    public boolean isReady(int modelVersion) {
+        if (this.storage.isFirst()) return true;
         return this.value._2 == modelVersion;
     }
 }

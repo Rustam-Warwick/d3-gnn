@@ -16,7 +16,7 @@ public class GraphElement implements Serializable {
     public transient BaseStorage storage;
     public List<Feature> features;
 
-    public GraphElement(){
+    public GraphElement() {
         this.id = null;
         this.partId = -1;
         this.storage = null;
@@ -30,13 +30,19 @@ public class GraphElement implements Serializable {
         this.features = new ArrayList<>();
     }
 
-    public GraphElement copy(){
+    public static void addIfNotExists(List<Feature> list, Feature feature) {
+        if (!list.contains(feature)) {
+            list.add(feature);
+        }
+    }
+
+    public GraphElement copy() {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
         return tmp;
     }
 
-    public GraphElement deepCopy(){
+    public GraphElement deepCopy() {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
         tmp.storage = this.storage;
@@ -44,79 +50,76 @@ public class GraphElement implements Serializable {
         return tmp;
     }
 
-    public Boolean createElement(){
+    public Boolean createElement() {
         boolean is_created = this.storage.addElement(this);
-        if(is_created){
-            for(GraphElement el: this.features){
+        if (is_created) {
+            for (GraphElement el : this.features) {
                 el.createElement();
             }
-            this.storage.getPlugins().forEach(item->item.addElementCallback(this));
+            this.storage.getPlugins().forEach(item -> item.addElementCallback(this));
         }
         return is_created;
     }
 
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement){
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
         GraphElement memento = this.copy();
         boolean is_updated = false;
-        for(Feature feature: newElement.features){
+        for (Feature feature : newElement.features) {
             Feature thisFeature = this.getFeature(feature.getFieldName());
-            if(Objects.nonNull(thisFeature)){
+            if (Objects.nonNull(thisFeature)) {
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
                 is_updated |= tmp._1();
                 addIfNotExists(memento.features, feature);
-            }else{
+            } else {
                 this.setFeature(feature.getFieldName(), feature);
                 is_updated = true;
             }
         }
 
-        if(is_updated){
+        if (is_updated) {
             this.storage.updateElement(this);
-            this.storage.getPlugins().forEach(item->item.updateElementCallback(this, memento));
+            this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }
 
         return new Tuple2<>(is_updated, memento);
     }
 
-    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement){
+    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         return new Tuple2<>(false, this);
     }
 
-    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement){
+    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
         return this.updateElement(newElement);
     }
 
-
-
     // Typing stuff
-    public ElementType elementType(){
+    public ElementType elementType() {
         return ElementType.NONE;
     }
 
-    public Boolean isReplicable(){
+    public Boolean isReplicable() {
         return false;
     }
 
-    public short masterPart(){
+    public short masterPart() {
         return this.partId;
     }
 
-    public ReplicaState state(){
-        if(this.partId == -1) return ReplicaState.UNDEFINED;
-        if(this.partId == this.masterPart()) return ReplicaState.MASTER;
+    public ReplicaState state() {
+        if (this.partId == -1) return ReplicaState.UNDEFINED;
+        if (this.partId == this.masterPart()) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
 
     @Nullable
-    public List<Short> replicaParts(){
+    public List<Short> replicaParts() {
         return null;
-    }
-
-    public Boolean isHalo(){
-        return false;
     }
     // Getters and Setters
 
+    public Boolean isHalo() {
+        return false;
+    }
 
     public String getId() {
         return id;
@@ -127,7 +130,7 @@ public class GraphElement implements Serializable {
     }
 
     public short getPartId() {
-        if(Objects.nonNull(this.storage))return storage.currentKey;
+        if (Objects.nonNull(this.storage)) return storage.currentKey;
         return partId;
     }
 
@@ -135,26 +138,19 @@ public class GraphElement implements Serializable {
         this.partId = partId;
     }
 
-
-    public void setStorage(BaseStorage storage){
+    public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        if(Objects.nonNull(storage))this.partId = storage.currentKey;
-        for(Feature ft: this.features){
+        if (Objects.nonNull(storage)) this.partId = storage.currentKey;
+        for (Feature ft : this.features) {
             ft.setStorage(storage);
         }
     }
 
-    public static void addIfNotExists(List<Feature> list, Feature feature){
-        if(!list.contains(feature)){
-            list.add(feature);
-        }
-    }
-
-    public Feature getFeature(String name){
-        Feature result = this.features.stream().filter(item->item.getFieldName().equals(name)).findAny().orElse(null);
-        if(result == null && this.storage!=null){
+    public Feature getFeature(String name) {
+        Feature result = this.features.stream().filter(item -> item.getFieldName().equals(name)).findAny().orElse(null);
+        if (result == null && this.storage != null) {
             result = this.storage.getFeature(this.getId() + name);
-            if(Objects.nonNull(result)){
+            if (Objects.nonNull(result)) {
                 result.setElement(this);
                 addIfNotExists(this.features, result);
             }
@@ -162,24 +158,24 @@ public class GraphElement implements Serializable {
         return result;
     }
 
-    public void setFeature(String name, Feature feature){
+    public void setFeature(String name, Feature feature) {
         Feature exists = this.getFeature(name);
-        if(Objects.nonNull(exists))return;
+        if (Objects.nonNull(exists)) return;
         feature.setId(name);
         feature.setElement(this);
         feature.setStorage(this.storage);
-        if(Objects.nonNull(this.storage)){
-            if (feature.createElement()){
+        if (Objects.nonNull(this.storage)) {
+            if (feature.createElement()) {
                 addIfNotExists(this.features, feature);
             }
-        }else{
+        } else {
             addIfNotExists(this.features, feature);
         }
     }
 
-    public void cacheFeatures(){
+    public void cacheFeatures() {
         Map<String, Feature> myFeatures = this.storage.getFeaturesOf(this);
-        for(Map.Entry<String, Feature> feature: myFeatures.entrySet()){
+        for (Map.Entry<String, Feature> feature : myFeatures.entrySet()) {
             this.setFeature(feature.getKey(), feature.getValue());
         }
     }
@@ -204,5 +200,5 @@ public class GraphElement implements Serializable {
         return Objects.hash(id);
     }
 
-    
+
 }
