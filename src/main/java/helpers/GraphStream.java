@@ -2,7 +2,6 @@ package helpers;
 
 import aggregators.BaseAggregator;
 import aggregators.SumAggregator;
-import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
@@ -12,7 +11,9 @@ import functions.GraphProcessFn;
 import iterations.BackwardFilter;
 import iterations.ForwardFilter;
 import iterations.IterateFilter;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -21,11 +22,11 @@ import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
-import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import partitioner.BasePartitioner;
-import serializers.ModelSerializer;
 import serializers.TensorSerializer;
+
 import java.io.File;
 import java.util.Objects;
 
@@ -59,8 +60,8 @@ public class GraphStream {
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
         this.env.setParallelism(this.parallelism);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.getConfig().setAutoWatermarkInterval(10000);
-        this.env.setMaxParallelism(8);
+        this.env.getConfig().setAutoWatermarkInterval(30000);
+        this.env.setMaxParallelism(32);
         configureSerializers(this.env);
     }
 
@@ -73,7 +74,10 @@ public class GraphStream {
      */
     public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port) {
         return this.env.socketTextStream(host, port).map(parser).name("Input Stream Parser");
+    }
 
+    public DataStream<GraphOp> readSocket(FlatMapFunction<String, GraphOp> parser, String host, int port){
+        return this.env.socketTextStream(host, port).flatMap(parser).name("Input Stream Parser");
     }
 
     /**
@@ -96,7 +100,7 @@ public class GraphStream {
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        return stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner").keyBy(new PartKeySelector()).map(item->item).setParallelism(this.layer_parallelism);
+        return stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
     }
 
     /**
@@ -108,13 +112,10 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, GraphProcessFn storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
-        if(storageProcess.isFirst()){
-            last = last.assignTimestampsAndWatermarks(new PeriodicTrainingWatermarkStrategy<>());
-        }
-
         IterativeStream<GraphOp> localIterator = last.iterate();
         KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(localIterator, new PartKeySelector());
-        KeyedStream<GraphOp, String> res = ks.process(storageProcess).name("Gnn Process").setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
+
+        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator",TypeInformation.of(GraphOp.class), new MyKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
         DataStream<GraphOp> iterateFilter = res.filter(new IterateFilter()).setParallelism(localIterator.getParallelism());
         DataStream<GraphOp> forwardFilter = res.filter(new ForwardFilter()).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
         if (Objects.nonNull(this.iterator)) {
@@ -123,10 +124,11 @@ public class GraphStream {
         }
         localIterator.closeWith(iterateFilter);
         this.iterator = localIterator;
-
-
         this.position_index++;
         return forwardFilter;
+    }
+    public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, DataStream<GraphOp> featureStream, GraphProcessFn storageProcess){
+        return null;
     }
 
     @Deprecated
@@ -146,7 +148,7 @@ public class GraphStream {
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp>predictionStream, DataStream<GraphOp>labelStream) {
        DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
                 .where(new ElementIdSelector()).equalTo(new ElementIdSelector())
-                .window(SlidingProcessingTimeWindows.of(Time.seconds(30), Time.seconds(10)))
+                .window(SlidingEventTimeWindows.of(Time.seconds(1), Time.seconds(5)))
                 .evictor(new KeepLastElement())
                 .apply(new GraphLossFn())
                 .keyBy(new PartKeySelector()).map(item->item).setParallelism(this.iterator.getParallelism());

@@ -7,7 +7,6 @@ import ai.djl.ndarray.NDManager;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import helpers.JavaTensor;
 import iterations.IterationState;
 import iterations.RemoteFunction;
 import scala.Tuple2;

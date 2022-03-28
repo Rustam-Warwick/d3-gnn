@@ -1,19 +1,16 @@
 package elements;
 
-import org.apache.flink.api.common.functions.util.RuntimeUDFContext;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import scala.Tuple2;
-import state.KeyGroupRangeAssignment;
 
-import java.util.*;
+import java.util.List;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement{
-    public List<Short> replicaList = null;
     public Plugin(){
         super(null, false, (short) 0);
     }
@@ -38,7 +35,7 @@ public class Plugin extends ReplicableGraphElement{
 
     @Override
     public List<Short> replicaParts() {
-        return this.replicaList;
+        return this.storage.otherKeys;
     }
 
     @Override
@@ -58,30 +55,11 @@ public class Plugin extends ReplicableGraphElement{
 
     }
 
-    public void onWatermark(Watermark w){
-
-    }
-
     public void close(){
 
     }
 
     public void open(){
-        this.replicaList = new ArrayList<>();
-        int[] seen = new int[this.storage.parallelism];
-        Arrays.fill(seen, -1);
-        for(short i=0;i<this.storage.maxParallelism;i++){
-            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), this.storage.maxParallelism, this.storage.parallelism);
-            if(seen[operatorIndex] == -1){
-                seen[operatorIndex] = i;
-            }
-        }
-        this.master = (short) Arrays.stream(seen).filter(item->item!=-1).findFirst().getAsInt(); // Master is the key closes to zero's parallel subtask
-        this.partId = (short) seen[this.storage.operatorIndex]; // Part id of plugin is the first occurance of its key
-        for(int i=0; i< this.storage.parallelism; i++){
-            if(seen[i] == -1 || i==storage.operatorIndex)continue;
-            this.replicaList.add((short) seen[i]);
-        }
     }
 
     /**

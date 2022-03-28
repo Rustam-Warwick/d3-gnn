@@ -1,7 +1,6 @@
 package helpers;
 
 import ai.djl.Model;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
@@ -10,19 +9,14 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.pytorch.engine.PtModel;
-import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.pytorch.jni.JniUtils;
-import ai.djl.repository.zoo.Criteria;
-import ai.djl.training.ParameterStore;
 import elements.ElementType;
 import elements.GraphOp;
-import functions.EdgeStreamParser;
 import functions.GraphProcessFn;
+import functions.MovieLensStreamParser;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
-//import plugins.GNNLayerTraining;
+import plugins.GNNOutputEdgeInference;
 import plugins.GNNOutputInference;
 //import plugins.GNNOutputTraining;
 
@@ -32,12 +26,10 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short)5, (short)2);
-        DataStream<GraphOp> dataset = gs.readTextFile(new EdgeStreamParser(new String[]{"Rule_Learning", "Neural_Networks", "Case_Based", "Genetic_Algorithms", "Theory", "Reinforcement_Learning",
-                "Probabilistic_Methods"}, "\t"), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/python/dataset/cora/merged.csv");
-        DataStream<GraphOp> edges = dataset.filter(item->item.element.elementType() == ElementType.EDGE);
-        DataStream<GraphOp> features = dataset.filter(item->item.element.elementType() == ElementType.VERTEX);
+        DataStream<GraphOp> dataset = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
 
-        DataStream<GraphOp> partitioned = gs.partition(edges, new HDRF());
+        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF()).keyBy(new PartKeySelector()).map(item->item).setParallelism(gs.layer_parallelism);
+
         DataStream<GraphOp> gnn1 = gs.gnnLayer(partitioned, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -106,7 +98,9 @@ public class Main {
             }
         }));
 
-        DataStream<GraphOp> predictions = gs.gnnLayer(gnn2, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
+        DataStream<GraphOp> features = partitioned.keyBy(new PartKeySelector()).filter(item->item.element.elementType() == ElementType.VERTEX).setParallelism(gnn2.getParallelism());
+        DataStream<GraphOp> finalStream = gnn2.union(features);
+        DataStream<GraphOp> predictions = gs.gnnLayer(finalStream, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -122,7 +116,7 @@ public class Main {
             }
         }));
 
-//        gs.gnnLoss(predictions, features);
         gs.env.execute("HDRFPartitionerJOB");
+
     }
 }

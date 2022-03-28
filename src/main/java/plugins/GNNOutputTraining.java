@@ -1,19 +1,16 @@
 package plugins;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
-import helpers.JavaTensor;
 import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.util.Collector;
 import scala.Tuple2;
 
 import java.util.Map;
@@ -21,19 +18,29 @@ import java.util.Map;
 public class GNNOutputTraining extends Plugin {
     public GNNOutputInference inference;
     public boolean waitingForUpdate = false;
+    public int total = 1;
+    public int totalCorrect = 1;
     public int collectedGradsSoFar = 0;
     public GNNOutputTraining(){
         super("trainer");
     }
 
-
     @Override
-    public void onWatermark(Watermark w) {
-        Rpc.callProcedure(this, "collectGradients", IterationState.ITERATE, RemoteDestination.MASTER, this.inference.parameterStore.gradientArrays);
+    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
+        super.updateElementCallback(newElement, oldElement);
+        if(newElement.elementType() == ElementType.VERTEX){
+            if(newElement.getFeature("label") == null){
+                // Label exists
+
+            }
+        }
     }
 
     @RemoteFunction
-    public void backward(VTensor grad){
+    public void backward(VTensor grad, boolean correctlyPredicted){
+        // 0. Update Gauge
+        total++;
+        if(correctlyPredicted) totalCorrect++;
         // 1. Get Data
         grad.setStorage(this.storage);
         VTensor feature = (VTensor) grad.getElement().getFeature("feature");
@@ -76,5 +83,11 @@ public class GNNOutputTraining extends Plugin {
     public void open() {
         super.open();
         inference = (GNNOutputInference) this.storage.getPlugin("inferencer");
+        storage.getRuntimeContext().getMetricGroup().gauge("accuracy", new Gauge<Integer>() {
+            @Override
+            public Integer getValue() {
+                return (int)((double) totalCorrect / total * 1000);
+            }
+        });
     }
 }

@@ -1,15 +1,15 @@
 package plugins;
 
 import aggregators.BaseAggregator;
-import aggregators.SumAggregator;
+import aggregators.MeanAggregator;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import elements.*;
 import features.VTensor;
-import helpers.MyParameterStore;
 import helpers.JavaTensor;
+import helpers.MyParameterStore;
 import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
@@ -25,12 +25,16 @@ public abstract class GNNLayerInference extends Plugin {
     public transient Model messageModel;
     public transient Model updateModel;
     public MyParameterStore parameterStore = new MyParameterStore();
+    public boolean directedEdges = true;
     public int MODEL_VERSION = 0;
 
     public GNNLayerInference() {
         super("inferencer");
     }
-
+    public GNNLayerInference(boolean directedEdges){
+        this();
+        this.directedEdges = directedEdges;
+    }
     public abstract Model createMessageModel();
 
     public abstract Model createUpdateModel();
@@ -95,9 +99,7 @@ public abstract class GNNLayerInference extends Plugin {
         super.addElementCallback(element);
         switch (element.elementType()) {
             case VERTEX: {
-                if (element.state() == ReplicaState.MASTER) {
-                    this.initVertex((Vertex) element);
-                }
+                this.initVertex((Vertex) element);
                 break;
             }
             case EDGE: {
@@ -176,11 +178,12 @@ public abstract class GNNLayerInference extends Plugin {
      */
     public void initVertex(Vertex element){
         if (element.state() == ReplicaState.MASTER) {
-            element.setFeature("agg", new SumAggregator(this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue()), true));
+            NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue());
+            element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true));
 
             if (this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(this.messageModel.describeInput().get(0).getValue());
-                element.setFeature("feature", new VTensor(new Tuple2<>(embeddingRandom, this.MODEL_VERSION)));
+                element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)));
             }
         }
     }

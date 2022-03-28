@@ -1,124 +1,109 @@
-//package aggregators;
-//
-//import ai.djl.ndarray.NDArray;
-//import elements.GraphElement;
-//import iterations.RemoteFunction;
-//import iterations.Rpc;
-//import scala.Tuple2;
-//import scala.Tuple3;
-//
-//import javax.annotation.Nullable;
-//import java.util.Arrays;
-//import java.util.HashMap;
-//
-//public class MeanAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashMap<Integer, Integer>>> {
-//    public MeanAggregator() {
-//        super();
-//    }
-//
-//    public MeanAggregator(NDArray tensor, boolean halo) {
-//        this(new Tuple3<>(tensor, 0, new HashMap<>()), halo);
-//    }
-//
-//    public MeanAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
-//        super(value);
-//    }
-//
-//    public MeanAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
-//        super(value, halo);
-//    }
-//
-//    public MeanAggregator(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
-//        super(value, halo, master);
-//    }
-//
-//    public MeanAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value) {
-//        super(id, value);
-//    }
-//
-//    public MeanAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo) {
-//        super(id, value, halo);
-//    }
-//
-//    public MeanAggregator(String id, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> value, boolean halo, short master) {
-//        super(id, value, halo, master);
-//    }
-//
-//    @Override
-//    public GraphElement copy() {
-//        MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
-//        tmp.attachedTo = this.attachedTo;
-//        tmp.partId = this.partId;
-//        return tmp;
-//    }
-//
-//    @Override
-//    public GraphElement deepCopy() {
-//        MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
-//        tmp.attachedTo = this.attachedTo;
-//        tmp.element = this.element;
-//        tmp.partId = this.partId;
-//        tmp.storage = this.storage;
-//        return tmp;
-//    }
-//
-//    @RemoteFunction
-//    @Override
-//    public void reduce(NDArray newElement, int count) {
-//        NDArray newTensor = (this.value._1().mul(this.value._2()).add(newElement)).div(this.value._2() + count);
-//        this.value = new Tuple3<>(newTensor, this.value._2() + count, this.value._3());
-//    }
-//
-//    @Override
-//    public void bulkReduce(NDArray... newElements) {
-//        if(newElements.length <= 0) return;
-//        NDArray copyFirst = newElements[0].toDevice(newElements[0].getDevice(), true);
-//        newElements[0] = copyFirst;
-//        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-//        Rpc.call(this, "reduce", sum, newElements.length);
-//    }
-//
-//    @RemoteFunction
-//    @Override
-//    public void replace(NDArray newElement, NDArray oldElement) {
-//        NDArray difference = newElement.sub(oldElement);
-//        this.value._1().addi(difference.div(this.value._2()));
-//    }
-//
-//    @Override
-//    public void bulkReplace(Tuple2<NDArray, NDArray> ...elements) {
-//        if(elements.length <= 0) return;
-//        NDArray copyFirstNew = elements[0]._1.toDevice(elements[0]._1.getDevice(), true);
-//        NDArray copyFirstOld = elements[0]._2.toDevice(elements[0]._2.getDevice(), true);
-//        elements[0] = new Tuple2<>(copyFirstNew, copyFirstOld);
-//        NDArray sumNew = Arrays.stream(elements).map(item->item._1).reduce(NDArray::addi).get();
-//        NDArray sumOld = Arrays.stream(elements).map(item->item._2).reduce(NDArray::addi).get();
-//        Rpc.call(this, "replace", sumNew, sumOld);
-//
-//    }
-//
-//    @Override
-//    public NDArray grad() {
-//        return null;
-//    }
-//
-//    @Override
-//    public boolean isReady(int modelVersion) {
-//        return true;
-//    }
-//
-//    @Override
-//    public void reset() {
-//
-//    }
-//
-//    @Override
-//    public NDArray getValue() {
-//        return this.value._1();
-//    }
-//
-//    @Override
-//    public boolean valuesEqual(Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v1, Tuple3<NDArray, Integer, HashMap<Integer, Integer>> v2) {
-//        return false;
-//    }
-//}
+package aggregators;
+
+import ai.djl.ndarray.NDArray;
+import elements.GraphElement;
+import iterations.RemoteFunction;
+import iterations.Rpc;
+import scala.Tuple4;
+
+import java.util.Arrays;
+import java.util.Objects;
+
+public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Integer, Integer>> {
+    public MeanAggregator() {
+        super();
+    }
+
+    public MeanAggregator(NDArray tensor, boolean halo) {
+        this(new Tuple4<>(tensor, 0, 0, 0), halo);
+    }
+
+    public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value) {
+        super(value);
+    }
+
+    public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo) {
+        super(value, halo);
+    }
+
+    public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo, short master) {
+        super(value, halo, master);
+    }
+
+    public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value) {
+        super(id, value);
+    }
+
+    public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo) {
+        super(id, value, halo);
+    }
+
+    public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo, short master) {
+        super(id, value, halo, master);
+    }
+
+    @Override
+    public GraphElement copy() {
+        MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
+        tmp.attachedTo = this.attachedTo;
+        tmp.partId = this.partId;
+        return tmp;
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        MeanAggregator tmp = (MeanAggregator) this.copy();
+        tmp.element = this.element;
+        tmp.storage = this.storage;
+        return tmp;
+    }
+
+    @RemoteFunction
+    @Override
+    public void reduce(int version, short partId, NDArray newElement, int count) {
+        if(version < this.value._4()) return;
+        if(version > this.value._4()) reset();
+        this.value._1().muli(this.value._2()).addi(newElement).divi(this.value._2() + count);
+        int newCount = this.value._2() + count;
+        this.value = new Tuple4<>(this.value._1(), newCount, Math.max(this.value._3(), newCount), version);
+        if(this.attachedTo._2.equals("434")){
+            System.out.println("Reduce count: "+count+"  NumOfAggElements: "+this.value._2()+"  In Storage Position: "+this.storage.position);
+        }
+    }
+
+    @Override
+    public void bulkReduce(int version, short partId, NDArray... newElements) {
+        if(newElements.length <= 0) return;
+        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
+        Rpc.call(this, "reduce", version, partId, sum, newElements.length);
+    }
+
+    @RemoteFunction
+    @Override
+    public void replace(int version, short partId, NDArray newElement, NDArray oldElement) {
+        if(version < this.value._4()) return;
+        NDArray difference = newElement.sub(oldElement);
+        this.value._1().addi(difference.div(this.value._2()));
+    }
+
+    @Override
+    public NDArray grad() {
+        return this.value._1().getGradient().divi(this.value._2());
+    }
+
+    @Override
+    public boolean isReady(int modelVersion) {
+        return Objects.equals(value._2(), value._3()) && modelVersion == this.value._4();
+    }
+
+    @Override
+    public void reset() {
+        this.value = new Tuple4<>(this.value._1(), 0, this.value._3(), this.value._4());
+    }
+
+    @Override
+    public NDArray getValue() {
+        return this.value._1();
+    }
+
+}

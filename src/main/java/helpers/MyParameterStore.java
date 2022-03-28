@@ -8,15 +8,11 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.training.ParameterStore;
-import ai.djl.training.initializer.ConstantInitializer;
 import ai.djl.util.Pair;
 
-import javax.xml.crypto.Data;
 import java.io.*;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,24 +38,19 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.manager = newManager;
     }
 
-    @Override
-    public void updateAllParameters() {
-       // Pass
+    /**
+     * Subtracts grads from parameter arrays
+     */
+    public void step() {
         parameterArrays.forEach((key, item)->{
             item.setRequiresGradient(false);
             NDArray grad = gradientArrays.get(key);
             item.subi(grad);
         });
-
-        resetGrads();
     }
 
     public void updateParameters(Map<String, NDArray> newParams){
-        parameterArrays.forEach((key, item)->{
-            item.setRequiresGradient(false);
-            NDArray param = newParams.get(key);
-            item.subi(item).addi(param);
-        });
+        parameterArrays.putAll(newParams);
     }
 
     /**
@@ -112,6 +103,9 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         });
     }
 
+    /**
+     * Nullify gradients
+     */
     public void resetGrads(){
         this.gradientArrays.forEach((key, item)->{
             item.subi(item);

@@ -1,13 +1,11 @@
 package storage;
 
-import ai.djl.ndarray.NDArray;
 import elements.*;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
-import serializers.TensorSerializer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,6 +26,7 @@ public abstract class HashMapStorage extends BaseStorage{
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable",String.class, Integer.class);
         MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable",Integer.class, String.class);
         MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable",Integer.class, Vertex.class);
@@ -44,7 +43,6 @@ public abstract class HashMapStorage extends BaseStorage{
         this.vertexOutEdges = getRuntimeContext().getMapState(vertexOutEdgesDesc);
         this.vertexInEdges = getRuntimeContext().getMapState(vertexInEdgesDesc);
         this.lastId = getRuntimeContext().getState(lastIdDesc);
-        super.open(parameters);
     }
 
     private int getLastId() throws IOException {
@@ -64,7 +62,7 @@ public abstract class HashMapStorage extends BaseStorage{
             this.translationTable.put(feature.getId(),last_id);
             this.reverseTranslationTable.put(last_id, feature.getId());
             this.featureTable.put(last_id, feature);
-            if(feature.attachedTo._1 != ElementType.NONE){
+            if(feature.attachedTo._1 == ElementType.VERTEX){
                 // Feature belongs to some other element
                 int elementId = this.translationTable.get((String) feature.attachedTo._2());
                 if(!this.elementFeatures.contains(elementId)){

@@ -2,24 +2,16 @@ package plugins;
 
 import aggregators.BaseAggregator;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
-import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
-import helpers.JavaTensor;
 import iterations.IterationState;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
 import iterations.Rpc;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.util.Collector;
-import org.codehaus.janino.Java;
 import scala.Tuple2;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class GNNLayerTraining extends Plugin {
@@ -29,11 +21,6 @@ public class GNNLayerTraining extends Plugin {
         super("trainer");
     }
 
-    @Override
-    public void onWatermark(Watermark w) {
-//        System.out.println("Update sent: "+ storage.operatorIndex+" Position: "+ storage.position+" To Master " + masterPart());
-        Rpc.callProcedure(this, "collectGradients", IterationState.ITERATE, RemoteDestination.MASTER, this.inference.parameterStore.gradientArrays);
-    }
 
     @Override
     public void open() {
@@ -110,12 +97,10 @@ public class GNNLayerTraining extends Plugin {
     public void collectGradients(Map<String, NDArray> grads){
         this.inference.parameterStore.addGrads(grads);
         collectedGradsSoFar++;
-//        System.out.println("Gradient Received: "+ storage.operatorIndex+" Position: "+ storage.position +" So far received: "+collectedGradsSoFar);
         if(collectedGradsSoFar == replicaParts().size() + 1){
             collectedGradsSoFar = 0;
-            this.inference.parameterStore.updateAllParameters();
-            Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.REPLICAS, this.inference.parameterStore.parameterArrays);
-            this.updateParameters(this.inference.parameterStore.parameterArrays);
+            this.inference.parameterStore.step();
+            Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
         }
     }
 
@@ -128,8 +113,8 @@ public class GNNLayerTraining extends Plugin {
         this.inference.parameterStore.updateParameters(params);
         this.inference.parameterStore.resetGrads();
         this.inference.MODEL_VERSION++;
-        System.out.println("Parameters Updated: "+ storage.operatorIndex + "position: "+ storage.position + " Model version " + inference.MODEL_VERSION);
-        Rpc.callProcedure(this, "reInference", IterationState.ITERATE, this.storage.keys);
+//        System.out.println("Parameters Updated: "+ storage.operatorIndex + "position: "+ storage.position + " Model version " + inference.MODEL_VERSION);
+        Rpc.callProcedure(this, "reInference", IterationState.ITERATE, this.storage.thisKeys);
     }
 
     /**

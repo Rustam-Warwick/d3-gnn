@@ -1,7 +1,6 @@
 package functions;
 
 import elements.*;
-import helpers.TaskNDManager;
 import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -11,19 +10,9 @@ import storage.HashMapStorage;
 import java.util.Objects;
 
 public class GraphProcessFn extends HashMapStorage {
-    public transient Collector<GraphOp> out;
-
-    @Override
-    public void message(GraphOp op) {
-        this.out.collect(op);
-    }
-
-
     @Override
     public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         this.currentKey = Short.parseShort(ctx.getCurrentKey());
-        ctx.timerService().registerEventTimeTimer(ctx.timerService().currentWatermark());
-        this.out = out;
         try{
             switch (value.op){
                 case COMMIT:

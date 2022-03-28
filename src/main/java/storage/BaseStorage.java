@@ -1,6 +1,5 @@
 package storage;
 
-import ai.djl.ndarray.NDManager;
 import elements.*;
 import helpers.TaskNDManager;
 import org.apache.flink.configuration.Configuration;
@@ -8,13 +7,11 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.operators.OnWatermarkCallback;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
-import state.KeyGroupRangeAssignment;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, GraphOp> implements CheckpointedFunction{
@@ -25,8 +22,15 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public short position = 1; // horizontal positiion of this operator
     public short layers = 1; // max horizontal number of GNN layers excluding the output layer
 
+    // DATA FROM Operator
+    public transient Collector<GraphOp> out;
+    public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
+    public transient List<Short> thisKeys; // keys that get mapped to this operator
+    public transient List<Short> otherKeys; // Keys of other operators
+    public transient short thisMaster; // Master key of this subtask
+    // DATA FROM Operator
+
     public final HashMap<String, Plugin> plugins = new HashMap<>(); // Plugins
-    public final List<Short> keys = new ArrayList<>(); // keys that get mapped to this operator
 
     public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
 
@@ -45,7 +49,6 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
     public abstract Feature getFeature(String id);
     public abstract Map<String, Feature> getFeaturesOf(GraphElement e);
 
-    public abstract void message(GraphOp op);
     public boolean isLast(){
         return this.position >= this.layers;
     }
@@ -55,12 +58,12 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        if(out==null)return;
         super.open(parameters);
         this.manager = new TaskNDManager();
         this.parallelism = (short) getRuntimeContext().getNumberOfParallelSubtasks();
         this.maxParallelism = (short) getRuntimeContext().getMaxNumberOfParallelSubtasks();
         this.operatorIndex = (short) getRuntimeContext().getIndexOfThisSubtask();
-        findAllKeys(); // Find all keys of this operator
         this.plugins.values().forEach(plugin->plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
@@ -78,11 +81,6 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
         this.plugins.values().forEach(plugin->plugin.onTimer(timestamp, ctx, out));
     }
 
-    public void onWatermark(Watermark watermark){
-        System.out.println("Watermark on index: " + operatorIndex+" Position: "+ position);
-//        this.plugins.values().forEach(plugin->plugin.onWatermark(watermark));
-    }
-
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
 
@@ -93,14 +91,10 @@ abstract public class BaseStorage extends KeyedProcessFunction<String, GraphOp, 
 
     }
 
-    private void findAllKeys(){
-        for(short i=0;i<maxParallelism;i++){
-            int resultingIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
-            if(resultingIndex == operatorIndex){
-                keys.add(i);
-            }
-        }
+    public void message(GraphOp msg){
+        out.collect(msg);
     }
+
 
     public boolean addElement(GraphElement element){
         switch (element.elementType()){

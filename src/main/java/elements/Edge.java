@@ -36,6 +36,12 @@ public class Edge extends GraphElement{
         return tmp;
     }
 
+    public void reverse(){
+        Vertex src = this.src;
+        this.src = this.dest;
+        this.dest = src;
+    }
+
     @Override
     public ElementType elementType() {
         return ElementType.EDGE;

@@ -2,7 +2,6 @@ package functions;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
 import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
 import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
@@ -14,8 +13,13 @@ import helpers.TaskNDManager;
 import iterations.IterationState;
 import iterations.Rpc;
 import org.apache.flink.api.common.functions.RichJoinFunction;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Gauge;
 import scala.Tuple2;
+
+import java.io.IOException;
 
 
 /**
@@ -24,6 +28,10 @@ import scala.Tuple2;
 public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
     public Loss loss;
     public TaskNDManager manager;
+    public transient ValueState<Integer> total;
+    public transient ValueState<Integer> correct;
+    private transient Gauge<Integer> accuracy;
+
     public Loss createLossFunction(){
         return new SoftmaxCrossEntropyLoss();
     }
@@ -31,10 +39,33 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        this.loss = createLossFunction();
-        this.manager = new TaskNDManager();
+        manager = new TaskNDManager();
+        loss = createLossFunction();
+        ValueStateDescriptor<Integer> totalState = new ValueStateDescriptor<Integer>("total", Integer.class);
+        ValueStateDescriptor<Integer> correctState = new ValueStateDescriptor<Integer>("correct", Integer.class);
+        total = getRuntimeContext().getState(totalState);
+        correct = getRuntimeContext().getState(correctState);
+        accuracy = getRuntimeContext().getMetricGroup().gauge("accuracy", () -> {
+            try{
+                Integer totalValue = total.value();
+                if(totalValue == null) totalValue = 0;
+                Integer correctValue = correct.value();
+                if(correctValue == null) correctValue = 0;
+                if(totalValue == 0)return 0;
+                return (int) ((double) correctValue / totalValue) * 100;
+            }catch (IOException e){
+                return 0;
+            }
+        });
     }
 
+
+    public boolean predictedTrue(NDArray logits, NDArray label) throws IOException {
+        int maxClassLabel = (int) logits.argMax().getLong();
+        int actualLabel = label.getInt();
+        return maxClassLabel == actualLabel;
+
+    }
     @Override
     public GraphOp join(GraphOp first, GraphOp second) throws Exception {
         manager.clean();
@@ -49,10 +80,10 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
         NDArray loss = this.loss.evaluate(new NDList(label), new NDList(logit));
         collector.backward(loss);
         // 3. Prepare send data
-        logit.scaleGradient(0.01);
+        logit.getGradient().muli(0.01);
         VTensor grad = new VTensor("grad", new Tuple2<>(logit.getGradient(), 0));
         grad.attachedTo = new Tuple2<>(first.element.elementType(), first.element.getId());
-        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad, predictedTrue(logit, label)}, ElementType.PLUGIN, false);
 
         // 4. Cleanup
         collector.close();

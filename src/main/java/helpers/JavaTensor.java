@@ -1,25 +1,11 @@
 package helpers;
 
-import ai.djl.Device;
-import ai.djl.ndarray.BytesSupplier;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.index.NDIndex;
-import ai.djl.ndarray.internal.NDArrayEx;
-import ai.djl.ndarray.types.DataType;
-import ai.djl.ndarray.types.Shape;
-import ai.djl.ndarray.types.SparseFormat;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
-import org.codehaus.janino.Java;
-
 
 import java.lang.ref.Cleaner;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.function.Function;
 
 
 /**
@@ -28,23 +14,33 @@ import java.util.function.Function;
  * This is done because some tensors are intrinsic to the system and shouldn't be garbadge collected at all, like backward pass gradients and etc.
  */
 public class JavaTensor extends PtNDArray{
-    public JavaTensor(PtNDManager manager, long handle) {
+    public static final Cleaner cleaer = Cleaner.create();
+
+
+    private JavaTensor(PtNDManager manager, long handle) {
         super(manager, handle);
     }
 
-    public JavaTensor(PtNDManager manager, long handle, ByteBuffer data) {
+    private JavaTensor(PtNDManager manager, long handle, ByteBuffer data) {
         super(manager, handle, data);
     }
 
-    public JavaTensor(PtNDArray arr){
-        this(arr.getManager(), arr.getHandle(), arr.toByteBuffer());
+    public JavaTensor(NDArray arr){
+        this(((PtNDArray) arr).getManager(), ((PtNDArray) arr).getHandle(), ((PtNDArray) arr).toByteBuffer());
+        this.detach();
+        cleaer.register(this, new State(arr));
     }
 
-    @Override
-    protected void finalize() throws Throwable {
-        super.finalize();
-        System.out.println("Salam");
-        this.close();
+    public static class State implements Runnable{
+        public NDArray resource;
+        public State(NDArray resource){
+            this.resource = resource;
+        }
 
+        @Override
+        public void run() {
+            resource.close();
+        }
     }
+
 }

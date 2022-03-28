@@ -2,7 +2,6 @@ package aggregators;
 
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
-import helpers.JavaTensor;
 import iterations.RemoteFunction;
 import iterations.Rpc;
 import scala.Tuple3;
