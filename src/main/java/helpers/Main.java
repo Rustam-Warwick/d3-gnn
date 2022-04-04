@@ -10,12 +10,15 @@ import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import elements.GraphOp;
-import functions.GraphProcessFn;
 import functions.MovieLensStreamParser;
+import functions.StreamingGNNLayerFunction;
+import functions.TrainTestSplitter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
-import plugins.GNNOutputInference;
+import plugins.GNNOutputEdgeInference;
+import scala.Tuple2;
+import storage.HashMapStorage;
 //import plugins.GNNOutputTraining;
 
 
@@ -24,11 +27,13 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short) 5, (short) 2);
-        DataStream<GraphOp> dataset = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
 
-        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF()).keyBy(new PartKeySelector()).map(item -> item).setParallelism(gs.layer_parallelism);
+        DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
+        DataStream<GraphOp> partitioned = gs.partition(ratingsEdgeStream, new HDRF());
+        Tuple2<DataStream<GraphOp>, DataStream<GraphOp>> trainTestSplitted = gs.trainTestSplit(partitioned, new TrainTestSplitter());
+        DataStream<GraphOp> normalData = trainTestSplitted._1.keyBy(new PartKeySelector()).map(item -> item).setParallelism(gs.layer_parallelism);
 
-        DataStream<GraphOp> gnn1 = gs.gnnLayer(partitioned, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+        DataStream<GraphOp> gnn1 = gs.gnnLayer(normalData, new StreamingGNNLayerFunction(new HashMapStorage().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -60,9 +65,9 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        })));
 
-        DataStream<GraphOp> gnn2 = gs.gnnLayer(gnn1, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNLayerInference() {
+        DataStream<GraphOp> gnn2 = gs.gnnLayer(gnn1, new StreamingGNNLayerFunction(new HashMapStorage().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -94,9 +99,11 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        })));
 
-        DataStream<GraphOp> predictions = gs.gnnLayer(gnn2, (GraphProcessFn) new GraphProcessFn().withPlugin(new GNNOutputInference() {
+        DataStream<GraphOp> trainingData = trainTestSplitted._2.keyBy(new PartKeySelector()).map(item -> item).setParallelism(gnn2.getParallelism());
+
+        DataStream<GraphOp> predictions = gs.gnnLayer(gnn2.union(trainingData), new StreamingGNNLayerFunction(new HashMapStorage().withPlugin(new GNNOutputEdgeInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -110,7 +117,7 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }));
+        })));
 
         gs.env.execute("HDRFPartitionerJOB");
 

@@ -9,24 +9,24 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class Rpc extends GraphElement {
+public class Rmi extends GraphElement {
     public Object[] args;
     public ElementType elemType;
     public boolean hasUpdate = true;
     public String methodName;
 
-    public Rpc() {
+    public Rmi() {
         super();
     }
 
-    public Rpc(String id, String methodName, Object[] args, ElementType elemType) {
+    public Rmi(String id, String methodName, Object[] args, ElementType elemType) {
         super(id);
         this.args = args;
         this.methodName = methodName;
         this.elemType = elemType;
     }
 
-    public Rpc(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate) {
+    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate) {
         super(id);
         this.args = args;
         this.methodName = methodName;
@@ -34,7 +34,7 @@ public class Rpc extends GraphElement {
         this.hasUpdate = hasUpdate;
     }
 
-    public static void execute(GraphElement element, Rpc message) {
+    public static void execute(GraphElement element, Rmi message) {
         try {
             if (message.hasUpdate) {
                 GraphElement deepCopyElement = element.deepCopy();
@@ -60,12 +60,12 @@ public class Rpc extends GraphElement {
      * @param args
      */
     public static void call(GraphElement el, String methodName, Object... args) {
-        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType());
-        rpc.setStorage(el.storage);
+        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType());
+        rmi.setStorage(el.storage);
         if (el.state() == ReplicaState.MASTER) {
-            Rpc.execute(el, rpc);
+            Rmi.execute(el, rmi);
         } else {
-            rpc.storage.message(new GraphOp(Op.RPC, el.masterPart(), rpc, IterationState.ITERATE));
+            rmi.storage.layerFunction.message(new GraphOp(Op.RMI, el.masterPart(), rmi, IterationType.ITERATE));
         }
     }
 
@@ -77,18 +77,18 @@ public class Rpc extends GraphElement {
      * @param args
      */
     public static void callProcedure(GraphElement el, String methodName, Object... args) {
-        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(), false);
-        rpc.setStorage(el.storage);
+        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
+        rmi.setStorage(el.storage);
         if (el.state() == ReplicaState.MASTER) {
-            Rpc.execute(el, rpc);
+            Rmi.execute(el, rmi);
         } else {
-            rpc.storage.message(new GraphOp(Op.RPC, el.masterPart(), rpc, IterationState.ITERATE));
+            rmi.storage.layerFunction.message(new GraphOp(Op.RMI, el.masterPart(), rmi, IterationType.ITERATE));
         }
     }
 
-    public static void callProcedure(GraphElement el, String methodName, IterationState iterationState, RemoteDestination remoteDestination, Object... args) {
-        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(), false);
-        rpc.setStorage(el.storage);
+    public static void callProcedure(GraphElement el, String methodName, IterationType iterationType, RemoteDestination remoteDestination, Object... args) {
+        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
+        rmi.setStorage(el.storage);
         ArrayList<Short> destinations = new ArrayList<>();
         switch (remoteDestination) {
             case SELF:
@@ -104,18 +104,18 @@ public class Rpc extends GraphElement {
                 destinations.addAll(el.replicaParts());
                 destinations.add(el.masterPart());
         }
-        callProcedure(el, methodName, iterationState, destinations, args);
+        callProcedure(el, methodName, iterationType, destinations, args);
     }
 
-    public static void callProcedure(GraphElement el, String methodName, IterationState iterationState, List<Short> destinations, Object... args) {
+    public static void callProcedure(GraphElement el, String methodName, IterationType iterationType, List<Short> destinations, Object... args) {
         if (Objects.isNull(destinations)) return;
-        Rpc rpc = new Rpc(el.getId(), methodName, args, el.elementType(), false);
-        rpc.setStorage(el.storage);
+        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
+        rmi.setStorage(el.storage);
         for (Short part : destinations) {
-            if (part == el.getPartId() && iterationState == IterationState.ITERATE) {
-                Rpc.execute(el, rpc);
+            if (part == el.getPartId() && iterationType == IterationType.ITERATE) {
+                Rmi.execute(el, rmi);
             } else {
-                rpc.storage.message(new GraphOp(Op.RPC, part, rpc, iterationState));
+                rmi.storage.layerFunction.message(new GraphOp(Op.RMI, part, rmi, iterationType));
             }
         }
     }

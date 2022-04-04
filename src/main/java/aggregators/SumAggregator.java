@@ -3,7 +3,7 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
 import iterations.RemoteFunction;
-import iterations.Rpc;
+import iterations.Rmi;
 import scala.Tuple3;
 
 import java.util.Arrays;
@@ -73,7 +73,6 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
         this.value._3().put(partId, version);
         this.value = new Tuple3<>(this.value._1(), this.value._2() + count, this.value._3());
         if (this.attachedTo._2.equals("434")) {
-            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.position);
         }
 
     }
@@ -82,7 +81,7 @@ public class SumAggregator extends BaseAggregator<Tuple3<NDArray, Integer, HashM
     public void bulkReduce(int version, short partId, NDArray... newElements) {
         if (newElements.length <= 0) return;
         NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        Rpc.call(this, "reduce", version, partId, sum, newElements.length);
+        Rmi.call(this, "reduce", version, partId, sum, newElements.length);
     }
 
     @RemoteFunction

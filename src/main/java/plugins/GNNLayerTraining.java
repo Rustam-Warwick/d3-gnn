@@ -6,10 +6,10 @@ import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
-import iterations.IterationState;
+import iterations.IterationType;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
-import iterations.Rpc;
+import iterations.Rmi;
 import scala.Tuple2;
 
 import java.util.Map;
@@ -48,16 +48,16 @@ public class GNNLayerTraining extends Plugin {
         JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
 
         // 3. Send Update backward if this is not last layer
-        if (!this.storage.isFirst()) {
+        if (!this.storage.layerFunction.isFirst()) {
             grad.value = new Tuple2<>(feature.getValue().getGradient(), 0);
-            Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
-            this.storage.message(new GraphOp(Op.RPC, this.storage.currentKey, backward, IterationState.BACKWARD));
+            Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+            this.storage.layerFunction.message(new GraphOp(Op.RMI, this.storage.layerFunction.getCurrentPart(), backward, IterationType.BACKWARD));
         }
 
         // 4. Send to messageBackward to do the message backward steps
 
         grad.value = new Tuple2<>(agg.grad(), 0);
-        Rpc.callProcedure(this, "messageBackward", IterationState.ITERATE, agg.replicaParts(), grad);
+        Rmi.callProcedure(this, "messageBackward", IterationType.ITERATE, agg.replicaParts(), grad);
         this.messageBackward(grad);
 
         // 5. Cleanup
@@ -81,11 +81,11 @@ public class GNNLayerTraining extends Plugin {
                 inFeature.setRequiresGradient(true);
                 NDArray prediction = this.inference.message(inFeature, true);
                 JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
-                if (!this.storage.isFirst()) {
+                if (!this.storage.layerFunction.isFirst()) {
                     VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), 0));
                     grad.attachedTo = new Tuple2<>(edge.src.elementType(), edge.src.getId());
-                    Rpc backward = new Rpc("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
-                    this.storage.message(new GraphOp(Op.RPC, edge.src.masterPart(), backward, IterationState.BACKWARD));
+                    Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+                    this.storage.layerFunction.message(new GraphOp(Op.RMI, edge.src.masterPart(), backward, IterationType.BACKWARD));
                 }
                 ((NDArray) edge.src.getFeature("feature").getValue()).setRequiresGradient(false);
             }
@@ -104,7 +104,7 @@ public class GNNLayerTraining extends Plugin {
         if (collectedGradsSoFar == replicaParts().size() + 1) {
             collectedGradsSoFar = 0;
             this.inference.parameterStore.step();
-            Rpc.callProcedure(this, "updateParameters", IterationState.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
+            Rmi.callProcedure(this, "updateParameters", IterationType.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
         }
     }
 
@@ -118,8 +118,7 @@ public class GNNLayerTraining extends Plugin {
         this.inference.parameterStore.updateParameters(params);
         this.inference.parameterStore.resetGrads();
         this.inference.MODEL_VERSION++;
-//        System.out.println("Parameters Updated: "+ storage.operatorIndex + "position: "+ storage.position + " Model version " + inference.MODEL_VERSION);
-        Rpc.callProcedure(this, "reInference", IterationState.ITERATE, this.storage.thisKeys);
+        Rmi.callProcedure(this, "reInference", IterationType.ITERATE, this.storage.layerFunction.getThisParts());
     }
 
     /**

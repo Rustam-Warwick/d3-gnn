@@ -35,7 +35,7 @@ public class Plugin extends ReplicableGraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        return this.storage.otherKeys;
+        return this.storage.layerFunction.getReplicaMasterParts();
     }
 
     @Override
@@ -60,11 +60,9 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     public void open() {
+
     }
 
-    /**
-     * Callback when this plugin is first added to the storage
-     */
     public void add() {
 
     }

@@ -2,7 +2,7 @@ import abc
 import jax.numpy as jnp
 from elements.element_feature import ReplicableFeature
 import jax
-from decorators import rpc
+from decorators import rmi
 from typing import Tuple, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -61,7 +61,7 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
         stored_value = [tensor, 0, dict()]  # Represents (tensor, number_of_elements)
         super(JACMeanAggregatorReplicableFeature, self).__init__(*args, value=stored_value, **kwargs)
 
-    @rpc()
+    @rmi()
     def reduce(self, new_element: "jnp.array", part_id, part_version, count=1):
         """ Supports Bulk Reduce with 1 sync. step """
         was_ready = self.is_ready
@@ -84,11 +84,11 @@ class JACMeanAggregatorReplicableFeature(ReplicableFeature, AggregatorFeatureMix
         summed_aggregations = jnp.sum(stacked_aggregations, axis=0)
         self.reduce(new_element=summed_aggregations, count=len(new_elements))  # This one is the RPC Call
 
-    @rpc()
+    @rmi()
     def revert(self, deleted_tensor: "jnp.array", part_id, part_version):
         pass
 
-    @rpc()
+    @rmi()
     def replace(self, new_tensor: jnp.array, old_tensor: jnp.array, part_id, part_version):
         self._value[2].add(part_id)
         if self._value[1] == 0:

@@ -5,6 +5,6 @@ public enum Op {
     COMMIT,
     REMOVE,
     SYNC,
-    RPC,
+    RMI,
     AGG
 }

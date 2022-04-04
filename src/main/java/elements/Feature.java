@@ -1,6 +1,6 @@
 package elements;
 
-import iterations.IterationState;
+import iterations.IterationType;
 import scala.Tuple2;
 
 import java.util.List;
@@ -117,7 +117,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
             }
             cpy.setFeature(feature.getFieldName(), tmp);
         }
-        this.replicaParts().forEach(part_id -> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
+        this.replicaParts().forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
     }
 
     public void syncReplica(short part_id) {
@@ -133,7 +133,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
             cpy.setFeature(feature.getFieldName(), tmp);
         }
 
-        this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));
+        this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE));
     }
 
 

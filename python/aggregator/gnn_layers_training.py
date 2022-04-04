@@ -6,7 +6,7 @@ import jax.tree_util
 from aggregator import BaseAggregator
 from aggregator.gnn_layers_inference import BaseStreamingGNNInference
 from elements import GraphElement, GraphQuery, IterationState, RPCDestination
-from decorators import rpc
+from decorators import rmi
 
 
 class BaseStreamingLayerTraining(BaseAggregator, metaclass=ABCMeta):
@@ -39,7 +39,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
         self.update_model(self.grad_acc)
         self.grad_acc = [None, None]
 
-    @rpc(is_procedure=True)
+    @rmi(is_procedure=True)
     def update_model(self, param_acc: list, part_id, part_version):
         """ Similar to how all-reduce works. Collect all the grads and then update the model grads """
         if part_version != self.storage.part_version: return # Ignore old aggregations
@@ -60,7 +60,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             print("Training loop done updating params")
             # @todo Why so many params update when there was only 2 training loop done commands
 
-    @rpc(is_procedure=True, iteration=IterationState.ITERATE, destination=RPCDestination.CUSTOM)
+    @rmi(is_procedure=True, iteration=IterationState.ITERATE, destination=RPCDestination.CUSTOM)
     def msg_backward(self, vertex_ids: Sequence[str], msg_grad: jax.numpy.array, part_id, part_version):
         """ Samples local in-edges of vertex_ids and backprops the message function """
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
@@ -110,7 +110,7 @@ class StreamingLayerTrainingJAX(BaseStreamingLayerTraining):
             # If Feature values are learnable this is the part to it #probably
             pass
 
-    @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.CUSTOM)
+    @rmi(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.CUSTOM)
     def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id, part_version):
         vertices = list(map(lambda x: self.storage.get_vertex(x), vertex_ids))
         batch_aggregations = jax.numpy.vstack(list(map(lambda x: x['agg'].value[0], vertices)))

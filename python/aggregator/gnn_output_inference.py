@@ -7,7 +7,7 @@ from elements.vertex import BaseVertex
 from elements.element_feature import ReplicableFeature
 from elements.element_feature.jax_params import JaxParamsFeature
 from elements.element_feature.tensor_feature import VersionedTensorReplicableFeature
-from decorators import rpc
+from decorators import rmi
 from exceptions import GraphElementNotFound
 from flax.linen import Module
 
@@ -22,7 +22,7 @@ class BaseStreamingOutputPrediction(BaseAggregator, metaclass=ABCMeta):
     def run(self, *args, **kwargs):
         pass
 
-    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
+    @rmi(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def forward(self, vertex_id, feature, part_id, part_version):
         if part_version < self.storage.part_version:
             # Previous is behind ignore this message

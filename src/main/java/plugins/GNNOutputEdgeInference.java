@@ -31,7 +31,7 @@ public abstract class GNNOutputEdgeInference extends Plugin {
         if (embedding._2 >= this.MODEL_VERSION) {
             Vertex vertex = this.storage.getVertex(elementId);
             if (Objects.isNull(vertex)) {
-                vertex = new Vertex(elementId, false, this.storage.currentKey);
+                vertex = new Vertex(elementId, false, this.storage.layerFunction.getCurrentPart());
                 vertex.setStorage(this.storage);
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
@@ -46,7 +46,7 @@ public abstract class GNNOutputEdgeInference extends Plugin {
     @Override
     public void add() {
         super.add();
-        this.storage.withPlugin(new GNNOutputTraining());
+//        this.storage.withPlugin(new GNNOutputTraining());
         this.outputModel = this.createOutputModel();
         this.parameterStore.canonizeModel(this.outputModel);
         this.parameterStore.loadModel(this.outputModel);
@@ -80,6 +80,8 @@ public abstract class GNNOutputEdgeInference extends Plugin {
                     }
                 }
             }
+            case EDGE: {
+            }
         }
     }
 
@@ -98,16 +100,15 @@ public abstract class GNNOutputEdgeInference extends Plugin {
         }
     }
 
-    public NDArray output(NDArray feature, NDArray feature2, boolean training) {
-        NDManager oldManager = feature.getManager();
-        NDManager oldManager2 = feature2.getManager();
-        feature.attach(this.storage.manager.getTempManager());
-        feature2.attach(this.storage.manager.getTempManager());
-        NDArray res = this.outputModel.getBlock().forward(this.parameterStore, new NDList(feature, feature2), training).get(0);
-        feature.attach(oldManager);
-        feature2.attach(oldManager2);
+    public NDArray output(NDArray featureSource, NDArray featureDest, boolean training) {
+        NDManager oldManagerSrc = featureSource.getManager();
+        NDManager oldManagerDest = featureDest.getManager();
+        featureSource.attach(this.storage.manager.getTempManager());
+        featureDest.attach(this.storage.manager.getTempManager());
+        NDArray res = this.outputModel.getBlock().forward(this.parameterStore, new NDList(featureSource, featureDest), training).get(0);
+        featureSource.attach(oldManagerSrc);
+        featureDest.attach(oldManagerDest);
         return res;
     }
-
 
 }

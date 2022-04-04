@@ -1,6 +1,7 @@
 package iterations;
 
-public enum IterationState {
+
+public enum IterationType {
     FORWARD,
     ITERATE,
     BACKWARD

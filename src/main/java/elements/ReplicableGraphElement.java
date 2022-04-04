@@ -1,8 +1,8 @@
 package elements;
 
 import features.Set;
-import iterations.IterationState;
-import iterations.Rpc;
+import iterations.IterationType;
+import iterations.Rmi;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -66,7 +66,7 @@ public class ReplicableGraphElement extends GraphElement {
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             } else {
                 // Send Query
-                this.storage.message(new GraphOp(Op.SYNC, this.masterPart(), this, IterationState.ITERATE));
+                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, IterationType.ITERATE));
             }
         }
         return is_created;
@@ -76,7 +76,7 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
             Set<Integer> tmp = (Set<Integer>) this.getFeature("parts");
-            Rpc.call(tmp, "add", newElement.getPartId());
+            Rmi.call(tmp, "add", newElement.getPartId());
             this.syncReplica(newElement.getPartId());
 
         } else if (this.state() == ReplicaState.REPLICA) {
@@ -94,10 +94,11 @@ public class ReplicableGraphElement extends GraphElement {
             if (tmp._1) this.syncReplicas(true);
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
-            this.storage.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationState.ITERATE));
+            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationType.ITERATE));
             return new Tuple2<>(false, this);
         } else return super.externalUpdate(newElement);
     }
+
 
     public void syncReplicas(boolean skipHalo) {
         if ((this.state() != ReplicaState.MASTER) || (this.isHalo() && skipHalo) || this.replicaParts() == null || this.replicaParts().isEmpty())
@@ -112,7 +113,7 @@ public class ReplicableGraphElement extends GraphElement {
             }
             cpy.setFeature(feature.getFieldName(), tmp);
         }
-        this.replicaParts().forEach(part_id -> this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE)));
+        this.replicaParts().forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
     }
 
     public void syncReplica(short part_id) {
@@ -127,7 +128,7 @@ public class ReplicableGraphElement extends GraphElement {
             cpy.setFeature(feature.getFieldName(), tmp);
         }
 
-        this.storage.message(new GraphOp(Op.SYNC, part_id, cpy, IterationState.ITERATE));
+        this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE));
     }
 
     @Override

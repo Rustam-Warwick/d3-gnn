@@ -5,16 +5,14 @@ import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.configuration.Configuration;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
-public abstract class HashMapStorage extends BaseStorage {
+public class HashMapStorage extends BaseStorage {
     public transient MapState<String, Integer> translationTable;
     public transient MapState<Integer, String> reverseTranslationTable;
     public transient MapState<Integer, Vertex> vertexTable;
@@ -23,10 +21,11 @@ public abstract class HashMapStorage extends BaseStorage {
     public transient MapState<Integer, List<Integer>> vertexOutEdges;
     public transient MapState<Integer, List<Integer>> vertexInEdges;
     public transient ValueState<Integer> lastId;
+    public transient ValueState<List<String>> featureFieldNames;
 
     @Override
-    public void open(Configuration parameters) throws Exception {
-        super.open(parameters);
+    public void open() throws Exception {
+        super.open();
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable", String.class, Integer.class);
         MapStateDescriptor<Integer, String> reverseTranslationTableDesc = new MapStateDescriptor("reverseTranslationTable", Integer.class, String.class);
         MapStateDescriptor<Integer, Vertex> vertexTableDesc = new MapStateDescriptor("vertexTable", Integer.class, Vertex.class);
@@ -35,14 +34,16 @@ public abstract class HashMapStorage extends BaseStorage {
         MapStateDescriptor<Integer, List<Integer>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges", Integer.class, List.class);
         MapStateDescriptor<Integer, List<Integer>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges", Integer.class, List.class);
         ValueStateDescriptor<Integer> lastIdDesc = new ValueStateDescriptor<Integer>("lastId", Integer.class);
-        this.translationTable = getRuntimeContext().getMapState(translationTableDesc);
-        this.reverseTranslationTable = getRuntimeContext().getMapState(reverseTranslationTableDesc);
-        this.vertexTable = getRuntimeContext().getMapState(vertexTableDesc);
-        this.featureTable = getRuntimeContext().getMapState(featureTableDesc);
-        this.elementFeatures = getRuntimeContext().getMapState(elementFeaturesDesc);
-        this.vertexOutEdges = getRuntimeContext().getMapState(vertexOutEdgesDesc);
-        this.vertexInEdges = getRuntimeContext().getMapState(vertexInEdgesDesc);
-        this.lastId = getRuntimeContext().getState(lastIdDesc);
+        ValueStateDescriptor<List<String>> featureFieldNamesDescriptor = new ValueStateDescriptor("featureFieldNames", List.class);
+        this.translationTable = layerFunction.getRuntimeContext().getMapState(translationTableDesc);
+        this.reverseTranslationTable = layerFunction.getRuntimeContext().getMapState(reverseTranslationTableDesc);
+        this.vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
+        this.featureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
+        this.elementFeatures = layerFunction.getRuntimeContext().getMapState(elementFeaturesDesc);
+        this.vertexOutEdges = layerFunction.getRuntimeContext().getMapState(vertexOutEdgesDesc);
+        this.vertexInEdges = layerFunction.getRuntimeContext().getMapState(vertexInEdgesDesc);
+        this.lastId = layerFunction.getRuntimeContext().getState(lastIdDesc);
+        this.featureFieldNames = layerFunction.getRuntimeContext().getState(featureFieldNamesDescriptor);
     }
 
     private int getLastId() throws IOException {
@@ -54,6 +55,17 @@ public abstract class HashMapStorage extends BaseStorage {
         return last_id;
     }
 
+    private void addFieldName(String fieldName) throws IOException {
+        List<String> fieldNames = this.featureFieldNames.value();
+        if (fieldNames == null) {
+            fieldNames = new ArrayList<>();
+        }
+        if (!fieldNames.contains(fieldName)) {
+            fieldNames.add(fieldName);
+        }
+        this.featureFieldNames.update(fieldNames);
+    }
+
     @Override
     public boolean addFeature(Feature feature) {
         try {
@@ -62,15 +74,8 @@ public abstract class HashMapStorage extends BaseStorage {
             this.translationTable.put(feature.getId(), last_id);
             this.reverseTranslationTable.put(last_id, feature.getId());
             this.featureTable.put(last_id, feature);
-            if (feature.attachedTo._1 == ElementType.VERTEX) {
-                // Feature belongs to some other element
-                int elementId = this.translationTable.get((String) feature.attachedTo._2());
-                if (!this.elementFeatures.contains(elementId)) {
-                    this.elementFeatures.put(elementId, new ArrayList<>());
-                }
-                List<Integer> featureIds = this.elementFeatures.get(elementId);
-                featureIds.add(last_id);
-                this.elementFeatures.put(elementId, featureIds);
+            if (feature.attachedTo._1 != ElementType.NONE) {
+                this.addFieldName(feature.getFieldName());
             }
             return true;
         } catch (Exception e) {
@@ -172,7 +177,13 @@ public abstract class HashMapStorage extends BaseStorage {
 
     @Override
     public Edge getEdge(String id) {
-        return null;
+        String[] idArr = id.split(":");
+        Vertex src = getVertex(idArr[0]);
+        Vertex dest = getVertex(idArr[1]);
+        if (Objects.isNull(src) || Objects.isNull(dest)) return null;
+        Edge edge = new Edge(src, dest);
+        edge.setStorage(this);
+        return edge;
     }
 
     @Override
@@ -224,21 +235,15 @@ public abstract class HashMapStorage extends BaseStorage {
 
 
     @Override
-    public Map<String, Feature> getFeaturesOf(GraphElement e) {
-        HashMap<String, Feature> result = new HashMap<>();
+    public void cacheFeaturesOf(GraphElement e) {
         try {
-
-            int element_id = this.translationTable.get(e.getId());
-            List<Integer> features_found = this.elementFeatures.get(element_id);
-            for (int id : features_found) {
-                Feature tmp = this.featureTable.get(id);
-                tmp.setStorage(this);
-                result.put(tmp.id, tmp);
+            List<String> fieldNames = featureFieldNames.value();
+            if (Objects.nonNull(fieldNames) && fieldNames.size() > 0) {
+                fieldNames.forEach(e::getFeature);
             }
         } catch (Exception ignored) {
 
         }
-        return result;
 
 
     }

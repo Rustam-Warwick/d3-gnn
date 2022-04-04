@@ -1,12 +1,12 @@
 package elements;
 
-import iterations.IterationState;
+import iterations.IterationType;
 
 public class GraphOp {
     public Op op;
     public short part_id = -1;
     public GraphElement element = null;
-    public IterationState state = IterationState.FORWARD;
+    public IterationType state = IterationType.FORWARD;
 
     public GraphOp() {
         this.op = Op.COMMIT;
@@ -17,7 +17,7 @@ public class GraphOp {
         this.element = element;
     }
 
-    public GraphOp(Op op, short part_id, GraphElement element, IterationState state) {
+    public GraphOp(Op op, short part_id, GraphElement element, IterationType state) {
         this.op = op;
         this.part_id = part_id;
         this.element = element;

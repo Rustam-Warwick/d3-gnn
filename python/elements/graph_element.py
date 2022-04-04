@@ -34,17 +34,17 @@ class GraphElement(metaclass=ABCMeta):
         self.storage: "KeyedGNNLayerProcess" = storage  # Storage
         self._features: Dict[str, "ReplicableFeature"] = dict()  # Cached version of the element features
 
-    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
+    def __call__(self, rmi: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Remote Procedure call for updating this GraphElement """
-        if rpc.is_procedure:
+        if rmi.is_procedure:
             # Procedure RPCs do some logic only no update on self state explicitly
-            getattr(self, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+            getattr(self, "%s" % (rmi.fn_name,))(*rmi.args, __call=True, **rmi.kwargs)
             return False, self
         else:
             # Non-procedure RPCs do change the state of element so need to be handled carefully
-            # @todo deep_copy might throw errors when trying to call rpc for anything other than Feature
+            # @todo deep_copy might throw errors when trying to call rmi for anything other than Feature
             copy_element = copy.deepcopy(self)
-            getattr(copy_element, "%s" % (rpc.fn_name,))(*rpc.args, __call=True, **rpc.kwargs)
+            getattr(copy_element, "%s" % (rmi.fn_name,))(*rmi.args, __call=True, **rmi.kwargs)
             return self.update_element(copy_element)
 
     def create_element(self) -> bool:

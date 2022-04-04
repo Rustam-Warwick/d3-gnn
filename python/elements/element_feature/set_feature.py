@@ -1,11 +1,11 @@
-from decorators import rpc
+from decorators import rmi
 from elements.element_feature import ReplicableFeature
 import collections
 
 
 class SetFeatureMixin:
 
-    @rpc()
+    @rmi()
     def add(self, element, part_id, part_version) -> bool:
         my_set: set = self.value
         is_changed = False
@@ -13,7 +13,7 @@ class SetFeatureMixin:
         my_set.add(element)
         return is_changed
 
-    @rpc()
+    @rmi()
     def remove(self, element, part_id=None) -> bool:
         my_set: set = self.value
         is_changed = False

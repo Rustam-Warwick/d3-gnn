@@ -1,13 +1,13 @@
 from elements import Rpc
 from typing import TYPE_CHECKING
 from elements import ReplicaState, GraphQuery, Op, IterationState, query_for_part
-from elements.rpc import RPCDestination
+from elements.rmi import RPCDestination
 
 if TYPE_CHECKING:
     from elements import GraphElement
 
 
-def rpc(is_procedure: bool = False, iteration=IterationState.ITERATE, destination=RPCDestination.MASTER) -> callable:
+def rmi(is_procedure: bool = False, iteration=IterationState.ITERATE, destination=RPCDestination.MASTER) -> callable:
     """
         Calls the function with the Rpc method. So this is normal RPC That edits something
         iteration -> Forward, Backward, Iterate. In which direction this RPC should be directed

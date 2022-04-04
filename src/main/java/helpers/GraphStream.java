@@ -7,10 +7,11 @@ import elements.*;
 import features.Set;
 import features.VTensor;
 import functions.GraphLossFn;
-import functions.GraphProcessFn;
+import functions.StreamingGNNLayerFunction;
 import iterations.BackwardFilter;
 import iterations.ForwardFilter;
 import iterations.IterateFilter;
+import operators.GNNKeyedProcessOperator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -25,6 +26,7 @@ import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import partitioner.BasePartitioner;
+import scala.Tuple2;
 import serializers.TensorSerializer;
 
 import java.io.File;
@@ -109,17 +111,17 @@ public class GraphStream {
     /**
      * Given DataStream of GraphOps acts as storage layer with plugins to handle GNN-layers. Stack then for deeper GNNs
      *
-     * @param last           DataStream of GraphOp Records
+     * @param last           DataStream of GraphOp Records, This one shuold be forwardable so it should be already keyedby and with correct parallelism
      * @param storageProcess Process with attached plugins
      * @return DataStream of GraphOps to be stacked
      */
-    public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, GraphProcessFn storageProcess) {
+    public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
         storageProcess.layers = this.layers;
         storageProcess.position = this.position_index;
         IterativeStream<GraphOp> localIterator = last.iterate();
         KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(localIterator, new PartKeySelector());
 
-        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new MyKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
+        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
         DataStream<GraphOp> iterateFilter = res.filter(new IterateFilter()).setParallelism(localIterator.getParallelism());
         DataStream<GraphOp> forwardFilter = res.filter(new ForwardFilter()).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
         if (Objects.nonNull(this.iterator)) {
@@ -130,6 +132,19 @@ public class GraphStream {
         this.iterator = localIterator;
         this.position_index++;
         return forwardFilter;
+    }
+
+    /**
+     * With some p probability split the stream into 2. First one is the normal stream and the second one is the training stream
+     *
+     * @param inputStream S
+     * @return Output GraphStream with training features
+     */
+    public Tuple2<DataStream<GraphOp>, DataStream<GraphOp>> trainTestSplit(DataStream<GraphOp> inputStream, MapFunction<GraphOp, Tuple2<GraphOp, Boolean>> splitter) {
+        DataStream<Tuple2<GraphOp, Boolean>> splittedStream = inputStream.map(splitter);
+        DataStream<GraphOp> normalStream = splittedStream.filter(item -> !item._2).map(item -> item._1);
+        DataStream<GraphOp> trainingStream = splittedStream.filter(item -> item._2).map(item -> item._1);
+        return new Tuple2<>(normalStream, trainingStream);
     }
 
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> predictionStream, DataStream<GraphOp> labelStream) {

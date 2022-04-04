@@ -10,8 +10,8 @@ import elements.GraphOp;
 import elements.Op;
 import features.VTensor;
 import helpers.TaskNDManager;
-import iterations.IterationState;
-import iterations.Rpc;
+import iterations.IterationType;
+import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichJoinFunction;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -84,11 +84,11 @@ public class GraphLossFn extends RichJoinFunction<GraphOp, GraphOp, GraphOp> {
         logit.getGradient().muli(0.01);
         VTensor grad = new VTensor("grad", new Tuple2<>(logit.getGradient(), 0));
         grad.attachedTo = new Tuple2<>(first.element.elementType(), first.element.getId());
-        Rpc backward = new Rpc("trainer", "backward", new Object[]{grad, predictedTrue(logit, label)}, ElementType.PLUGIN, false);
+        Rmi backward = new Rmi("trainer", "backward", new Object[]{grad, predictedTrue(logit, label)}, ElementType.PLUGIN, false);
 
         // 4. Cleanup
         collector.close();
         logit.setRequiresGradient(false);
-        return new GraphOp(Op.RPC, first.part_id, backward, IterationState.BACKWARD);
+        return new GraphOp(Op.RMI, first.part_id, backward, IterationType.BACKWARD);
     }
 }

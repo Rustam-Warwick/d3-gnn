@@ -14,14 +14,14 @@ import scala.Tuple2;
 
 import java.util.Map;
 
-public class GNNOutputTraining extends Plugin {
+public class GNNOutputEdgeTraining extends Plugin {
     public GNNOutputInference inference;
     public boolean waitingForUpdate = false;
     public int total = 1;
     public int totalCorrect = 1;
     public int collectedGradsSoFar = 0;
 
-    public GNNOutputTraining() {
+    public GNNOutputEdgeTraining() {
         super("trainer");
     }
 

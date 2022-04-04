@@ -1,1 +1,1 @@
-from .base_decorators import rpc
+from .base_decorators import rmi

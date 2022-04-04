@@ -2,7 +2,7 @@ import abc
 import copy
 from abc import ABCMeta
 from functools import cached_property
-from decorators import rpc
+from decorators import rmi
 from typing import TYPE_CHECKING, Tuple
 import re
 from exceptions import NestedFeaturesException
@@ -34,14 +34,14 @@ class ReplicableFeature(ReplicableGraphElement, metaclass=ABCMeta):
                 if self.state is ReplicaState.MASTER: self.sync_replicas(skip_halos=False)
         return is_created
 
-    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
+    def __call__(self, rmi: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Similar to sync_element we need to save the .element since integer_clock might change """
-        is_updated, memento = super(ReplicableFeature, self).__call__(rpc)
+        is_updated, memento = super(ReplicableFeature, self).__call__(rmi)
         if is_updated and self.element is not None:
             self.storage.update_element(self.element)
         return is_updated, memento
 
-    @rpc()
+    @rmi()
     def update_value(self, value, part_id, part_version):
         """ Rpc call to update the value field """
         self._value = value

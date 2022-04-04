@@ -7,7 +7,7 @@ import ai.djl.ndarray.NDManager;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationState;
+import iterations.IterationType;
 import iterations.RemoteFunction;
 import scala.Tuple2;
 
@@ -29,7 +29,7 @@ public abstract class GNNOutputInference extends Plugin {
         if (embedding._2 >= this.MODEL_VERSION) {
             Vertex vertex = this.storage.getVertex(elementId);
             if (Objects.isNull(vertex)) {
-                vertex = new Vertex(elementId, false, this.storage.currentKey);
+                vertex = new Vertex(elementId, false, this.storage.layerFunction.getCurrentPart());
                 vertex.setStorage(this.storage);
                 if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
@@ -73,7 +73,7 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) element;
                 switch (feature.getFieldName()) {
                     case "feature": {
-                        this.makePredictionAndSendForward((VTensor) feature);
+//                        this.makePredictionAndSendForward((VTensor) feature);
                         break;
                     }
                 }
@@ -89,7 +89,7 @@ public abstract class GNNOutputInference extends Plugin {
                 Feature feature = (Feature) newElement;
                 switch (feature.getFieldName()) {
                     case "feature": {
-                        this.makePredictionAndSendForward((VTensor) feature);
+//                        this.makePredictionAndSendForward((VTensor) feature);
                     }
                 }
             }
@@ -108,7 +108,7 @@ public abstract class GNNOutputInference extends Plugin {
         NDArray res = this.output(embedding.getValue(), false);
         Vertex a = new Vertex(embedding.attachedTo._2);
         a.setFeature("logits", new VTensor(new Tuple2<>(res, 0)));
-        this.storage.message(new GraphOp(Op.COMMIT, this.storage.currentKey, a, IterationState.FORWARD));
+        this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.storage.layerFunction.getCurrentPart(), a, IterationType.FORWARD));
     }
 
 

@@ -5,7 +5,7 @@ from elements import ElementTypes
 
 if TYPE_CHECKING:
     from elements.element_feature.set_feature import SetReplicatedFeature
-    from elements.rpc import Rpc
+    from elements.rmi import Rpc
 
 
 class ReplicableGraphElement(GraphElement):
@@ -16,9 +16,9 @@ class ReplicableGraphElement(GraphElement):
         self._master = master  # Part_id of the master
         self._halo = is_halo  # If this only a stub for master
 
-    def __call__(self, rpc: "Rpc") -> Tuple[bool, "GraphElement"]:
+    def __call__(self, rmi: "Rpc") -> Tuple[bool, "GraphElement"]:
         """ Wrap GraphElement call to have separate behavior for Replica & Master nodes """
-        is_updated, elem = super(ReplicableGraphElement, self).__call__(rpc)
+        is_updated, elem = super(ReplicableGraphElement, self).__call__(rmi)
         if is_updated:
             self.sync_replicas()
         return is_updated, elem

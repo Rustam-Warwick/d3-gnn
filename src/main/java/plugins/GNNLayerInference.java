@@ -10,12 +10,11 @@ import elements.*;
 import features.VTensor;
 import helpers.JavaTensor;
 import helpers.MyParameterStore;
-import iterations.IterationState;
+import iterations.IterationType;
 import iterations.RemoteDestination;
 import iterations.RemoteFunction;
-import iterations.Rpc;
+import iterations.Rmi;
 import scala.Tuple2;
-import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,16 +24,10 @@ public abstract class GNNLayerInference extends Plugin {
     public transient Model messageModel;
     public transient Model updateModel;
     public MyParameterStore parameterStore = new MyParameterStore();
-    public boolean directedEdges = true;
     public int MODEL_VERSION = 0;
 
     public GNNLayerInference() {
         super("inferencer");
-    }
-
-    public GNNLayerInference(boolean directedEdges) {
-        this();
-        this.directedEdges = directedEdges;
     }
 
     public abstract Model createMessageModel();
@@ -47,9 +40,6 @@ public abstract class GNNLayerInference extends Plugin {
             Vertex vertex = this.storage.getVertex(elementId);
             if (Objects.isNull(vertex)) {
                 System.out.println("How come this is null");
-                vertex = new Vertex(elementId, false, this.storage.currentKey);
-                vertex.setStorage(this.storage);
-                if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
             }
             if (Objects.isNull(vertex.getFeature("feature"))) {
                 vertex.setFeature("feature", new VTensor(embedding));
@@ -58,11 +48,6 @@ public abstract class GNNLayerInference extends Plugin {
             }
         }
 
-    }
-
-    @Override
-    public void setStorage(BaseStorage storage) {
-        super.setStorage(storage);
     }
 
     @Override
@@ -109,7 +94,7 @@ public abstract class GNNLayerInference extends Plugin {
                 if (this.messageReady(edge)) {
                     NDArray feature = ((VTensor) edge.src.getFeature("feature")).getValue();
                     NDArray msg = this.message(feature, false);
-                    Rpc.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.currentKey, msg, 1);
+                    Rmi.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.layerFunction.getCurrentPart(), msg, 1);
                 }
                 break;
             }
@@ -122,7 +107,7 @@ public abstract class GNNLayerInference extends Plugin {
                             NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
                             NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
-                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
+                            Rmi.callProcedure(this, "forward", IterationType.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
                         this.reduceOutEdges((VTensor) feature);
                         break;
@@ -152,7 +137,7 @@ public abstract class GNNLayerInference extends Plugin {
                             NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
                             NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
-                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
+                            Rmi.callProcedure(this, "forward", IterationType.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
 
                         this.updateOutEdges((VTensor) feature, (VTensor) oldFeature);
@@ -165,7 +150,7 @@ public abstract class GNNLayerInference extends Plugin {
                             NDArray ft = ((VTensor) parent.getFeature("feature")).getValue();
                             NDArray agg = ((BaseAggregator<?>) parent.getFeature("agg")).getValue();
                             NDArray update = this.update(ft, agg, false);
-                            Rpc.callProcedure(this, "forward", IterationState.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
+                            Rmi.callProcedure(this, "forward", IterationType.FORWARD, RemoteDestination.SELF, parent.getId(), new Tuple2<>(update, this.MODEL_VERSION));
                         }
                         break;
                     }
@@ -184,7 +169,7 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(this.messageModel.describeOutput().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true));
 
-            if (this.storage.isFirst() && Objects.isNull(element.getFeature("feature"))) {
+            if (this.storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(this.messageModel.describeInput().get(0).getValue());
                 element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)));
             }
@@ -207,7 +192,7 @@ public abstract class GNNLayerInference extends Plugin {
                     msgOld = this.message(oldFeature.getValue(), false);
                     msgNew = this.message(newFeature.getValue(), false);
                 }
-                Rpc.call(edge.dest.getFeature("agg"), "replace", MODEL_VERSION, storage.currentKey, msgNew, msgOld);
+                Rmi.call(edge.dest.getFeature("agg"), "replace", MODEL_VERSION, storage.layerFunction.getCurrentPart(), msgNew, msgOld);
             }
         }
     }
@@ -223,7 +208,7 @@ public abstract class GNNLayerInference extends Plugin {
                 if (Objects.isNull(msg)) {
                     msg = this.message(newFeature.getValue(), false);
                 }
-                Rpc.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.currentKey, msg, 1);
+                Rmi.call(edge.dest.getFeature("agg"), "reduce", MODEL_VERSION, storage.layerFunction.getCurrentPart(), msg, 1);
             }
         }
     }
@@ -243,7 +228,7 @@ public abstract class GNNLayerInference extends Plugin {
             }
         }
         if (bulkReduceMessages.size() > 0) {
-            ((BaseAggregator) vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.currentKey, bulkReduceMessages.toArray(NDArray[]::new));
+            ((BaseAggregator) vertex.getFeature("agg")).bulkReduce(MODEL_VERSION, storage.layerFunction.getCurrentPart(), bulkReduceMessages.toArray(NDArray[]::new));
         }
     }
 

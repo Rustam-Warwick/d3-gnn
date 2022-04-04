@@ -3,7 +3,7 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
 import iterations.RemoteFunction;
-import iterations.Rpc;
+import iterations.Rmi;
 import scala.Tuple4;
 
 import java.util.Arrays;
@@ -66,8 +66,8 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
         this.value._1().muli(this.value._2()).addi(newElement).divi(this.value._2() + count);
         int newCount = this.value._2() + count;
         this.value = new Tuple4<>(this.value._1(), newCount, Math.max(this.value._3(), newCount), version);
-        if (this.attachedTo._2.equals("434")) {
-            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.position);
+        if (this.attachedTo._2.equals("10")) {
+            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.layerFunction.getPosition());
         }
     }
 
@@ -75,7 +75,7 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     public void bulkReduce(int version, short partId, NDArray... newElements) {
         if (newElements.length <= 0) return;
         NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        Rpc.call(this, "reduce", version, partId, sum, newElements.length);
+        Rmi.call(this, "reduce", version, partId, sum, newElements.length);
     }
 
     @RemoteFunction

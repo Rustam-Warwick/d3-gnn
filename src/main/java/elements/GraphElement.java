@@ -7,7 +7,6 @@ import storage.BaseStorage;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public class GraphElement implements Serializable {
@@ -130,7 +129,7 @@ public class GraphElement implements Serializable {
     }
 
     public short getPartId() {
-        if (Objects.nonNull(this.storage)) return storage.currentKey;
+        if (Objects.nonNull(this.storage)) return storage.layerFunction.getCurrentPart();
         return partId;
     }
 
@@ -140,7 +139,7 @@ public class GraphElement implements Serializable {
 
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        if (Objects.nonNull(storage)) this.partId = storage.currentKey;
+        if (Objects.nonNull(storage)) this.partId = storage.layerFunction.getCurrentPart();
         for (Feature ft : this.features) {
             ft.setStorage(storage);
         }
@@ -174,9 +173,8 @@ public class GraphElement implements Serializable {
     }
 
     public void cacheFeatures() {
-        Map<String, Feature> myFeatures = this.storage.getFeaturesOf(this);
-        for (Map.Entry<String, Feature> feature : myFeatures.entrySet()) {
-            this.setFeature(feature.getKey(), feature.getValue());
+        if (Objects.nonNull(storage)) {
+            storage.cacheFeaturesOf(this);
         }
     }
 

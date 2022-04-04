@@ -6,7 +6,7 @@ import jax.numpy
 import numpy
 import optax
 
-from decorators import rpc
+from decorators import rmi
 from aggregator import BaseAggregator
 from aggregator.gnn_output_inference import BaseStreamingOutputPrediction
 from elements import GraphElement, GraphQuery, ElementTypes, IterationState, RPCDestination
@@ -35,7 +35,7 @@ class BaseStreamingOutputTraining(BaseAggregator, metaclass=ABCMeta):
     def train(self, vertices: Sequence["BaseVertex"]):
         pass
 
-    @rpc(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.SELF)
+    @rmi(is_procedure=True, iteration=IterationState.BACKWARD, destination=RPCDestination.SELF)
     def backward(self, vertex_ids: Sequence[str], grad_vector: jax.numpy.array, part_id, part_version):
         """ Since this is the starting point, and it is being sent backwards no implementation needed for this """
         pass
@@ -88,7 +88,7 @@ class StreamingOutputTrainingJAX(BaseStreamingOutputTraining):
         self.msg_received = set()  # Master part messages received
         self.grad_list = list()  # List of the grad messages received
 
-    @rpc(is_procedure=True)
+    @rmi(is_procedure=True)
     def update_model(self, update_grad_acc, part_id, part_version):
         self.msg_received.add(part_id)
         self.grad_list.append(update_grad_acc)

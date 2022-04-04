@@ -3,7 +3,7 @@ import abc
 import jax.random
 from jax import jit
 from exceptions import GraphElementNotFound
-from decorators import rpc
+from decorators import rmi
 from aggregator import BaseAggregator
 from elements import ElementTypes, GraphQuery, Op, ReplicaState, IterationState, RPCDestination
 from elements.element_feature.aggregator_feature import JACMeanAggregatorReplicableFeature, AggregatorFeatureMixin
@@ -35,7 +35,7 @@ class BaseStreamingGNNInference(BaseAggregator, metaclass=ABCMeta):
     def update(self, source_feature, agg, *args, **kwargs):
         pass
 
-    @rpc(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
+    @rmi(is_procedure=True, destination=RPCDestination.SELF, iteration=IterationState.FORWARD)
     def forward(self, vertex_id, feature, part_id, part_version):
         if part_version >= self.storage.part_version:
             try:

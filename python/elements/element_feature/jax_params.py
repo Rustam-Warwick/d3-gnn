@@ -1,11 +1,11 @@
 from . import ReplicableFeature
 from flax.core.frozen_dict import FrozenDict
-from decorators import rpc
+from decorators import rmi
 import jax
 
 
 class JaxParamMixin:
-    @rpc()
+    @rmi()
     def update(self, grads, part_id, part_version):
         """ Subtract the new gradients from the current one """
         self._value = jax.tree_multimap(lambda x, y: jax.numpy.asarray(x - y), self._value, grads)
