@@ -2,7 +2,7 @@ plugins {
     id 'application'
 }
 
-group 'org.apache.flink.runtime'
+group 'org.apache.flink.gnn'
 version '1.0-SNAPSHOT'
 application{
     mainClass = "helpers.Main"
@@ -22,12 +22,14 @@ dependencies {
 //            'org.apache.flink:flink-table-planner_2.12:1.14.4',
             'org.apache.flink:flink-streaming-java_2.12:1.14.4',
 //            'org.apache.flink:flink-table-api-java:1.14.4',
-//            'org.apache.flink:flink-table-api-java-bridge_2.12:1.14.4',
-//            'org.apache.flink:flink-statebackend-rocksdb_2.12:1.14.4',
+            'org.apache.flink:flink-table-api-java-bridge_2.12:1.14.4',
+//            'org.apache.flink:flink-table-planner_2.12:1.14.4',
+            'org.apache.flink:flink-table-common:1.14.4',
+            'org.apache.flink:flink-statebackend-rocksdb_2.12:1.14.4',
 //            'org.apache.flink:flink-python_2.12:1.14.4',
-            'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
-            'org.apache.flink:flink-ml-core_2.12:2.0.0',
-            'org.apache.flink:flink-ml-lib_2.12:2.0.0',
+//            'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
+//            'org.apache.flink:flink-ml-core_2.12:2.0.0',
+//            'org.apache.flink:flink-ml-lib_2.12:2.0.0',
             'ai.djl:api:0.15.0',
             'ai.djl.pytorch:pytorch-engine:0.15.0',
             'ai.djl.pytorch:pytorch-native-cpu:1.10.0',
@@ -40,7 +42,7 @@ jar{
 
     manifest {
         attributes (
-                'Automatic-Module-Name': 'org.apache.flink.runtime',
+                'Automatic-Module-Name': 'org.apache.flink.gnn',
                 'Main-Class': "helpers.Main"
         )
     }

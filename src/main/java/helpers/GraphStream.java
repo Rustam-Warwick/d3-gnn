@@ -1,32 +1,33 @@
 package helpers;
 
 import aggregators.BaseAggregator;
-import aggregators.SumAggregator;
+import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
-import functions.GraphLossFn;
 import functions.StreamingGNNLayerFunction;
-import iterations.BackwardFilter;
-import iterations.ForwardFilter;
-import iterations.IterateFilter;
 import operators.GNNKeyedProcessOperator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.io.TextInputFormat;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.DataStreamUtils;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
-import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.table.api.Schema;
+import org.apache.flink.table.api.Table;
+import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
+import org.apache.flink.types.Row;
+import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
-import scala.Tuple2;
 import serializers.TensorSerializer;
 
 import java.io.File;
@@ -36,22 +37,36 @@ public class GraphStream {
     public short parallelism;
     public short layers;
     public short position_index = 1;
-    public short layer_parallelism = 2;
+    public short layer_parallelism = 3;
     public StreamExecutionEnvironment env;
-    private IterativeStream<GraphOp> iterator = null;
+    public StreamTableEnvironment tableEnv;
+    public IterativeStream<GraphOp> iterator = null;
 
     public GraphStream(short parallelism, short layers) {
         this.parallelism = parallelism;
         this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
-        this.env.setParallelism(this.parallelism);
+//        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
+        this.env.setParallelism(this.parallelism);
         this.env.getConfig().setAutoWatermarkInterval(30000);
-        this.env.setMaxParallelism(32);
-        configureSerializers(this.env);
+        this.env.setMaxParallelism(36);
+        configureSerializers();
     }
 
-    public static void configureSerializers(StreamExecutionEnvironment env) {
+    public void createQueriesTable() {
+        tableEnv.executeSql("CREATE TABLE blackhole_table (" +
+                "  f0 INT," +
+                "  f1 INT," +
+                "  f2 STRING," +
+                "  f3 DOUBLE" +
+                ") WITH (" +
+                "  'connector' = 'blackhole'" +
+                ")");
+        tableEnv.listTables();
+    }
+
+    public void configureSerializers() {
         env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
         env.registerType(GraphElement.class);
@@ -64,7 +79,7 @@ public class GraphStream {
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
 //        env.registerType(MeanAggregator.class);
-        env.registerType(SumAggregator.class);
+//        env.registerType(SumAggregator.class);
     }
 
     /**
@@ -90,8 +105,8 @@ public class GraphStream {
      * @param fileName Name of the file in local or distributed file system
      * @return Datastream of GraphOps
      */
-    public DataStream<GraphOp> readTextFile(MapFunction<String, GraphOp> parser, String fileName) {
-        return this.env.readFile(new TextInputFormat(Path.fromLocalFile(new File(fileName))), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 120000).setParallelism(1).map(parser).setParallelism(1).name("Input Stream Parser");
+    public DataStream<GraphOp> readTextFile(FlatMapFunction<String, GraphOp> parser, String fileName) {
+        return this.env.readFile(new TextInputFormat(Path.fromLocalFile(new File(fileName))), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 120000).flatMap(parser).name("Input Stream Parser");
     }
 
     /**
@@ -116,16 +131,17 @@ public class GraphStream {
      * @return DataStream of GraphOps to be stacked
      */
     public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
-        storageProcess.layers = this.layers;
+        storageProcess.numLayers = this.layers;
         storageProcess.position = this.position_index;
+        last = last.map(item->item).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers)));
         IterativeStream<GraphOp> localIterator = last.iterate();
-        KeyedStream<GraphOp, String> ks = DataStreamUtils.reinterpretAsKeyedStream(localIterator, new PartKeySelector());
+        KeyedStream<GraphOp, String> ks = localIterator.keyBy(new PartKeySelector());
 
-        KeyedStream<GraphOp, String> res = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess)).setParallelism(localIterator.getParallelism()).keyBy(new PartKeySelector());
-        DataStream<GraphOp> iterateFilter = res.filter(new IterateFilter()).setParallelism(localIterator.getParallelism());
-        DataStream<GraphOp> forwardFilter = res.filter(new ForwardFilter()).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index + 1, this.layers)));
+        SingleOutputStreamOperator<GraphOp> forwardFilter = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess)).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers)));
+        DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
+
         if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = res.filter(new BackwardFilter()).returns(GraphOp.class).setParallelism(this.iterator.getParallelism());
+            DataStream<GraphOp> backFilter = forwardFilter.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class))).map(item -> item).setParallelism(this.iterator.getParallelism());
             this.iterator.closeWith(backFilter);
         }
         localIterator.closeWith(iterateFilter);
@@ -134,29 +150,51 @@ public class GraphStream {
         return forwardFilter;
     }
 
+    public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
+        assert position_index == layers;
+        DataStream<Row> embeddings = output.keyBy(new ElementIdSelector()).map(new MapFunction<GraphOp, Row>() {
+            @Override
+            public Row map(GraphOp value) throws Exception {
+                VTensor feature = (VTensor) value.element;
+                return Row.of(feature.attachedTo._2, feature.masterPart(), feature.value._1, feature.value._2);
+            }
+        }).returns(Types.ROW(Types.STRING, TypeInformation.of(Short.class), TypeInformation.of(NDArray.class), Types.INT));
+        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().primaryKey("f0").columnByExpression("event_time", "PROCTIME()").build()).as("id", "master", "feature", "version");
+        Table vertexEmbeddingsUpsert = tableEnv.sqlQuery("SELECT id, LAST_VALUE(master), LAST_VALUE(feature), LAST_VALUE(version), LAST_VALUE(event_time) FROM " + vertexEmbeddingTable +
+                " GROUP BY id");
+
+        tableEnv.createTemporaryView("vertexEmbeddings", vertexEmbeddingsUpsert);
+        return vertexEmbeddingTable;
+    }
+
+    public Table toEdgeTable(DataStream<GraphOp> output) {
+        assert position_index == layers;
+        DataStream<Row> embeddings = output.keyBy(new ElementIdSelector()).map(new MapFunction<GraphOp, Row>() {
+            @Override
+            public Row map(GraphOp value) throws Exception {
+                Edge edge = (Edge) value.element;
+                return Row.of(edge.src.getId(), edge.dest.getId());
+            }
+        }).returns(Types.ROW(Types.STRING, Types.STRING));
+        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().columnByExpression("event_time", "PROCTIME()").primaryKey("f0", "f1").build()).as("srcId", "destId");
+        tableEnv.createTemporaryView("edges", vertexEmbeddingTable);
+        return vertexEmbeddingTable;
+    }
+
     /**
      * With some p probability split the stream into 2. First one is the normal stream and the second one is the training stream
      *
      * @param inputStream S
      * @return Output GraphStream with training features
      */
-    public Tuple2<DataStream<GraphOp>, DataStream<GraphOp>> trainTestSplit(DataStream<GraphOp> inputStream, MapFunction<GraphOp, Tuple2<GraphOp, Boolean>> splitter) {
-        DataStream<Tuple2<GraphOp, Boolean>> splittedStream = inputStream.map(splitter);
-        DataStream<GraphOp> normalStream = splittedStream.filter(item -> !item._2).map(item -> item._1);
-        DataStream<GraphOp> trainingStream = splittedStream.filter(item -> item._2).map(item -> item._1);
-        return new Tuple2<>(normalStream, trainingStream);
+    public DataStream<GraphOp> trainTestSplit(DataStream<GraphOp> inputStream, ProcessFunction<GraphOp, GraphOp> splitter) {
+        return inputStream.process(splitter);
     }
 
-    public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> predictionStream, DataStream<GraphOp> labelStream) {
-        DataStream<GraphOp> lossGrad = predictionStream.join(labelStream)
-                .where(new ElementIdSelector()).equalTo(new ElementIdSelector())
-                .window(SlidingEventTimeWindows.of(Time.seconds(1), Time.seconds(5)))
-                .evictor(new KeepLastElement())
-                .apply(new GraphLossFn())
-                .keyBy(new PartKeySelector()).map(item -> item).setParallelism(this.iterator.getParallelism());
-
-        this.iterator.closeWith(lossGrad);
-        return lossGrad;
+    public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> trainingStream, ProcessFunction<GraphOp, GraphOp> lossFunction) {
+        DataStream<GraphOp> losses = trainingStream.process(lossFunction).setParallelism(1).startNewChain().map(item -> item).setParallelism(iterator.getParallelism());
+        this.iterator.closeWith(losses);
+        return losses;
     }
 
 }

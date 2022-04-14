@@ -60,8 +60,8 @@ public class GNNOutputTraining extends Plugin {
     }
 
     @RemoteFunction
-    public void collectGradients(Map<String, NDArray> grads) {
-        this.inference.parameterStore.addGrads(grads);
+    public void collectGradients(Map<String, Tuple2<NDArray, Integer>> grads) {
+        this.inference.parameterStore.meanAccumulateGrads(grads);
         collectedGradsSoFar++;
         if (collectedGradsSoFar == this.storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             this.inference.parameterStore.updateAllParameters();

@@ -49,6 +49,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         tmp.element = this.element;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
+        tmp.features.addAll(this.features);
         return tmp;
     }
 
@@ -58,6 +59,12 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         this.value.add(element);
     }
 
+    @RemoteFunction
+    public void remove(T element) {
+        if (this.value.contains(element)) return;
+        this.value.remove(element);
+    }
+
     @Override
     public List<T> getValue() {
         return this.value;
@@ -65,6 +72,6 @@ public class Set<T> extends Feature<List<T>, List<T>> {
 
     @Override
     public boolean valuesEqual(List<T> v1, List<T> v2) {
-        return v1 == v2;
+        return false;
     }
 }

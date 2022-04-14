@@ -8,7 +8,6 @@ import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
 import iterations.IterationType;
-import iterations.RemoteFunction;
 import scala.Tuple2;
 
 import java.util.Objects;
@@ -17,29 +16,13 @@ public abstract class GNNOutputInference extends Plugin {
     public transient Model outputModel;
     public MyParameterStore parameterStore = new MyParameterStore();
     public int MODEL_VERSION = 0;
+    public transient boolean updatePending = false;
 
     public GNNOutputInference() {
         super("inferencer");
     }
 
     public abstract Model createOutputModel();
-
-    @RemoteFunction
-    public void forward(String elementId, Tuple2<NDArray, Integer> embedding) {
-        if (embedding._2 >= this.MODEL_VERSION) {
-            Vertex vertex = this.storage.getVertex(elementId);
-            if (Objects.isNull(vertex)) {
-                vertex = new Vertex(elementId, false, this.storage.layerFunction.getCurrentPart());
-                vertex.setStorage(this.storage);
-                if (!vertex.createElement()) throw new AssertionError("Cannot create element in forward function");
-            }
-            if (Objects.isNull(vertex.getFeature("feature"))) {
-                vertex.setFeature("feature", new VTensor(embedding));
-            } else {
-                vertex.getFeature("feature").externalUpdate(new VTensor(embedding));
-            }
-        }
-    }
 
     @Override
     public void add() {
@@ -65,35 +48,8 @@ public abstract class GNNOutputInference extends Plugin {
         this.outputModel.close();
     }
 
-    @Override
-    public void addElementCallback(GraphElement element) {
-        super.addElementCallback(element);
-        switch (element.elementType()) {
-            case FEATURE: {
-                Feature feature = (Feature) element;
-                switch (feature.getFieldName()) {
-                    case "feature": {
-//                        this.makePredictionAndSendForward((VTensor) feature);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    @Override
-    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-        super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()) {
-            case FEATURE: {
-                Feature feature = (Feature) newElement;
-                switch (feature.getFieldName()) {
-                    case "feature": {
-//                        this.makePredictionAndSendForward((VTensor) feature);
-                    }
-                }
-            }
-        }
+    public boolean outputReady(Edge edge) {
+        return !updatePending && Objects.nonNull(edge.src.getFeature("feature")) && ((VTensor) edge.src.getFeature("feature")).isReady(MODEL_VERSION) && Objects.nonNull(edge.dest.getFeature("feature")) && ((VTensor) edge.dest.getFeature("feature")).isReady(MODEL_VERSION);
     }
 
     public NDArray output(NDArray feature, boolean training) {

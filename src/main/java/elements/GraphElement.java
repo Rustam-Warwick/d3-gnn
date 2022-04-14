@@ -60,6 +60,18 @@ public class GraphElement implements Serializable {
         return is_created;
     }
 
+    public Boolean deleteElement() {
+        cacheFeatures();
+        for (GraphElement el : this.features) {
+            el.deleteElement();
+        }
+        boolean is_deleted = this.storage.deleteElement(this);
+        if (is_deleted) {
+            this.storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
+        }
+        return is_deleted;
+    }
+
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
         GraphElement memento = this.copy();
         boolean is_updated = false;
@@ -68,7 +80,7 @@ public class GraphElement implements Serializable {
             if (Objects.nonNull(thisFeature)) {
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
                 is_updated |= tmp._1();
-                addIfNotExists(memento.features, feature);
+                addIfNotExists(memento.features, (Feature) tmp._2);
             } else {
                 this.setFeature(feature.getFieldName(), feature);
                 is_updated = true;
@@ -145,10 +157,14 @@ public class GraphElement implements Serializable {
         }
     }
 
+    public String decodeFeatureId(String fieldName) {
+        return getId() + fieldName;
+    }
+
     public Feature getFeature(String name) {
         Feature result = this.features.stream().filter(item -> item.getFieldName().equals(name)).findAny().orElse(null);
         if (result == null && this.storage != null) {
-            result = this.storage.getFeature(this.getId() + name);
+            result = this.storage.getFeature(decodeFeatureId(name));
             if (Objects.nonNull(result)) {
                 result.setElement(this);
                 addIfNotExists(this.features, result);

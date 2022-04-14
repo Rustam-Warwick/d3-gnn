@@ -13,7 +13,7 @@ public class Edge extends GraphElement {
     }
 
     public Edge(Vertex src, Vertex dest) {
-        super(src.id + ":" + dest.id);
+        super(src.getId() + ":" + dest.getId());
         this.src = src;
         this.dest = dest;
     }
@@ -42,6 +42,7 @@ public class Edge extends GraphElement {
         Vertex src = this.src;
         this.src = this.dest;
         this.dest = src;
+        this.id = src.getId() + ":" + dest.getId();
     }
 
     @Override

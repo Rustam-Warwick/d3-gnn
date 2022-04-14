@@ -24,8 +24,9 @@ public class TaskNDManager {
     }
 
     public void clean() {
-        this.tempManager.close();
-        this.tempManager = this.lifeCycleManager.newSubManager();
+
+//        this.tempManager = this.lifeCycleManager.newSubManager();
+
     }
 
     public void close() {

@@ -2,7 +2,7 @@ package elements;
 
 import features.Set;
 import iterations.IterationType;
-import iterations.Rmi;
+import iterations.RemoteInvoke;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -75,23 +75,27 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
-            Set<Integer> tmp = (Set<Integer>) this.getFeature("parts");
-            Rmi.call(tmp, "add", newElement.getPartId());
-            this.syncReplica(newElement.getPartId());
-
+            new RemoteInvoke()
+                    .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
+                    .hasUpdate()
+                    .method("add")
+                    .toDestination(masterPart())
+                    .where(IterationType.ITERATE)
+                    .withArgs(newElement.getPartId())
+                    .buildAndRun(storage);
+            syncReplicas(List.of(newElement.getPartId()));
         } else if (this.state() == ReplicaState.REPLICA) {
             return this.updateElement(newElement);
         }
 
-        return super.syncElement(this);
-
+        return super.syncElement(this); // Do nothing
     }
 
     @Override
     public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
             Tuple2<Boolean, GraphElement> tmp = super.externalUpdate(newElement);
-            if (tmp._1) this.syncReplicas(true);
+            if (tmp._1) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
             this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationType.ITERATE));
@@ -99,36 +103,18 @@ public class ReplicableGraphElement extends GraphElement {
         } else return super.externalUpdate(newElement);
     }
 
-
-    public void syncReplicas(boolean skipHalo) {
-        if ((this.state() != ReplicaState.MASTER) || (this.isHalo() && skipHalo) || this.replicaParts() == null || this.replicaParts().isEmpty())
-            return;
-        this.cacheFeatures();
+    public void syncReplicas(List<Short> parts) {
+        if ((this.state() != ReplicaState.MASTER) || this.isHalo() || parts == null || parts.isEmpty()) return;
+        cacheFeatures();
         ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
         for (Feature feature : this.features) {
-            if (skipHalo && feature.isHalo()) continue;
+            if (feature.isHalo()) continue;
             Feature tmp = (Feature) feature.copy();
-            if (tmp.isHalo()) {
-                tmp.value = null;
-            }
-            cpy.setFeature(feature.getFieldName(), tmp);
-        }
-        this.replicaParts().forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
-    }
-
-    public void syncReplica(short part_id) {
-        if (this.state() != ReplicaState.MASTER) return;
-        this.cacheFeatures();
-        ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
-        for (Feature feature : this.features) {
-            Feature tmp = (Feature) feature.copy();
-            if (tmp.isHalo()) {
-                tmp.value = null;
-            }
             cpy.setFeature(feature.getFieldName(), tmp);
         }
 
-        this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
+
     }
 
     @Override

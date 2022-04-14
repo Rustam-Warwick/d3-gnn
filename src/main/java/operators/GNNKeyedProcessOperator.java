@@ -10,11 +10,13 @@ import org.apache.flink.streaming.api.TimeDomain;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -54,9 +56,16 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
         onTimerContext = new GNNKeyedProcessOperator.OnTimerContextImpl(userFunction, timerService);
 
         ((StreamingGNNLayerFunction) userFunction).collector = collector;
+        ((StreamingGNNLayerFunction) userFunction).ctx = context;
+        ((StreamingGNNLayerFunction) userFunction).timerService = timerService;
+
         short thisMaster = this.setOperatorKeys();
         setCurrentKey(String.valueOf(thisMaster));
         super.open();
+    }
+
+    public void registerMasterTimer() {
+
     }
 
     @Override
@@ -69,6 +78,12 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
     public void onProcessingTime(InternalTimer<String, VoidNamespace> timer) throws Exception {
         collector.eraseTimestamp();
         invokeUserFunction(TimeDomain.PROCESSING_TIME, timer);
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        super.processWatermark(mark);
+        ((StreamingGNNLayerFunction) userFunction).getStorage().onWatermark(mark);
     }
 
     @Override
@@ -148,8 +163,11 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
             if (outputTag == null) {
                 throw new IllegalArgumentException("OutputTag must not be null.");
             }
-
-            output.collect(outputTag, new StreamRecord<>(value, element.getTimestamp()));
+            long timeStamp = Long.MIN_VALUE;
+            if (Objects.nonNull(element)) {
+                timeStamp = element.getTimestamp();
+            }
+            output.collect(outputTag, new StreamRecord<>(value, timeStamp));
         }
 
         @Override

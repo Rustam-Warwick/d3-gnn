@@ -3,12 +3,14 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import elements.GraphElement;
 import iterations.RemoteFunction;
-import iterations.Rmi;
 import scala.Tuple4;
 
 import java.util.Arrays;
 import java.util.Objects;
 
+/**
+ * Value, Count of Aggregated Values, Total Neighbors, Version
+ */
 public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Integer, Integer>> {
     public MeanAggregator() {
         super();
@@ -42,6 +44,11 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
         super(id, value, halo, master);
     }
 
+    public static NDArray bulkReduce(NDArray... newElements) {
+        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
+        return sum;
+    }
+
     @Override
     public GraphElement copy() {
         MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
@@ -60,35 +67,28 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
 
     @RemoteFunction
     @Override
-    public void reduce(int version, short partId, NDArray newElement, int count) {
+    public void reduce(int version, NDArray newElement, int count) {
         if (version < this.value._4()) return;
         if (version > this.value._4()) reset();
         this.value._1().muli(this.value._2()).addi(newElement).divi(this.value._2() + count);
         int newCount = this.value._2() + count;
         this.value = new Tuple4<>(this.value._1(), newCount, Math.max(this.value._3(), newCount), version);
         if (this.attachedTo._2.equals("10")) {
-            System.out.println("Reduce count: " + count + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.layerFunction.getPosition());
+            System.out.println("Reduce count: " + count + "From part: " + partId + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.layerFunction.getPosition());
         }
-    }
-
-    @Override
-    public void bulkReduce(int version, short partId, NDArray... newElements) {
-        if (newElements.length <= 0) return;
-        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        Rmi.call(this, "reduce", version, partId, sum, newElements.length);
     }
 
     @RemoteFunction
     @Override
-    public void replace(int version, short partId, NDArray newElement, NDArray oldElement) {
-        if (version < this.value._4()) return;
-        NDArray difference = newElement.sub(oldElement);
-        this.value._1().addi(difference.div(this.value._2()));
+    public void replace(int version, NDArray newElement, NDArray oldElement) {
+        if (version != this.value._4()) return;
+        newElement.subi(oldElement).divi(value._2());
+        value._1().addi(newElement);
     }
 
     @Override
     public NDArray grad() {
-        return this.value._1().getGradient().divi(this.value._2());
+        return this.value._1().getGradient().div(this.value._2());
     }
 
     @Override

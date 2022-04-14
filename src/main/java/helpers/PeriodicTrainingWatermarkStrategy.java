@@ -27,4 +27,5 @@ public class PeriodicTrainingWatermarkStrategy<T> implements WatermarkStrategy<T
             output.emitWatermark(new Watermark(++modelVersion));
         }
     }
+
 }

@@ -54,6 +54,7 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
         tmp.element = this.element;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
+        tmp.features.addAll(this.features);
         return tmp;
     }
 

@@ -8,9 +8,11 @@ import org.apache.flink.api.common.state.ValueStateDescriptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class HashMapStorage extends BaseStorage {
     public transient MapState<String, Integer> translationTable;
@@ -84,6 +86,37 @@ public class HashMapStorage extends BaseStorage {
 
     }
 
+    @Override
+    public boolean deleteFeature(Feature feature) {
+        return false;
+    }
+
+    @Override
+    public boolean deleteVertex(Vertex vertex) {
+        return false;
+    }
+
+    @Override
+    public boolean deleteEdge(Edge edge) {
+        try {
+            int src_internal_id = translationTable.get(edge.src.getId());
+            int dest_internal_id = translationTable.get(edge.dest.getId());
+            List<Integer> inEdges = vertexInEdges.get(dest_internal_id);
+            inEdges.remove(src_internal_id);
+            vertexInEdges.put(dest_internal_id, inEdges);
+            List<Integer> outEdge = vertexOutEdges.get(src_internal_id);
+            outEdge.remove(dest_internal_id);
+            vertexOutEdges.put(src_internal_id, outEdge);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public Iterable<Edge> getEdges() {
+        return null;
+    }
 
     @Override
     public boolean addVertex(Vertex vertex) {
@@ -152,13 +185,21 @@ public class HashMapStorage extends BaseStorage {
         return false;
     }
 
+    public Vertex getVertex(int vertexId){
+        try {
+            Vertex res = this.vertexTable.get(vertexId);
+            res.setStorage(this);
+            return res;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Override
     public Vertex getVertex(String id) {
         try {
             int vertexId = this.translationTable.get(id);
-            Vertex res = this.vertexTable.get(vertexId);
-            res.setStorage(this);
-            return res;
+            return getVertex(vertexId);
         } catch (Exception e) {
             return null;
         }
@@ -177,13 +218,21 @@ public class HashMapStorage extends BaseStorage {
 
     @Override
     public Edge getEdge(String id) {
-        String[] idArr = id.split(":");
-        Vertex src = getVertex(idArr[0]);
-        Vertex dest = getVertex(idArr[1]);
-        if (Objects.isNull(src) || Objects.isNull(dest)) return null;
-        Edge edge = new Edge(src, dest);
-        edge.setStorage(this);
-        return edge;
+        try{
+            String[] idArr = id.split(":");
+            int internalSrcId = translationTable.get(idArr[0]);
+            int internalDestId = translationTable.get(idArr[1]);
+            List<Integer> destIds = vertexOutEdges.get(internalSrcId);
+            if(!destIds.contains(internalDestId)) return null;
+            Vertex src = getVertex(internalSrcId);
+            Vertex dest = getVertex(internalDestId);
+            Edge edge = new Edge(src, dest);
+            edge.setStorage(this);
+            return edge;
+        }catch (Exception e){
+            return null;
+        }
+
     }
 
     @Override
@@ -213,11 +262,14 @@ public class HashMapStorage extends BaseStorage {
                             return null;
                         }
                     }).collect(Collectors.toList());
-                default:
-                    return new ArrayList<>();
+                case BOTH:
+                    List<Edge> inEdges = (List) getIncidentEdges(vertex, EdgeType.IN);
+                    List<Edge> outEdges = (List) getIncidentEdges(vertex, EdgeType.OUT);
+                    return Stream.concat(inEdges.stream(), outEdges.stream()).collect(Collectors.toList());
             }
+            return Collections.emptyList();
         } catch (Exception e) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
 

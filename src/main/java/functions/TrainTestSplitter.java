@@ -1,11 +1,16 @@
 package functions;
 
+import elements.Feature;
 import elements.GraphOp;
-import org.apache.flink.api.common.functions.MapFunction;
-import scala.Tuple2;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
 
-public class TrainTestSplitter implements MapFunction<GraphOp, Tuple2<GraphOp, Boolean>> {
+public class TrainTestSplitter extends ProcessFunction<GraphOp, GraphOp> {
     public final double p;
+    final OutputTag<GraphOp> trainOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {
+    };
 
     public TrainTestSplitter() {
         p = 0.002d;
@@ -16,12 +21,14 @@ public class TrainTestSplitter implements MapFunction<GraphOp, Tuple2<GraphOp, B
     }
 
     @Override
-    public Tuple2<GraphOp, Boolean> map(GraphOp value) throws Exception {
-        double valuerandom = Math.random();
-        boolean isTraining = false;
-        if (valuerandom < p) {
-            isTraining = true;
-        }
-        return new Tuple2<>(value, isTraining);
+    public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+
+//        double valuerandom = Math.random();
+//        if (valuerandom < p) {
+////            value.element.setFeature("label", new Feature<Integer, Integer>(1));
+//            ctx.output(trainOutput, value);
+//            return;
+//        }
+        out.collect(value);
     }
 }

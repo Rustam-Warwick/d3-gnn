@@ -9,6 +9,7 @@ import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.training.ParameterStore;
 import ai.djl.util.Pair;
+import scala.Tuple2;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -18,8 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MyParameterStore extends ParameterStore implements Serializable {
     public Map<String, NDArray> parameterArrays;
-    public Map<String, NDArray> gradientArrays;
-
+    public Map<String, Tuple2<NDArray, Integer>> gradientArrays;
     private transient NDManager manager;
 
     public MyParameterStore() {
@@ -32,30 +32,47 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.gradientArrays = new HashMap<>();
     }
 
+    public static boolean isTensorReady(NDArray arr) {
+        return arr.any().getBoolean() && !arr.isNaN().any().getBoolean() && !arr.isInfinite().any().getBoolean();
+    }
+
     public void setNDManager(NDManager newManager) {
         this.parameterArrays.forEach((id, value) -> {
             value.attach(newManager);
         });
         this.gradientArrays.forEach((id, value) -> {
-            value.attach(newManager);
+            value._1.attach(newManager);
         });
         manager.close();
         this.manager = newManager;
     }
 
     /**
-     * Subtracts grads from parameter arrays
+     * Step and update model parameters from the acquired gradients
      */
     public void step() {
         parameterArrays.forEach((key, item) -> {
             item.setRequiresGradient(false);
-            NDArray grad = gradientArrays.get(key);
+            NDArray grad = gradientArrays.get(key)._1;
             item.subi(grad);
         });
     }
 
+    /**
+     * Replace The Parameters
+     *
+     * @param newParams
+     */
     public void updateParameters(Map<String, NDArray> newParams) {
-        parameterArrays.putAll(newParams);
+        newParams.forEach((key, item) -> {
+            System.out.println(item);
+            if (parameterArrays.containsKey(key)) {
+                NDArray currentParam = parameterArrays.get(key);
+                if (currentParam != item) currentParam.close();
+            }
+            item.attach(getManager());
+            parameterArrays.put(key, item);
+        });
     }
 
     /**
@@ -78,19 +95,19 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     }
 
     /**
-     * Load the Model to ParameterStore intially
+     * Load the model parameters to memory
      *
      * @param model
      */
     public void loadModel(Model model) {
         model.getBlock().getParameters().forEach(item -> {
             this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
-            this.gradientArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray().zerosLike());
+            this.gradientArrays.putIfAbsent(item.getValue().getId(), new Tuple2(item.getValue().getArray().zerosLike(), 0));
         });
     }
 
     /**
-     * Restore the model parameters saved here
+     * Restore the model parameters from the parameters in this Store
      *
      * @param model
      */
@@ -101,13 +118,38 @@ public class MyParameterStore extends ParameterStore implements Serializable {
             item.getValue().setShape(null);
             item.getValue().setArray(thisArray);
         });
-
     }
 
-    public void addGrads(Map<String, NDArray> newGrads) {
-        this.gradientArrays.forEach((key, items) -> {
-            NDArray x = newGrads.get(key);
-            items.addi(x);
+    public void meanAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
+        if (grad._2 <= 0 || !isTensorReady(grad._1)) return;
+        NDManager tmpManager = manager.newSubManager();
+        Tuple2<NDArray, Integer> thisGrad = gradientArrays.get(parameterId);
+        thisGrad._1.attach(tmpManager);
+        grad._1.attach(tmpManager);
+        int sumTotal = thisGrad._2 + grad._2;
+        NDArray thisTotal = thisGrad._1.mul(thisGrad._2);
+        NDArray remoteTotal = grad._1.mul(grad._2);
+        NDArray finalResult = (thisTotal.add(remoteTotal)).div(sumTotal);
+        finalResult.attach(getManager());
+        gradientArrays.put(parameterId, new Tuple2<>(finalResult, sumTotal));
+        tmpManager.close();
+    }
+
+    public void sumAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
+        if (grad._2 <= 0 || !isTensorReady(grad._1)) return;
+        Tuple2<NDArray, Integer> currentGrad = gradientArrays.get(parameterId);
+        currentGrad._1.addi(grad._1);
+        gradientArrays.put(parameterId, new Tuple2<>(currentGrad._1, currentGrad._2 + grad._2));
+    }
+
+    /**
+     * Add Collected Gradients to this guy
+     *
+     * @param newGrads
+     */
+    public void meanAccumulateGrads(Map<String, Tuple2<NDArray, Integer>> newGrads) {
+        newGrads.forEach((key, items) -> {
+            meanAccumulateGrads(items, key);
         });
     }
 
@@ -116,7 +158,10 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      */
     public void resetGrads() {
         this.gradientArrays.forEach((key, item) -> {
-            item.subi(item);
+            item._1.setRequiresGradient(false);
+            gradientArrays.put(key, new Tuple2<>(item._1.zerosLike(), 0));
+            item._1.close();
+
         });
     }
 
@@ -125,7 +170,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         NDArray valueParam = this.parameterArrays.get(parameter.getId());
         if (valueParam.hasGradient() && !training) {
             NDArray grad = valueParam.getGradient();
-            this.gradientArrays.compute(parameter.getId(), (key, value) -> value.addi(grad)); // Commit accumulator changes
+            sumAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
             valueParam.setRequiresGradient(training);
         } else if (!valueParam.hasGradient() && training) {
             valueParam.setRequiresGradient(training);
@@ -143,7 +188,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     public void sync() {
         super.sync();
     }
-
 
     private void writeObject(ObjectOutputStream oos) throws IOException {
         DataOutputStream dos = new DataOutputStream(oos);
@@ -163,9 +207,8 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         for (; i > 0; i--) {
             String id = dis.readUTF();
             NDArray value = this.manager.decode(dis);
-            value.setRequiresGradient(true);
             this.parameterArrays.putIfAbsent(id, value);
-            this.gradientArrays.putIfAbsent(id, value.zerosLike());
+            this.gradientArrays.putIfAbsent(id, new Tuple2(value.zerosLike(), 0));
         }
 
     }

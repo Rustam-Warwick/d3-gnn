@@ -1,7 +1,6 @@
 package elements;
 
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.util.Collector;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import scala.Tuple2;
 
 import java.util.List;
@@ -51,7 +50,11 @@ public class Plugin extends ReplicableGraphElement {
 
     }
 
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) {
+    public void deleteElementCallback(GraphElement deletedElement) {
+
+    }
+
+    public void onWatermark(Watermark w) {
 
     }
 

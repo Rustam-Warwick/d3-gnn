@@ -6,21 +6,18 @@ import helpers.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.util.Collector;
+import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.stream.Stream;
 
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
-    public GNNLayerFunction layerFunction;
     /**
      * List of plugins attached to this storage engine
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
-
-
+    public GNNLayerFunction layerFunction;
     /**
      * Helper manager for managing tensor memory
      */
@@ -38,6 +35,12 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean updateEdge(Edge edge);
 
+    public abstract boolean deleteFeature(Feature feature);
+
+    public abstract boolean deleteVertex(Vertex vertex);
+
+    public abstract boolean deleteEdge(Edge edge);
+
     public abstract Vertex getVertex(String id);
 
     public abstract Iterable<Vertex> getVertices();
@@ -45,6 +48,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Edge getEdge(String id);
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+
+    public abstract Iterable<Edge> getEdges();
 
     public abstract Feature getFeature(String id);
 
@@ -76,8 +81,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         this.manager.close();
     }
 
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
-        this.plugins.values().forEach(plugin -> plugin.onTimer(timestamp, ctx, out));
+    public void onWatermark(Watermark w) {
+        this.plugins.values().forEach(plugin -> plugin.onWatermark(w));
     }
 
     @Override
@@ -99,6 +104,19 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.addEdge((Edge) element);
             case FEATURE:
                 return this.addFeature((Feature<?, ?>) element);
+            default:
+                return false;
+        }
+    }
+
+    public boolean deleteElement(GraphElement element) {
+        switch (element.elementType()) {
+            case VERTEX:
+                return this.deleteVertex((Vertex) element);
+            case EDGE:
+                return this.deleteEdge((Edge) element);
+            case FEATURE:
+                return this.deleteFeature((Feature<?, ?>) element);
             default:
                 return false;
         }

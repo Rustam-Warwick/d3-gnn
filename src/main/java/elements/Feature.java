@@ -1,6 +1,5 @@
 package elements;
 
-import iterations.IterationType;
 import scala.Tuple2;
 
 import java.util.List;
@@ -67,6 +66,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         tmp.partId = this.partId;
         tmp.element = this.element;
         tmp.storage = this.storage;
+        tmp.features.addAll(this.features);
         return tmp;
     }
 
@@ -81,7 +81,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
                     el.createElement();
                 }
                 this.storage.getPlugins().forEach(item -> item.addElementCallback(this));
-                if (this.state() == ReplicaState.MASTER) this.syncReplicas(false);
+                if (this.state() == ReplicaState.MASTER)
+                    this.syncReplicas(replicaParts()); // If this is master create element
+                // This is needed cause features can arrive way later than the replicas registered
+                // Otehrwise replicaParts is going to be empty anyway
             }
             return is_created;
         }
@@ -103,39 +106,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return new Tuple2<>(isUpdated, memento);
     }
 
-    public void syncReplicas(boolean skipHalo) {
-        if ((this.state() != ReplicaState.MASTER) || (this.isHalo() && skipHalo) || this.replicaParts() == null || this.replicaParts().isEmpty())
-            return;
-        this.cacheFeatures();
-        Feature cpy = (Feature) this.copy();
-        if (this.isHalo()) cpy.value = null;
-        for (Feature feature : this.features) {
-            if (skipHalo && feature.isHalo()) continue;
-            Feature tmp = (Feature) feature.copy();
-            if (tmp.isHalo()) {
-                tmp.value = null;
-            }
-            cpy.setFeature(feature.getFieldName(), tmp);
-        }
-        this.replicaParts().forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
-    }
-
-    public void syncReplica(short part_id) {
-        if (this.state() != ReplicaState.MASTER) return;
-        this.cacheFeatures();
-        Feature cpy = (Feature) this.copy();
-        if (this.isHalo()) cpy.value = null;
-        for (Feature feature : this.features) {
-            Feature tmp = (Feature) feature.copy();
-            if (tmp.isHalo()) {
-                tmp.value = null;
-            }
-            cpy.setFeature(feature.getFieldName(), tmp);
-        }
-
-        this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE));
-    }
-
 
     // Abstract Methods and
     public V getValue() {
@@ -143,7 +113,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     public boolean valuesEqual(T v1, T v2) {
-        return v1.equals(v2);
+        return false;
     }
 
     // Getters and setters

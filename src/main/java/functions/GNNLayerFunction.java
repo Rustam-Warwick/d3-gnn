@@ -1,9 +1,12 @@
 package functions;
 
+import ai.djl.pytorch.engine.PtEngine;
 import elements.*;
 import iterations.IterationType;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
+import org.apache.flink.streaming.api.TimerService;
+import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
 import java.util.List;
@@ -32,7 +35,7 @@ public interface GNNLayerFunction extends RichFunction {
     List<Short> getThisParts();
 
     /**
-     * Get master parts of other parallel operators
+     * Get master parts of hashed to other parallel operators
      *
      * @return
      */
@@ -50,7 +53,7 @@ public interface GNNLayerFunction extends RichFunction {
      *
      * @return
      */
-    short getLayers();
+    short getNumLayers();
 
     /**
      * Send message
@@ -59,6 +62,12 @@ public interface GNNLayerFunction extends RichFunction {
      */
     void message(GraphOp op);
 
+
+    /**
+     * Side outputs
+     */
+    void sideMessage(GraphOp op, OutputTag<GraphOp> outputTag);
+
     /**
      * Storage Attached to this GNNLayer
      *
@@ -66,6 +75,7 @@ public interface GNNLayerFunction extends RichFunction {
      */
     BaseStorage getStorage();
 
+    TimerService getTimerService();
 
     /**
      * Is this the first GNN-layer
@@ -76,19 +86,18 @@ public interface GNNLayerFunction extends RichFunction {
         return getPosition() == 1;
     }
 
-    ;
-
     /**
      * Is this the last or output GNN-layer
      *
      * @return
      */
     default boolean isLast() {
-        return getPosition() >= getLayers();
+        return getPosition() >= getNumLayers();
     }
 
     /**
      * Process incoming value
+     *
      * @param value
      */
     default void process(GraphOp value) {
@@ -126,6 +135,8 @@ public interface GNNLayerFunction extends RichFunction {
                     break;
             }
         } catch (Exception e) {
+            e.printStackTrace();
+        } catch (Error e) {
             e.printStackTrace();
         } finally {
             getStorage().manager.clean();

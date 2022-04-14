@@ -15,9 +15,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 public class TensorSerializer extends Serializer<NDArray> {
-    private static final String MAGIC_NUMBER = "NDAR";
-    private static final Integer VERSION = 3;
-    private static final NDManager manager = NDManager.newBaseManager();
+    private final String MAGIC_NUMBER = "NDAR";
+    private final Integer VERSION = 3;
+    private final NDManager manager = NDManager.newBaseManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -80,8 +80,6 @@ public class TensorSerializer extends Serializer<NDArray> {
         }
 
         // Data
-
-
         int length = input.readInt();
         ByteBuffer data = manager.allocateDirect(length);
 

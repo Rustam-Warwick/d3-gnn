@@ -14,9 +14,6 @@ import java.nio.ByteBuffer;
  * This is done because some tensors are intrinsic to the system and shouldn't be garbadge collected at all, like backward pass gradients and etc.
  */
 public class JavaTensor extends PtNDArray {
-    public static final Cleaner cleaer = Cleaner.create();
-
-
     private JavaTensor(PtNDManager manager, long handle) {
         super(manager, handle);
     }
@@ -27,21 +24,13 @@ public class JavaTensor extends PtNDArray {
 
     public JavaTensor(NDArray arr) {
         this(((PtNDArray) arr).getManager(), ((PtNDArray) arr).getHandle(), arr.toByteBuffer());
-        this.detach();
-        cleaer.register(this, new State(arr));
+        arr.detach();
     }
 
-    public static class State implements Runnable {
-        public NDArray resource;
-
-        public State(NDArray resource) {
-            this.resource = resource;
-        }
-
-        @Override
-        public void run() {
-            resource.close();
-        }
+    @Override
+    protected void finalize() throws Throwable {
+        this.close();
     }
+
 
 }
