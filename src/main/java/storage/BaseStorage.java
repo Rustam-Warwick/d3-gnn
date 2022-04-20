@@ -79,6 +79,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public void close() throws Exception {
         this.plugins.values().forEach(Plugin::close);
         this.manager.close();
+        System.out.println("Closing");
     }
 
     public void onWatermark(Watermark w) {

@@ -1,46 +1,44 @@
 package helpers;
 
 import aggregators.BaseAggregator;
+import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
 import functions.StreamingGNNLayerFunction;
+import iterations.Rmi;
 import operators.GNNKeyedProcessOperator;
+import operators.SimpleTailOperator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.io.TextInputFormat;
-import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
-import org.apache.flink.core.fs.Path;
+import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
 import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
+import serializers.JavaTensor;
 import serializers.TensorSerializer;
 
-import java.io.File;
-import java.util.Objects;
-
 public class GraphStream {
-    public short parallelism;
-    public short layers;
-    public short position_index = 1;
-    public short layer_parallelism = 3;
+    public short parallelism; // Default parallelism
+    public short layers; // Number of GNN Layers in the pipeline
+    public IterationID lastIterationID; // Previous Layer Iteration Id
+    public short position_index = 1; // Counter of the Current GNN layer being deployed
+    public double lambda = 1.8; // GNN operator explosion coefficient
     public StreamExecutionEnvironment env;
     public StreamTableEnvironment tableEnv;
-    public IterativeStream<GraphOp> iterator = null;
 
     public GraphStream(short parallelism, short layers) {
         this.parallelism = parallelism;
@@ -49,21 +47,9 @@ public class GraphStream {
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
-        this.env.getConfig().setAutoWatermarkInterval(30000);
-        this.env.setMaxParallelism(36);
+        this.env.getConfig().enableObjectReuse();
+        this.env.setMaxParallelism(128);
         configureSerializers();
-    }
-
-    public void createQueriesTable() {
-        tableEnv.executeSql("CREATE TABLE blackhole_table (" +
-                "  f0 INT," +
-                "  f1 INT," +
-                "  f2 STRING," +
-                "  f3 DOUBLE" +
-                ") WITH (" +
-                "  'connector' = 'blackhole'" +
-                ")");
-        tableEnv.listTables();
     }
 
     public void configureSerializers() {
@@ -78,7 +64,8 @@ public class GraphStream {
         env.registerType(JavaTensor.class);
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
-//        env.registerType(MeanAggregator.class);
+        env.registerType(Rmi.class);
+        env.registerType(MeanAggregator.class);
 //        env.registerType(SumAggregator.class);
     }
 
@@ -106,7 +93,7 @@ public class GraphStream {
      * @return Datastream of GraphOps
      */
     public DataStream<GraphOp> readTextFile(FlatMapFunction<String, GraphOp> parser, String fileName) {
-        return this.env.readFile(new TextInputFormat(Path.fromLocalFile(new File(fileName))), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 120000).flatMap(parser).name("Input Stream Parser");
+        return env.readTextFile(fileName).flatMap(parser).name("Input Stream Parser");
     }
 
     /**
@@ -123,32 +110,53 @@ public class GraphStream {
         return stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
     }
 
-    /**
-     * Given DataStream of GraphOps acts as storage layer with plugins to handle GNN-layers. Stack then for deeper GNNs
-     *
-     * @param last           DataStream of GraphOp Records, This one shuold be forwardable so it should be already keyedby and with correct parallelism
-     * @param storageProcess Process with attached plugins
-     * @return DataStream of GraphOps to be stacked
-     */
-    public DataStream<GraphOp> gnnLayer(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
+    //
+    public DataStream<GraphOp> gnnLayerOldIteration(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
         storageProcess.numLayers = this.layers;
         storageProcess.position = this.position_index;
-        last = last.map(item->item).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers)));
-        IterativeStream<GraphOp> localIterator = last.iterate();
-        KeyedStream<GraphOp, String> ks = localIterator.keyBy(new PartKeySelector());
-
-        SingleOutputStreamOperator<GraphOp> forwardFilter = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess)).setParallelism((int) Math.pow(this.layer_parallelism, Math.min(this.position_index, this.layers)));
+        int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers)));
+        DataStream<GraphOp> input = last.keyBy(new PartKeySelector()).map(item -> item).setParallelism(thisParallelism);
+        IterativeStream<GraphOp> currentIteration = input.iterate();
+        KeyedStream<GraphOp, String> ks = currentIteration.keyBy(new PartKeySelector());
+        SingleOutputStreamOperator<GraphOp> forwardFilter = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, new IterationID())).setParallelism(thisParallelism);
         DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
+        currentIteration.closeWith(iterateFilter);
 
-        if (Objects.nonNull(this.iterator)) {
-            DataStream<GraphOp> backFilter = forwardFilter.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class))).map(item -> item).setParallelism(this.iterator.getParallelism());
-            this.iterator.closeWith(backFilter);
-        }
-        localIterator.closeWith(iterateFilter);
-        this.iterator = localIterator;
+        input.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        currentIteration.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        forwardFilter.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+
+
         this.position_index++;
         return forwardFilter;
     }
+
+
+    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
+        storageProcess.numLayers = this.layers;
+        storageProcess.position = this.position_index;
+        int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
+        IterationID localIterationId = new IterationID();
+
+        DataStream<GraphOp> keyedLast = last.keyBy(new PartKeySelector());
+        SingleOutputStreamOperator<GraphOp> forwardFilter = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
+        DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
+        DataStream<Void> iteration = iterateFilter.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
+
+        forwardFilter.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iteration.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+
+        if (position_index > 1) {
+            int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
+            DataStream<GraphOp> backFilter = forwardFilter.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
+            DataStream<Void> backiteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
+            backiteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+        }
+        this.position_index++;
+        this.lastIterationID = localIterationId;
+        return forwardFilter;
+    }
+
 
     public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
         assert position_index == layers;
@@ -192,9 +200,11 @@ public class GraphStream {
     }
 
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> trainingStream, ProcessFunction<GraphOp, GraphOp> lossFunction) {
-        DataStream<GraphOp> losses = trainingStream.process(lossFunction).setParallelism(1).startNewChain().map(item -> item).setParallelism(iterator.getParallelism());
-        this.iterator.closeWith(losses);
+        DataStream<GraphOp> losses = trainingStream.process(lossFunction).setParallelism(1);
+        DataStream<Void> backIteration = losses.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(trainingStream.getParallelism());
+        backIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         return losses;
     }
+
 
 }

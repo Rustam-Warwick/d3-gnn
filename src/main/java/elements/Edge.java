@@ -39,10 +39,10 @@ public class Edge extends GraphElement {
     }
 
     public void reverse() {
-        Vertex src = this.src;
+        Vertex srcTemp = this.src;
         this.src = this.dest;
-        this.dest = src;
-        this.id = src.getId() + ":" + dest.getId();
+        this.dest = srcTemp;
+        this.id = this.src.getId() + ":" + this.dest.getId();
     }
 
     @Override
@@ -51,10 +51,10 @@ public class Edge extends GraphElement {
     }
 
     @Override
-    public Boolean createElement() {
-        this.src.createElement();
-        this.dest.createElement();
-        return super.createElement();
+    public Boolean create() {
+        this.src.create();
+        this.dest.create();
+        return super.create();
     }
 
     @Override

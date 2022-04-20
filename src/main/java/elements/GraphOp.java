@@ -7,6 +7,7 @@ public class GraphOp {
     public short part_id = -1;
     public GraphElement element = null;
     public IterationType state = IterationType.FORWARD;
+    public Long checkpointBarrier = null;
 
     public GraphOp() {
         this.op = Op.COMMIT;
@@ -25,7 +26,7 @@ public class GraphOp {
     }
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.part_id, this.element.copy(), this.state);
+        return new GraphOp(this.op, this.part_id, this.element, this.state);
     }
 
     public boolean isTopologyChange() {

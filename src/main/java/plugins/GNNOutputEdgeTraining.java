@@ -15,6 +15,7 @@ import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class GNNOutputEdgeTraining extends Plugin {
     transient public GNNOutputEdgeInference inference;
@@ -45,9 +46,12 @@ public class GNNOutputEdgeTraining extends Plugin {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
             Edge messageEdge = (Edge) e.copy();
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
-//            messageEdge.features.add((Feature)e.getFeature("label").copy());
+            if(Objects.isNull(e.getFeature("label"))){
+                messageEdge.setFeature("label", new Feature<Integer, Integer>(1));
+            }else{
+                messageEdge.features.add((Feature) e.getFeature("label").copy());
+            }
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
-//            e.deleteElement();
         }
     }
 
@@ -78,6 +82,9 @@ public class GNNOutputEdgeTraining extends Plugin {
             }
             srcFeature.getValue().setRequiresGradient(false);
             destFeature.getValue().setRequiresGradient(false);
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), edge, IterationType.BACKWARD));
+            edge.deleteElement();
+
         }
     }
 

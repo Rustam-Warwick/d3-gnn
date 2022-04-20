@@ -2,6 +2,7 @@ package elements;
 
 import features.Set;
 import iterations.IterationType;
+import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
 
@@ -53,13 +54,15 @@ public class ReplicableGraphElement extends GraphElement {
         return tmp;
     }
 
-    // Main Logical Stuff
+    /**
+     * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas
+     *
+     * @return is_created
+     */
     @Override
-    public Boolean createElement() {
-        if (this.state() == ReplicaState.REPLICA) {
-            this.features.clear();
-        }
-        boolean is_created = super.createElement();
+    public Boolean create() {
+        if (state() == ReplicaState.REPLICA) features.clear();
+        boolean is_created = createElement();
         if (is_created) {
             if (this.state() == ReplicaState.MASTER) {
                 // Add setFeature
@@ -72,8 +75,15 @@ public class ReplicableGraphElement extends GraphElement {
         return is_created;
     }
 
+    /**
+     * Master -> Add to parts feature, send syncReplicas request
+     * Replica -> Accept the sync and update the element
+     *
+     * @param newElement
+     * @return is_updated, memento element
+     */
     @Override
-    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
             new RemoteInvoke()
                     .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
@@ -85,22 +95,75 @@ public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (this.state() == ReplicaState.REPLICA) {
-            return this.updateElement(newElement);
+            return updateElement(newElement);
         }
 
-        return super.syncElement(this); // Do nothing
+        return super.sync(this); // Do nothing
     }
 
+    /**
+     * master -> update element, if changed send message to replica
+     * replica -> Redirect to master, false message
+     *
+     * @param newElement
+     * @return
+     */
     @Override
-    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = super.externalUpdate(newElement);
+            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
             if (tmp._1) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
             this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationType.ITERATE));
             return new Tuple2<>(false, this);
-        } else return super.externalUpdate(newElement);
+        } else return super.update(newElement);
+    }
+
+
+    /**
+     * master -> Send delete message to replica, actually delete the element from master immediately
+     * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
+     *
+     * @return
+     */
+    @Override
+    public Boolean delete() {
+        if (state() == ReplicaState.MASTER) {
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .noUpdate()
+                    .method("deleteReplica")
+                    .toDestinations(replicaParts())
+                    .where(IterationType.ITERATE)
+                    .withArgs(false)
+                    .buildAndRun(storage);
+            return deleteElement();
+
+        } else if (state() == ReplicaState.REPLICA) {
+            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), IterationType.ITERATE));
+            return false;
+        }
+
+        return false;
+    }
+
+    @RemoteFunction
+    public void deleteReplica(boolean notifyMaster) {
+        if (this.state() == ReplicaState.REPLICA) {
+            boolean is_deleted = deleteElement();
+            if (is_deleted && notifyMaster) {
+                new RemoteInvoke()
+                        .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
+                        .hasUpdate()
+                        .method("remove")
+                        .withArgs(getPartId())
+                        .where(IterationType.ITERATE)
+                        .toDestination(masterPart())
+                        .buildAndRun(storage);
+            }
+        }
+
     }
 
     public void syncReplicas(List<Short> parts) {
@@ -112,9 +175,7 @@ public class ReplicableGraphElement extends GraphElement {
             Feature tmp = (Feature) feature.copy();
             cpy.setFeature(feature.getFieldName(), tmp);
         }
-
         parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
-
     }
 
     @Override

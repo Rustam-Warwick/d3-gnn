@@ -81,7 +81,7 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     @RemoteFunction
     @Override
     public void replace(int version, NDArray newElement, NDArray oldElement) {
-        if (version != this.value._4()) return;
+        if (version < this.value._4()) return;
         newElement.subi(oldElement).divi(value._2());
         value._1().addi(newElement);
     }

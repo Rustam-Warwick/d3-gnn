@@ -1,6 +1,9 @@
 package functions;
 
-import elements.*;
+import elements.Edge;
+import elements.GraphOp;
+import elements.Op;
+import elements.Vertex;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;

@@ -6,6 +6,7 @@ import storage.BaseStorage;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -35,12 +36,22 @@ public class GraphElement implements Serializable {
         }
     }
 
+    /**
+     * Copy bare element, without storage and features
+     *
+     * @return copied element
+     */
     public GraphElement copy() {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
         return tmp;
     }
 
+    /**
+     * Copy everything including storage, element features
+     *
+     * @return copied element
+     */
     public GraphElement deepCopy() {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
@@ -82,7 +93,10 @@ public class GraphElement implements Serializable {
                 is_updated |= tmp._1();
                 addIfNotExists(memento.features, (Feature) tmp._2);
             } else {
-                this.setFeature(feature.getFieldName(), feature);
+                feature.setElement(this);
+                feature.setStorage(this.storage);
+                feature.createElement();
+                addIfNotExists(this.features, feature);
                 is_updated = true;
             }
         }
@@ -95,12 +109,20 @@ public class GraphElement implements Serializable {
         return new Tuple2<>(is_updated, memento);
     }
 
-    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
+    public Boolean delete() {
+        return deleteElement();
+    }
+
+    public Boolean create() {
+        return createElement();
+    }
+
+    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
         return new Tuple2<>(false, this);
     }
 
-    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
-        return this.updateElement(newElement);
+    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
+        return updateElement(newElement);
     }
 
     // Typing stuff
@@ -124,7 +146,7 @@ public class GraphElement implements Serializable {
 
     @Nullable
     public List<Short> replicaParts() {
-        return null;
+        return Collections.emptyList();
     }
     // Getters and Setters
 
@@ -180,7 +202,7 @@ public class GraphElement implements Serializable {
         feature.setElement(this);
         feature.setStorage(this.storage);
         if (Objects.nonNull(this.storage)) {
-            if (feature.createElement()) {
+            if (feature.create()) {
                 addIfNotExists(this.features, feature);
             }
         } else {

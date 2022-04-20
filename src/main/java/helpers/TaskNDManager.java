@@ -8,7 +8,7 @@ import ai.djl.ndarray.NDManager;
  */
 public class TaskNDManager {
     private final transient NDManager lifeCycleManager;
-    private transient NDManager tempManager;
+    private final transient NDManager tempManager;
 
     public TaskNDManager() {
         this.lifeCycleManager = NDManager.newBaseManager();

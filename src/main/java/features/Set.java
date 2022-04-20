@@ -61,8 +61,13 @@ public class Set<T> extends Feature<List<T>, List<T>> {
 
     @RemoteFunction
     public void remove(T element) {
-        if (this.value.contains(element)) return;
+        if (!this.value.contains(element)) return;
         this.value.remove(element);
+    }
+
+    @RemoteFunction
+    public void flush() {
+        this.value.clear();
     }
 
     @Override

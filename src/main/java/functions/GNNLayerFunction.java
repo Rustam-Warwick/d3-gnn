@@ -1,6 +1,5 @@
 package functions;
 
-import ai.djl.pytorch.engine.PtEngine;
 import elements.*;
 import iterations.IterationType;
 import iterations.Rmi;
@@ -106,27 +105,30 @@ public interface GNNLayerFunction extends RichFunction {
                 case COMMIT:
                     GraphElement thisElement = getStorage().getElement(value.element);
                     if (Objects.isNull(thisElement)) {
-                        if (!this.isLast() && (value.element.elementType() == ElementType.EDGE || value.element.elementType() == ElementType.VERTEX)) {
+                        if (value.state == IterationType.FORWARD && value.isTopologyChange() && !isLast()) {
                             message(new GraphOp(Op.COMMIT, this.getCurrentPart(), value.element.copy(), IterationType.FORWARD));
                         }
+                        else if (value.state == IterationType.BACKWARD && value.isTopologyChange() && !isFirst()) {
+                            message(new GraphOp(Op.COMMIT, this.getCurrentPart(), value.element.copy(), IterationType.BACKWARD));
+                        }
                         value.element.setStorage(getStorage());
-                        value.element.createElement();
+                        value.element.create();
                     } else {
-                        thisElement.externalUpdate(value.element);
+                        thisElement.update(value.element);
                     }
                     break;
                 case SYNC:
                     GraphElement el = this.getStorage().getElement(value.element);
                     if (Objects.isNull(el)) {
-                        if (!this.isLast() && (value.element.elementType() == ElementType.EDGE || value.element.elementType() == ElementType.VERTEX)) {
-                            message(new GraphOp(Op.COMMIT, this.getCurrentPart(), value.element.copy(), IterationType.FORWARD));
-                        }
                         el = value.element.copy();
                         el.setStorage(getStorage());
-                        el.createElement();
-                        if (el.state() == ReplicaState.MASTER) el.syncElement(value.element);
+                        if (el.state() == ReplicaState.MASTER) {
+                            // Replicas should not be created by master since they are the first parties sending sync messages
+                            el.create();
+                            el.sync(value.element);
+                        }
                     } else {
-                        el.syncElement(value.element);
+                        el.sync(value.element);
                     }
                     break;
                 case RMI:

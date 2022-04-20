@@ -28,11 +28,6 @@ public class Vertex extends ReplicableGraphElement {
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
-        return super.syncElement(newElement);
-    }
-
-    @Override
     public GraphElement deepCopy() {
         Vertex tmp = new Vertex(this.id, this.halo, this.master);
         tmp.partId = this.partId;

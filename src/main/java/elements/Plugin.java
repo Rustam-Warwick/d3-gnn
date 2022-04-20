@@ -23,12 +23,12 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> externalUpdate(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         return null;
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> syncElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
         return null;
     }
 

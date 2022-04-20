@@ -1,5 +1,6 @@
 package elements;
 
+import iterations.IterationType;
 import scala.Tuple2;
 
 import java.util.List;
@@ -70,21 +71,21 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return tmp;
     }
 
-    // Main Logic
+    /**
+     * Features attached to elements should arrive at corresponding masters first,
+     * hence the different in main logic is that master should then create them on replica parts
+     *
+     * @return
+     */
     @Override
-    public Boolean createElement() {
-        if (this.attachedTo._1 == ElementType.NONE) return super.createElement();
+    public Boolean create() {
+        if (this.attachedTo._1 == ElementType.NONE) return super.create();
         else {
-            boolean is_created = this.storage.addFeature(this);
-            if (is_created) {
-                for (GraphElement el : this.features) {
-                    el.createElement();
-                }
-                this.storage.getPlugins().forEach(item -> item.addElementCallback(this));
-                if (this.state() == ReplicaState.MASTER)
-                    this.syncReplicas(replicaParts()); // If this is master create element
-                // This is needed cause features can arrive way later than the replicas registered
-                // Otehrwise replicaParts is going to be empty anyway
+            boolean is_created = createElement();
+            if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
+                replicaParts().forEach(part -> {
+                    storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, IterationType.ITERATE));
+                });
             }
             return is_created;
         }
@@ -163,6 +164,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (Objects.nonNull(element)) {
             this.attachedTo = new Tuple2<>(element.elementType(), element.getId());
         }
+    }
 
+    @Override
+    public Feature getFeature(String name) {
+        if (attachedTo._1 == ElementType.NONE) return super.getFeature(name);
+        return null;
+    }
+
+    @Override
+    public void setFeature(String name, Feature feature) {
+        if (attachedTo._1 == ElementType.NONE) super.setFeature(name, feature);
+        throw new IllegalStateException("Nested features not allowed ");
     }
 }

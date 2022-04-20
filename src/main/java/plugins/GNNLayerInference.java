@@ -9,11 +9,11 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.VTensor;
-import helpers.JavaTensor;
 import helpers.MyParameterStore;
 import iterations.IterationType;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
+import serializers.JavaTensor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +61,7 @@ public abstract class GNNLayerInference extends Plugin {
         this.parameterStore.restoreModel(this.messageModel);
         this.parameterStore.restoreModel(this.updateModel);
         this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
+
     }
 
     @Override
@@ -110,29 +111,35 @@ public abstract class GNNLayerInference extends Plugin {
         }
     }
 
-//    @Override
-//    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-//        super.updateElementCallback(newElement, oldElement);
-//        switch (newElement.elementType()) {
-//            case FEATURE: {
-//                Feature feature = (Feature) newElement;
-//                Feature oldFeature = (Feature) oldElement;
-//                switch (feature.getFieldName()) {
-//                    case "feature": {
-//                        Vertex parent = (Vertex) feature.getElement();
-//                        forward(parent);
-//                        updateOutEdges((VTensor) feature, (VTensor) oldFeature);
-//                        break;
-//                    }
-//                    case "agg": {
-//                        Vertex parent = (Vertex) feature.getElement();
-//                        forward(parent);
-//                        break;
-//                    }
-//                }
-//            }
-//        }
-//    }
+    @Override
+    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
+        super.updateElementCallback(newElement, oldElement);
+        switch (newElement.elementType()) {
+            case FEATURE: {
+                Feature feature = (Feature) newElement;
+                Feature oldFeature = (Feature) oldElement;
+                switch (feature.getFieldName()) {
+                    case "feature": {
+                        VTensor newTensor = (VTensor) newElement;
+                        VTensor oldTensor = (VTensor) oldFeature;
+                        Vertex parent = (Vertex) feature.getElement();
+                        forward(parent);
+                        if (newTensor.value._2 > oldTensor.value._2){
+                            // Version change should call reduce, and aggregator should capture the version change immediately
+                            reduceOutEdges(newTensor);
+                        } else {
+                            updateOutEdges((VTensor) feature, (VTensor) oldFeature);
+                        }
+                    }
+                    case "agg": {
+                        Vertex parent = (Vertex) feature.getElement();
+                        forward(parent);
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Given newly created vertex init the aggregator and other values of it
@@ -158,11 +165,8 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = (Vertex) v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
-            if(storage.layerFunction.isLast()){
-                storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
-            }else{
-                storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature"), IterationType.FORWARD));
-            }
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
+//                storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature"), IterationType.FORWARD));
         }
     }
 
@@ -173,25 +177,25 @@ public abstract class GNNLayerInference extends Plugin {
      * @param oldFeature
      */
     public void updateOutEdges(VTensor newFeature, VTensor oldFeature) {
-//        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-//        NDArray msgOld = null;
-//        NDArray msgNew = null;
-//        for (Edge edge : outEdges) {
-//            if (this.messageReady(edge)) {
-//                if (Objects.isNull(msgOld)) {
-//                    msgOld = this.message(oldFeature.getValue(), false);
-//                    msgNew = this.message(newFeature.getValue(), false);
-//                }
-//                new RemoteInvoke()
-//                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-//                        .where(IterationType.ITERATE)
-//                        .method("replace")
-//                        .hasUpdate()
-//                        .toDestination(edge.dest.masterPart())
-//                        .withArgs(MODEL_VERSION, msgNew, msgOld)
-//                        .buildAndRun(storage);
-//            }
-//        }
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        NDArray msgOld = null;
+        NDArray msgNew = null;
+        for (Edge edge : outEdges) {
+            if (this.messageReady(edge)) {
+                if (Objects.isNull(msgOld)) {
+                    msgOld = this.message(oldFeature.getValue(), false);
+                    msgNew = this.message(newFeature.getValue(), false);
+                }
+                new RemoteInvoke()
+                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(IterationType.ITERATE)
+                        .method("replace")
+                        .hasUpdate()
+                        .toDestination(edge.dest.masterPart())
+                        .withArgs(MODEL_VERSION, msgNew, msgOld)
+                        .buildAndRun(storage);
+            }
+        }
     }
 
     /**

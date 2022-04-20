@@ -13,7 +13,7 @@ public class TrainTestSplitter extends ProcessFunction<GraphOp, GraphOp> {
     };
 
     public TrainTestSplitter() {
-        p = 0.002d;
+        p = 0.04d;
     }
 
     public TrainTestSplitter(double p) {
@@ -23,12 +23,12 @@ public class TrainTestSplitter extends ProcessFunction<GraphOp, GraphOp> {
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
 
-//        double valuerandom = Math.random();
-//        if (valuerandom < p) {
-////            value.element.setFeature("label", new Feature<Integer, Integer>(1));
-//            ctx.output(trainOutput, value);
-//            return;
-//        }
+        double valuerandom = Math.random();
+        if (valuerandom < p) {
+//            value.element.setFeature("label", new Feature<Integer, Integer>(1));
+            ctx.output(trainOutput, value);
+            return;
+        }
         out.collect(value);
     }
 }

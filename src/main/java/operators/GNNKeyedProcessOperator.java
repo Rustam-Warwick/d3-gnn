@@ -2,45 +2,55 @@ package operators;
 
 import elements.GraphOp;
 import functions.StreamingGNNLayerFunction;
+import org.apache.flink.api.common.operators.MailboxExecutor;
+import org.apache.flink.iteration.IterationID;
+import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
+import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimeDomain;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.util.OutputTag;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
 public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, KeyedProcessFunction<String, GraphOp, GraphOp>>
-        implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<String, VoidNamespace> {
+        implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<String, VoidNamespace>, FeedbackConsumer<StreamRecord<GraphOp>> {
 
 
     private static final long serialVersionUID = 1L;
-
+    private final IterationID iterationId;
     private transient TimestampedCollector<GraphOp> collector;
-
     private transient GNNKeyedProcessOperator.ContextImpl context;
-
     private transient GNNKeyedProcessOperator.OnTimerContextImpl onTimerContext;
+    private MailboxExecutor mailboxExecutor;
 
-    public GNNKeyedProcessOperator(KeyedProcessFunction<String, GraphOp, GraphOp> function) {
+
+    public GNNKeyedProcessOperator(StreamingGNNLayerFunction function, IterationID iterationId) {
         super(function);
-
-        chainingStrategy = ChainingStrategy.ALWAYS;
+        this.iterationId = iterationId;
+        this.chainingStrategy = ChainingStrategy.ALWAYS;
     }
 
-    public GNNKeyedProcessOperator(StreamingGNNLayerFunction function) {
-        super(function);
+    @Override
+    public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
+        super.setup(containingTask, config, output);
+        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
     }
 
     @Override
@@ -61,11 +71,11 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
 
         short thisMaster = this.setOperatorKeys();
         setCurrentKey(String.valueOf(thisMaster));
+        registerFeedbackConsumer(
+                (Runnable runnable) -> {
+                    mailboxExecutor.execute(runnable::run, "Head feedback");
+                });
         super.open();
-    }
-
-    public void registerMasterTimer() {
-
     }
 
     @Override
@@ -94,6 +104,14 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
         context.element = null;
     }
 
+    @Override
+    public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        setKeyContextElement(element);
+        context.element = element;
+        userFunction.processElement(element.getValue(), context, collector);
+        context.element = null;
+    }
+
     private void invokeUserFunction(TimeDomain timeDomain, InternalTimer<String, VoidNamespace> timer)
             throws Exception {
         onTimerContext.timeDomain = timeDomain;
@@ -101,6 +119,18 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
         userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
         onTimerContext.timeDomain = null;
         onTimerContext.timer = null;
+    }
+
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        int attemptNum = getRuntimeContext().getAttemptNumber();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        FeedbackChannel<StreamRecord<GraphOp>> channel = broker.getChannel(key);
+        OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
     }
 
     public Short setOperatorKeys() {

@@ -6,6 +6,7 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
 import elements.ElementType;
+import elements.Feature;
 import elements.GraphOp;
 import elements.Op;
 import features.VTensor;
@@ -42,16 +43,17 @@ abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp>
     @Override
     public void processElement(GraphOp trainData, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         VTensor logit = (VTensor) trainData.element.getFeature("prediction");
+        Integer label = ((Feature<Integer, Integer>) trainData.element.getFeature("label")).getValue();
         try {
             if (MyParameterStore.isTensorReady(logit.getValue()) && logit.value._2 == MODEL_VERSION) {
                 NDManager manager = NDManager.newBaseManager();
                 GradientCollector collector = manager.getEngine().newGradientCollector();
 
-                NDList posLabel = new NDList(manager.create(1));
+                NDList labelArray = new NDList(manager.create(label));
                 System.out.println(logit.getValue());
                 // 2. Backward
                 logit.getValue().setRequiresGradient(true);
-                NDArray loss = lossFn.evaluate(posLabel, new NDList(logit.getValue()));
+                NDArray loss = lossFn.evaluate(labelArray, new NDList(logit.getValue()));
                 collector.backward(loss);
                 // 3. Prepare and send data
                 VTensor grad = (VTensor) logit.copy();

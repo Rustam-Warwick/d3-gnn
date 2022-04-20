@@ -12,9 +12,10 @@ if __name__ == "__main__":
         while True:
             try:
                 (clientConnected, clientAddress) = socketServer.accept()
+                time.sleep(10)
                 line = f.readline()
                 while line:
-                    time.sleep(0.0001)
+                    time.sleep(0.001)
                     print(line)
                     clientConnected.send(line.encode())
                     line = f.readline()

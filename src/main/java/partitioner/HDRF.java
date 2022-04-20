@@ -20,7 +20,7 @@ public class HDRF extends BasePartitioner {
     public transient int totalNumberOfReplicas = 0;
     public int maxSize = 0;
     public int minSize = 0;
-    public float lamb = 0.7f;
+    public float lamb = 0.9f;
     public float eps = 1;
 
     public HDRF() {

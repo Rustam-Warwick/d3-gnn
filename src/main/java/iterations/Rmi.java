@@ -40,7 +40,7 @@ public class Rmi extends GraphElement {
                 GraphElement deepCopyElement = element.deepCopy();
                 Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item -> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(deepCopyElement, message.args);
-                element.externalUpdate(deepCopyElement);
+                element.update(deepCopyElement);
 
             } else {
                 Method method = Arrays.stream(element.getClass().getMethods()).filter(item -> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();

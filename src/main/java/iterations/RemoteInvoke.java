@@ -62,7 +62,7 @@ public class RemoteInvoke {
     }
 
     public boolean verify() {
-        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(iterationType) && Objects.nonNull(destinations) && destinations.size() > 0 && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
+        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(iterationType) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
 
     private List<GraphOp> build() {
