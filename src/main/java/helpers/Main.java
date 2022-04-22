@@ -37,7 +37,7 @@ public class Main {
         GraphStream gs = new GraphStream((short) 3, (short) 2);
         DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
         DataStream<GraphOp> partitioned = gs.partition(ratingsEdgeStream, new HDRF());
-        DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new TrainTestSplitter(0.01));
+        DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new TrainTestSplitter(0.001));
         DataStream<GraphOp> gnn1 = gs.gnnLayerNewIteration(splittedData, new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -68,19 +68,19 @@ public class Main {
             }
         })));
 
-        DataStream<GraphOp> nextLayerInput = gnn1.keyBy(new ElementIdSelector())
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(1)))
-                .evictor(CountEvictor.of(1))
-                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
-                    @Override
-                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
-                        for (GraphOp e : input) {
-                            out.collect(e);
-                        }
-                    }
-                });
+//        DataStream<GraphOp> nextLayerInput = gnn1.keyBy(new ElementForPartKeySelector())
+//                .window(TumblingProcessingTimeWindows.of(Time.milliseconds(100)))
+//                .evictor(CountEvictor.of(1))
+//                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+//                    @Override
+//                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+//                        for (GraphOp e : input) {
+//                            out.collect(e);
+//                        }
+//                    }
+//                });
 
-        DataStream<GraphOp> gnn2 = gs.gnnLayerNewIteration(nextLayerInput, new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference() {
+        DataStream<GraphOp> gnn2 = gs.gnnLayerNewIteration(gnn1, new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
                 SequentialBlock myBlock = new SequentialBlock();
@@ -108,23 +108,23 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        }).withPlugin(new RandomNegativeSampler(0.01))));
+        }).withPlugin(new RandomNegativeSampler(0.003))));
 
-        DataStream<GraphOp> nextLayerInput2 = gnn2.keyBy(new ElementIdSelector())
-                .window(TumblingProcessingTimeWindows.of(Time.seconds(1)))
-                .evictor(CountEvictor.of(1))
-                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
-                    @Override
-                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
-                        for (GraphOp e : input) {
-                            out.collect(e);
-                        }
-                    }
-                });
+//        DataStream<GraphOp> nextLayerInput2 = gnn2.keyBy(new ElementForPartKeySelector())
+//                .window(TumblingProcessingTimeWindows.of(Time.milliseconds(100)))
+//                .evictor(CountEvictor.of(1))
+//                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+//                    @Override
+//                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+//                        for (GraphOp e : input) {
+//                            out.collect(e);
+//                        }
+//                    }
+//                });
 
 
         DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
-        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(nextLayerInput2.union(trainData), new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNOutputEdgeInference() {
+        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(gnn2.union(trainData), new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNOutputEdgeInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();

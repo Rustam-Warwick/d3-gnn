@@ -11,7 +11,7 @@ public class RandomNegativeSampler extends Plugin {
     public int j = 0;
 
     public RandomNegativeSampler() {
-        this(0.005);
+        this(0.002);
     }
 
     public RandomNegativeSampler(double p) {
@@ -42,6 +42,12 @@ public class RandomNegativeSampler extends Plugin {
         return false;
     }
 
+    /**
+     * Traversing the Vertices iterator to produce random negative samples
+     * Samples are selected as 2 master-vertices which do not have common replica parts and no edges
+     * Reasoning is that if common edges existed probably partitioner put it in the same part
+     *
+     */
     public void forwardNegativeSample() {
         int intI = 0;
         for (Vertex src : storage.getVertices()) {

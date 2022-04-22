@@ -160,7 +160,7 @@ public class GraphStream {
 
     public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
         assert position_index == layers;
-        DataStream<Row> embeddings = output.keyBy(new ElementIdSelector()).map(new MapFunction<GraphOp, Row>() {
+        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
             @Override
             public Row map(GraphOp value) throws Exception {
                 VTensor feature = (VTensor) value.element;
@@ -177,7 +177,7 @@ public class GraphStream {
 
     public Table toEdgeTable(DataStream<GraphOp> output) {
         assert position_index == layers;
-        DataStream<Row> embeddings = output.keyBy(new ElementIdSelector()).map(new MapFunction<GraphOp, Row>() {
+        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
             @Override
             public Row map(GraphOp value) throws Exception {
                 Edge edge = (Edge) value.element;

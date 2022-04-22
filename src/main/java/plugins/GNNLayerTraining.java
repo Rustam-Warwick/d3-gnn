@@ -32,7 +32,6 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Backward trigger function
-     *
      * @param grad grad to be passed for VJP
      */
     @RemoteFunction
@@ -145,19 +144,12 @@ public class GNNLayerTraining extends Plugin {
         this.inference.parameterStore.resetGrads();
         this.inference.MODEL_VERSION++;
         inference.updatePending = false;
-        Rmi.callProcedure(this, "reInference", IterationType.ITERATE, this.storage.layerFunction.getThisParts());
-    }
-
-    /**
-     * New Parameters have been committed, need to increment the model version
-     */
-    @RemoteFunction
-    public void reInference() {
-        Iterable<Vertex> vertices = this.storage.getVertices();
-        for (Vertex v : vertices) {
-            this.inference.reduceInEdges(v);
+        if(storage.layerFunction.isFirst()){
+            // Re-inference should start from the first layer. Rest is done on the inferencer
+            Rmi.callProcedure(inference, "reInference", IterationType.ITERATE, this.storage.layerFunction.getThisParts());
         }
     }
+
 
 
 }

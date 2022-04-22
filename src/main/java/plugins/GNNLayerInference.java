@@ -11,6 +11,7 @@ import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
 import iterations.IterationType;
+import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
 import serializers.JavaTensor;
@@ -125,11 +126,13 @@ public abstract class GNNLayerInference extends Plugin {
                         Vertex parent = (Vertex) feature.getElement();
                         forward(parent);
                         if (newTensor.value._2 > oldTensor.value._2) {
-                            // Version change should call reduce, and aggregator should capture the version change immediately
-                            reduceOutEdges(newTensor);
+                            if(allFeaturesReady()){
+                                reInference();
+                            }
                         } else {
                             updateOutEdges((VTensor) feature, (VTensor) oldFeature);
                         }
+                        break;
                     }
                     case "agg": {
                         Vertex parent = (Vertex) feature.getElement();
@@ -166,7 +169,6 @@ public abstract class GNNLayerInference extends Plugin {
             Vertex messageVertex = (Vertex) v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
-//                storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature"), IterationType.FORWARD));
         }
     }
 
@@ -287,6 +289,26 @@ public abstract class GNNLayerInference extends Plugin {
         feature.attach(oldManager);
         tmpManager.close();
         return res;
+    }
+
+    public boolean allFeaturesReady(){
+        for(Vertex v: storage.getVertices()){
+            if(Objects.nonNull(v.getFeature("feature"))){
+                VTensor feature = (VTensor) v.getFeature("feature");
+                if(!feature.isReady(MODEL_VERSION))return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * New Parameters have been committed, need to increment the model version
+     */
+    @RemoteFunction
+    public void reInference() {
+        for (Vertex v : storage.getVertices()) {
+            reduceInEdges(v);
+        }
     }
 
     /**
