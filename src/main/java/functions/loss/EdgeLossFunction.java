@@ -45,12 +45,12 @@ abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp>
         VTensor logit = (VTensor) trainData.element.getFeature("prediction");
         Integer label = ((Feature<Integer, Integer>) trainData.element.getFeature("label")).getValue();
         try {
-            if (MyParameterStore.isTensorReady(logit.getValue()) && logit.value._2 == MODEL_VERSION) {
+            if (MyParameterStore.isTensorCorrect(logit.getValue()) && logit.value._2 == MODEL_VERSION) {
                 NDManager manager = NDManager.newBaseManager();
                 GradientCollector collector = manager.getEngine().newGradientCollector();
 
                 NDList labelArray = new NDList(manager.create(label));
-                System.out.println(logit.getValue());
+                System.out.println(logit.getValue() + ":" + label);
                 // 2. Backward
                 logit.getValue().setRequiresGradient(true);
                 NDArray loss = lossFn.evaluate(labelArray, new NDList(logit.getValue()));
@@ -62,7 +62,6 @@ abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp>
                 out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));
 
                 // 4. Cleanup
-
                 manager.close();
                 collector.close();
 

@@ -18,9 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class GNNOutputEdgeTraining extends Plugin {
-    transient public GNNOutputEdgeInference inference;
+    public transient GNNOutputEdgeInference inference;
     public transient OutputTag<GraphOp> trainingOutput;
-    public int collectedGradsSoFar = 0;
+    public transient int collectedGradsSoFar = 0;
 
     public GNNOutputEdgeTraining() {
         super("trainer");
@@ -46,11 +46,7 @@ public class GNNOutputEdgeTraining extends Plugin {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
             Edge messageEdge = (Edge) e.copy();
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
-            if(Objects.isNull(e.getFeature("label"))){
-                messageEdge.setFeature("label", new Feature<Integer, Integer>(1));
-            }else{
-                messageEdge.features.add((Feature) e.getFeature("label").copy());
-            }
+            messageEdge.setFeature("label", e.getFeature("label"));
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
         }
     }
@@ -59,7 +55,7 @@ public class GNNOutputEdgeTraining extends Plugin {
     public void backward(VTensor grad) {
         grad.setStorage(this.storage);
         Edge edge = (Edge) grad.getElement();
-        if (inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION) {
+        if (Objects.nonNull(edge) && inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION) {
             VTensor srcFeature = (VTensor) edge.src.getFeature("feature");
             VTensor destFeature = (VTensor) edge.dest.getFeature("feature");
             srcFeature.getValue().setRequiresGradient(true);
@@ -68,13 +64,13 @@ public class GNNOutputEdgeTraining extends Plugin {
             JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
             NDArray srcGrad = srcFeature.getValue().getGradient();
             NDArray destGrad = destFeature.getValue().getGradient();
-            if (MyParameterStore.isTensorReady(srcGrad)) {
+            if (MyParameterStore.isTensorCorrect(srcGrad)) {
                 VTensor srcGradFeature = new VTensor("grad", new Tuple2<>(srcGrad, inference.MODEL_VERSION));
                 srcGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
                 Rmi backwardSrc = new Rmi("trainer", "backward", new Object[]{srcGradFeature}, ElementType.PLUGIN, false);
                 storage.layerFunction.message(new GraphOp(Op.RMI, edge.src.masterPart(), backwardSrc, IterationType.BACKWARD));
             }
-            if (MyParameterStore.isTensorReady(destGrad)) {
+            if (MyParameterStore.isTensorCorrect(destGrad)) {
                 VTensor destGradFeature = new VTensor("grad", new Tuple2<>(destGrad, inference.MODEL_VERSION));
                 destGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.dest.getId());
                 Rmi backwardDest = new Rmi("trainer", "backward", new Object[]{destGradFeature}, ElementType.PLUGIN, false);
@@ -82,9 +78,8 @@ public class GNNOutputEdgeTraining extends Plugin {
             }
             srcFeature.getValue().setRequiresGradient(false);
             destFeature.getValue().setRequiresGradient(false);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), edge, IterationType.BACKWARD));
-            edge.deleteElement();
-
+//            storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), edge, IterationType.BACKWARD));
+            edge.deleteElement(); // Delete so that this edge is not trained anymore
         }
     }
 
@@ -96,7 +91,6 @@ public class GNNOutputEdgeTraining extends Plugin {
 
     @RemoteFunction
     public void callForGradientCollection() {
-        System.out.println("Training start");
         inference.updatePending = true;
         Rmi.callProcedure(this, "collectGradients", inference.parameterStore.gradientArrays);
     }

@@ -1,7 +1,5 @@
 package elements;
 
-import scala.Tuple2;
-
 public class Vertex extends ReplicableGraphElement {
 
     public Vertex() {

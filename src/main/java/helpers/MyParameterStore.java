@@ -32,7 +32,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.gradientArrays = new HashMap<>();
     }
 
-    public static boolean isTensorReady(NDArray arr) {
+    public static boolean isTensorCorrect(NDArray arr) {
         return arr.any().getBoolean() && !arr.isNaN().any().getBoolean() && !arr.isInfinite().any().getBoolean();
     }
 
@@ -120,8 +120,14 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         });
     }
 
+    /**
+     * Remote Gradient Collection is always Meaned over
+     *
+     * @param grad
+     * @param parameterId
+     */
     public void meanAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
-        if (grad._2 <= 0 || !isTensorReady(grad._1)) return;
+        if (grad._2 <= 0 || !isTensorCorrect(grad._1)) return;
         NDManager tmpManager = manager.newSubManager();
         Tuple2<NDArray, Integer> thisGrad = gradientArrays.get(parameterId);
         thisGrad._1.attach(tmpManager);
@@ -135,8 +141,14 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         tmpManager.close();
     }
 
+    /**
+     * Local Gradients are summed always
+     *
+     * @param grad
+     * @param parameterId
+     */
     public void sumAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
-        if (grad._2 <= 0 || !isTensorReady(grad._1)) return;
+        if (grad._2 <= 0 || !isTensorCorrect(grad._1)) return;
         Tuple2<NDArray, Integer> currentGrad = gradientArrays.get(parameterId);
         currentGrad._1.addi(grad._1);
         gradientArrays.put(parameterId, new Tuple2<>(currentGrad._1, currentGrad._2 + grad._2));
@@ -171,9 +183,9 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         if (valueParam.hasGradient() && !training) {
             NDArray grad = valueParam.getGradient();
             sumAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
-            valueParam.setRequiresGradient(training);
+            valueParam.setRequiresGradient(false);
         } else if (!valueParam.hasGradient() && training) {
-            valueParam.setRequiresGradient(training);
+            valueParam.setRequiresGradient(true);
         }
 
         return valueParam;

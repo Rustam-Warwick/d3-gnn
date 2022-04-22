@@ -124,7 +124,7 @@ public abstract class GNNLayerInference extends Plugin {
                         VTensor oldTensor = (VTensor) oldFeature;
                         Vertex parent = (Vertex) feature.getElement();
                         forward(parent);
-                        if (newTensor.value._2 > oldTensor.value._2){
+                        if (newTensor.value._2 > oldTensor.value._2) {
                             // Version change should call reduce, and aggregator should capture the version change immediately
                             reduceOutEdges(newTensor);
                         } else {

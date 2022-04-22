@@ -29,15 +29,15 @@ import org.apache.flink.util.OutputTag;
 import partitioner.HDRF;
 import plugins.GNNLayerInference;
 import plugins.GNNOutputEdgeInference;
+import plugins.RandomNegativeSampler;
 import storage.TupleStorage;
 
 public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short) 3, (short) 2);
-//        DataStream<GraphOp> ratingsEdgeStream = gs.readTextFile(new MovieLensStreamParser(), "/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/datasets/movielens/ratings.csv");
         DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
         DataStream<GraphOp> partitioned = gs.partition(ratingsEdgeStream, new HDRF());
-        DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new TrainTestSplitter());
+        DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new TrainTestSplitter(0.01));
         DataStream<GraphOp> gnn1 = gs.gnnLayerNewIteration(splittedData, new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference() {
             @Override
             public Model createMessageModel() {
@@ -108,7 +108,8 @@ public class Main {
                 model.setBlock(myBlock);
                 return model;
             }
-        })));
+        }).withPlugin(new RandomNegativeSampler(0.01))));
+
         DataStream<GraphOp> nextLayerInput2 = gnn2.keyBy(new ElementIdSelector())
                 .window(TumblingProcessingTimeWindows.of(Time.seconds(1)))
                 .evictor(CountEvictor.of(1))
@@ -153,10 +154,5 @@ public class Main {
 
 
         gs.env.execute();
-
-//        gs.env.execute();
-//        gs.env.execute();
-//        DataStream<GraphOp> trainingData = trainTestSplitted._2.keyBy(new PartKeySelector()).map(item -> item).setParallelism(gnn2.getParallelism());
-
     }
 }

@@ -9,6 +9,7 @@ import elements.Plugin;
 import features.VTensor;
 import helpers.MyParameterStore;
 
+import javax.annotation.Nonnull;
 import java.util.Objects;
 
 public abstract class GNNOutputEdgeInference extends Plugin {
@@ -48,7 +49,7 @@ public abstract class GNNOutputEdgeInference extends Plugin {
         this.outputModel.close();
     }
 
-    public boolean outputReady(Edge edge) {
+    public boolean outputReady(@Nonnull Edge edge) {
         return !updatePending && Objects.nonNull(edge.src.getFeature("feature")) && ((VTensor) edge.src.getFeature("feature")).isReady(MODEL_VERSION) && Objects.nonNull(edge.dest.getFeature("feature")) && ((VTensor) edge.dest.getFeature("feature")).isReady(MODEL_VERSION);
     }
 

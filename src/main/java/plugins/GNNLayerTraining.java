@@ -16,8 +16,8 @@ import scala.Tuple2;
 import java.util.Map;
 
 public class GNNLayerTraining extends Plugin {
-    public GNNLayerInference inference;
-    public int collectedGradsSoFar = 0; // Master node collected gradients count
+    public transient GNNLayerInference inference;
+    public transient int collectedGradsSoFar = 0; // Master node collected gradients count
 
     public GNNLayerTraining() {
         super("trainer");
@@ -53,7 +53,7 @@ public class GNNLayerTraining extends Plugin {
             // 3. Send Update backward if this is not last layer
             if (!this.storage.layerFunction.isFirst()) {
                 NDArray gradient = feature.getValue().getGradient();
-                if (MyParameterStore.isTensorReady(gradient)) {
+                if (MyParameterStore.isTensorCorrect(gradient)) {
                     grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
                     Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
                     this.storage.layerFunction.message(new GraphOp(Op.RMI, this.storage.layerFunction.getCurrentPart(), backward, IterationType.BACKWARD));
@@ -62,7 +62,7 @@ public class GNNLayerTraining extends Plugin {
 
             // 4. Send to messageBackward to do the message backward steps
             NDArray gradient = agg.grad();
-            if (MyParameterStore.isTensorReady(gradient)) {
+            if (MyParameterStore.isTensorCorrect(gradient)) {
                 grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
                 Rmi.callProcedure(this, "messageBackward", IterationType.ITERATE, agg.replicaParts(), grad);
                 this.messageBackward(grad);
@@ -91,7 +91,7 @@ public class GNNLayerTraining extends Plugin {
                     NDArray prediction = this.inference.message(inFeature, true);
                     JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
                     NDArray gradient = inFeature.getGradient();
-                    if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorReady(gradient)) {
+                    if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
                         VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), inference.MODEL_VERSION));
                         grad.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
                         Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);

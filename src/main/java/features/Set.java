@@ -65,6 +65,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         this.value.remove(element);
     }
 
+
     @RemoteFunction
     public void flush() {
         this.value.clear();
