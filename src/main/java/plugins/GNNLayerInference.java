@@ -134,11 +134,11 @@ public abstract class GNNLayerInference extends Plugin {
                         }
                         break;
                     }
-                    case "agg": {
-                        Vertex parent = (Vertex) feature.getElement();
-                        forward(parent);
-                        break;
-                    }
+//                    case "agg": {
+//                        Vertex parent = (Vertex) feature.getElement();
+//                        forward(parent);
+//                        break;
+//                    }
                 }
             }
         }
