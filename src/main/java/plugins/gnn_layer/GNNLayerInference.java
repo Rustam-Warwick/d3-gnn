@@ -1,4 +1,4 @@
-package plugins;
+package plugins.gnn_layer;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
@@ -17,20 +17,28 @@ import scala.Tuple2;
 import serializers.JavaTensor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
 public abstract class GNNLayerInference extends Plugin {
     public transient Model messageModel;
     public transient Model updateModel;
-    public MyParameterStore parameterStore = new MyParameterStore();
     public transient Shape aggregatorShape;
     public transient Shape featureShape;
-    public transient int MODEL_VERSION = 0;
-    public transient boolean updatePending = false;
+    public int MODEL_VERSION = 0; // Global Model version in the parameter store
+    public boolean updatePending = false; // There is a change of Model happening right now, no need to do anything
+    public List<Short> reInferencePending = new ArrayList<>(); // If current part id is here don't do anything with aggregators
+    public MyParameterStore parameterStore = new MyParameterStore();
+    public boolean externalFeatures;
 
-    public GNNLayerInference() {
+    public GNNLayerInference(){
+        this(true);
+    }
+
+    public GNNLayerInference(boolean externalFeatures){
         super("inferencer");
+        this.externalFeatures = externalFeatures;
     }
 
     public abstract Model createMessageModel();
@@ -78,12 +86,12 @@ public abstract class GNNLayerInference extends Plugin {
         switch (element.elementType()) {
             case VERTEX: {
                 initVertex((Vertex) element);
-                reduceInEdges((Vertex) element);
                 break;
             }
             case EDGE: {
                 Edge edge = (Edge) element;
-                if (messageReady(edge)) {
+                if (!reInferencePending.contains(getPartId()) && messageReady(edge)) {
+                    if(edge.dest.getId().equals("10")) System.out.println(edge.getId() + "In Position:"+storage.layerFunction.getPosition());
                     NDArray feature = ((VTensor) edge.src.getFeature("feature")).getValue();
                     NDArray msg = this.message(feature, false);
                     new RemoteInvoke()
@@ -91,7 +99,7 @@ public abstract class GNNLayerInference extends Plugin {
                             .where(IterationType.ITERATE)
                             .method("reduce")
                             .hasUpdate()
-                            .toDestination(edge.dest.masterPart())
+                            .addDestination(edge.dest.masterPart())
                             .withArgs(MODEL_VERSION, msg, 1)
                             .buildAndRun(storage);
                 }
@@ -99,11 +107,13 @@ public abstract class GNNLayerInference extends Plugin {
             }
             case FEATURE: {
                 Feature feature = (Feature) element;
-                switch (feature.getFieldName()) {
+                switch (feature.getName()) {
                     case "feature": {
                         Vertex parent = (Vertex) feature.getElement();
                         forward(parent);
-                        reduceOutEdges((VTensor) feature);
+                        if(!reInferencePending.contains(getPartId())){
+                            reduceOutEdges((VTensor) feature);
+                        }
                         break;
                     }
                 }
@@ -119,14 +129,14 @@ public abstract class GNNLayerInference extends Plugin {
             case FEATURE: {
                 Feature feature = (Feature) newElement;
                 Feature oldFeature = (Feature) oldElement;
-                switch (feature.getFieldName()) {
+                switch (feature.getName()) {
                     case "feature": {
                         VTensor newTensor = (VTensor) newElement;
                         VTensor oldTensor = (VTensor) oldFeature;
                         Vertex parent = (Vertex) feature.getElement();
                         forward(parent);
-                        if (newTensor.value._2 > oldTensor.value._2) {
-                            if(allFeaturesReady()){
+                        if (reInferencePending.contains(getPartId())) {
+                            if (allFeaturesReady()) {
                                 reInference();
                             }
                         } else {
@@ -134,11 +144,11 @@ public abstract class GNNLayerInference extends Plugin {
                         }
                         break;
                     }
-//                    case "agg": {
-//                        Vertex parent = (Vertex) feature.getElement();
-//                        forward(parent);
-//                        break;
-//                    }
+                    case "agg": {
+                        Vertex parent = (Vertex) feature.getElement();
+                        forward(parent);
+                        break;
+                    }
                 }
             }
         }
@@ -154,7 +164,7 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(aggregatorShape);
             element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true));
 
-            if (this.storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
+            if (!externalFeatures && this.storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(featureShape);
                 element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)));
             }
@@ -193,7 +203,7 @@ public abstract class GNNLayerInference extends Plugin {
                         .where(IterationType.ITERATE)
                         .method("replace")
                         .hasUpdate()
-                        .toDestination(edge.dest.masterPart())
+                        .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msgNew, msgOld)
                         .buildAndRun(storage);
             }
@@ -209,6 +219,7 @@ public abstract class GNNLayerInference extends Plugin {
 
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
+
                 if (Objects.isNull(msg)) {
                     msg = this.message(newFeature.getValue(), false);
                 }
@@ -217,39 +228,13 @@ public abstract class GNNLayerInference extends Plugin {
                         .where(IterationType.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .toDestination(edge.dest.masterPart())
+                        .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msg, 1)
                         .buildAndRun(storage);
             }
         }
     }
 
-    /**
-     * Given Vertex reduce all the in-edges in bulk
-     *
-     * @param vertex
-     */
-    public void reduceInEdges(Vertex vertex) {
-        Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
-        List<NDArray> bulkReduceMessages = new ArrayList<>();
-        for (Edge edge : inEdges) {
-            if (this.messageReady(edge)) {
-                NDArray msg = this.message(((VTensor) edge.src.getFeature("feature")).getValue(), false);
-                bulkReduceMessages.add(msg);
-            }
-        }
-        if (bulkReduceMessages.size() > 0) {
-            NDArray msgs = MeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
-            new RemoteInvoke()
-                    .toElement(vertex.decodeFeatureId("agg"), ElementType.FEATURE)
-                    .where(IterationType.ITERATE)
-                    .method("reduce")
-                    .hasUpdate()
-                    .toDestination(vertex.masterPart())
-                    .withArgs(MODEL_VERSION, msgs, bulkReduceMessages.size())
-                    .buildAndRun(storage);
-        }
-    }
 
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager
@@ -291,11 +276,11 @@ public abstract class GNNLayerInference extends Plugin {
         return res;
     }
 
-    public boolean allFeaturesReady(){
-        for(Vertex v: storage.getVertices()){
-            if(Objects.nonNull(v.getFeature("feature"))){
+    public boolean allFeaturesReady() {
+        for (Vertex v : storage.getVertices()) {
+            if (Objects.nonNull(v.getFeature("feature"))) {
                 VTensor feature = (VTensor) v.getFeature("feature");
-                if(!feature.isReady(MODEL_VERSION))return false;
+                if (!feature.isReady(MODEL_VERSION)) return false;
             }
         }
         return true;
@@ -306,9 +291,33 @@ public abstract class GNNLayerInference extends Plugin {
      */
     @RemoteFunction
     public void reInference() {
-        for (Vertex v : storage.getVertices()) {
-            reduceInEdges(v);
+        for (Vertex vertex : storage.getVertices()) {
+            Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
+            List<NDArray> bulkReduceMessages = new ArrayList<>();
+            for (Edge edge : inEdges) {
+                if (this.messageReady(edge)) {
+                    NDArray msg = this.message(((VTensor) edge.src.getFeature("feature")).getValue(), false);
+                    bulkReduceMessages.add(msg);
+                }
+            }
+            if (bulkReduceMessages.size() > 0) {
+                NDArray msgs = MeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
+                new RemoteInvoke()
+                        .toElement(vertex.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(IterationType.ITERATE)
+                        .method("reduce")
+                        .hasUpdate()
+                        .addDestination(vertex.masterPart())
+                        .withArgs(MODEL_VERSION, msgs, bulkReduceMessages.size())
+                        .buildAndRun(storage);
+            }else{
+                forward(vertex);
+            }
+
+
+
         }
+        reInferencePending.removeIf(item->item==getPartId());
     }
 
     /**

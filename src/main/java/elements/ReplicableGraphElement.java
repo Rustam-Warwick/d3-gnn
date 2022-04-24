@@ -39,15 +39,17 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    public GraphElement copy() {
+    public ReplicableGraphElement copy() {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
+    public ReplicableGraphElement deepCopy() {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
         tmp.features.addAll(this.features);
@@ -56,7 +58,6 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas
-     *
      * @return is_created
      */
     @Override
@@ -78,9 +79,8 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Master -> Add to parts feature, send syncReplicas request
      * Replica -> Accept the sync and update the element
-     *
-     * @param newElement
-     * @return is_updated, memento element
+     * @param newElement New element to sync with
+     * @return (isSynced, oldElement)
      */
     @Override
     public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
@@ -89,7 +89,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
                     .hasUpdate()
                     .method("add")
-                    .toDestination(masterPart())
+                    .addDestination(masterPart())
                     .where(IterationType.ITERATE)
                     .withArgs(newElement.getPartId())
                     .buildAndRun(storage);
@@ -104,9 +104,8 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> update element, if changed send message to replica
      * replica -> Redirect to master, false message
-     *
-     * @param newElement
-     * @return
+     * @param newElement newElement to update with
+     * @return (isUpdated, oldElement)
      */
     @Override
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
@@ -124,8 +123,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> Send delete message to replica, actually delete the element from master immediately
      * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
-     *
-     * @return
+     * @return isDeleted
      */
     @Override
     public Boolean delete() {
@@ -134,7 +132,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .toElement(getId(), elementType())
                     .noUpdate()
                     .method("deleteReplica")
-                    .toDestinations(replicaParts())
+                    .addDestinations(replicaParts())
                     .where(IterationType.ITERATE)
                     .withArgs(false)
                     .buildAndRun(storage);
@@ -148,6 +146,10 @@ public class ReplicableGraphElement extends GraphElement {
         return false;
     }
 
+    /**
+     * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
+     * @param notifyMaster should notify master part after deletion?
+     */
     @RemoteFunction
     public void deleteReplica(boolean notifyMaster) {
         if (this.state() == ReplicaState.REPLICA) {
@@ -159,21 +161,25 @@ public class ReplicableGraphElement extends GraphElement {
                         .method("remove")
                         .withArgs(getPartId())
                         .where(IterationType.ITERATE)
-                        .toDestination(masterPart())
+                        .addDestination(masterPart())
                         .buildAndRun(storage);
             }
         }
 
     }
 
+    /**
+     * Sends a copy of this element as message to all parts
+     * @param parts where should the message be sent
+     */
     public void syncReplicas(List<Short> parts) {
         if ((this.state() != ReplicaState.MASTER) || this.isHalo() || parts == null || parts.isEmpty()) return;
         cacheFeatures();
-        ReplicableGraphElement cpy = (ReplicableGraphElement) this.copy();
-        for (Feature feature : this.features) {
+        ReplicableGraphElement cpy = this.copy();
+        for (Feature<?,?> feature : this.features) {
             if (feature.isHalo()) continue;
-            Feature tmp = (Feature) feature.copy();
-            cpy.setFeature(feature.getFieldName(), tmp);
+            Feature<?,?> tmp = feature.copy();
+            cpy.setFeature(feature.getName(), tmp);
         }
         parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
     }
@@ -190,10 +196,10 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        Set<Short> parts = (Set<Short>) this.getFeature("parts");
+        Feature<?,?> parts = this.getFeature("parts");
         if (Objects.isNull(parts)) return super.replicaParts();
         else {
-            return parts.getValue();
+            return (List<Short>) parts.getValue();
         }
     }
 

@@ -55,6 +55,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract void cacheFeaturesOf(GraphElement e);
 
+
     public Plugin getPlugin(String id) {
         return this.plugins.get(id);
     }

@@ -1,7 +1,6 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
-import elements.GraphElement;
 import iterations.RemoteFunction;
 import scala.Tuple4;
 
@@ -50,16 +49,18 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     }
 
     @Override
-    public GraphElement copy() {
+    public MeanAggregator copy() {
         MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
-        MeanAggregator tmp = (MeanAggregator) this.copy();
+    public MeanAggregator deepCopy() {
+        MeanAggregator tmp = this.copy();
+        tmp.ts = this.ts;
         tmp.element = this.element;
         tmp.storage = this.storage;
         return tmp;
@@ -93,7 +94,7 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
 
     @Override
     public boolean isReady(int modelVersion) {
-        return Objects.equals(value._2(), value._3()) && modelVersion == this.value._4();
+        return Objects.equals(value._2(), value._3()) && (modelVersion == this.value._4() || value._2() == 0);
     }
 
     @Override

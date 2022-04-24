@@ -2,9 +2,7 @@ package functions;
 
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.Op;
 import elements.ReplicaState;
-import iterations.IterationType;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.streaming.api.TimerService;
@@ -108,11 +106,6 @@ public interface GNNLayerFunction extends RichFunction {
                 case COMMIT:
                     GraphElement thisElement = getStorage().getElement(value.element);
                     if (Objects.isNull(thisElement)) {
-                        if (value.state == IterationType.FORWARD && value.isTopologyChange() && !isLast()) {
-                            message(new GraphOp(Op.COMMIT, this.getCurrentPart(), value.element.copy(), IterationType.FORWARD));
-                        } else if (value.state == IterationType.BACKWARD && value.isTopologyChange() && !isFirst()) {
-                            message(new GraphOp(Op.COMMIT, this.getCurrentPart(), value.element.copy(), IterationType.BACKWARD));
-                        }
                         value.element.setStorage(getStorage());
                         value.element.create();
                     } else {

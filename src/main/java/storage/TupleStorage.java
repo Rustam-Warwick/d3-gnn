@@ -13,48 +13,10 @@ public class TupleStorage extends BaseStorage {
     public transient MapState<String, Feature<?, ?>> featureTable;
     public transient MapState<String, List<String>> vertexOutEdges;
     public transient MapState<String, List<String>> vertexInEdges;
+    public transient MapState<String, Integer> edgeTimestamps;
 
-    @Override
-    public boolean deleteFeature(Feature feature) {
-        try {
-            featureTable.remove(feature.getId());
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
-    @Override
-    public boolean deleteVertex(Vertex vertex) {
-        try {
-            vertexOutEdges.remove(vertex.getId());
-            vertexInEdges.remove(vertex.getId());
-            vertexTable.remove(vertex.getId());
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
-    @Override
-    public boolean deleteEdge(Edge edge) {
-        try {
-            List<String> outEdges = vertexOutEdges.get(edge.src.getId());
-            List<String> inEdges = vertexInEdges.get(edge.dest.getId());
-            outEdges.remove(edge.dest.getId());
-            inEdges.remove(edge.src.getId());
-            vertexOutEdges.put(edge.src.getId(), outEdges);
-            vertexInEdges.put(edge.dest.getId(), inEdges);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    @Override
-    public Iterable<Edge> getEdges() {
-        return null;
-    }
 
     @Override
     public void open() throws Exception {
@@ -63,14 +25,16 @@ public class TupleStorage extends BaseStorage {
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor("featureTable", String.class, Feature.class);
         MapStateDescriptor<String, List<String>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges", String.class, List.class);
         MapStateDescriptor<String, List<String>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges", String.class, List.class);
+        MapStateDescriptor<String, Integer> edgeTimeStamps = new MapStateDescriptor("edgeTimestamps", String.class, Integer.class);
         this.vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         this.featureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
         this.vertexOutEdges = layerFunction.getRuntimeContext().getMapState(vertexOutEdgesDesc);
         this.vertexInEdges = layerFunction.getRuntimeContext().getMapState(vertexInEdgesDesc);
+        this.edgeTimestamps = layerFunction.getRuntimeContext().getMapState(edgeTimeStamps);
     }
 
     private void registerFieldName(Feature feature) {
-        fieldNames.add(feature.getFieldName());
+        fieldNames.add(feature.getName());
     }
 
     @Override
@@ -127,6 +91,7 @@ public class TupleStorage extends BaseStorage {
             List<String> destInEdges = this.vertexInEdges.get(edge.dest.getId());
             destInEdges.add(edge.src.getId());
             this.vertexInEdges.put(edge.dest.getId(), destInEdges);
+            this.edgeTimestamps.put(edge.getId(), edge.getTimestamp());
             return true;
 
         } catch (Exception e) {
@@ -138,7 +103,7 @@ public class TupleStorage extends BaseStorage {
     public boolean updateFeature(Feature feature) {
         try {
             if (!featureTable.contains(feature.getId())) throw new Exception("Feature not here");
-            this.featureTable.put(feature.getId(), feature);
+            this.featureTable.put(feature.getId(), (Feature<?, ?>) feature.copy());
             return true;
         } catch (Exception e) {
             return false;
@@ -157,7 +122,49 @@ public class TupleStorage extends BaseStorage {
 
     @Override
     public boolean updateEdge(Edge edge) {
-        return true;
+        try {
+            edgeTimestamps.put(edge.getId(), edge.getTimestamp());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean deleteFeature(Feature feature) {
+        try {
+            featureTable.remove(feature.getId());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean deleteVertex(Vertex vertex) {
+        try {
+            vertexOutEdges.remove(vertex.getId());
+            vertexInEdges.remove(vertex.getId());
+            vertexTable.remove(vertex.getId());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean deleteEdge(Edge edge) {
+        try {
+            List<String> outEdges = vertexOutEdges.get(edge.src.getId());
+            List<String> inEdges = vertexInEdges.get(edge.dest.getId());
+            outEdges.remove(edge.dest.getId());
+            inEdges.remove(edge.src.getId());
+            vertexOutEdges.put(edge.src.getId(), outEdges);
+            vertexInEdges.put(edge.dest.getId(), inEdges);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @Override
@@ -200,6 +207,8 @@ public class TupleStorage extends BaseStorage {
             Vertex src = getVertex(srcId);
             Vertex dest = getVertex(destId);
             Edge e = new Edge(src, dest);
+            int ts = edgeTimestamps.get(e.getId());
+            e.setTimestamp(ts);
             e.setStorage(this);
             return e;
         } catch (Exception e) {
@@ -220,6 +229,12 @@ public class TupleStorage extends BaseStorage {
     }
 
     @Override
+    public Iterable<Edge> getEdges() {
+        return null;
+    }
+
+
+    @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
             Iterator<Edge> inIterator = IteratorUtils.emptyIterator();
@@ -230,11 +245,17 @@ public class TupleStorage extends BaseStorage {
                 if (vertexInEdges.contains(vertex.getId())) {
                     List<String> tmp = vertexInEdges.get(vertex.getId());
                     inIterator = IteratorUtils.transformedIterator(tmp.iterator(), item -> {
-                        String srcId = (String) item;
-                        Vertex src = getVertex(srcId);
-                        Edge e = new Edge(src, vertex);
-                        e.setStorage(_this);
-                        return e;
+                        try {
+                            String srcId = (String) item;
+                            Vertex src = getVertex(srcId);
+                            Edge e = new Edge(src, vertex);
+                            int ts = edgeTimestamps.get(e.getId());
+                            e.setTimestamp(ts);
+                            e.setStorage(_this);
+                            return e;
+                        } catch (Exception e) {
+                            return null;
+                        }
                     });
                 }
             }
@@ -243,11 +264,17 @@ public class TupleStorage extends BaseStorage {
                 if (vertexOutEdges.contains(vertex.getId())) {
                     List<String> tmp = vertexOutEdges.get(vertex.getId());
                     outIterator = IteratorUtils.transformedIterator(tmp.iterator(), item -> {
-                        String destId = (String) item;
-                        Vertex dest = getVertex(destId);
-                        Edge e = new Edge(vertex, dest);
-                        e.setStorage(_this);
-                        return e;
+                        try {
+                            String destId = (String) item;
+                            Vertex dest = getVertex(destId);
+                            Edge e = new Edge(vertex, dest);
+                            int ts = edgeTimestamps.get(e.getId());
+                            e.setTimestamp(ts);
+                            e.setStorage(_this);
+                            return e;
+                        } catch (Exception e) {
+                            return null;
+                        }
                     });
                 }
             }
@@ -274,7 +301,7 @@ public class TupleStorage extends BaseStorage {
     @Override
     public Feature getFeature(String id) {
         try {
-            Feature<?, ?> res = this.featureTable.get(id);
+            Feature<?, ?> res = this.featureTable.get(id).copy(); // Copy so that in case if this is in-memory caches are not stored
             res.setStorage(this);
             return res;
         } catch (Exception e) {

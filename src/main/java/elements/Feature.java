@@ -3,6 +3,7 @@ package elements;
 import iterations.IterationType;
 import scala.Tuple2;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
@@ -53,16 +54,18 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     @Override
-    public GraphElement copy() {
-        Feature<T, V> tmp = new Feature<T, V>(this.id, this.value, this.halo, this.master);
+    public Feature<T, V> copy() {
+        Feature<T, V> tmp = new Feature<>(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
-        Feature<T, V> tmp = new Feature<T, V>(this.id, this.value, this.halo, this.master);
+    public Feature<T, V> deepCopy() {
+        Feature<T, V> tmp = new Feature<>(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         tmp.element = this.element;
@@ -75,7 +78,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * Features attached to elements should arrive at corresponding masters first,
      * hence the different in main logic is that master should then create them on replica parts
      *
-     * @return
+     * @return is created successfully
      */
     @Override
     public Boolean create() {
@@ -83,24 +86,43 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
-                replicaParts().forEach(part -> {
-                    storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, IterationType.ITERATE));
-                });
+                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, IterationType.ITERATE)));
             }
             return is_created;
         }
     }
 
+    /**
+     * Update element is different for feature since we also need to update the value stored in the feature
+     * @param newElement newElement to update with
+     * @return (isUpdated, oldElement)
+     */
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        boolean isUpdated;
-        Feature<T, V> memento = (Feature<T, V>) this.copy();
+        Feature<T, V> memento = this.copy();
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
-        if (Objects.isNull(this.value) && Objects.isNull(newFeature.value)) isUpdated = false;
-        else if (Objects.isNull(this.value) || Objects.isNull(newFeature.value)) isUpdated = true;
-        else isUpdated = !this.valuesEqual(newFeature.value, this.value);
+        boolean isUpdated = !this.valuesEqual(newFeature.value, this.value);
+        if (isUpdated) this.value = newFeature.value;
+        if (this.attachedTo._1 == ElementType.NONE) {
+            // If none sub-features may exist
+            for (Feature<?,?> newSubFeature : newElement.features) {
+                Feature<?,?> thisSubFeature = this.getFeature(newSubFeature.getName());
+                if (Objects.nonNull(thisSubFeature)) {
+                    Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
+                    isUpdated |= tmp._1();
+                    addIfNotExists(memento.features, (Feature<?,?>) tmp._2);
+                } else {
+                    Feature<?,?> featureCopy = newSubFeature.copy();
+                    featureCopy.setElement(this);
+                    featureCopy.setStorage(this.storage);
+                    featureCopy.createElement();
+                    addIfNotExists(this.features, featureCopy);
+                    isUpdated = true;
+                }
+            }
+        }
+
         if (isUpdated) {
-            this.value = newFeature.value;
             this.storage.updateFeature(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }
@@ -108,18 +130,29 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
 
-    // Abstract Methods and
+    /**
+     * Gets the value of the interface V that is stored here
+     * @return V
+     */
     public V getValue() {
         return (V) this.value;
     }
 
+    /**
+     * Given 2 Ts if they are both equal
+     * @implNote This function is used to decide if an update is really needed
+     * @param v1 first T
+     * @param v2 second T
+     * @return if v1 === v2
+     */
     public boolean valuesEqual(T v1, T v2) {
         return false;
     }
 
-    // Getters and setters
-
-
+    /**
+     * If this element is an attached feature, master part is the one of the attached graph element
+     * @return master part
+     */
     @Override
     public short masterPart() {
         if (Objects.nonNull(this.getElement())) {
@@ -128,11 +161,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.masterPart();
     }
 
-    @Override
-    public ElementType elementType() {
-        return ElementType.FEATURE;
-    }
-
+    /**
+     * If this element is an attached feature, replica parts are the ones attached to the graph element
+     * @return replicated parts
+     */
     @Override
     public List<Short> replicaParts() {
         if (Objects.nonNull(this.getElement())) {
@@ -141,40 +173,79 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.replicaParts();
     }
 
+    /**
+     * If this element is an attached feature, id = attachedId + this.id
+     * @implNote this method should be used for storing the elements as well as keying
+     * @return id of the feature
+     */
     @Override
     public String getId() {
         if (this.attachedTo._1 == ElementType.NONE) return super.getId();
         return this.attachedTo._2 + this.id;
     }
 
-    public String getFieldName() {
+    /**
+     * Name is the actualy feature name, this is equal id if not attached feature
+     * @return name of the feature
+     */
+    public String getName() {
         return this.id;
     }
 
+    /**
+     * If element is cached here return it, otherwise ask the DB to retrieve the element
+     * @return GraphElement
+     */
+    @Nullable
     public GraphElement getElement() {
-        if (this.attachedTo._1 == ElementType.NONE) return null;
-        if (this.element == null && this.storage != null) {
-            this.element = this.storage.getElement(this.attachedTo._2, this.attachedTo._1);
+        if (attachedTo._1 == ElementType.NONE) return null;
+        if (element == null && storage != null) {
+            setElement(storage.getElement(attachedTo._2, attachedTo._1));
         }
-        return this.element;
+        return element;
     }
 
-    public void setElement(GraphElement element) {
-        this.element = element;
-        if (Objects.nonNull(element)) {
-            this.attachedTo = new Tuple2<>(element.elementType(), element.getId());
+    /**
+     * Caches the given element, adds current feature to feature of the element if that does not exist
+     * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
+     * between element.features <--> feature.element.
+     * @param attachingElement element that want to attach itself to this feature
+     */
+    public void setElement(GraphElement attachingElement) {
+        if(element == null && attachingElement != null) {
+            attachedTo = new Tuple2<>(attachingElement.elementType(), attachingElement.getId());
+            if(GraphElement.addIfNotExists(attachingElement.features, this)){
+                this.element = attachingElement;
+            }
         }
     }
 
+
+    /**
+     * Attached Features cannot have subFeatures otherwise behaves as usual
+     * @param name name of the feature
+     * @return Feature
+     */
     @Override
-    public Feature getFeature(String name) {
+    @Nullable
+    public Feature<?,?> getFeature(String name) {
         if (attachedTo._1 == ElementType.NONE) return super.getFeature(name);
         return null;
     }
 
+    /**
+     * Attached Features cannot have subFeatures otherwise begaves as usual
+     * @param name name of the feature to be added
+     * @param feature feature itself
+     */
     @Override
-    public void setFeature(String name, Feature feature) {
+    public void setFeature(String name, Feature<?,?> feature) {
         if (attachedTo._1 == ElementType.NONE) super.setFeature(name, feature);
-        throw new IllegalStateException("Nested features not allowed ");
+        throw new IllegalStateException("Nested features not allowed");
+    }
+
+    @Override
+    public ElementType elementType() {
+        return ElementType.FEATURE;
     }
 }

@@ -41,12 +41,12 @@ public class RemoteInvoke {
         return this;
     }
 
-    public RemoteInvoke toDestination(Short dest) {
+    public RemoteInvoke addDestination(Short dest) {
         destinations.add(dest);
         return this;
     }
 
-    public RemoteInvoke toDestinations(List<Short> dests) {
+    public RemoteInvoke addDestinations(List<Short> dests) {
         this.destinations.addAll(dests);
         return this;
     }
@@ -79,7 +79,7 @@ public class RemoteInvoke {
     public void buildAndRun(BaseStorage storage) {
         List<GraphOp> graphOps = build();
         for (GraphOp a : graphOps) {
-            if (a.part_id == storage.layerFunction.getCurrentPart()) {
+            if (a.part_id == storage.layerFunction.getCurrentPart() && a.state == IterationType.ITERATE) {
                 Rmi.execute(storage.getElement(elementId, elementType), (Rmi) a.element);
             } else {
                 storage.layerFunction.message(a);

@@ -39,7 +39,7 @@ import java.util.function.Consumer;
 
 /**
  * Feedback operator send data to the Head Operator through a FeedbackChannel Broker
- * It also handles the checkpointing of the data
+ * It also handles the checkpointing of the data @todo enable checkpointing
  */
 public class SimpleTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {

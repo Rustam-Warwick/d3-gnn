@@ -13,14 +13,12 @@ import java.util.Objects;
 public class GraphElement implements Serializable {
     public String id;
     public short partId;
+    public int ts = Integer.MIN_VALUE;
     public transient BaseStorage storage;
-    public List<Feature> features;
+    public List<Feature<?,?>> features;
 
     public GraphElement() {
-        this.id = null;
-        this.partId = -1;
-        this.storage = null;
-        this.features = new ArrayList<>();
+        this(null);
     }
 
     public GraphElement(String id) {
@@ -30,26 +28,19 @@ public class GraphElement implements Serializable {
         this.features = new ArrayList<>();
     }
 
-    public static void addIfNotExists(List<Feature> list, Feature feature) {
-        if (!list.contains(feature)) {
-            list.add(feature);
-        }
-    }
-
     /**
      * Copy bare element, without storage and features
-     *
      * @return copied element
      */
     public GraphElement copy() {
         GraphElement tmp = new GraphElement(this.id);
         tmp.partId = this.partId;
+        tmp.ts = this.ts;
         return tmp;
     }
 
     /**
      * Copy everything including storage, element features
-     *
      * @return copied element
      */
     public GraphElement deepCopy() {
@@ -57,9 +48,14 @@ public class GraphElement implements Serializable {
         tmp.partId = this.partId;
         tmp.storage = this.storage;
         tmp.features.addAll(this.features);
+        tmp.ts = this.ts;
         return tmp;
     }
 
+    /**
+     * Element creation logic
+     * @return Was element created
+     */
     public Boolean createElement() {
         boolean is_created = this.storage.addElement(this);
         if (is_created) {
@@ -71,6 +67,10 @@ public class GraphElement implements Serializable {
         return is_created;
     }
 
+    /**
+     * Element deletion logic
+     * @return Was element deleted
+     */
     public Boolean deleteElement() {
         cacheFeatures();
         for (GraphElement el : this.features) {
@@ -83,20 +83,25 @@ public class GraphElement implements Serializable {
         return is_deleted;
     }
 
+    /**
+     * Element update logic
+     * @param newElement newElement to update with
+     * @return (is updated, previous values)
+     */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        GraphElement memento = this.copy();
+        GraphElement memento = this.copy(); // No features to storage
         boolean is_updated = false;
-        for (Feature feature : newElement.features) {
-            Feature thisFeature = this.getFeature(feature.getFieldName());
+        for (Feature<?,?> feature : newElement.features) {
+            Feature<?,?> thisFeature = this.getFeature(feature.getName());
             if (Objects.nonNull(thisFeature)) {
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
                 is_updated |= tmp._1();
-                addIfNotExists(memento.features, (Feature) tmp._2);
+                memento.setFeature(feature.getName(), (Feature<?,?>) tmp._2);
             } else {
-                feature.setElement(this);
-                feature.setStorage(this.storage);
-                feature.createElement();
-                addIfNotExists(this.features, feature);
+                Feature<?,?> featureCopy = feature.copy();
+                featureCopy.setStorage(this.storage);
+                featureCopy.setElement(this);
+                featureCopy.createElement();
                 is_updated = true;
             }
         }
@@ -109,106 +114,181 @@ public class GraphElement implements Serializable {
         return new Tuple2<>(is_updated, memento);
     }
 
+    /**
+     * External delete query
+     * @return is deleted
+     */
     public Boolean delete() {
         return deleteElement();
     }
 
+    /**
+     * External Create logic
+     * @return is created
+     */
     public Boolean create() {
         return createElement();
     }
 
+    /**
+     * External Sync logic
+     * @param newElement element that requires syncing
+     * @return (isSynced, previous element)
+     */
     public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
         return new Tuple2<>(false, this);
     }
 
+    /**
+     * External Update logic
+     * @param newElement external update element
+     * @return (isUpdated, previous element)
+     */
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         return updateElement(newElement);
     }
 
-    // Typing stuff
+    /**
+     * @return Type of this element
+     */
     public ElementType elementType() {
         return ElementType.NONE;
     }
 
+    /**
+     * @return is this element replicable
+     */
     public Boolean isReplicable() {
         return false;
     }
 
+    /**
+     * Master part of this element, default is current part
+     * @return master part of this element
+     */
     public short masterPart() {
-        return this.partId;
+        return getPartId();
     }
 
-    public ReplicaState state() {
-        if (this.partId == -1) return ReplicaState.UNDEFINED;
-        if (this.partId == this.masterPart()) return ReplicaState.MASTER;
-        return ReplicaState.REPLICA;
-    }
-
-    @Nullable
-    public List<Short> replicaParts() {
-        return Collections.emptyList();
-    }
-    // Getters and Setters
-
+    /**
+     * Default is false, halo does make sense only for replicableElements
+     * @return is this element Halo()
+     */
     public Boolean isHalo() {
         return false;
     }
 
+    /**
+     * MASTER, REPLICA, UNDEFINED. UNDEFINED is if not yet in storage
+     * @return state of this element
+     */
+    public ReplicaState state() {
+        if (getPartId() == -1) return ReplicaState.UNDEFINED;
+        if (getPartId() == this.masterPart()) return ReplicaState.MASTER;
+        return ReplicaState.REPLICA;
+    }
+
+    /**
+     * List of replica part, default is empty list
+     * @return list of replica parts
+     */
+    public List<Short> replicaParts() {
+        return Collections.emptyList();
+    }
+
+    public int getTimestamp() {
+        return ts;
+    }
+
+    public void setTimestamp(int ts) {
+        this.ts = ts;
+    }
+
+    /**
+     * get Id of this element
+     * @return element id
+     */
     public String getId() {
         return id;
     }
 
+    /**
+     * Set id of this element
+     * @param id id to be set
+     */
     public void setId(String id) {
         this.id = id;
     }
 
+    /**
+     * Get the part id of this element. If attached to storage default is current processing part
+     * @return Element part id
+     */
     public short getPartId() {
         if (Objects.nonNull(this.storage)) return storage.layerFunction.getCurrentPart();
         return partId;
     }
 
+    /**
+     * Set the part id of this element
+     * @param partId part id
+     */
     public void setPartId(short partId) {
         this.partId = partId;
     }
 
+    /**
+     * Attaches storage to this element, so that element can use the storage functions
+     * Setting storage also affects part id as well id ids of subFeatures
+     * In this step we also assign this as element of subFeatures
+     * @param storage
+     */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        if (Objects.nonNull(storage)) this.partId = storage.layerFunction.getCurrentPart();
-        for (Feature ft : this.features) {
+        this.partId = getPartId();
+        for (Feature<?,?> ft : this.features) {
             ft.setStorage(storage);
+            ft.setElement(this);
         }
     }
 
-    public String decodeFeatureId(String fieldName) {
-        return getId() + fieldName;
+
+    /**
+     * Retrieves feature from cache if exists, otherwise from storage
+     * @implNote that a cached feature will not be queried a second time from storage
+     * @param name name of the feature
+     * @return Feature or NULL
+     */
+    @Nullable
+    public Feature<?,?> getFeature(String name) {
+        Feature<?,?> result = this.features.stream().filter(item -> item.getName().equals(name)).findAny().orElse(null);
+        if(Objects.nonNull(result)) return result;
+        if(Objects.isNull(storage)) return null;
+        Feature<?,?> tmp = storage.getFeature(decodeFeatureId(name));
+        if(Objects.nonNull(tmp)) tmp.setElement(this);
+        return tmp;
     }
 
-    public Feature getFeature(String name) {
-        Feature result = this.features.stream().filter(item -> item.getFieldName().equals(name)).findAny().orElse(null);
-        if (result == null && this.storage != null) {
-            result = this.storage.getFeature(decodeFeatureId(name));
-            if (Objects.nonNull(result)) {
-                result.setElement(this);
-                addIfNotExists(this.features, result);
-            }
-        }
-        return result;
-    }
-
-    public void setFeature(String name, Feature feature) {
+    /**
+     * If the feature already exists this will not do anything
+     * Otherwise it will try to create the feature in storage or at least append to feature list
+     * @param name name of the feature to be added
+     * @param feature feature itself
+     */
+    public void setFeature(String name, Feature<?,?> feature) {
         if (Objects.nonNull(getFeature(name))) return;
         feature.setId(name);
+        feature.setStorage(storage);
         feature.setElement(this);
-        feature.setStorage(this.storage);
-        if (Objects.nonNull(this.storage)) {
-            if (feature.create()) {
-                addIfNotExists(this.features, feature);
-            }
-        } else {
-            addIfNotExists(this.features, feature);
+        if (Objects.nonNull(storage)) {
+            feature.create();
         }
+
     }
 
+    /**
+     * Retrieves all features of this graph element from the storage
+     */
     public void cacheFeatures() {
         if (Objects.nonNull(storage)) {
             storage.cacheFeaturesOf(this);
@@ -227,13 +307,35 @@ public class GraphElement implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GraphElement that = (GraphElement) o;
-        return id.equals(that.id);
+        return getId().equals(that.getId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(getId());
     }
 
+    /**
+     * Helper method to add feature if it does not exist
+     * @param list list of features
+     * @param feature feature we are willing to add
+     * @return could we add it
+     */
+    public static boolean addIfNotExists(List<Feature<?,?>> list, Feature<?,?> feature) {
+        if (!list.contains(feature)) {
+            list.add(feature);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Helper method that decodes feature id from the featureName
+     * @param name featureName
+     * @return full feature id
+     */
+    public String decodeFeatureId(String name) {
+        return getId() + name;
+    }
 
 }

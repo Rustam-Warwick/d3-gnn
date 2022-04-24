@@ -19,19 +19,21 @@ public class Edge extends GraphElement {
     }
 
     @Override
-    public GraphElement copy() {
-        Vertex srcCpy = (Vertex) this.src.copy();
-        Vertex destCpy = (Vertex) this.dest.copy();
+    public Edge copy() {
+        Vertex srcCpy = this.src.copy();
+        Vertex destCpy = this.dest.copy();
         Edge tmp = new Edge(srcCpy, destCpy);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
-        Vertex srcCpy = (Vertex) this.src.deepCopy();
-        Vertex destCpy = (Vertex) this.dest.deepCopy();
+    public Edge deepCopy() {
+        Vertex srcCpy = this.src.deepCopy();
+        Vertex destCpy = this.dest.deepCopy();
         Edge tmp = new Edge(srcCpy, destCpy);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
         tmp.features.addAll(this.features);

@@ -2,7 +2,6 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import elements.GraphElement;
 import scala.Tuple2;
 
 /**
@@ -39,17 +38,19 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     }
 
     @Override
-    public GraphElement copy() {
+    public VTensor copy() {
         VTensor tmp = new VTensor(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
+    public VTensor deepCopy() {
         NDArray copyArray = this.value._1.duplicate();
         VTensor tmp = new VTensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;
@@ -64,7 +65,6 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
     }
 
     public boolean isReady(int modelVersion) {
-
         if (this.storage.layerFunction.isFirst()) return true;
         return this.value._2 == modelVersion;
     }

@@ -1,4 +1,4 @@
-package functions;
+package functions.parser;
 
 import elements.Edge;
 import elements.GraphOp;
@@ -36,7 +36,7 @@ public class MovieLensStreamParser extends RichFlatMapFunction<String, GraphOp> 
             Vertex dest = new Vertex(res[1]);
             Edge edge = new Edge(src, dest);
 //            edge.setFeature("rating", new Feature<Float, Float>(rating));
-            Edge edgeReverse = (Edge) edge.deepCopy();
+            Edge edgeReverse = edge.deepCopy();
             edgeReverse.reverse();
             out.collect(new GraphOp(Op.COMMIT, edge));
             out.collect(new GraphOp(Op.COMMIT, edgeReverse));

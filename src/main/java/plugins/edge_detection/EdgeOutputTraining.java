@@ -1,4 +1,4 @@
-package plugins;
+package plugins.edge_detection;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
@@ -6,10 +6,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
-import iterations.RemoteDestination;
-import iterations.RemoteFunction;
-import iterations.Rmi;
+import iterations.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
@@ -17,12 +14,12 @@ import scala.Tuple2;
 import java.util.Map;
 import java.util.Objects;
 
-public class GNNOutputEdgeTraining extends Plugin {
-    public transient GNNOutputEdgeInference inference;
+public class EdgeOutputTraining extends Plugin {
+    public transient EdgeOutputInference inference;
     public transient OutputTag<GraphOp> trainingOutput;
     public transient int collectedGradsSoFar = 0;
 
-    public GNNOutputEdgeTraining() {
+    public EdgeOutputTraining() {
         super("trainer");
     }
 
@@ -34,8 +31,8 @@ public class GNNOutputEdgeTraining extends Plugin {
             forwardForTraining(edge);
         }
         if (element.elementType() == ElementType.FEATURE) {
-            Feature tmp = (Feature) element;
-            if (tmp.getFieldName().equals("feature")) {
+            Feature<?,?> tmp = (Feature<?,?>) element;
+            if (tmp.getName().equals("feature")) {
                 storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH).forEach(this::forwardForTraining);
             }
         }
@@ -44,9 +41,9 @@ public class GNNOutputEdgeTraining extends Plugin {
     public void forwardForTraining(Edge e) {
         if (inference.outputReady(e)) {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
-            Edge messageEdge = (Edge) e.copy();
+            Edge messageEdge =  e.copy();
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
-            messageEdge.setFeature("label", e.getFeature("label"));
+            messageEdge.setFeature("label", e.getFeature("label").copy());
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
         }
     }
@@ -83,43 +80,91 @@ public class GNNOutputEdgeTraining extends Plugin {
         }
     }
 
+    /**
+     * When Master Receives this message, it starts collecting gradients from replicas
+     * Then it performs mean over the batch and updates the model
+     */
     @RemoteFunction
     public void startTraining() {
-        Rmi.callProcedure(this, "callForGradientCollection", IterationType.ITERATE, RemoteDestination.ALL);
-        Rmi.callProcedure(this, "startTraining", IterationType.BACKWARD, RemoteDestination.MASTER);
-    }
-
-    @RemoteFunction
-    public void callForGradientCollection() {
         inference.updatePending = true;
-        Rmi.callProcedure(this, "collectGradients", inference.parameterStore.gradientArrays);
+        new RemoteInvoke()
+                .toElement(getId(), elementType())
+                .where(IterationType.ITERATE)
+                .method("sendGradientsToMaster")
+                .addDestinations(replicaParts())
+                .withArgs()
+                .noUpdate()
+                .buildAndRun(storage);
+
+        if (!storage.layerFunction.isFirst()) {
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(IterationType.BACKWARD)
+                    .method("startTraining")
+                    .addDestination(masterPart())
+                    .withArgs()
+                    .noUpdate()
+                    .buildAndRun(storage);
+        }
+    }
+
+    /**
+     * CAll to Sends the local gradients to master
+     */
+    @RemoteFunction
+    public void sendGradientsToMaster() {
+        inference.updatePending = true; // Sending to master waiting for new parameters
+        new RemoteInvoke()
+                .toElement(getId(), elementType())
+                .where(IterationType.ITERATE)
+                .method("collectGradients")
+                .addDestination(masterPart())
+                .withArgs(inference.parameterStore.gradientArrays)
+                .noUpdate()
+                .buildAndRun(storage);
     }
 
 
+    /**
+     * Accumulates all the gradients in master operator
+     * @param grads
+     */
     @RemoteFunction
     public void collectGradients(Map<String, Tuple2<NDArray, Integer>> grads) {
         inference.parameterStore.meanAccumulateGrads(grads);
         collectedGradsSoFar++;
-        if (collectedGradsSoFar == replicaParts().size() + 1) {
+        if (collectedGradsSoFar == replicaParts().size()) {
             collectedGradsSoFar = 0;
             inference.parameterStore.step();
-            Rmi.callProcedure(this, "updateParameters", IterationType.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(IterationType.ITERATE)
+                    .method("updateParameters")
+                    .addDestinations(replicaParts())
+                    .addDestination(masterPart())
+                    .withArgs(inference.parameterStore.parameterArrays)
+                    .noUpdate()
+                    .buildAndRun(storage);
         }
     }
 
+    /**
+     * Given new parameters synchronize them across the parallel instances
+     * @param params
+     */
     @RemoteFunction
     public void updateParameters(Map<String, NDArray> params) {
         inference.parameterStore.updateParameters(params);
         inference.parameterStore.resetGrads();
         inference.MODEL_VERSION++;
-        inference.updatePending = false;
+        inference.updatePending = false; // Model is here
     }
 
 
     @Override
     public void open() {
         super.open();
-        inference = (GNNOutputEdgeInference) this.storage.getPlugin("inferencer");
+        inference = (EdgeOutputInference) this.storage.getPlugin("inferencer");
         trainingOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {
         };
     }

@@ -19,15 +19,17 @@ public class Vertex extends ReplicableGraphElement {
     }
 
     @Override
-    public GraphElement copy() {
+    public Vertex copy() {
         Vertex tmp = new Vertex(this.id, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
+    public Vertex deepCopy() {
         Vertex tmp = new Vertex(this.id, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.partId = this.partId;
         tmp.storage = this.storage;
         tmp.features.addAll(this.features);

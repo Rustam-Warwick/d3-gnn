@@ -1,4 +1,4 @@
-package plugins;
+package plugins.edge_detection;
 
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
@@ -12,13 +12,13 @@ import helpers.MyParameterStore;
 import javax.annotation.Nonnull;
 import java.util.Objects;
 
-public abstract class GNNOutputEdgeInference extends Plugin {
+public abstract class EdgeOutputInference extends Plugin {
     public transient Model outputModel;
     public MyParameterStore parameterStore = new MyParameterStore();
-    public transient int MODEL_VERSION = 0;
-    public transient boolean updatePending = false;
+    public int MODEL_VERSION = 0;
+    public boolean updatePending = false;
 
-    public GNNOutputEdgeInference() {
+    public EdgeOutputInference() {
         super("inferencer");
     }
 
@@ -28,7 +28,7 @@ public abstract class GNNOutputEdgeInference extends Plugin {
     @Override
     public void add() {
         super.add();
-        this.storage.withPlugin(new GNNOutputEdgeTraining());
+        this.storage.withPlugin(new EdgeOutputTraining());
         this.outputModel = this.createOutputModel();
         this.parameterStore.canonizeModel(this.outputModel);
         this.parameterStore.loadModel(this.outputModel);

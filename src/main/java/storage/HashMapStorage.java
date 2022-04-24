@@ -95,7 +95,7 @@ public class HashMapStorage extends BaseStorage {
             this.reverseTranslationTable.put(last_id, feature.getId());
             this.featureTable.put(last_id, feature);
             if (feature.attachedTo._1 != ElementType.NONE) {
-                this.addFieldName(feature.getFieldName());
+                this.addFieldName(feature.getName());
             }
             return true;
         } catch (Exception e) {

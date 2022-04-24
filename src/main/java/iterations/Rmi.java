@@ -53,23 +53,6 @@ public class Rmi extends GraphElement {
     }
 
     /**
-     * Send Update RPC Message to master of this element
-     *
-     * @param el
-     * @param methodName
-     * @param args
-     */
-    public static void call(GraphElement el, String methodName, Object... args) {
-        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType());
-        rmi.setStorage(el.storage);
-        if (el.state() == ReplicaState.MASTER) {
-            Rmi.execute(el, rmi);
-        } else {
-            rmi.storage.layerFunction.message(new GraphOp(Op.RMI, el.masterPart(), rmi, IterationType.ITERATE));
-        }
-    }
-
-    /**
      * Send Procedure RPC Message to master of this element
      *
      * @param el

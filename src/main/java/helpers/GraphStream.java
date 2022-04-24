@@ -17,37 +17,42 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.IterativeStream;
-import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
+import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
 import serializers.JavaTensor;
 import serializers.TensorSerializer;
 
+import java.util.List;
+
 public class GraphStream {
     public short parallelism; // Default parallelism
-    public short layers; // Number of GNN Layers in the pipeline
-    public IterationID lastIterationID; // Previous Layer Iteration Id
+    public short layers = 0; // Number of GNN Layers in the pipeline
+    public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
     public short position_index = 1; // Counter of the Current GNN layer being deployed
     public double lambda = 1.8; // GNN operator explosion coefficient
-    public StreamExecutionEnvironment env;
+    public StreamExecutionEnvironment env; // Stream environment
     public StreamTableEnvironment tableEnv;
 
-    public GraphStream(short parallelism, short layers) {
+    public GraphStream(short parallelism) {
         this.parallelism = parallelism;
-        this.layers = layers;
         this.env = StreamExecutionEnvironment.getExecutionEnvironment();
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
-        this.env.getConfig().enableObjectReuse();
+        this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
     }
@@ -66,23 +71,17 @@ public class GraphStream {
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
-//        env.registerType(SumAggregator.class);
     }
 
     /**
-     * Read the socket stream and parse it
-     *
-     * @param parser MapFunction to parse the incoming Strings to GraphElements
-     * @param host   Host name
-     * @param port   Port number
-     * @return Datastream of GraphOps
+     * Read a socket channel and parse the data
+     * @param parser FlatMap Parser
+     * @param host
+     * @param port
+     * @return
      */
-    public DataStream<GraphOp> readSocket(MapFunction<String, GraphOp> parser, String host, int port) {
-        return this.env.socketTextStream(host, port).map(parser).name("Input Stream Parser");
-    }
-
     public DataStream<GraphOp> readSocket(FlatMapFunction<String, GraphOp> parser, String host, int port) {
-        return this.env.socketTextStream(host, port).flatMap(parser).name("Input Stream Parser");
+        return this.env.socketTextStream(host, port).startNewChain().flatMap(parser).setParallelism(1).name("Input Stream Parser");
     }
 
     /**
@@ -110,35 +109,20 @@ public class GraphStream {
         return stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
     }
 
-    //
-    public DataStream<GraphOp> gnnLayerOldIteration(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
-        storageProcess.numLayers = this.layers;
-        storageProcess.position = this.position_index;
-        int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers)));
-        DataStream<GraphOp> input = last.keyBy(new PartKeySelector()).map(item -> item).setParallelism(thisParallelism);
-        IterativeStream<GraphOp> currentIteration = input.iterate();
-        KeyedStream<GraphOp, String> ks = currentIteration.keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp> forwardFilter = ks.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, new IterationID())).setParallelism(thisParallelism);
-        DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
-        currentIteration.closeWith(iterateFilter);
-
-        input.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-        currentIteration.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-        forwardFilter.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-
-
-        this.position_index++;
-        return forwardFilter;
-    }
-
-
-    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> last, StreamingGNNLayerFunction storageProcess) {
+    /**
+     * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
+     *
+     * @param inputGraphOps non-leyed input graphop to this layer, can be a union of several streams as well
+     * @param storageProcess Storage process with plugins and storage layer
+     * @return output stream dependent on the plugin
+     */
+    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> inputGraphOps, StreamingGNNLayerFunction storageProcess) {
         storageProcess.numLayers = this.layers;
         storageProcess.position = this.position_index;
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
-        DataStream<GraphOp> keyedLast = last.keyBy(new PartKeySelector());
+        DataStream<GraphOp> keyedLast = inputGraphOps.keyBy(new PartKeySelector());
         SingleOutputStreamOperator<GraphOp> forwardFilter = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
         DataStream<Void> iteration = iterateFilter.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
@@ -157,6 +141,60 @@ public class GraphStream {
         return forwardFilter;
     }
 
+    /**
+     * Start of the GNN Chain
+     *
+     * @param topologyUpdates  External System updates
+     * @param storageProcesses List of Storage Processes with correspondign storage layer and plugins
+     * @return Last layer corresponding to vertex embeddings
+     */
+    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, List<StreamingGNNLayerFunction> storageProcesses) {
+        this.layers = (short) storageProcesses.size();
+        assert layers > 0;
+        DataStream<GraphOp> lastLayerInputs = null;
+        for (StreamingGNNLayerFunction fn : storageProcesses) {
+            if (lastLayerInputs == null) {
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
+            } else {
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
+            }
+
+        }
+        return lastLayerInputs;
+    }
+
+    /**
+     * Start of the GNN Chain, but with a window based on processing time
+     *
+     * @param topologyUpdates  External System updates
+     * @param processingWindowTime Time by which we should pool the input previous layer updates, note that topology is not windowed, only the previous layer updates
+     * @param storageProcesses List of Storage Processes with correspondign storage layer and plugins
+     * @return Last layer corresponding to vertex embeddings
+     */
+    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, Time processingWindowTime, List<StreamingGNNLayerFunction> storageProcesses) {
+        this.layers = (short) storageProcesses.size();
+        assert layers > 0;
+        DataStream<GraphOp> lastLayerInputs = null;
+        for (StreamingGNNLayerFunction fn : storageProcesses) {
+            if (lastLayerInputs == null) {
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
+            } else {
+                lastLayerInputs = lastLayerInputs.keyBy(new ElementForPartKeySelector()).window(TumblingProcessingTimeWindows.of(processingWindowTime))
+                        .evictor(CountEvictor.of(1))
+                        .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+                            @Override
+                            public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+                                for (GraphOp e : input) {
+                                    out.collect(e);
+                                }
+                            }
+                        });
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
+            }
+
+        }
+        return lastLayerInputs;
+    }
 
     public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
         assert position_index == layers;

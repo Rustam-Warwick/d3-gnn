@@ -1,7 +1,6 @@
 package features;
 
 import elements.Feature;
-import elements.GraphElement;
 import iterations.RemoteFunction;
 
 import java.util.List;
@@ -35,16 +34,18 @@ public class Set<T> extends Feature<List<T>, List<T>> {
     }
 
     @Override
-    public GraphElement copy() {
+    public Set<T> copy() {
         Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.partId = this.partId;
         return tmp;
     }
 
     @Override
-    public GraphElement deepCopy() {
+    public Set<T> deepCopy() {
         Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
+        tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
         tmp.partId = this.partId;

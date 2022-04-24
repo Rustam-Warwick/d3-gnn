@@ -54,7 +54,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         parameterArrays.forEach((key, item) -> {
             item.setRequiresGradient(false);
             NDArray grad = gradientArrays.get(key)._1;
-            item.subi(grad);
+            item.addi(grad);
         });
     }
 
@@ -64,8 +64,8 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      * @param newParams
      */
     public void updateParameters(Map<String, NDArray> newParams) {
+        System.out.println("Model Updated");
         newParams.forEach((key, item) -> {
-            System.out.println(item);
             if (parameterArrays.containsKey(key)) {
                 NDArray currentParam = parameterArrays.get(key);
                 if (currentParam != item) currentParam.close();
@@ -128,7 +128,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      */
     public void meanAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
         if (grad._2 <= 0 || !isTensorCorrect(grad._1)) return;
-        NDManager tmpManager = manager.newSubManager();
+        NDManager tmpManager = getManager().newSubManager();
         Tuple2<NDArray, Integer> thisGrad = gradientArrays.get(parameterId);
         thisGrad._1.attach(tmpManager);
         grad._1.attach(tmpManager);
@@ -182,7 +182,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         NDArray valueParam = this.parameterArrays.get(parameter.getId());
         if (valueParam.hasGradient() && !training) {
             NDArray grad = valueParam.getGradient();
-            sumAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
+            meanAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
             valueParam.setRequiresGradient(false);
         } else if (!valueParam.hasGradient() && training) {
             valueParam.setRequiresGradient(true);

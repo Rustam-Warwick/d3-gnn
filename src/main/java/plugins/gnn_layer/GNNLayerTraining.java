@@ -1,4 +1,4 @@
-package plugins;
+package plugins.gnn_layer;
 
 import aggregators.BaseAggregator;
 import ai.djl.ndarray.NDArray;
@@ -7,10 +7,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
-import iterations.RemoteDestination;
-import iterations.RemoteFunction;
-import iterations.Rmi;
+import iterations.*;
 import scala.Tuple2;
 
 import java.util.Map;
@@ -32,6 +29,7 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Backward trigger function
+     *
      * @param grad grad to be passed for VJP
      */
     @RemoteFunction
@@ -102,54 +100,98 @@ public class GNNLayerTraining extends Plugin {
         }
     }
 
+    /**
+     * When Master Receives this message, it starts collecting gradients from replicas
+     * Then it performs mean over the batch and updates the model
+     */
     @RemoteFunction
     public void startTraining() {
-        Rmi.callProcedure(this, "callForGradientCollection", IterationType.ITERATE, RemoteDestination.ALL);
+        inference.updatePending = true;
+        new RemoteInvoke()
+                .toElement(getId(), elementType())
+                .where(IterationType.ITERATE)
+                .method("sendGradientsToMaster")
+                .addDestinations(replicaParts())
+                .withArgs()
+                .noUpdate()
+                .buildAndRun(storage);
+
         if (!storage.layerFunction.isFirst()) {
-            Rmi.callProcedure(this, "startTraining", IterationType.BACKWARD, RemoteDestination.MASTER);
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(IterationType.BACKWARD)
+                    .method("startTraining")
+                    .addDestination(masterPart())
+                    .withArgs()
+                    .noUpdate()
+                    .buildAndRun(storage);
         }
     }
 
+    /**
+     * CAll to Sends the local gradients to master
+     */
     @RemoteFunction
-    public void callForGradientCollection() {
-        inference.updatePending = true;
-        Rmi.callProcedure(this, "collectGradients", inference.parameterStore.gradientArrays);
+    public void sendGradientsToMaster() {
+        inference.updatePending = true; // Sending to master waiting for new parameters
+        new RemoteInvoke()
+                .toElement(getId(), elementType())
+                .where(IterationType.ITERATE)
+                .method("collectGradients")
+                .addDestination(masterPart())
+                .withArgs(inference.parameterStore.gradientArrays)
+                .noUpdate()
+                .buildAndRun(storage);
     }
 
 
     /**
      * Accumulates all the gradients in master operator
-     *
      * @param grads
      */
     @RemoteFunction
     public void collectGradients(Map<String, Tuple2<NDArray, Integer>> grads) {
         inference.parameterStore.meanAccumulateGrads(grads);
         collectedGradsSoFar++;
-        if (collectedGradsSoFar == replicaParts().size() + 1) {
+        if (collectedGradsSoFar == replicaParts().size()) {
             collectedGradsSoFar = 0;
             inference.parameterStore.step();
-            Rmi.callProcedure(this, "updateParameters", IterationType.ITERATE, RemoteDestination.ALL, this.inference.parameterStore.parameterArrays);
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(IterationType.ITERATE)
+                    .method("updateParameters")
+                    .addDestinations(replicaParts())
+                    .addDestination(masterPart())
+                    .withArgs(inference.parameterStore.parameterArrays)
+                    .noUpdate()
+                    .buildAndRun(storage);
         }
     }
 
     /**
      * Given new parameters synchronize them across the parallel instances
-     *
      * @param params
      */
     @RemoteFunction
     public void updateParameters(Map<String, NDArray> params) {
-        this.inference.parameterStore.updateParameters(params);
-        this.inference.parameterStore.resetGrads();
-        this.inference.MODEL_VERSION++;
-        inference.updatePending = false;
-        if(storage.layerFunction.isFirst()){
+        inference.parameterStore.updateParameters(params);
+        inference.parameterStore.resetGrads();
+        inference.MODEL_VERSION++;
+        inference.updatePending = false; // Model is here
+        // Now we need to do re-inference on all the parts in this instance
+        inference.reInferencePending.addAll(storage.layerFunction.getThisParts());
+        if (storage.layerFunction.isFirst()) {
             // Re-inference should start from the first layer. Rest is done on the inferencer
-            Rmi.callProcedure(inference, "reInference", IterationType.ITERATE, this.storage.layerFunction.getThisParts());
+            new RemoteInvoke()
+                    .toElement(inference.getId(), inference.elementType())
+                    .where(IterationType.ITERATE)
+                    .method("reInference")
+                    .addDestinations(storage.layerFunction.getThisParts())
+                    .withArgs()
+                    .noUpdate()
+                    .buildAndRun(storage);
         }
     }
-
 
 
 }

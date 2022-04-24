@@ -19,6 +19,13 @@ public class RandomNegativeSampler extends Plugin {
         this.p = p;
     }
 
+    public static boolean hasIntersection(List<Short> one, List<Short> two) {
+        for (short el : one) {
+            if (two.contains(el)) return true;
+        }
+        return false;
+    }
+
     @Override
     public void open() {
         super.open();
@@ -35,18 +42,10 @@ public class RandomNegativeSampler extends Plugin {
         }
     }
 
-    public static boolean hasIntersection(List<Short> one, List<Short> two) {
-        for (short el : one) {
-            if (two.contains(el)) return true;
-        }
-        return false;
-    }
-
     /**
      * Traversing the Vertices iterator to produce random negative samples
      * Samples are selected as 2 master-vertices which do not have common replica parts and no edges
      * Reasoning is that if common edges existed probably partitioner put it in the same part
-     *
      */
     public void forwardNegativeSample() {
         int intI = 0;
