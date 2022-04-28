@@ -7,7 +7,6 @@ public class GraphOp {
     public short part_id = -1;
     public GraphElement element = null;
     public IterationType state = IterationType.FORWARD;
-    public Long checkpointBarrier = null;
 
     public GraphOp() {
         this.op = Op.COMMIT;

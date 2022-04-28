@@ -40,11 +40,12 @@ public class Edge extends GraphElement {
         return tmp;
     }
 
-    public void reverse() {
+    public Edge reverse() {
         Vertex srcTemp = this.src;
         this.src = this.dest;
         this.dest = srcTemp;
         this.id = this.src.getId() + ":" + this.dest.getId();
+        return this;
     }
 
     @Override

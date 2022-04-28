@@ -2,7 +2,6 @@ package functions.loss;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.index.NDIndex;
 import ai.djl.training.loss.Loss;
 
 public class SparseCategoricalCrossEntropy extends Loss {

@@ -131,9 +131,7 @@ public interface GNNLayerFunction extends RichFunction {
                     Rmi.execute(rpcElement, (Rmi) value.element);
                     break;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } catch (Error e) {
+        } catch (Exception | Error e) {
             e.printStackTrace();
         } finally {
             getStorage().manager.clean();

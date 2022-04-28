@@ -11,33 +11,30 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.training.loss.Loss;
 import elements.GraphOp;
-import features.VTensor;
-import functions.loss.BinaryCrossEntropy;
-import functions.loss.ClassificationLossFunction;
-import functions.loss.EdgeLossFunction;
-import functions.nn.MyActivations;
-import functions.parser.CoraMergedStreamParser;
 import functions.StreamingGNNLayerFunction;
+import functions.loss.BinaryCrossEntropy;
+import functions.loss.EdgeLossFunction;
 import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
-import functions.splitter.FeaturedVertexSplitter;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.util.OutputTag;
 import partitioner.HDRF;
+import plugins.RandomNegativeSampler;
 import plugins.edge_detection.EdgeOutputInference;
 import plugins.gnn_layer.GNNLayerInference;
-import plugins.RandomNegativeSampler;
-import plugins.vertex_classification.VertexOutputInference;
 import storage.TupleStorage;
 
+import java.time.Duration;
 import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short) 3);
-        DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
+        DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090)
+                .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(1)).withTimestampAssigner((event, ts)->event.element.getTimestamp()));
         DataStream<GraphOp> partitioned = gs.partition(ratingsEdgeStream, new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 

@@ -52,6 +52,7 @@ public class GraphStream {
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
+        this.env.getConfig().setAutoWatermarkInterval(2000);
         this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
@@ -75,6 +76,7 @@ public class GraphStream {
 
     /**
      * Read a socket channel and parse the data
+     *
      * @param parser FlatMap Parser
      * @param host
      * @param port
@@ -112,7 +114,7 @@ public class GraphStream {
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
      *
-     * @param inputGraphOps non-leyed input graphop to this layer, can be a union of several streams as well
+     * @param inputGraphOps  non-leyed input graphop to this layer, can be a union of several streams as well
      * @param storageProcess Storage process with plugins and storage layer
      * @return output stream dependent on the plugin
      */
@@ -156,6 +158,7 @@ public class GraphStream {
             if (lastLayerInputs == null) {
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
             } else {
+
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
             }
 
@@ -166,9 +169,9 @@ public class GraphStream {
     /**
      * Start of the GNN Chain, but with a window based on processing time
      *
-     * @param topologyUpdates  External System updates
+     * @param topologyUpdates      External System updates
      * @param processingWindowTime Time by which we should pool the input previous layer updates, note that topology is not windowed, only the previous layer updates
-     * @param storageProcesses List of Storage Processes with correspondign storage layer and plugins
+     * @param storageProcesses     List of Storage Processes with correspondign storage layer and plugins
      * @return Last layer corresponding to vertex embeddings
      */
     public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, Time processingWindowTime, List<StreamingGNNLayerFunction> storageProcesses) {

@@ -61,8 +61,11 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     public MeanAggregator deepCopy() {
         MeanAggregator tmp = this.copy();
         tmp.ts = this.ts;
+        tmp.attachedTo = this.attachedTo;
+        tmp.partId = this.partId;
         tmp.element = this.element;
         tmp.storage = this.storage;
+        tmp.features.addAll(this.features);
         return tmp;
     }
 

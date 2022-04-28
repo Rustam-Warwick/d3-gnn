@@ -27,17 +27,15 @@ public class MovieLensStreamParser extends RichFlatMapFunction<String, GraphOp> 
     @Override
     public void flatMap(String value, Collector<GraphOp> out) throws Exception {
         String[] res = value.split(this.delimiter);
-        GraphOp tmp;
         try {
             Integer.valueOf(res[0]);
             Integer.valueOf(res[1]);
-            float rating = Float.valueOf(res[2]);
+            int timestamp = Integer.parseInt(res[3]);
             Vertex src = new Vertex(res[0]);
             Vertex dest = new Vertex(res[1]);
             Edge edge = new Edge(src, dest);
-//            edge.setFeature("rating", new Feature<Float, Float>(rating));
-            Edge edgeReverse = edge.deepCopy();
-            edgeReverse.reverse();
+            edge.setTimestamp(timestamp); // Added timestamps
+            Edge edgeReverse = edge.deepCopy().reverse();
             out.collect(new GraphOp(Op.COMMIT, edge));
             out.collect(new GraphOp(Op.COMMIT, edgeReverse));
         } catch (Exception e) {

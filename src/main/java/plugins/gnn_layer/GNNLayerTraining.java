@@ -7,7 +7,10 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.*;
+import iterations.IterationType;
+import iterations.RemoteFunction;
+import iterations.RemoteInvoke;
+import iterations.Rmi;
 import scala.Tuple2;
 
 import java.util.Map;
@@ -147,6 +150,7 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads
      */
     @RemoteFunction
@@ -170,6 +174,7 @@ public class GNNLayerTraining extends Plugin {
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params
      */
     @RemoteFunction

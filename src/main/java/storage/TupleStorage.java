@@ -16,8 +16,6 @@ public class TupleStorage extends BaseStorage {
     public transient MapState<String, Integer> edgeTimestamps;
 
 
-
-
     @Override
     public void open() throws Exception {
         super.open();

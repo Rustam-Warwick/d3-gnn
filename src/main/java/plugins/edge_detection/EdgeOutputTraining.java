@@ -6,7 +6,10 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.*;
+import iterations.IterationType;
+import iterations.RemoteFunction;
+import iterations.RemoteInvoke;
+import iterations.Rmi;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
@@ -31,7 +34,7 @@ public class EdgeOutputTraining extends Plugin {
             forwardForTraining(edge);
         }
         if (element.elementType() == ElementType.FEATURE) {
-            Feature<?,?> tmp = (Feature<?,?>) element;
+            Feature<?, ?> tmp = (Feature<?, ?>) element;
             if (tmp.getName().equals("feature")) {
                 storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH).forEach(this::forwardForTraining);
             }
@@ -41,7 +44,7 @@ public class EdgeOutputTraining extends Plugin {
     public void forwardForTraining(Edge e) {
         if (inference.outputReady(e)) {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
-            Edge messageEdge =  e.copy();
+            Edge messageEdge = e.copy();
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
@@ -127,6 +130,7 @@ public class EdgeOutputTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads
      */
     @RemoteFunction
@@ -150,6 +154,7 @@ public class EdgeOutputTraining extends Plugin {
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params
      */
     @RemoteFunction

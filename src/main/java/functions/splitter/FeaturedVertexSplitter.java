@@ -24,7 +24,7 @@ public class FeaturedVertexSplitter extends ProcessFunction<GraphOp, GraphOp> {
 
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        if(value.element.elementType() == ElementType.VERTEX) {
+        if (value.element.elementType() == ElementType.VERTEX) {
             double valueRandom = Math.random();
             if (valueRandom < p) {
                 VTensor feature = (VTensor) value.element.getFeature("feature");

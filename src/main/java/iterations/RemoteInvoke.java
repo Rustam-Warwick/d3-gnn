@@ -19,6 +19,7 @@ public class RemoteInvoke {
     List<Short> destinations = new ArrayList<>();
     Object[] args = null;
     Boolean hasUpdate = null;
+    int ts = Integer.MIN_VALUE;
 
     public RemoteInvoke toElement(String elementId, ElementType elementType) {
         this.elementId = elementId;
@@ -61,6 +62,11 @@ public class RemoteInvoke {
         return this;
     }
 
+    public RemoteInvoke withTimestamp(int ts){
+        this.ts = ts;
+        return this;
+    }
+
     public boolean verify() {
         return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(iterationType) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
@@ -71,6 +77,7 @@ public class RemoteInvoke {
             return Collections.emptyList();
         }
         Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate);
+        message.setTimestamp(this.ts);
         return destinations.stream().map(item -> (
                 new GraphOp(Op.RMI, item, message, iterationType)
         )).collect(Collectors.toList());

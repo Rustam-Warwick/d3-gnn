@@ -94,6 +94,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Update element is different for feature since we also need to update the value stored in the feature
+     *
      * @param newElement newElement to update with
      * @return (isUpdated, oldElement)
      */
@@ -105,14 +106,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (isUpdated) this.value = newFeature.value;
         if (this.attachedTo._1 == ElementType.NONE) {
             // If none sub-features may exist
-            for (Feature<?,?> newSubFeature : newElement.features) {
-                Feature<?,?> thisSubFeature = this.getFeature(newSubFeature.getName());
+            for (Feature<?, ?> newSubFeature : newElement.features) {
+                Feature<?, ?> thisSubFeature = this.getFeature(newSubFeature.getName());
                 if (Objects.nonNull(thisSubFeature)) {
                     Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
                     isUpdated |= tmp._1();
-                    addIfNotExists(memento.features, (Feature<?,?>) tmp._2);
+                    addIfNotExists(memento.features, (Feature<?, ?>) tmp._2);
                 } else {
-                    Feature<?,?> featureCopy = newSubFeature.copy();
+                    Feature<?, ?> featureCopy = newSubFeature.copy();
                     featureCopy.setElement(this);
                     featureCopy.setStorage(this.storage);
                     featureCopy.createElement();
@@ -123,6 +124,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
 
         if (isUpdated) {
+            this.setTimestamp(Math.max(getTimestamp(), newElement.getTimestamp()));
             this.storage.updateFeature(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }
@@ -132,6 +134,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Gets the value of the interface V that is stored here
+     *
      * @return V
      */
     public V getValue() {
@@ -140,10 +143,11 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Given 2 Ts if they are both equal
-     * @implNote This function is used to decide if an update is really needed
+     *
      * @param v1 first T
      * @param v2 second T
      * @return if v1 === v2
+     * @implNote This function is used to decide if an update is really needed
      */
     public boolean valuesEqual(T v1, T v2) {
         return false;
@@ -151,6 +155,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * If this element is an attached feature, master part is the one of the attached graph element
+     *
      * @return master part
      */
     @Override
@@ -163,6 +168,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * If this element is an attached feature, replica parts are the ones attached to the graph element
+     *
      * @return replicated parts
      */
     @Override
@@ -175,8 +181,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * If this element is an attached feature, id = attachedId + this.id
-     * @implNote this method should be used for storing the elements as well as keying
+     *
      * @return id of the feature
+     * @implNote this method should be used for storing the elements as well as keying
      */
     @Override
     public String getId() {
@@ -186,6 +193,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Name is the actualy feature name, this is equal id if not attached feature
+     *
      * @return name of the feature
      */
     public String getName() {
@@ -194,6 +202,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * If element is cached here return it, otherwise ask the DB to retrieve the element
+     *
      * @return GraphElement
      */
     @Nullable
@@ -207,39 +216,40 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Caches the given element, adds current feature to feature of the element if that does not exist
+     *
+     * @param attachingElement element that want to attach itself to this feature
      * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
      * between element.features <--> feature.element.
-     * @param attachingElement element that want to attach itself to this feature
      */
     public void setElement(GraphElement attachingElement) {
-        if(element == null && attachingElement != null) {
+        if (element == null && attachingElement != null && addIfNotExists(attachingElement.features, this)) {
             attachedTo = new Tuple2<>(attachingElement.elementType(), attachingElement.getId());
-            if(GraphElement.addIfNotExists(attachingElement.features, this)){
-                this.element = attachingElement;
-            }
+            element = attachingElement;
         }
     }
 
 
     /**
      * Attached Features cannot have subFeatures otherwise behaves as usual
+     *
      * @param name name of the feature
      * @return Feature
      */
     @Override
     @Nullable
-    public Feature<?,?> getFeature(String name) {
+    public Feature<?, ?> getFeature(String name) {
         if (attachedTo._1 == ElementType.NONE) return super.getFeature(name);
         return null;
     }
 
     /**
      * Attached Features cannot have subFeatures otherwise begaves as usual
-     * @param name name of the feature to be added
+     *
+     * @param name    name of the feature to be added
      * @param feature feature itself
      */
     @Override
-    public void setFeature(String name, Feature<?,?> feature) {
+    public void setFeature(String name, Feature<?, ?> feature) {
         if (attachedTo._1 == ElementType.NONE) super.setFeature(name, feature);
         throw new IllegalStateException("Nested features not allowed");
     }

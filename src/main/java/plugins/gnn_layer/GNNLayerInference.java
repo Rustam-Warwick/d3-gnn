@@ -17,7 +17,6 @@ import scala.Tuple2;
 import serializers.JavaTensor;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 
@@ -32,11 +31,11 @@ public abstract class GNNLayerInference extends Plugin {
     public MyParameterStore parameterStore = new MyParameterStore();
     public boolean externalFeatures;
 
-    public GNNLayerInference(){
+    public GNNLayerInference() {
         this(true);
     }
 
-    public GNNLayerInference(boolean externalFeatures){
+    public GNNLayerInference(boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
     }
@@ -91,7 +90,8 @@ public abstract class GNNLayerInference extends Plugin {
             case EDGE: {
                 Edge edge = (Edge) element;
                 if (!reInferencePending.contains(getPartId()) && messageReady(edge)) {
-                    if(edge.dest.getId().equals("10")) System.out.println(edge.getId() + "In Position:"+storage.layerFunction.getPosition());
+                    if (edge.dest.getId().equals("10"))
+                        System.out.println(edge.getId() + "In Position:" + storage.layerFunction.getPosition());
                     NDArray feature = ((VTensor) edge.src.getFeature("feature")).getValue();
                     NDArray msg = this.message(feature, false);
                     new RemoteInvoke()
@@ -101,6 +101,7 @@ public abstract class GNNLayerInference extends Plugin {
                             .hasUpdate()
                             .addDestination(edge.dest.masterPart())
                             .withArgs(MODEL_VERSION, msg, 1)
+                            .withTimestamp(edge.getTimestamp())
                             .buildAndRun(storage);
                 }
                 break;
@@ -109,9 +110,7 @@ public abstract class GNNLayerInference extends Plugin {
                 Feature feature = (Feature) element;
                 switch (feature.getName()) {
                     case "feature": {
-                        Vertex parent = (Vertex) feature.getElement();
-                        forward(parent);
-                        if(!reInferencePending.contains(getPartId())){
+                        if (!reInferencePending.contains(getPartId())) {
                             reduceOutEdges((VTensor) feature);
                         }
                         break;
@@ -176,7 +175,7 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray ft = ((VTensor) v.getFeature("feature")).getValue();
             NDArray agg = ((BaseAggregator<?>) v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
-            Vertex messageVertex = (Vertex) v.copy();
+            Vertex messageVertex = v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
         }
@@ -310,14 +309,13 @@ public abstract class GNNLayerInference extends Plugin {
                         .addDestination(vertex.masterPart())
                         .withArgs(MODEL_VERSION, msgs, bulkReduceMessages.size())
                         .buildAndRun(storage);
-            }else{
+            } else {
                 forward(vertex);
             }
 
 
-
         }
-        reInferencePending.removeIf(item->item==getPartId());
+        reInferencePending.removeIf(item -> item == getPartId());
     }
 
     /**

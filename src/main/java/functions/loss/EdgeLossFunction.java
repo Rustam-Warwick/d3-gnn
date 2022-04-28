@@ -56,7 +56,7 @@ abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp>
                 NDArray loss = lossFn.evaluate(labelArray, new NDList(logit.getValue()));
                 collector.backward(loss);
                 // 3. Prepare and send data
-                VTensor grad = (VTensor) logit.copy();
+                VTensor grad = logit.copy();
                 grad.value = new Tuple2<>(logit.getValue().getGradient().mul(0.001).neg(), logit.value._2);
                 Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
                 out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));

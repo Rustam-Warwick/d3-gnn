@@ -2,8 +2,10 @@ package functions.parser;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.Shape;
-import elements.*;
+import elements.Edge;
+import elements.GraphOp;
+import elements.Op;
+import elements.Vertex;
 import features.VTensor;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -17,11 +19,12 @@ public class CoraMergedStreamParser extends RichFlatMapFunction<String, GraphOp>
     public final String delimiter;
     public final List<String> categories;
     public List<NDArray> categoriesFeatures;
+
     public CoraMergedStreamParser() {
-        this("," , "Case_Based", "Rule_Learning", "Neural_Networks", "Theory", "Genetic_Algorithms", "Reinforcement_Learning", "Probabilistic_Methods");
+        this(",", "Case_Based", "Rule_Learning", "Neural_Networks", "Theory", "Genetic_Algorithms", "Reinforcement_Learning", "Probabilistic_Methods");
     }
 
-    public CoraMergedStreamParser(String delimiter, String ...categories) {
+    public CoraMergedStreamParser(String delimiter, String... categories) {
         this.delimiter = delimiter;
         this.categories = List.of(categories);
     }
@@ -51,7 +54,7 @@ public class CoraMergedStreamParser extends RichFlatMapFunction<String, GraphOp>
             String sourceId = res[0];
             Vertex vrt = new Vertex(sourceId);
             int index = this.categories.indexOf(res[1]);
-            vrt.setFeature("feature", new VTensor(new Tuple2<>(categoriesFeatures.get(index),0)));
+            vrt.setFeature("feature", new VTensor(new Tuple2<>(categoriesFeatures.get(index), 0)));
             out.collect(new GraphOp(Op.COMMIT, vrt));
         }
     }

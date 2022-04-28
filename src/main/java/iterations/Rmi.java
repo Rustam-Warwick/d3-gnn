@@ -38,6 +38,7 @@ public class Rmi extends GraphElement {
         try {
             if (message.hasUpdate) {
                 GraphElement deepCopyElement = element.deepCopy();
+                deepCopyElement.setTimestamp(message.getTimestamp()); // Replace element timestamp with model timestamp
                 Method method = Arrays.stream(deepCopyElement.getClass().getMethods()).filter(item -> item.isAnnotationPresent(RemoteFunction.class) && item.getName().equals(message.methodName)).findFirst().get();
                 method.invoke(deepCopyElement, message.args);
                 element.update(deepCopyElement);
@@ -50,44 +51,6 @@ public class Rmi extends GraphElement {
         } catch (InvocationTargetException | IllegalAccessException e) {
             e.printStackTrace();
         }
-    }
-
-    /**
-     * Send Procedure RPC Message to master of this element
-     *
-     * @param el
-     * @param methodName
-     * @param args
-     */
-    public static void callProcedure(GraphElement el, String methodName, Object... args) {
-        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
-        rmi.setStorage(el.storage);
-        if (el.state() == ReplicaState.MASTER) {
-            Rmi.execute(el, rmi);
-        } else {
-            rmi.storage.layerFunction.message(new GraphOp(Op.RMI, el.masterPart(), rmi, IterationType.ITERATE));
-        }
-    }
-
-    public static void callProcedure(GraphElement el, String methodName, IterationType iterationType, RemoteDestination remoteDestination, Object... args) {
-        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
-        rmi.setStorage(el.storage);
-        ArrayList<Short> destinations = new ArrayList<>();
-        switch (remoteDestination) {
-            case SELF:
-                destinations.add(el.getPartId());
-                break;
-            case MASTER:
-                destinations.add(el.masterPart());
-                break;
-            case REPLICAS:
-                destinations.addAll(el.replicaParts());
-                break;
-            case ALL:
-                destinations.addAll(el.replicaParts());
-                destinations.add(el.masterPart());
-        }
-        callProcedure(el, methodName, iterationType, destinations, args);
     }
 
     public static void callProcedure(GraphElement el, String methodName, IterationType iterationType, List<Short> destinations, Object... args) {

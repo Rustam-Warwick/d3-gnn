@@ -6,7 +6,10 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.*;
+import iterations.IterationType;
+import iterations.RemoteFunction;
+import iterations.RemoteInvoke;
+import iterations.Rmi;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
@@ -27,16 +30,16 @@ public class VertexOutputTraining extends Plugin {
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.elementType() == ElementType.FEATURE) {
-            Feature<?,?> newFeature = (Feature<?,?>) newElement;
-            if(newFeature.getName().equals("feature") && Objects.nonNull(newFeature.getElement().getFeature("label"))){
+            Feature<?, ?> newFeature = (Feature<?, ?>) newElement;
+            if (newFeature.getName().equals("feature") && Objects.nonNull(newFeature.getElement().getFeature("label"))) {
                 // This is a new feature update with an existing label so training can be done if the ouput is ready as well
                 forwardForTraining((Vertex) newFeature.getElement());
             }
         }
     }
 
-    public void forwardForTraining(Vertex v){
-        if(inference.outputReady(v)){
+    public void forwardForTraining(Vertex v) {
+        if (inference.outputReady(v)) {
             NDArray output = inference.output((NDArray) v.getFeature("feature").getValue(), false);
             Vertex vcopy = v.copy();
             vcopy.setFeature("prediction", new VTensor(new Tuple2<>(output, inference.MODEL_VERSION)));
@@ -52,7 +55,7 @@ public class VertexOutputTraining extends Plugin {
         if (Objects.nonNull(vertex) && inference.outputReady(vertex) && grad.value._2 == inference.MODEL_VERSION) {
             VTensor feature = (VTensor) vertex.getFeature("feature");
             feature.getValue().setRequiresGradient(true);
-            NDArray prediction = inference.output( feature.getValue(),true);
+            NDArray prediction = inference.output(feature.getValue(), true);
             JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
             NDArray vertexGrad = feature.getValue().getGradient();
             if (MyParameterStore.isTensorCorrect(vertexGrad)) {
@@ -62,7 +65,7 @@ public class VertexOutputTraining extends Plugin {
                 storage.layerFunction.message(new GraphOp(Op.RMI, vertex.masterPart(), backwardSrc, IterationType.BACKWARD));
             }
             feature.getValue().setRequiresGradient(false);
-            if(vertex.getFeature("label") != null) vertex.getFeature("label").delete();
+            if (vertex.getFeature("label") != null) vertex.getFeature("label").delete();
         }
     }
 
@@ -113,6 +116,7 @@ public class VertexOutputTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads
      */
     @RemoteFunction
@@ -136,6 +140,7 @@ public class VertexOutputTraining extends Plugin {
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params
      */
     @RemoteFunction
@@ -150,6 +155,7 @@ public class VertexOutputTraining extends Plugin {
     public void open() {
         super.open();
         inference = (VertexOutputInference) this.storage.getPlugin("inferencer");
-        trainingOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {};
+        trainingOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {
+        };
     }
 }

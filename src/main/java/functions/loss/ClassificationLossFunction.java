@@ -7,7 +7,6 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
 import elements.ElementType;
-import elements.Feature;
 import elements.GraphOp;
 import elements.Op;
 import features.VTensor;
@@ -33,9 +32,9 @@ public class ClassificationLossFunction extends ProcessFunction<GraphOp, GraphOp
         BATCH_SIZE = batch_size;
     }
 
-    public Loss createLossFunction(){
+    public Loss createLossFunction() {
         return new SparseCategoricalCrossEntropy();
-    };
+    }
 
     @Override
     public void open(Configuration parameters) throws Exception {

@@ -58,6 +58,7 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas
+     *
      * @return is_created
      */
     @Override
@@ -79,6 +80,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Master -> Add to parts feature, send syncReplicas request
      * Replica -> Accept the sync and update the element
+     *
      * @param newElement New element to sync with
      * @return (isSynced, oldElement)
      */
@@ -104,6 +106,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> update element, if changed send message to replica
      * replica -> Redirect to master, false message
+     *
      * @param newElement newElement to update with
      * @return (isUpdated, oldElement)
      */
@@ -123,6 +126,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> Send delete message to replica, actually delete the element from master immediately
      * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
+     *
      * @return isDeleted
      */
     @Override
@@ -148,6 +152,7 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
+     *
      * @param notifyMaster should notify master part after deletion?
      */
     @RemoteFunction
@@ -170,15 +175,16 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Sends a copy of this element as message to all parts
+     *
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
         if ((this.state() != ReplicaState.MASTER) || this.isHalo() || parts == null || parts.isEmpty()) return;
         cacheFeatures();
         ReplicableGraphElement cpy = this.copy();
-        for (Feature<?,?> feature : this.features) {
+        for (Feature<?, ?> feature : this.features) {
             if (feature.isHalo()) continue;
-            Feature<?,?> tmp = feature.copy();
+            Feature<?, ?> tmp = feature.copy();
             cpy.setFeature(feature.getName(), tmp);
         }
         parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
@@ -196,7 +202,7 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        Feature<?,?> parts = this.getFeature("parts");
+        Feature<?, ?> parts = this.getFeature("parts");
         if (Objects.isNull(parts)) return super.replicaParts();
         else {
             return (List<Short>) parts.getValue();

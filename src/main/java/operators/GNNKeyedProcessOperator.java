@@ -97,6 +97,16 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
     }
 
     @Override
+    public void processWatermark1(Watermark mark) throws Exception {
+        super.processWatermark1(mark);
+    }
+
+    @Override
+    public void processWatermark2(Watermark mark) throws Exception {
+        super.processWatermark2(mark);
+    }
+
+    @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         collector.setTimestamp(element);
         context.element = element;
