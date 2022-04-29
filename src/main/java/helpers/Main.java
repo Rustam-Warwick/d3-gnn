@@ -13,10 +13,9 @@ import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import functions.StreamingGNNLayerFunction;
 import functions.loss.BinaryCrossEntropy;
-import functions.loss.EdgeLossFunction;
+import functions.loss.SparseCategoricalCrossEntropyLoss;
 import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -27,14 +26,13 @@ import plugins.edge_detection.EdgeOutputInference;
 import plugins.gnn_layer.GNNLayerInference;
 import storage.TupleStorage;
 
-import java.time.Duration;
 import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
         GraphStream gs = new GraphStream((short) 3);
-        DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090)
-                .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(1)).withTimestampAssigner((event, ts)->event.element.getTimestamp()));
+        DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090);
+//                .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(1)).withTimestampAssigner((event, ts)->event.element.getTimestamp()));
         DataStream<GraphOp> partitioned = gs.partition(ratingsEdgeStream, new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 
@@ -68,7 +66,7 @@ public class Main {
                         return model;
                     }
                 })),
-                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference(true) {
+                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
@@ -96,7 +94,7 @@ public class Main {
                         model.setBlock(myBlock);
                         return model;
                     }
-                }).withPlugin(new RandomNegativeSampler(0.003)))
+                }))
         ));
         DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
         DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddings.union(trainData), new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new EdgeOutputInference() {
@@ -118,9 +116,9 @@ public class Main {
                 return model;
             }
         })));
-//
+
         DataStream<GraphOp> trainPredictionsData = ((SingleOutputStreamOperator<GraphOp>) outputFunction).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
-        gs.gnnLoss(trainPredictionsData, new EdgeLossFunction(120) {
+        gs.gnnLoss(trainPredictionsData, new SparseCategoricalCrossEntropyLoss(120) {
             @Override
             public Loss createLossFunction() {
                 return new BinaryCrossEntropy();

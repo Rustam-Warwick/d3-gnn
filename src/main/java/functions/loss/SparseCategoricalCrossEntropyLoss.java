@@ -5,10 +5,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
-import elements.ElementType;
-import elements.Feature;
-import elements.GraphOp;
-import elements.Op;
+import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
 import iterations.IterationType;
@@ -18,17 +15,17 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import scala.Tuple2;
 
-abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp> {
+abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<GraphOp, GraphOp> {
     public final int BATCH_SIZE;
     public Loss lossFn;
     transient public int MODEL_VERSION = 0;
     transient public int count = 0;
 
-    public EdgeLossFunction() {
+    public SparseCategoricalCrossEntropyLoss() {
         BATCH_SIZE = 144;
     }
 
-    public EdgeLossFunction(int batch_size) {
+    public SparseCategoricalCrossEntropyLoss(int batch_size) {
         BATCH_SIZE = batch_size;
     }
 
@@ -42,29 +39,25 @@ abstract public class EdgeLossFunction extends ProcessFunction<GraphOp, GraphOp>
 
     @Override
     public void processElement(GraphOp trainData, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        VTensor logit = (VTensor) trainData.element.getFeature("prediction");
+        VTensor prediction = (VTensor) trainData.element.getFeature("prediction");
         Integer label = ((Feature<Integer, Integer>) trainData.element.getFeature("label")).getValue();
         try {
-            if (MyParameterStore.isTensorCorrect(logit.getValue()) && logit.value._2 == MODEL_VERSION) {
+            if (MyParameterStore.isTensorCorrect(prediction.getValue()) && prediction.value._2 == MODEL_VERSION) {
+                // 1. Initialize some stupid stuff
                 NDManager manager = NDManager.newBaseManager();
                 GradientCollector collector = manager.getEngine().newGradientCollector();
-
-                NDList labelArray = new NDList(manager.create(label));
-                System.out.println(logit.getValue() + ":" + label);
                 // 2. Backward
-                logit.getValue().setRequiresGradient(true);
-                NDArray loss = lossFn.evaluate(labelArray, new NDList(logit.getValue()));
+                prediction.getValue().setRequiresGradient(true);
+                NDArray loss = lossFn.evaluate(new NDList(manager.create(label)), new NDList(prediction.getValue()));
                 collector.backward(loss);
                 // 3. Prepare and send data
-                VTensor grad = logit.copy();
-                grad.value = new Tuple2<>(logit.getValue().getGradient().mul(0.001).neg(), logit.value._2);
-                Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
+                GraphElement elementAttached = trainData.element.copy();
+                elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg(), prediction.value._2)));
+                Rmi backward = new Rmi("trainer", "backward", new Object[]{elementAttached}, ElementType.PLUGIN, false);
                 out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));
-
                 // 4. Cleanup
                 manager.close();
                 collector.close();
-
                 // Backward Training Start if Batch Size is met
                 count++;
                 if (count >= BATCH_SIZE) {

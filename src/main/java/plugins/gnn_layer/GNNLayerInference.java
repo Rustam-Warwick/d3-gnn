@@ -82,41 +82,30 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        switch (element.elementType()) {
-            case VERTEX: {
-                initVertex((Vertex) element);
-                break;
+        ElementType elementType = element.elementType();
+        if (elementType == ElementType.VERTEX) {
+            initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
+        } else if (elementType == ElementType.EDGE) {
+            Edge edge = (Edge) element;
+            if (!reInferencePending.contains(getPartId()) && messageReady(edge)) {
+                NDArray msg = this.message((NDArray) edge.src.getFeature("feature").getValue(), false);
+                new RemoteInvoke()
+                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(IterationType.ITERATE)
+                        .method("reduce")
+                        .hasUpdate()
+                        .addDestination(edge.dest.masterPart())
+                        .withArgs(MODEL_VERSION, msg, 1)
+                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
+                        .buildAndRun(storage);
             }
-            case EDGE: {
-                Edge edge = (Edge) element;
-                if (!reInferencePending.contains(getPartId()) && messageReady(edge)) {
-                    if (edge.dest.getId().equals("10"))
-                        System.out.println(edge.getId() + "In Position:" + storage.layerFunction.getPosition());
-                    NDArray feature = ((VTensor) edge.src.getFeature("feature")).getValue();
-                    NDArray msg = this.message(feature, false);
-                    new RemoteInvoke()
-                            .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                            .where(IterationType.ITERATE)
-                            .method("reduce")
-                            .hasUpdate()
-                            .addDestination(edge.dest.masterPart())
-                            .withArgs(MODEL_VERSION, msg, 1)
-                            .withTimestamp(edge.getTimestamp())
-                            .buildAndRun(storage);
+        } else if (elementType == ElementType.FEATURE) {
+            Feature feature = (Feature) element;
+            if ("feature".equals(feature.getName())) {
+                forward((Vertex) feature.getElement()); // This forward should proceed asap as next layers will need feature as well
+                if (!reInferencePending.contains(getPartId())) {
+                    reduceOutEdges((Vertex) feature.getElement());
                 }
-                break;
-            }
-            case FEATURE: {
-                Feature feature = (Feature) element;
-                switch (feature.getName()) {
-                    case "feature": {
-                        if (!reInferencePending.contains(getPartId())) {
-                            reduceOutEdges((VTensor) feature);
-                        }
-                        break;
-                    }
-                }
-                break;
             }
         }
     }
@@ -124,38 +113,28 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()) {
-            case FEATURE: {
-                Feature feature = (Feature) newElement;
-                Feature oldFeature = (Feature) oldElement;
-                switch (feature.getName()) {
-                    case "feature": {
-                        VTensor newTensor = (VTensor) newElement;
-                        VTensor oldTensor = (VTensor) oldFeature;
-                        Vertex parent = (Vertex) feature.getElement();
-                        forward(parent);
-                        if (reInferencePending.contains(getPartId())) {
-                            if (allFeaturesReady()) {
-                                reInference();
-                            }
-                        } else {
-                            updateOutEdges((VTensor) feature, (VTensor) oldFeature);
-                        }
-                        break;
+        if (newElement.elementType() == ElementType.FEATURE) {
+            Feature<?,?> feature = (Feature<?,?>) newElement;
+            Feature<?,?> oldFeature = (Feature<?,?>) oldElement;
+            if ("feature".equals(feature.getName())) {
+                Vertex parent = (Vertex) feature.getElement();
+                forward(parent);
+                if (reInferencePending.contains(getPartId())) {
+                    if (allFeaturesReady()) {
+                        reInference();
                     }
-                    case "agg": {
-                        Vertex parent = (Vertex) feature.getElement();
-                        forward(parent);
-                        break;
-                    }
+                } else {
+                    updateOutEdges((VTensor) feature, (VTensor) oldFeature);
                 }
+            } else if ("agg".equals(feature.getName())) {
+                Vertex parent = (Vertex) feature.getElement();
+                forward(parent);
             }
         }
     }
 
     /**
      * Given newly created vertex init the aggregator and other values of it
-     *
      * @param element
      */
     public void initVertex(Vertex element) {
@@ -163,7 +142,7 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(aggregatorShape);
             element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true));
 
-            if (!externalFeatures && this.storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
+            if (!externalFeatures && storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(featureShape);
                 element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)));
             }
@@ -177,6 +156,7 @@ public abstract class GNNLayerInference extends Plugin {
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
+            messageVertex.getFeature("feature").setTimestamp(Objects.hash(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp()));
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
         }
     }
@@ -202,6 +182,7 @@ public abstract class GNNLayerInference extends Plugin {
                         .where(IterationType.ITERATE)
                         .method("replace")
                         .hasUpdate()
+                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
                         .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msgNew, msgOld)
                         .buildAndRun(storage);
@@ -212,15 +193,13 @@ public abstract class GNNLayerInference extends Plugin {
     /**
      * Given vertex reduce all the out edges aggregator values
      */
-    public void reduceOutEdges(VTensor newFeature) {
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+    public void reduceOutEdges(Vertex vertex) {
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
         NDArray msg = null;
-
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
-
                 if (Objects.isNull(msg)) {
-                    msg = this.message(newFeature.getValue(), false);
+                    msg = this.message((NDArray) vertex.getFeature("feature").getValue(), false);
                 }
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
@@ -228,6 +207,7 @@ public abstract class GNNLayerInference extends Plugin {
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
+                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
                         .withArgs(MODEL_VERSION, msg, 1)
                         .buildAndRun(storage);
             }

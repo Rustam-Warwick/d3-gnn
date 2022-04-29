@@ -14,6 +14,7 @@ import iterations.Rmi;
 import scala.Tuple2;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class GNNLayerTraining extends Plugin {
     public transient GNNLayerInference inference;
@@ -40,12 +41,11 @@ public class GNNLayerTraining extends Plugin {
         // 1. Get Data
         grad.setStorage(this.storage);
         Vertex v = (Vertex) grad.getElement();
-        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION) {
-            VTensor feature = (VTensor) grad.getElement().getFeature("feature");
-            BaseAggregator<?> agg = (BaseAggregator<?>) grad.getElement().getFeature("agg");
+        VTensor feature = (VTensor) v.getFeature("feature");
+        BaseAggregator<?> agg = (BaseAggregator<?>) v.getFeature("agg");
+        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && Objects.hash(feature.getTimestamp(), agg.getTimestamp())==grad.getTimestamp()) {
             feature.getValue().setRequiresGradient(true);
             agg.getValue().setRequiresGradient(true);
-
             // 2. Prediction & Backward
             NDArray prediction = this.inference.update(feature.getValue(), agg.getValue(), true);
             JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
@@ -55,8 +55,15 @@ public class GNNLayerTraining extends Plugin {
                 NDArray gradient = feature.getValue().getGradient();
                 if (MyParameterStore.isTensorCorrect(gradient)) {
                     grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
-                    Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
-                    this.storage.layerFunction.message(new GraphOp(Op.RMI, this.storage.layerFunction.getCurrentPart(), backward, IterationType.BACKWARD));
+                    grad.setTimestamp(feature.getTimestamp());
+                    new RemoteInvoke()
+                            .toElement("trainer", ElementType.PLUGIN)
+                            .noUpdate()
+                            .withArgs(grad)
+                            .addDestination(getPartId())
+                            .method("backward")
+                            .where(IterationType.BACKWARD)
+                            .buildAndRun(storage);
                 }
             }
 
@@ -64,8 +71,16 @@ public class GNNLayerTraining extends Plugin {
             NDArray gradient = agg.grad();
             if (MyParameterStore.isTensorCorrect(gradient)) {
                 grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
-                Rmi.callProcedure(this, "messageBackward", IterationType.ITERATE, agg.replicaParts(), grad);
-                this.messageBackward(grad);
+                grad.setTimestamp(agg.getTimestamp());
+                new RemoteInvoke()
+                        .toElement("trainer", ElementType.PLUGIN)
+                        .noUpdate()
+                        .withArgs(grad)
+                        .addDestination(getPartId())
+                        .addDestinations(agg.replicaParts())
+                        .method("messageBackward")
+                        .where(IterationType.ITERATE)
+                        .buildAndRun(storage);
             }
             // 5. Cleanup
             agg.getValue().setRequiresGradient(false);
@@ -85,7 +100,7 @@ public class GNNLayerTraining extends Plugin {
             Vertex vertex = (Vertex) aggGrad.getElement();
             Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
             for (Edge edge : inEdges) {
-                if (this.inference.messageReady(edge)) {
+                if (this.inference.messageReady(edge) && aggGrad.getTimestamp() == Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp())) {
                     NDArray inFeature = (NDArray) edge.src.getFeature("feature").getValue();
                     inFeature.setRequiresGradient(true);
                     NDArray prediction = this.inference.message(inFeature, true);
@@ -93,9 +108,16 @@ public class GNNLayerTraining extends Plugin {
                     NDArray gradient = inFeature.getGradient();
                     if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
                         VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), inference.MODEL_VERSION));
+                        grad.setTimestamp(edge.src.getFeature("feature").getTimestamp());
                         grad.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
-                        Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
-                        this.storage.layerFunction.message(new GraphOp(Op.RMI, edge.src.masterPart(), backward, IterationType.BACKWARD));
+                        new RemoteInvoke()
+                                .toElement("trainer", ElementType.PLUGIN)
+                                .noUpdate()
+                                .withArgs(grad)
+                                .addDestination(edge.src.masterPart())
+                                .method("backward")
+                                .where(IterationType.BACKWARD)
+                                .buildAndRun(storage);
                     }
                     ((NDArray) edge.src.getFeature("feature").getValue()).setRequiresGradient(false);
                 }

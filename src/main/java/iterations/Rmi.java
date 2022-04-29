@@ -53,19 +53,6 @@ public class Rmi extends GraphElement {
         }
     }
 
-    public static void callProcedure(GraphElement el, String methodName, IterationType iterationType, List<Short> destinations, Object... args) {
-        if (Objects.isNull(destinations)) return;
-        Rmi rmi = new Rmi(el.getId(), methodName, args, el.elementType(), false);
-        rmi.setStorage(el.storage);
-        for (Short part : destinations) {
-            if (part == el.getPartId() && iterationType == IterationType.ITERATE) {
-                Rmi.execute(el, rmi);
-            } else {
-                rmi.storage.layerFunction.message(new GraphOp(Op.RMI, part, rmi, iterationType));
-            }
-        }
-    }
-
     @Override
     public ElementType elementType() {
         return this.elemType;

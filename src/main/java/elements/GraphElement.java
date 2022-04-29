@@ -127,7 +127,7 @@ public class GraphElement implements Serializable {
         }
 
         if (is_updated) {
-            this.setTimestamp(Math.max(getTimestamp(), newElement.getTimestamp())); // Timestamps always max out
+            this.setTimestamp(newElement.getTimestamp()); // Timestamps always max out
             this.storage.updateElement(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }

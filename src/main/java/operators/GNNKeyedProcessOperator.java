@@ -92,8 +92,12 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        super.processWatermark(mark);
-        ((StreamingGNNLayerFunction) userFunction).getStorage().onWatermark(mark);
+        if (getTimeServiceManager().isPresent()) {
+            getTimeServiceManager().get().advanceWatermark(mark);
+        }
+        // Do not emit watermark to the next layer
+//        output.emitWatermark(mark);
+        ((StreamingGNNLayerFunction) userFunction).onWatermark(mark);
     }
 
     @Override

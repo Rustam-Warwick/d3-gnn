@@ -6,6 +6,7 @@ import elements.ReplicaState;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.streaming.api.TimerService;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
@@ -75,7 +76,17 @@ public interface GNNLayerFunction extends RichFunction {
      */
     BaseStorage getStorage();
 
+    /**
+     * Get the timerservice
+     * @return
+     */
     TimerService getTimerService();
+
+    /**
+     * Callback on watermark
+     * @param mark
+     */
+    void onWatermark(Watermark mark);
 
     /**
      * Is this the first GNN-layer

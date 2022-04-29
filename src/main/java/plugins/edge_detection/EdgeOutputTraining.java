@@ -14,6 +14,8 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,7 +38,13 @@ public class EdgeOutputTraining extends Plugin {
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> tmp = (Feature<?, ?>) element;
             if (tmp.getName().equals("feature")) {
-                storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH).forEach(this::forwardForTraining);
+                Iterable<Edge> edges =  storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH);
+                if(edges.iterator().hasNext()){
+                    List<Edge> result = new ArrayList<Edge>();
+                    edges.forEach(result::add);
+                    result.forEach(this::forwardForTraining);
+                }
+
             }
         }
     }
@@ -45,19 +53,21 @@ public class EdgeOutputTraining extends Plugin {
         if (inference.outputReady(e)) {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
             Edge messageEdge = e.copy();
+            messageEdge.setTimestamp(Objects.hash(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
+            e.delete();
         }
     }
 
     @RemoteFunction
-    public void backward(VTensor grad) {
-        grad.setStorage(this.storage);
-        Edge edge = (Edge) grad.getElement();
-        if (Objects.nonNull(edge) && inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION) {
-            VTensor srcFeature = (VTensor) edge.src.getFeature("feature");
-            VTensor destFeature = (VTensor) edge.dest.getFeature("feature");
+    public void backward(Edge edge) {
+        edge.setStorage(this.storage);
+        VTensor srcFeature = (VTensor) edge.src.getFeature("feature");
+        VTensor destFeature = (VTensor) edge.dest.getFeature("feature");
+        VTensor grad =  (VTensor) edge.getFeature("grad");
+        if (inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION && edge.getTimestamp() == Objects.hash(srcFeature.getTimestamp(), destFeature.getTimestamp())) {
             srcFeature.getValue().setRequiresGradient(true);
             destFeature.getValue().setRequiresGradient(true);
             NDArray prediction = inference.output(srcFeature.getValue(), destFeature.getValue(), true);
@@ -67,19 +77,33 @@ public class EdgeOutputTraining extends Plugin {
             if (MyParameterStore.isTensorCorrect(srcGrad)) {
                 VTensor srcGradFeature = new VTensor("grad", new Tuple2<>(srcGrad, inference.MODEL_VERSION));
                 srcGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
-                Rmi backwardSrc = new Rmi("trainer", "backward", new Object[]{srcGradFeature}, ElementType.PLUGIN, false);
-                storage.layerFunction.message(new GraphOp(Op.RMI, edge.src.masterPart(), backwardSrc, IterationType.BACKWARD));
+                srcGradFeature.setTimestamp(srcFeature.getTimestamp());
+                new RemoteInvoke()
+                        .toElement("trainer", ElementType.PLUGIN)
+                        .noUpdate()
+                        .withArgs(srcGradFeature)
+                        .addDestination(edge.src.masterPart())
+                        .method("backward")
+                        .where(IterationType.BACKWARD)
+                        .buildAndRun(storage);
             }
             if (MyParameterStore.isTensorCorrect(destGrad)) {
                 VTensor destGradFeature = new VTensor("grad", new Tuple2<>(destGrad, inference.MODEL_VERSION));
                 destGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.dest.getId());
-                Rmi backwardDest = new Rmi("trainer", "backward", new Object[]{destGradFeature}, ElementType.PLUGIN, false);
-                storage.layerFunction.message(new GraphOp(Op.RMI, edge.dest.masterPart(), backwardDest, IterationType.BACKWARD));
+                destGradFeature.setTimestamp(destFeature.getTimestamp());
+                new RemoteInvoke()
+                        .toElement("trainer", ElementType.PLUGIN)
+                        .noUpdate()
+                        .withArgs(destGradFeature)
+                        .addDestination(edge.dest.masterPart())
+                        .method("backward")
+                        .where(IterationType.BACKWARD)
+                        .buildAndRun(storage);
             }
             srcFeature.getValue().setRequiresGradient(false);
             destFeature.getValue().setRequiresGradient(false);
-//            storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), edge, IterationType.BACKWARD));
-            edge.deleteElement(); // Delete so that this edge is not trained anymore
+        }else{
+            System.out.println("Backward failed since version out-of-date error");
         }
     }
 

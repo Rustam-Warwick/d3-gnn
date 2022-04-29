@@ -5,6 +5,7 @@ import iterations.IterationType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
@@ -102,6 +103,17 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public TimerService getTimerService() {
         return timerService;
+    }
+
+    @Override
+    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
+        getStorage().onTimer(timestamp);
+        super.onTimer(timestamp, ctx, out);
+    }
+
+    @Override
+    public void onWatermark(Watermark mark) {
+        getStorage().onWatermark(mark);
     }
 
     @Override

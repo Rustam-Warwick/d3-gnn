@@ -11,6 +11,7 @@ import functions.StreamingGNNLayerFunction;
 import iterations.Rmi;
 import operators.GNNKeyedProcessOperator;
 import operators.SimpleTailOperator;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -21,10 +22,13 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
+import org.apache.flink.streaming.api.windowing.evictors.Evictor;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -35,6 +39,7 @@ import partitioner.BasePartitioner;
 import serializers.JavaTensor;
 import serializers.TensorSerializer;
 
+import java.time.Duration;
 import java.util.List;
 
 public class GraphStream {
@@ -114,7 +119,7 @@ public class GraphStream {
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
      *
-     * @param inputGraphOps  non-leyed input graphop to this layer, can be a union of several streams as well
+     * @param inputGraphOps  non-keyed input graphop to this layer, can be a union of several streams as well
      * @param storageProcess Storage process with plugins and storage layer
      * @return output stream dependent on the plugin
      */
@@ -158,7 +163,6 @@ public class GraphStream {
             if (lastLayerInputs == null) {
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
             } else {
-
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
             }
 
