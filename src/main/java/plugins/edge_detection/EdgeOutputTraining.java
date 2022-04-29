@@ -53,7 +53,7 @@ public class EdgeOutputTraining extends Plugin {
         if (inference.outputReady(e)) {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
             Edge messageEdge = e.copy();
-            messageEdge.setTimestamp(Objects.hash(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
+            messageEdge.setTimestamp(Math.min(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
             storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
@@ -67,7 +67,7 @@ public class EdgeOutputTraining extends Plugin {
         VTensor srcFeature = (VTensor) edge.src.getFeature("feature");
         VTensor destFeature = (VTensor) edge.dest.getFeature("feature");
         VTensor grad =  (VTensor) edge.getFeature("grad");
-        if (inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION && edge.getTimestamp() == Objects.hash(srcFeature.getTimestamp(), destFeature.getTimestamp())) {
+        if (inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION && edge.getTimestamp() == Math.min(srcFeature.getTimestamp(), destFeature.getTimestamp())) {
             srcFeature.getValue().setRequiresGradient(true);
             destFeature.getValue().setRequiresGradient(true);
             NDArray prediction = inference.output(srcFeature.getValue(), destFeature.getValue(), true);

@@ -38,27 +38,29 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     @RemoteFunction
     public void backward(VTensor grad) {
         // 1. Get Data
-        grad.setStorage(this.storage);
+        grad.setStorage(storage);
         Vertex v = (Vertex) grad.getElement();
         VTensor feature = (VTensor) v.getFeature("feature");
         BaseAggregator<?> agg = (BaseAggregator<?>) v.getFeature("agg");
-        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && Objects.hash(feature.getTimestamp(), agg.getTimestamp())==grad.getTimestamp()) {
+        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && grad.getTimestamp() == Math.min(feature.getTimestamp(), agg.getTimestamp())) {
+            System.out.println("Processing at position:"+storage.layerFunction.getPosition());
             feature.getValue().setRequiresGradient(true);
             agg.getValue().setRequiresGradient(true);
             // 2. Prediction & Backward
-            NDArray prediction = this.inference.update(feature.getValue(), agg.getValue(), true);
+            NDArray prediction = inference.update(feature.getValue(), agg.getValue(), true);
             JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
 
-            // 3. Send Update backward if this is not last layer
-            if (!this.storage.layerFunction.isFirst()) {
+            // 3. If this is not the last layer, send {dl / dX(l -1)} backwards
+            if (!storage.layerFunction.isFirst()) {
                 NDArray gradient = feature.getValue().getGradient();
                 if (MyParameterStore.isTensorCorrect(gradient)) {
-                    grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
-                    grad.setTimestamp(feature.getTimestamp());
+                    VTensor backwardGrad = grad.copy();
+                    backwardGrad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
+                    backwardGrad.setTimestamp(feature.getTimestamp());
                     new RemoteInvoke()
                             .toElement("trainer", ElementType.PLUGIN)
                             .noUpdate()
-                            .withArgs(grad)
+                            .withArgs(backwardGrad)
                             .addDestination(getPartId())
                             .method("backward")
                             .where(IterationType.BACKWARD)
@@ -84,6 +86,8 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             // 5. Cleanup
             agg.getValue().setRequiresGradient(false);
             feature.getValue().setRequiresGradient(false);
+        }else{
+            System.out.println("Failed to backprop");
         }
     }
 
@@ -94,18 +98,19 @@ public class GNNEmbeddingLayerTraining extends Plugin {
      */
     @RemoteFunction
     public void messageBackward(VTensor aggGrad) {
-        aggGrad.setStorage(this.storage);
+        aggGrad.setStorage(storage);
         if (aggGrad.value._2 == inference.MODEL_VERSION) {
             Vertex vertex = (Vertex) aggGrad.getElement();
             Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
             for (Edge edge : inEdges) {
-                if (this.inference.messageReady(edge) && aggGrad.getTimestamp() == Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp())) {
-                    System.out.println("Reached Position " + storage.layerFunction.getPosition());
+                if (inference.messageReady(edge) && aggGrad.getTimestamp() > Math.max(edge.getTimestamp(), edge.src.getFeature("feature").getTimestamp())) {
+                    // 1. Compute the gradient
                     NDArray inFeature = (NDArray) edge.src.getFeature("feature").getValue();
                     inFeature.setRequiresGradient(true);
-                    NDArray prediction = this.inference.message(inFeature, true);
+                    NDArray prediction = inference.message(inFeature, true);
                     JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
                     NDArray gradient = inFeature.getGradient();
+                    // 2. If the gradient is correct and this model is not the first one
                     if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
                         VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), inference.MODEL_VERSION));
                         grad.setTimestamp(edge.src.getFeature("feature").getTimestamp());

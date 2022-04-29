@@ -124,7 +124,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
 
         if (isUpdated) {
-            this.setTimestamp(newElement.getTimestamp());
+            this.setTimestamp(Math.max(getTimestamp() + 1, newElement.getTimestamp())); // Timestamps always max out
             this.storage.updateFeature(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }

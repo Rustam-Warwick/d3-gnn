@@ -13,7 +13,7 @@ import java.util.Objects;
 public class GraphElement implements Serializable {
     public String id;
     public short partId;
-    public int ts = Integer.MIN_VALUE;
+    public int ts = 0;
     public transient BaseStorage storage;
     public List<Feature<?, ?>> features;
 
@@ -119,7 +119,7 @@ public class GraphElement implements Serializable {
                 memento.setFeature(feature.getName(), (Feature<?, ?>) tmp._2);
             } else {
                 Feature<?, ?> featureCopy = feature.copy();
-                featureCopy.setStorage(this.storage);
+                featureCopy.setStorage(storage);
                 featureCopy.setElement(this);
                 featureCopy.createElement();
                 is_updated = true;
@@ -127,7 +127,7 @@ public class GraphElement implements Serializable {
         }
 
         if (is_updated) {
-            this.setTimestamp(newElement.getTimestamp()); // Timestamps always max out
+            this.setTimestamp(Math.max(getTimestamp() + 1, newElement.getTimestamp())); // Timestamps always max out
             this.storage.updateElement(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }

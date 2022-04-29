@@ -82,10 +82,9 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        ElementType elementType = element.elementType();
-        if (elementType == ElementType.VERTEX) {
+        if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
-        } else if (elementType == ElementType.EDGE) {
+        } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
             if (!reInferencePending.contains(getPartId()) && messageReady(edge)) {
                 NDArray msg = this.message((NDArray) edge.src.getFeature("feature").getValue(), false);
@@ -96,10 +95,10 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msg, 1)
-                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
+                        .withTimestamp(edge.src.getFeature("feature").getTimestamp())
                         .buildAndRun(storage);
             }
-        } else if (elementType == ElementType.FEATURE) {
+        } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
             if ("feature".equals(feature.getName())) {
                 forward((Vertex) feature.getElement()); // This forward should proceed asap as next layers will need feature as well
@@ -133,7 +132,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
-     * @param element
+     * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
@@ -147,6 +146,10 @@ public abstract class GNNEmbeddingLayer extends Plugin {
         }
     }
 
+    /**
+     * Push the embedding of this vertex to the next layer
+     * @param v Vertex
+     */
     public void forward(Vertex v) {
         if (updateReady(v)) {
             NDArray ft = ((VTensor) v.getFeature("feature")).getValue();
@@ -154,7 +157,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
-            messageVertex.getFeature("feature").setTimestamp(Objects.hash(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp()));
+            messageVertex.getFeature("feature").setTimestamp(Math.addExact(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp()));
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
         }
     }
@@ -180,7 +183,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .where(IterationType.ITERATE)
                         .method("replace")
                         .hasUpdate()
-                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
+                        .withTimestamp(newFeature.getTimestamp())
                         .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msgNew, msgOld)
                         .buildAndRun(storage);
@@ -190,6 +193,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Given vertex reduce all the out edges aggregator values
+     * @param vertex Vertex which out edges should be reduces
      */
     public void reduceOutEdges(Vertex vertex) {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
@@ -205,7 +209,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
-                        .withTimestamp(Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
+                        .withTimestamp(vertex.getFeature("feature").getTimestamp())
                         .withArgs(MODEL_VERSION, msg, 1)
                         .buildAndRun(storage);
             }
