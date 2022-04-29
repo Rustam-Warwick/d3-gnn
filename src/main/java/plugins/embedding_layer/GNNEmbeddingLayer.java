@@ -1,4 +1,4 @@
-package plugins.gnn_layer;
+package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class GNNLayerInference extends Plugin {
+public abstract class GNNEmbeddingLayer extends Plugin {
     public transient Model messageModel;
     public transient Model updateModel;
     public transient Shape aggregatorShape;
@@ -31,11 +31,11 @@ public abstract class GNNLayerInference extends Plugin {
     public MyParameterStore parameterStore = new MyParameterStore();
     public boolean externalFeatures;
 
-    public GNNLayerInference() {
+    public GNNEmbeddingLayer() {
         this(true);
     }
 
-    public GNNLayerInference(boolean externalFeatures) {
+    public GNNEmbeddingLayer(boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
     }
@@ -48,7 +48,7 @@ public abstract class GNNLayerInference extends Plugin {
     @Override
     public void add() {
         super.add();
-        this.storage.withPlugin(new GNNLayerTraining());
+        this.storage.withPlugin(new GNNEmbeddingLayerTraining());
         this.messageModel = this.createMessageModel();
         this.updateModel = this.createUpdateModel();
         this.parameterStore.canonizeModel(this.messageModel);
@@ -117,8 +117,7 @@ public abstract class GNNLayerInference extends Plugin {
             Feature<?,?> feature = (Feature<?,?>) newElement;
             Feature<?,?> oldFeature = (Feature<?,?>) oldElement;
             if ("feature".equals(feature.getName())) {
-                Vertex parent = (Vertex) feature.getElement();
-                forward(parent);
+                forward((Vertex) feature.getElement());
                 if (reInferencePending.contains(getPartId())) {
                     if (allFeaturesReady()) {
                         reInference();
@@ -127,8 +126,7 @@ public abstract class GNNLayerInference extends Plugin {
                     updateOutEdges((VTensor) feature, (VTensor) oldFeature);
                 }
             } else if ("agg".equals(feature.getName())) {
-                Vertex parent = (Vertex) feature.getElement();
-                forward(parent);
+                forward((Vertex) feature.getElement());
             }
         }
     }

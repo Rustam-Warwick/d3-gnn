@@ -50,9 +50,10 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 prediction.getValue().setRequiresGradient(true);
                 NDArray loss = lossFn.evaluate(new NDList(manager.create(label)), new NDList(prediction.getValue()));
                 collector.backward(loss);
+                System.out.println(prediction.getValue());
                 // 3. Prepare and send data
                 GraphElement elementAttached = trainData.element.copy();
-                elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg(), prediction.value._2)));
+                elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg().mul(0.01), prediction.value._2)));
                 Rmi backward = new Rmi("trainer", "backward", new Object[]{elementAttached}, ElementType.PLUGIN, false);
                 out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));
                 // 4. Cleanup

@@ -77,9 +77,9 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
         this.value._1().muli(this.value._2()).addi(newElement).divi(this.value._2() + count);
         int newCount = this.value._2() + count;
         this.value = new Tuple4<>(this.value._1(), newCount, Math.max(this.value._3(), newCount), version);
-        if (this.attachedTo._2.equals("10")) {
-            System.out.println("Reduce count: " + count + "From part: " + partId + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.layerFunction.getPosition());
-        }
+        //if (this.attachedTo._2.equals("10")) {
+         //   System.out.println("Reduce count: " + count + "From part: " + partId + "  NumOfAggElements: " + this.value._2() + "  In Storage Position: " + this.storage.layerFunction.getPosition());
+        //}
     }
 
     @RemoteFunction

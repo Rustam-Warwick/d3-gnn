@@ -1,4 +1,4 @@
-package plugins.gnn_layer;
+package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
 import ai.djl.ndarray.NDArray;
@@ -10,17 +10,16 @@ import helpers.MyParameterStore;
 import iterations.IterationType;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import iterations.Rmi;
 import scala.Tuple2;
 
 import java.util.Map;
 import java.util.Objects;
 
-public class GNNLayerTraining extends Plugin {
-    public transient GNNLayerInference inference;
+public class GNNEmbeddingLayerTraining extends Plugin {
+    public transient GNNEmbeddingLayer inference;
     public transient int collectedGradsSoFar = 0; // Master node collected gradients count
 
-    public GNNLayerTraining() {
+    public GNNEmbeddingLayerTraining() {
         super("trainer");
     }
 
@@ -28,7 +27,7 @@ public class GNNLayerTraining extends Plugin {
     @Override
     public void open() {
         super.open();
-        inference = (GNNLayerInference) this.storage.getPlugin("inferencer");
+        inference = (GNNEmbeddingLayer) this.storage.getPlugin("inferencer");
     }
 
     /**
@@ -101,6 +100,7 @@ public class GNNLayerTraining extends Plugin {
             Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
             for (Edge edge : inEdges) {
                 if (this.inference.messageReady(edge) && aggGrad.getTimestamp() == Objects.hash(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp())) {
+                    System.out.println("Reached Position " + storage.layerFunction.getPosition());
                     NDArray inFeature = (NDArray) edge.src.getFeature("feature").getValue();
                     inFeature.setRequiresGradient(true);
                     NDArray prediction = this.inference.message(inFeature, true);

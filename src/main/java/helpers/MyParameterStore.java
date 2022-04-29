@@ -55,6 +55,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
             item.setRequiresGradient(false);
             NDArray grad = gradientArrays.get(key)._1;
             item.addi(grad);
+            System.out.println(item);
         });
     }
 
@@ -64,7 +65,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      * @param newParams
      */
     public void updateParameters(Map<String, NDArray> newParams) {
-        System.out.println("Model Updated");
         newParams.forEach((key, item) -> {
             if (parameterArrays.containsKey(key)) {
                 NDArray currentParam = parameterArrays.get(key);

@@ -22,6 +22,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.ProcessingTimeSessionWindows;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
@@ -163,7 +164,16 @@ public class GraphStream {
             if (lastLayerInputs == null) {
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
             } else {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
+                DataStream<GraphOp> embeddings = lastLayerInputs.keyBy(new ElementForPartKeySelector())
+                        .window(ProcessingTimeSessionWindows.withGap(Time.seconds(1)))
+                        .evictor(CountEvictor.of(1))
+                        .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+                            @Override
+                            public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+                                input.forEach(out::collect);
+                            }
+                        });
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(embeddings), fn);
             }
 
         }

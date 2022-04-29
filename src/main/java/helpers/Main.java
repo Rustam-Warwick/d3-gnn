@@ -19,11 +19,17 @@ import functions.splitter.EdgeTrainTestSplitter;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.ProcessingTimeSessionWindows;
+import org.apache.flink.streaming.api.windowing.assigners.SessionWindowTimeGapExtractor;
+import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import partitioner.HDRF;
-import plugins.RandomNegativeSampler;
 import plugins.edge_detection.EdgeOutputInference;
-import plugins.gnn_layer.GNNLayerInference;
+import plugins.embedding_layer.GNNEmbeddingLayer;
 import storage.TupleStorage;
 
 import java.util.List;
@@ -37,7 +43,7 @@ public class Main {
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference(false) {
+                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
@@ -66,7 +72,7 @@ public class Main {
                         return model;
                     }
                 })),
-                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNLayerInference(false) {
+                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new GNNEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
@@ -96,8 +102,18 @@ public class Main {
                     }
                 }))
         ));
+        DataStream<GraphOp> embeddingSessions = embeddings
+                .keyBy(new ElementForPartKeySelector())
+                .window(ProcessingTimeSessionWindows.withGap(Time.seconds(1)))
+                .evictor(CountEvictor.of(1))
+                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+                    @Override
+                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+                        input.forEach(item->out.collect(item));
+                    }
+                });
         DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
-        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddings.union(trainData), new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new EdgeOutputInference() {
+        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddingSessions.union(trainData), new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new EdgeOutputInference() {
             @Override
             public Model createOutputModel() {
                 SequentialBlock myBlock = new SequentialBlock();
