@@ -62,7 +62,7 @@ public class RemoteInvoke {
         return this;
     }
 
-    public RemoteInvoke withTimestamp(int ts){
+    public RemoteInvoke withTimestamp(int ts) {
         this.ts = ts;
         return this;
     }

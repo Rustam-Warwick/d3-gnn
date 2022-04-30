@@ -1,7 +1,7 @@
 package storage;
 
 import elements.*;
-import functions.GNNLayerFunction;
+import functions.gnn_layers.GNNLayerFunction;
 import helpers.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -82,16 +82,12 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         this.manager.close();
     }
 
-    public void onTimer(long timestamp){
-
+    public void onTimer(long timestamp) {
+        plugins.values().forEach(plugin -> plugin.onTimer(timestamp));
     }
 
     public void onWatermark(Watermark w) {
         this.plugins.values().forEach(plugin -> plugin.onWatermark(w));
-    }
-
-    public void onTimer(){
-
     }
 
     @Override

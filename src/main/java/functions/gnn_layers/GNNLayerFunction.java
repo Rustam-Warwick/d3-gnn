@@ -1,10 +1,11 @@
-package functions;
+package functions.gnn_layers;
 
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.ReplicaState;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.OutputTag;
@@ -13,6 +14,10 @@ import storage.BaseStorage;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Function that the storage and everything else interacts with
+ * Real implementation should be tightly coupled with their respective operators
+ */
 public interface GNNLayerFunction extends RichFunction {
     /**
      * Get Current Part that is being processed
@@ -20,27 +25,6 @@ public interface GNNLayerFunction extends RichFunction {
      * @return
      */
     short getCurrentPart();
-
-    /**
-     * Get master part of this operator
-     *
-     * @return
-     */
-    short getMasterPart();
-
-    /**
-     * Get all parts hashed to this operator
-     *
-     * @return
-     */
-    List<Short> getThisParts();
-
-    /**
-     * Get master parts of hashed to other parallel operators
-     *
-     * @return
-     */
-    List<Short> getReplicaMasterParts();
 
     /**
      * Get horizontal position of this GNN Layer
@@ -57,7 +41,7 @@ public interface GNNLayerFunction extends RichFunction {
     short getNumLayers();
 
     /**
-     * Send message
+     * Send message. Should handle BACKWARD, FORWARD and ITERATE Messages separately
      *
      * @param op
      */
@@ -78,13 +62,14 @@ public interface GNNLayerFunction extends RichFunction {
 
     /**
      * Get the timerservice
-     * @return
+     *
+     * @return the TimerService
      */
     TimerService getTimerService();
 
     /**
-     * Callback on watermark
-     * @param mark
+     * Callback on watermark extra callback to be registered for plugins
+     * @param mark received watermark
      */
     void onWatermark(Watermark mark);
 

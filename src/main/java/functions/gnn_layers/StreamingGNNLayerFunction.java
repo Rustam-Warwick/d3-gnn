@@ -1,4 +1,4 @@
-package functions;
+package functions.gnn_layers;
 
 import elements.GraphOp;
 import iterations.IterationType;
@@ -10,10 +10,8 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
-import java.util.List;
-
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
-    final OutputTag<GraphOp> iterateOutput = new OutputTag<GraphOp>("iterate") {
+    final OutputTag<GraphOp> forwardOutput = new OutputTag<GraphOp>("forward") {
     };
     final OutputTag<GraphOp> backwardOutput = new OutputTag<GraphOp>("backward") {
     };
@@ -21,12 +19,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     public short position;
     public short numLayers;
     public transient short currentPart;
-    public transient TimerService timerService;
     public transient Collector<GraphOp> collector;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
-    public transient List<Short> thisParts;
-    public transient List<Short> replicaMasterParts;
-    public transient short masterPart;
 
     public StreamingGNNLayerFunction(BaseStorage storage) {
         this.storage = storage;
@@ -36,21 +30,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public short getCurrentPart() {
         return currentPart;
-    }
-
-    @Override
-    public short getMasterPart() {
-        return masterPart;
-    }
-
-    @Override
-    public List<Short> getThisParts() {
-        return thisParts;
-    }
-
-    @Override
-    public List<Short> getReplicaMasterParts() {
-        return replicaMasterParts;
     }
 
     @Override
@@ -68,8 +47,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         try {
             if (op.state == IterationType.BACKWARD) {
                 ctx.output(backwardOutput, op);
-            } else if (op.state == IterationType.ITERATE) {
-                ctx.output(iterateOutput, op);
+            } else if (op.state == IterationType.FORWARD) {
+                ctx.output(forwardOutput, op);
             } else {
                 collector.collect(op);
             }
@@ -81,6 +60,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public void sideMessage(GraphOp op, OutputTag<GraphOp> outputTag) {
         ctx.output(outputTag, op);
+    }
+
+    @Override
+    public BaseStorage getStorage() {
+        return storage;
     }
 
     @Override
@@ -96,24 +80,20 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public BaseStorage getStorage() {
-        return storage;
-    }
-
-    @Override
-    public TimerService getTimerService() {
-        return timerService;
-    }
-
-    @Override
     public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
-        getStorage().onTimer(timestamp);
         super.onTimer(timestamp, ctx, out);
+        getStorage().onTimer(timestamp);
     }
 
     @Override
     public void onWatermark(Watermark mark) {
         getStorage().onWatermark(mark);
+    }
+
+    @Override
+    public TimerService getTimerService() {
+        return ctx.timerService();
+
     }
 
     @Override

@@ -1,11 +1,10 @@
 package operators;
 
 import elements.GraphOp;
-import functions.StreamingGNNLayerFunction;
+import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.statefun.flink.core.feedback.*;
@@ -15,14 +14,11 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.util.OutputTag;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
@@ -50,7 +46,7 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
         super.setup(containingTask, config, output);
-        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
+        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY); // mailboxExecutor for Iterations
     }
 
     @Override
@@ -67,10 +63,7 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
 
         ((StreamingGNNLayerFunction) userFunction).collector = collector;
         ((StreamingGNNLayerFunction) userFunction).ctx = context;
-        ((StreamingGNNLayerFunction) userFunction).timerService = timerService;
 
-        short thisMaster = this.setOperatorKeys();
-        setCurrentKey(String.valueOf(thisMaster));
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
@@ -88,26 +81,6 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
     public void onProcessingTime(InternalTimer<String, VoidNamespace> timer) throws Exception {
         collector.eraseTimestamp();
         invokeUserFunction(TimeDomain.PROCESSING_TIME, timer);
-    }
-
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-        if (getTimeServiceManager().isPresent()) {
-            getTimeServiceManager().get().advanceWatermark(mark);
-        }
-        // Do not emit watermark to the next layer
-//        output.emitWatermark(mark);
-        ((StreamingGNNLayerFunction) userFunction).onWatermark(mark);
-    }
-
-    @Override
-    public void processWatermark1(Watermark mark) throws Exception {
-        super.processWatermark1(mark);
-    }
-
-    @Override
-    public void processWatermark2(Watermark mark) throws Exception {
-        super.processWatermark2(mark);
     }
 
     @Override
@@ -147,33 +120,7 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
         OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
     }
 
-    public Short setOperatorKeys() {
-        int index = getRuntimeContext().getIndexOfThisSubtask();
-        int maxParallelism = getRuntimeContext().getMaxNumberOfParallelSubtasks();
-        int parallelism = getRuntimeContext().getNumberOfParallelSubtasks();
-        boolean[] seen = new boolean[parallelism];
-        List<Short> thisKeysList = new ArrayList<>(); // Keys of this operator
-        List<Short> replicaKeysList = new ArrayList<>(); // Replica master keys
 
-
-        for (short i = 0; i < maxParallelism; i++) {
-            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
-            if (operatorIndex == index) {
-                thisKeysList.add(i);
-            } else if (!seen[operatorIndex]) {
-                replicaKeysList.add(i);
-            }
-
-            seen[operatorIndex] = true;
-        }
-
-        ((StreamingGNNLayerFunction) userFunction).thisParts = thisKeysList;
-        ((StreamingGNNLayerFunction) userFunction).replicaMasterParts = replicaKeysList;
-        ((StreamingGNNLayerFunction) userFunction).currentPart = thisKeysList.get(0);
-        ((StreamingGNNLayerFunction) userFunction).masterPart = thisKeysList.get(0);
-
-        return thisKeysList.get(0);
-    }
 
     private class ContextImpl extends KeyedProcessFunction<String, GraphOp, GraphOp>.Context {
 

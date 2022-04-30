@@ -1,14 +1,18 @@
 package elements;
 
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import scala.Tuple2;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement {
+    public transient List<Short> thisReplicaKeys; // Keys(Parts) Hased to this parallel operator
+    public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
     public Plugin() {
         super(null, false, (short) 0);
     }
@@ -18,7 +22,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
-    public Boolean createElement() {
+    public Boolean create() {
         return false;
     }
 
@@ -33,14 +37,33 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
+    public Boolean delete() {
+        return false;
+    }
+
+    /**
+     * Replica Parts is the parts where else is this plugin replicate apart from its local master part
+     * @return
+     */
+    @Override
     public List<Short> replicaParts() {
-        return this.storage.layerFunction.getReplicaMasterParts();
+        return thisReplicaKeys;
+    }
+
+    /**
+     * Othermaster part are the local master parts of each parallel sub-operator
+     * @return
+     */
+    public List<Short> othersMasterParts(){
+        return othersMasterParts;
     }
 
     @Override
     public ElementType elementType() {
         return ElementType.PLUGIN;
     }
+
+
 
     public void addElementCallback(GraphElement element) {
 
@@ -54,6 +77,10 @@ public class Plugin extends ReplicableGraphElement {
 
     }
 
+    public void onTimer(long timestamp) {
+
+    }
+
     public void onWatermark(Watermark w) {
 
     }
@@ -63,11 +90,38 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     public void open() {
-
+        setOperatorKeys();
     }
 
     public void add() {
 
     }
+    public void setOperatorKeys() {
+        try{
+            int index = storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask();
+            int maxParallelism = storage.layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
+            int parallelism = storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
+            boolean[] seen = new boolean[parallelism];
+            List<Short> thisReplicaKeys = new ArrayList<>(); // Keys of this operator
+            List<Short> otherMasterKeys = new ArrayList<>(); // Replica master keys
+            for (short i = 0; i < maxParallelism; i++) {
+                int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
+                if (operatorIndex == index) {
+                    thisReplicaKeys.add(i);
+                } else if (!seen[operatorIndex]) {
+                    otherMasterKeys.add(i);
+                }
+
+                seen[operatorIndex] = true;
+            }
+            master = thisReplicaKeys.remove(0);
+            this.thisReplicaKeys = thisReplicaKeys;
+            this.othersMasterParts = otherMasterKeys;
+        }catch (Exception e){
+            throw new RuntimeException("Not all parts can be hashed try with different parallelism");
+        }
+    }
+
+
 
 }

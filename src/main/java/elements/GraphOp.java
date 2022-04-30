@@ -8,6 +8,7 @@ public class GraphOp {
     public GraphElement element = null;
     public IterationType state = IterationType.FORWARD;
     public int ts = Integer.MIN_VALUE;
+
     public GraphOp() {
         this.op = Op.COMMIT;
     }

@@ -9,7 +9,6 @@ import helpers.MyParameterStore;
 import iterations.IterationType;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import iterations.Rmi;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
@@ -17,7 +16,6 @@ import scala.Tuple2;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public class EdgeOutputTraining extends Plugin {
     public transient EdgeOutputInference inference;
@@ -38,8 +36,8 @@ public class EdgeOutputTraining extends Plugin {
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> tmp = (Feature<?, ?>) element;
             if (tmp.getName().equals("feature")) {
-                Iterable<Edge> edges =  storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH);
-                if(edges.iterator().hasNext()){
+                Iterable<Edge> edges = storage.getIncidentEdges((Vertex) tmp.getElement(), EdgeType.BOTH);
+                if (edges.iterator().hasNext()) {
                     List<Edge> result = new ArrayList<Edge>();
                     edges.forEach(result::add);
                     result.forEach(this::forwardForTraining);
@@ -66,7 +64,7 @@ public class EdgeOutputTraining extends Plugin {
         edge.setStorage(this.storage);
         VTensor srcFeature = (VTensor) edge.src.getFeature("feature");
         VTensor destFeature = (VTensor) edge.dest.getFeature("feature");
-        VTensor grad =  (VTensor) edge.getFeature("grad");
+        VTensor grad = (VTensor) edge.getFeature("grad");
         if (inference.outputReady(edge) && grad.value._2 == inference.MODEL_VERSION && edge.getTimestamp() == Math.min(srcFeature.getTimestamp(), destFeature.getTimestamp())) {
             srcFeature.getValue().setRequiresGradient(true);
             destFeature.getValue().setRequiresGradient(true);
@@ -102,7 +100,7 @@ public class EdgeOutputTraining extends Plugin {
             }
             srcFeature.getValue().setRequiresGradient(false);
             destFeature.getValue().setRequiresGradient(false);
-        }else{
+        } else {
             System.out.println("Backward failed since version out-of-date error");
         }
     }

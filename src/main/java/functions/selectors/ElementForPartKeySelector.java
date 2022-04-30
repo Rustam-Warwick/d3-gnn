@@ -1,4 +1,4 @@
-package helpers;
+package functions.selectors;
 
 import elements.GraphOp;
 import org.apache.flink.api.java.functions.KeySelector;

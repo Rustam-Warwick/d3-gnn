@@ -113,8 +113,8 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.elementType() == ElementType.FEATURE) {
-            Feature<?,?> feature = (Feature<?,?>) newElement;
-            Feature<?,?> oldFeature = (Feature<?,?>) oldElement;
+            Feature<?, ?> feature = (Feature<?, ?>) newElement;
+            Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if ("feature".equals(feature.getName())) {
                 forward((Vertex) feature.getElement());
                 if (reInferencePending.contains(getPartId())) {
@@ -132,6 +132,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
+     *
      * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
@@ -148,6 +149,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Push the embedding of this vertex to the next layer
+     *
      * @param v Vertex
      */
     public void forward(Vertex v) {
@@ -157,7 +159,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
-            messageVertex.getFeature("feature").setTimestamp(Math.addExact(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp()));
+            messageVertex.getFeature("feature").setTimestamp((v.getFeature("feature").getTimestamp() + v.getFeature("agg").getTimestamp()) / 2);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
         }
     }
@@ -193,6 +195,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Given vertex reduce all the out edges aggregator values
+     *
      * @param vertex Vertex which out edges should be reduces
      */
     public void reduceOutEdges(Vertex vertex) {

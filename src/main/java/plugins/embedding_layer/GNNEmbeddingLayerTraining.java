@@ -13,7 +13,6 @@ import iterations.RemoteInvoke;
 import scala.Tuple2;
 
 import java.util.Map;
-import java.util.Objects;
 
 public class GNNEmbeddingLayerTraining extends Plugin {
     public transient GNNEmbeddingLayer inference;
@@ -43,7 +42,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         VTensor feature = (VTensor) v.getFeature("feature");
         BaseAggregator<?> agg = (BaseAggregator<?>) v.getFeature("agg");
         if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && grad.getTimestamp() == Math.min(feature.getTimestamp(), agg.getTimestamp())) {
-            System.out.println("Processing at position:"+storage.layerFunction.getPosition());
+            System.out.println("Processing at position:" + storage.layerFunction.getPosition());
             feature.getValue().setRequiresGradient(true);
             agg.getValue().setRequiresGradient(true);
             // 2. Prediction & Backward
@@ -86,7 +85,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             // 5. Cleanup
             agg.getValue().setRequiresGradient(false);
             feature.getValue().setRequiresGradient(false);
-        }else{
+        } else {
             System.out.println("Failed to backprop");
         }
     }
@@ -141,7 +140,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 .toElement(getId(), elementType())
                 .where(IterationType.ITERATE)
                 .method("sendGradientsToMaster")
-                .addDestinations(replicaParts())
+                .addDestinations(othersMasterParts())
                 .withArgs()
                 .noUpdate()
                 .buildAndRun(storage);
@@ -151,7 +150,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                     .toElement(getId(), elementType())
                     .where(IterationType.BACKWARD)
                     .method("startTraining")
-                    .addDestination(masterPart())
+                    .addDestination((short) 0)
                     .withArgs()
                     .noUpdate()
                     .buildAndRun(storage);
@@ -168,7 +167,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 .toElement(getId(), elementType())
                 .where(IterationType.ITERATE)
                 .method("collectGradients")
-                .addDestination(masterPart())
+                .addDestination((short)0)
                 .withArgs(inference.parameterStore.gradientArrays)
                 .noUpdate()
                 .buildAndRun(storage);
@@ -191,7 +190,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                     .toElement(getId(), elementType())
                     .where(IterationType.ITERATE)
                     .method("updateParameters")
-                    .addDestinations(replicaParts())
+                    .addDestinations(othersMasterParts())
                     .addDestination(masterPart())
                     .withArgs(inference.parameterStore.parameterArrays)
                     .noUpdate()
@@ -211,14 +210,16 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         inference.MODEL_VERSION++;
         inference.updatePending = false; // Model is here
         // Now we need to do re-inference on all the parts in this instance
-        inference.reInferencePending.addAll(storage.layerFunction.getThisParts());
+        inference.reInferencePending.addAll(replicaParts());
+        inference.reInferencePending.add(masterPart());
         if (storage.layerFunction.isFirst()) {
             // Re-inference should start from the first layer. Rest is done on the inferencer
             new RemoteInvoke()
                     .toElement(inference.getId(), inference.elementType())
                     .where(IterationType.ITERATE)
                     .method("reInference")
-                    .addDestinations(storage.layerFunction.getThisParts())
+                    .addDestinations(replicaParts())
+                    .addDestination(masterPart())
                     .withArgs()
                     .noUpdate()
                     .buildAndRun(storage);

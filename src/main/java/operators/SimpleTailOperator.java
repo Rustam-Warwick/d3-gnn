@@ -30,6 +30,7 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.util.IOUtils;
@@ -125,6 +126,11 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
         channel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()));
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        super.processWatermark(mark);
     }
 
     @Override

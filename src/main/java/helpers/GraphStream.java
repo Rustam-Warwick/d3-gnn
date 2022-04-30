@@ -7,11 +7,12 @@ import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
-import functions.StreamingGNNLayerFunction;
+import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.selectors.ElementForPartKeySelector;
+import functions.selectors.PartKeySelector;
 import iterations.Rmi;
-import operators.GNNKeyedProcessOperator;
+import operators.MinimalGNNKeyedProcessOperator;
 import operators.SimpleTailOperator;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -23,13 +24,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.ProcessingTimeSessionWindows;
-import org.apache.flink.streaming.api.windowing.assigners.SlidingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTimeWindows;
 import org.apache.flink.streaming.api.windowing.evictors.CountEvictor;
-import org.apache.flink.streaming.api.windowing.evictors.Evictor;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.streaming.runtime.operators.windowing.TimestampedValue;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -40,7 +38,6 @@ import partitioner.BasePartitioner;
 import serializers.JavaTensor;
 import serializers.TensorSerializer;
 
-import java.time.Duration;
 import java.util.List;
 
 public class GraphStream {
@@ -131,22 +128,21 @@ public class GraphStream {
         IterationID localIterationId = new IterationID();
 
         DataStream<GraphOp> keyedLast = inputGraphOps.keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp> forwardFilter = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
-        DataStream<GraphOp> iterateFilter = forwardFilter.getSideOutput(new OutputTag<>("iterate", TypeInformation.of(GraphOp.class)));
-        DataStream<Void> iteration = iterateFilter.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp>  iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new MinimalGNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
 
-        forwardFilter.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-        iteration.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iterations.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
 
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
-            DataStream<GraphOp> backFilter = forwardFilter.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
+            DataStream<GraphOp> backFilter = iterations.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
             DataStream<Void> backiteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
             backiteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
         this.position_index++;
         this.lastIterationID = localIterationId;
-        return forwardFilter;
+        return iterations.getSideOutput(new OutputTag<>("forward", TypeInformation.of(GraphOp.class)));
     }
 
     /**
@@ -173,7 +169,7 @@ public class GraphStream {
                                 input.forEach(out::collect);
                             }
                         });
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(embeddings), fn);
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
             }
 
         }
