@@ -1,6 +1,6 @@
 package elements;
 
-import iterations.IterationType;
+import iterations.MessageDirection;
 import scala.Tuple2;
 
 import javax.annotation.Nullable;
@@ -86,7 +86,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
-                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, IterationType.ITERATE)));
+                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, MessageDirection.ITERATE)));
             }
             return is_created;
         }

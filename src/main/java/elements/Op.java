@@ -6,5 +6,5 @@ public enum Op {
     REMOVE,
     SYNC,
     RMI,
-    AGG
+    WATERMARK
 }

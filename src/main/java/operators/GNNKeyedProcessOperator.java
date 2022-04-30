@@ -1,39 +1,37 @@
 package operators;
 
 import elements.GraphOp;
+import elements.Op;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import helpers.IteratingWatermarkUtils;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.statefun.flink.core.feedback.*;
-import org.apache.flink.streaming.api.SimpleTimerService;
-import org.apache.flink.streaming.api.TimeDomain;
-import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
-import org.apache.flink.util.OutputTag;
+import org.apache.flink.util.Collector;
 
-import java.util.Objects;
+import java.lang.reflect.Field;
 import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, KeyedProcessFunction<String, GraphOp, GraphOp>>
-        implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<String, VoidNamespace>, FeedbackConsumer<StreamRecord<GraphOp>> {
-
-
+/**
+ * This operator is tightly coupled with
+ * @see StreamingGNNLayerFunction
+ * This operator handles the insertion of data to StreamingGNNLayerFunction +
+ * Registers MailboxExecutor for consuming iterative events
+ */
+public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphOp, GraphOp> implements FeedbackConsumer<StreamRecord<GraphOp>> {
     private static final long serialVersionUID = 1L;
     private final IterationID iterationId;
-    private transient TimestampedCollector<GraphOp> collector;
-    private transient GNNKeyedProcessOperator.ContextImpl context;
-    private transient GNNKeyedProcessOperator.OnTimerContextImpl onTimerContext;
     private MailboxExecutor mailboxExecutor;
 
 
@@ -51,61 +49,58 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
 
     @Override
     public void open() throws Exception {
-        collector = new TimestampedCollector<>(output);
+        super.open();
+        Field collector =
+                KeyedProcessOperator.class.getDeclaredField("collector");
+        collector.setAccessible(true);
+        Field context =
+                KeyedProcessOperator.class.getDeclaredField("context");
+        context.setAccessible(true);
 
-        InternalTimerService<VoidNamespace> internalTimerService =
-                getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
 
-        TimerService timerService = new SimpleTimerService(internalTimerService);
-
-        context = new GNNKeyedProcessOperator.ContextImpl(userFunction, timerService);
-        onTimerContext = new GNNKeyedProcessOperator.OnTimerContextImpl(userFunction, timerService);
-
-        ((StreamingGNNLayerFunction) userFunction).collector = collector;
-        ((StreamingGNNLayerFunction) userFunction).ctx = context;
-
+        ((StreamingGNNLayerFunction) userFunction).collector = (Collector<GraphOp>) collector.get(this);
+        ((StreamingGNNLayerFunction) userFunction).ctx = (KeyedProcessFunction.Context) context.get(this);
+        collector.setAccessible(false);
+        context.setAccessible(false);
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
                 });
-        super.open();
-    }
-
-    @Override
-    public void onEventTime(InternalTimer<String, VoidNamespace> timer) throws Exception {
-        collector.setAbsoluteTimestamp(timer.getTimestamp());
-        invokeUserFunction(TimeDomain.EVENT_TIME, timer);
-    }
-
-    @Override
-    public void onProcessingTime(InternalTimer<String, VoidNamespace> timer) throws Exception {
-        collector.eraseTimestamp();
-        invokeUserFunction(TimeDomain.PROCESSING_TIME, timer);
-    }
-
-    @Override
-    public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        collector.setTimestamp(element);
-        context.element = element;
-        userFunction.processElement(element.getValue(), context, collector);
-        context.element = null;
     }
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        setKeyContextElement(element);
-        context.element = element;
-        userFunction.processElement(element.getValue(), context, collector);
-        context.element = null;
+        if(element.getValue().op == Op.WATERMARK){
+            long iterationState = IteratingWatermarkUtils.getIterationNumber(element.getTimestamp());
+            System.out.format("WATERMARK - %s at head \n",iterationState);
+            if(iterationState > 0){
+                // Still need to traverse the stream
+                Watermark newWatermark = IteratingWatermarkUtils.getDecrementedWatermark(element.getTimestamp());
+                output.emitWatermark(newWatermark);
+            }else{
+                // Watermark is ready to be consumed
+                Watermark mark = new Watermark(element.getTimestamp());
+                super.processWatermark(mark);
+                ((StreamingGNNLayerFunction)userFunction).onWatermark(mark);
+            }
+        }else{
+            setKeyContextElement(element);
+            processElement(element);
+        }
     }
 
-    private void invokeUserFunction(TimeDomain timeDomain, InternalTimer<String, VoidNamespace> timer)
-            throws Exception {
-        onTimerContext.timeDomain = timeDomain;
-        onTimerContext.timer = timer;
-        userFunction.onTimer(timer.getTimestamp(), onTimerContext, collector);
-        onTimerContext.timeDomain = null;
-        onTimerContext.timer = null;
+    /**
+     * Watermarks received are a
+     * @param mark
+     * @throws Exception
+     */
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if(!IteratingWatermarkUtils.isIterationTimestamp(mark.getTimestamp())) {
+            // This is external watermark, need to send it three-times in the stream
+            Watermark iterationWatermark = new Watermark(IteratingWatermarkUtils.encode(mark.getTimestamp()));
+            output.emitWatermark(iterationWatermark); // Only output, do not register it
+        }
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
@@ -120,98 +115,6 @@ public class GNNKeyedProcessOperator extends AbstractUdfStreamOperator<GraphOp, 
         OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
     }
 
-
-
-    private class ContextImpl extends KeyedProcessFunction<String, GraphOp, GraphOp>.Context {
-
-        private final TimerService timerService;
-
-        private StreamRecord<GraphOp> element;
-
-        ContextImpl(KeyedProcessFunction<String, GraphOp, GraphOp> function, TimerService timerService) {
-            function.super();
-            this.timerService = checkNotNull(timerService);
-        }
-
-        @Override
-        public Long timestamp() {
-            checkState(element != null);
-
-            if (element.hasTimestamp()) {
-                return element.getTimestamp();
-            } else {
-                return null;
-            }
-        }
-
-        @Override
-        public TimerService timerService() {
-            return timerService;
-        }
-
-        @Override
-        public <X> void output(OutputTag<X> outputTag, X value) {
-            if (outputTag == null) {
-                throw new IllegalArgumentException("OutputTag must not be null.");
-            }
-            long timeStamp = Long.MIN_VALUE;
-            if (Objects.nonNull(element)) {
-                timeStamp = element.getTimestamp();
-            }
-            output.collect(outputTag, new StreamRecord<>(value, timeStamp));
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public String getCurrentKey() {
-            return (String) GNNKeyedProcessOperator.this.getCurrentKey();
-        }
-    }
-
-    private class OnTimerContextImpl extends KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext {
-
-        private final TimerService timerService;
-
-        private TimeDomain timeDomain;
-
-        private InternalTimer<String, VoidNamespace> timer;
-
-        OnTimerContextImpl(KeyedProcessFunction<String, GraphOp, GraphOp> function, TimerService timerService) {
-            function.super();
-            this.timerService = checkNotNull(timerService);
-        }
-
-        @Override
-        public Long timestamp() {
-            checkState(timer != null);
-            return timer.getTimestamp();
-        }
-
-        @Override
-        public TimerService timerService() {
-            return timerService;
-        }
-
-        @Override
-        public <X> void output(OutputTag<X> outputTag, X value) {
-            if (outputTag == null) {
-                throw new IllegalArgumentException("OutputTag must not be null.");
-            }
-
-            output.collect(outputTag, new StreamRecord<>(value, timer.getTimestamp()));
-        }
-
-        @Override
-        public TimeDomain timeDomain() {
-            checkState(timeDomain != null);
-            return timeDomain;
-        }
-
-        @Override
-        public String getCurrentKey() {
-            return timer.getKey();
-        }
-    }
 
 
 }

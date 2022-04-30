@@ -1,7 +1,7 @@
 package plugins;
 
 import elements.*;
-import iterations.IterationType;
+import iterations.MessageDirection;
 
 import java.util.List;
 
@@ -65,7 +65,7 @@ public class RandomNegativeSampler extends Plugin {
                     if (dest.state() == ReplicaState.MASTER && !hasIntersection(src.replicaParts(), dest.replicaParts()) && storage.getEdge(src.getId() + ":" + dest.getId()) == null) {
                         Edge tmp = new Edge(src.copy(), dest.copy());
                         tmp.setFeature("label", new Feature<Integer, Integer>(0));
-                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, IterationType.FORWARD));
+                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, MessageDirection.FORWARD));
                         i = intI;
                         j = intJ + 1;
                         return;

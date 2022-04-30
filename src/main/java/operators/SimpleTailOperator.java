@@ -19,6 +19,7 @@
 package operators;
 
 import elements.GraphOp;
+import helpers.IteratingWatermarkUtils;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
@@ -44,9 +45,15 @@ import java.util.function.Consumer;
  */
 public class SimpleTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {
-
+    /**
+     * Iteration id is a unique identifier of a particular iteration
+     * Since multiple iteration sinks can be added to the same iteration head
+     */
     private final IterationID iterationId;
-
+    /**
+     * Should the iteration try to resolve the Watermarks vie three-fold all-reduce
+     */
+    private final boolean resolveWatermarks;
 
     /**
      * We distinguish how the record is processed according to if objectReuse is enabled.
@@ -55,9 +62,14 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
-    public SimpleTailOperator(IterationID iterationId) {
+    public SimpleTailOperator(IterationID iterationId){
+        this(iterationId, false);
+    }
+
+    public SimpleTailOperator(IterationID iterationId, boolean resolveWatermarks) {
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
+        this.resolveWatermarks = resolveWatermarks;
     }
 
     @Override
@@ -130,7 +142,14 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        super.processWatermark(mark);
+        if(resolveWatermarks){
+            long iterationState = IteratingWatermarkUtils.getIterationNumber(mark.getTimestamp());
+            System.out.format("WATERMARK - %s at tail\n",iterationState);
+            if(iterationState > 0){
+                GraphOp watermark = GraphOp.makeWatermarkMessage(mark);
+                channel.put(new StreamRecord<>(watermark));
+            }
+        }
     }
 
     @Override

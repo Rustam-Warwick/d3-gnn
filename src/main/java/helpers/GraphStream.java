@@ -11,7 +11,7 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.selectors.ElementForPartKeySelector;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
-import operators.MinimalGNNKeyedProcessOperator;
+import operators.GNNKeyedProcessOperator;
 import operators.SimpleTailOperator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -55,7 +55,7 @@ public class GraphStream {
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
-        this.env.getConfig().setAutoWatermarkInterval(2000);
+        this.env.getConfig().setAutoWatermarkInterval(15000);
         this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
@@ -79,7 +79,6 @@ public class GraphStream {
 
     /**
      * Read a socket channel and parse the data
-     *
      * @param parser FlatMap Parser
      * @param host
      * @param port
@@ -128,8 +127,8 @@ public class GraphStream {
         IterationID localIterationId = new IterationID();
 
         DataStream<GraphOp> keyedLast = inputGraphOps.keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp>  iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new MinimalGNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
-        DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp>  iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 
         iterations.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
@@ -137,7 +136,7 @@ public class GraphStream {
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
             DataStream<GraphOp> backFilter = iterations.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
-            DataStream<Void> backiteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
+            DataStream<Void> backiteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
             backiteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
         this.position_index++;
@@ -147,7 +146,6 @@ public class GraphStream {
 
     /**
      * Start of the GNN Chain
-     *
      * @param topologyUpdates  External System updates
      * @param storageProcesses List of Storage Processes with correspondign storage layer and plugins
      * @return Last layer corresponding to vertex embeddings
@@ -160,18 +158,8 @@ public class GraphStream {
             if (lastLayerInputs == null) {
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
             } else {
-                DataStream<GraphOp> embeddings = lastLayerInputs.keyBy(new ElementForPartKeySelector())
-                        .window(ProcessingTimeSessionWindows.withGap(Time.seconds(1)))
-                        .evictor(CountEvictor.of(1))
-                        .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
-                            @Override
-                            public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
-                                input.forEach(out::collect);
-                            }
-                        });
                 lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
             }
-
         }
         return lastLayerInputs;
     }

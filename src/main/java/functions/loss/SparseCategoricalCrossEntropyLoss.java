@@ -8,7 +8,7 @@ import ai.djl.training.loss.Loss;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.Rmi;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -55,7 +55,7 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 GraphElement elementAttached = trainData.element.copy();
                 elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg().mul(0.01), prediction.value._2)));
                 Rmi backward = new Rmi("trainer", "backward", new Object[]{elementAttached}, ElementType.PLUGIN, false);
-                out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));
+                out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, MessageDirection.BACKWARD));
                 // 4. Cleanup
                 manager.close();
                 collector.close();
@@ -65,7 +65,7 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                     count = 0;
                     MODEL_VERSION++;
                     Rmi rmi = new Rmi("trainer", "startTraining", new Object[0], ElementType.PLUGIN, false);
-                    out.collect(new GraphOp(Op.RMI, (short) 0, rmi, IterationType.BACKWARD));
+                    out.collect(new GraphOp(Op.RMI, (short) 0, rmi, MessageDirection.BACKWARD));
                 }
             }
         } catch (Exception e) {

@@ -6,7 +6,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -54,7 +54,7 @@ public class EdgeOutputTraining extends Plugin {
             messageEdge.setTimestamp(Math.min(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
-            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, IterationType.FORWARD), trainingOutput);
+            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, MessageDirection.FORWARD), trainingOutput);
             e.delete();
         }
     }
@@ -82,7 +82,7 @@ public class EdgeOutputTraining extends Plugin {
                         .withArgs(srcGradFeature)
                         .addDestination(edge.src.masterPart())
                         .method("backward")
-                        .where(IterationType.BACKWARD)
+                        .where(MessageDirection.BACKWARD)
                         .buildAndRun(storage);
             }
             if (MyParameterStore.isTensorCorrect(destGrad)) {
@@ -95,7 +95,7 @@ public class EdgeOutputTraining extends Plugin {
                         .withArgs(destGradFeature)
                         .addDestination(edge.dest.masterPart())
                         .method("backward")
-                        .where(IterationType.BACKWARD)
+                        .where(MessageDirection.BACKWARD)
                         .buildAndRun(storage);
             }
             srcFeature.getValue().setRequiresGradient(false);
@@ -114,7 +114,7 @@ public class EdgeOutputTraining extends Plugin {
         inference.updatePending = true;
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("sendGradientsToMaster")
                 .addDestinations(replicaParts())
                 .withArgs()
@@ -124,7 +124,7 @@ public class EdgeOutputTraining extends Plugin {
         if (!storage.layerFunction.isFirst()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.BACKWARD)
+                    .where(MessageDirection.BACKWARD)
                     .method("startTraining")
                     .addDestination(masterPart())
                     .withArgs()
@@ -141,7 +141,7 @@ public class EdgeOutputTraining extends Plugin {
         inference.updatePending = true; // Sending to master waiting for new parameters
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("collectGradients")
                 .addDestination(masterPart())
                 .withArgs(inference.parameterStore.gradientArrays)
@@ -164,7 +164,7 @@ public class EdgeOutputTraining extends Plugin {
             inference.parameterStore.step();
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .method("updateParameters")
                     .addDestinations(replicaParts())
                     .addDestination(masterPart())

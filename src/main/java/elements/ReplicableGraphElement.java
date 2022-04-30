@@ -1,7 +1,7 @@
 package elements;
 
 import features.Set;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
@@ -71,7 +71,7 @@ public class ReplicableGraphElement extends GraphElement {
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             } else {
                 // Send Query
-                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, IterationType.ITERATE));
+                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, MessageDirection.ITERATE));
             }
         }
         return is_created;
@@ -92,7 +92,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .hasUpdate()
                     .method("add")
                     .addDestination(masterPart())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .withArgs(newElement.getPartId())
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
@@ -117,7 +117,7 @@ public class ReplicableGraphElement extends GraphElement {
             if (tmp._1) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, IterationType.ITERATE));
+            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, MessageDirection.ITERATE));
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
@@ -137,13 +137,13 @@ public class ReplicableGraphElement extends GraphElement {
                     .noUpdate()
                     .method("deleteReplica")
                     .addDestinations(replicaParts())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .withArgs(false)
                     .buildAndRun(storage);
             return deleteElement();
 
         } else if (state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), IterationType.ITERATE));
+            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), MessageDirection.ITERATE));
             return false;
         }
 
@@ -165,7 +165,7 @@ public class ReplicableGraphElement extends GraphElement {
                         .hasUpdate()
                         .method("remove")
                         .withArgs(getPartId())
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .addDestination(masterPart())
                         .buildAndRun(storage);
             }
@@ -187,7 +187,7 @@ public class ReplicableGraphElement extends GraphElement {
             Feature<?, ?> tmp = feature.copy();
             cpy.setFeature(feature.getName(), tmp);
         }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, IterationType.ITERATE)));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, MessageDirection.ITERATE)));
     }
 
     @Override

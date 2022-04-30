@@ -15,7 +15,7 @@ public class RemoteInvoke {
     String elementId = null;
     ElementType elementType = null;
     String methodName = null;
-    IterationType iterationType = null;
+    MessageDirection messageDirection = null;
     List<Short> destinations = new ArrayList<>();
     Object[] args = null;
     Boolean hasUpdate = null;
@@ -32,8 +32,8 @@ public class RemoteInvoke {
         return this;
     }
 
-    public RemoteInvoke where(IterationType iterationType) {
-        this.iterationType = iterationType;
+    public RemoteInvoke where(MessageDirection messageDirection) {
+        this.messageDirection = messageDirection;
         return this;
     }
 
@@ -68,7 +68,7 @@ public class RemoteInvoke {
     }
 
     public boolean verify() {
-        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(iterationType) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
+        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
 
     private List<GraphOp> build() {
@@ -79,14 +79,14 @@ public class RemoteInvoke {
         Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate);
         message.setTimestamp(this.ts);
         return destinations.stream().map(item -> (
-                new GraphOp(Op.RMI, item, message, iterationType)
+                new GraphOp(Op.RMI, item, message, messageDirection)
         )).collect(Collectors.toList());
     }
 
     public void buildAndRun(BaseStorage storage) {
         List<GraphOp> graphOps = build();
         for (GraphOp a : graphOps) {
-            if (a.part_id == storage.layerFunction.getCurrentPart() && a.state == IterationType.ITERATE) {
+            if (a.part_id == storage.layerFunction.getCurrentPart() && a.direction == MessageDirection.ITERATE) {
                 Rmi.execute(storage.getElement(elementId, elementType), (Rmi) a.element);
             } else {
                 storage.layerFunction.message(a);

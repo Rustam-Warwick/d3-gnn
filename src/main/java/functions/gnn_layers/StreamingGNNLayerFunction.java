@@ -1,7 +1,7 @@
 package functions.gnn_layers;
 
 import elements.GraphOp;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -45,9 +45,9 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public void message(GraphOp op) {
         try {
-            if (op.state == IterationType.BACKWARD) {
+            if (op.direction == MessageDirection.BACKWARD) {
                 ctx.output(backwardOutput, op);
-            } else if (op.state == IterationType.FORWARD) {
+            } else if (op.direction == MessageDirection.FORWARD) {
                 ctx.output(forwardOutput, op);
             } else {
                 collector.collect(op);

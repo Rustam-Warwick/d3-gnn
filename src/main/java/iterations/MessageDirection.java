@@ -1,8 +1,8 @@
 package iterations;
 
 
-public enum IterationType {
+public enum MessageDirection {
     FORWARD,
     ITERATE,
-    BACKWARD
+    BACKWARD,
 }

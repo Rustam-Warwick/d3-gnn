@@ -7,7 +7,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
@@ -62,7 +62,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                             .withArgs(backwardGrad)
                             .addDestination(getPartId())
                             .method("backward")
-                            .where(IterationType.BACKWARD)
+                            .where(MessageDirection.BACKWARD)
                             .buildAndRun(storage);
                 }
             }
@@ -79,7 +79,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                         .addDestination(getPartId())
                         .addDestinations(agg.replicaParts())
                         .method("messageBackward")
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .buildAndRun(storage);
             }
             // 5. Cleanup
@@ -120,7 +120,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                                 .withArgs(grad)
                                 .addDestination(edge.src.masterPart())
                                 .method("backward")
-                                .where(IterationType.BACKWARD)
+                                .where(MessageDirection.BACKWARD)
                                 .buildAndRun(storage);
                     }
                     ((NDArray) edge.src.getFeature("feature").getValue()).setRequiresGradient(false);
@@ -138,7 +138,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         inference.updatePending = true;
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("sendGradientsToMaster")
                 .addDestinations(othersMasterParts())
                 .withArgs()
@@ -148,7 +148,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         if (!storage.layerFunction.isFirst()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.BACKWARD)
+                    .where(MessageDirection.BACKWARD)
                     .method("startTraining")
                     .addDestination((short) 0)
                     .withArgs()
@@ -165,7 +165,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         inference.updatePending = true; // Sending to master waiting for new parameters
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("collectGradients")
                 .addDestination((short)0)
                 .withArgs(inference.parameterStore.gradientArrays)
@@ -188,7 +188,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             inference.parameterStore.step();
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .method("updateParameters")
                     .addDestinations(othersMasterParts())
                     .addDestination(masterPart())
@@ -216,7 +216,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             // Re-inference should start from the first layer. Rest is done on the inferencer
             new RemoteInvoke()
                     .toElement(inference.getId(), inference.elementType())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .method("reInference")
                     .addDestinations(replicaParts())
                     .addDestination(masterPart())

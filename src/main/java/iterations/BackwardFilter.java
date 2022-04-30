@@ -6,6 +6,6 @@ import org.apache.flink.api.common.functions.FilterFunction;
 public class BackwardFilter implements FilterFunction<GraphOp> {
     @Override
     public boolean filter(GraphOp value) throws Exception {
-        return value.state == IterationType.BACKWARD;
+        return value.direction == MessageDirection.BACKWARD;
     }
 }

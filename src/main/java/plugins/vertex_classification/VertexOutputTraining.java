@@ -6,7 +6,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import iterations.Rmi;
@@ -44,7 +44,7 @@ public class VertexOutputTraining extends Plugin {
             Vertex vcopy = v.copy();
             vcopy.setFeature("prediction", new VTensor(new Tuple2<>(output, inference.MODEL_VERSION)));
             vcopy.setFeature("label", v.getFeature("label").copy());
-            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, vcopy.getPartId(), vcopy, IterationType.FORWARD), trainingOutput);
+            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, vcopy.getPartId(), vcopy, MessageDirection.FORWARD), trainingOutput);
         }
     }
 
@@ -62,7 +62,7 @@ public class VertexOutputTraining extends Plugin {
                 VTensor srcGradFeature = new VTensor("grad", new Tuple2<>(vertexGrad, inference.MODEL_VERSION));
                 srcGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, vertex.getId());
                 Rmi backwardSrc = new Rmi("trainer", "backward", new Object[]{srcGradFeature}, ElementType.PLUGIN, false);
-                storage.layerFunction.message(new GraphOp(Op.RMI, vertex.masterPart(), backwardSrc, IterationType.BACKWARD));
+                storage.layerFunction.message(new GraphOp(Op.RMI, vertex.masterPart(), backwardSrc, MessageDirection.BACKWARD));
             }
             feature.getValue().setRequiresGradient(false);
             if (vertex.getFeature("label") != null) vertex.getFeature("label").delete();
@@ -78,7 +78,7 @@ public class VertexOutputTraining extends Plugin {
         inference.updatePending = true;
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("sendGradientsToMaster")
                 .addDestinations(replicaParts())
                 .withArgs()
@@ -88,7 +88,7 @@ public class VertexOutputTraining extends Plugin {
         if (!storage.layerFunction.isFirst()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.BACKWARD)
+                    .where(MessageDirection.BACKWARD)
                     .method("startTraining")
                     .addDestination(masterPart())
                     .withArgs()
@@ -105,7 +105,7 @@ public class VertexOutputTraining extends Plugin {
         inference.updatePending = true; // Sending to master waiting for new parameters
         new RemoteInvoke()
                 .toElement(getId(), elementType())
-                .where(IterationType.ITERATE)
+                .where(MessageDirection.ITERATE)
                 .method("collectGradients")
                 .addDestination(masterPart())
                 .withArgs(inference.parameterStore.gradientArrays)
@@ -128,7 +128,7 @@ public class VertexOutputTraining extends Plugin {
             inference.parameterStore.step();
             new RemoteInvoke()
                     .toElement(getId(), elementType())
-                    .where(IterationType.ITERATE)
+                    .where(MessageDirection.ITERATE)
                     .method("updateParameters")
                     .addDestinations(replicaParts())
                     .addDestination(masterPart())

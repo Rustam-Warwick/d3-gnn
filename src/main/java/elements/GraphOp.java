@@ -1,13 +1,34 @@
 package elements;
 
-import iterations.IterationType;
+import iterations.MessageDirection;
+import org.apache.flink.streaming.api.watermark.Watermark;
 
+/**
+ * Main message object that gets passed around the system
+ */
 public class GraphOp {
+    /**
+     * @see Op
+     * Op represents the operation that is happening in the GraphElement
+     */
     public Op op;
+    /**
+     * The part number where this record should be sent to
+     */
     public short part_id = -1;
+    /**
+     * The GraphElement on which the Op is being acted upon
+     */
     public GraphElement element = null;
-    public IterationType state = IterationType.FORWARD;
-    public int ts = Integer.MIN_VALUE;
+    /**
+     * The direction to where this message should be sent to
+     */
+    public MessageDirection direction = MessageDirection.FORWARD;
+    /**
+     * Timestamp associated with this GraphOp
+     * Mainly used for Watermarks
+     */
+    public long ts;
 
     public GraphOp() {
         this.op = Op.COMMIT;
@@ -18,22 +39,19 @@ public class GraphOp {
         this.element = element;
     }
 
-    public GraphOp(Op op, short part_id, GraphElement element, IterationType state) {
-        this.op = op;
-        this.part_id = part_id;
-        this.element = element;
-        this.state = state;
+    public GraphOp(Op op, short part_id, GraphElement element, MessageDirection direction) {
+        this(op, part_id, element, direction, 0);
     }
 
-    public GraphOp(Op op, short part_id, GraphElement element, IterationType state, int ts) {
+    public GraphOp(Op op, short part_id, GraphElement element, MessageDirection direction, long ts) {
         this.op = op;
         this.part_id = part_id;
         this.element = element;
-        this.state = state;
+        this.direction = direction;
         this.ts = ts;
     }
 
-    public int getTimestamp() {
+    public long getTimestamp() {
         return ts;
     }
 
@@ -42,7 +60,11 @@ public class GraphOp {
     }
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.part_id, this.element, this.state);
+        return new GraphOp(this.op, this.part_id, this.element, this.direction, this.ts);
+    }
+
+    public static GraphOp makeWatermarkMessage(Watermark mark){
+        return new GraphOp(Op.WATERMARK, (short) -1, null, MessageDirection.BACKWARD, mark.getTimestamp());
     }
 
     @Override
@@ -51,7 +73,7 @@ public class GraphOp {
                 "op=" + op +
                 ", part_id=" + part_id +
                 ", element=" + element +
-                ", state=" + state +
+                ", state=" + direction +
                 '}';
     }
 }

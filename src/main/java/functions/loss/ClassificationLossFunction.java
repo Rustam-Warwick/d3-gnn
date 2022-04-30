@@ -11,7 +11,7 @@ import elements.GraphOp;
 import elements.Op;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.Rmi;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -60,7 +60,7 @@ public class ClassificationLossFunction extends ProcessFunction<GraphOp, GraphOp
                 VTensor grad = logit.copy();
                 grad.value = new Tuple2<>(logit.getValue().getGradient().mul(0.001).neg(), logit.value._2);
                 Rmi backward = new Rmi("trainer", "backward", new Object[]{grad}, ElementType.PLUGIN, false);
-                out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, IterationType.BACKWARD));
+                out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, MessageDirection.BACKWARD));
 
                 // 4. Cleanup
                 manager.close();
@@ -72,7 +72,7 @@ public class ClassificationLossFunction extends ProcessFunction<GraphOp, GraphOp
                     count = 0;
                     MODEL_VERSION++;
                     Rmi rmi = new Rmi("trainer", "startTraining", new Object[0], ElementType.PLUGIN, false);
-                    out.collect(new GraphOp(Op.RMI, (short) 0, rmi, IterationType.BACKWARD));
+                    out.collect(new GraphOp(Op.RMI, (short) 0, rmi, MessageDirection.BACKWARD));
                 }
             }
         } catch (Exception e) {

@@ -10,7 +10,7 @@ import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.VTensor;
 import helpers.MyParameterStore;
-import iterations.IterationType;
+import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
@@ -90,7 +90,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                 NDArray msg = this.message((NDArray) edge.src.getFeature("feature").getValue(), false);
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
@@ -160,7 +160,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             Vertex messageVertex = v.copy();
             messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
             messageVertex.getFeature("feature").setTimestamp((v.getFeature("feature").getTimestamp() + v.getFeature("agg").getTimestamp()) / 2);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, IterationType.FORWARD));
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, MessageDirection.FORWARD));
         }
     }
 
@@ -182,7 +182,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                 }
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .method("replace")
                         .hasUpdate()
                         .withTimestamp(newFeature.getTimestamp())
@@ -208,7 +208,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                 }
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
@@ -288,7 +288,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                 NDArray msgs = MeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
                 new RemoteInvoke()
                         .toElement(vertex.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(IterationType.ITERATE)
+                        .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(vertex.masterPart())
