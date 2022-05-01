@@ -2,14 +2,16 @@ package plugins.debugging;
 
 import elements.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Function for debugging the interaction of vertices in the system
+ */
 public class PrintVertexPlugin extends Plugin {
-    public List<String> registeredVertices = new ArrayList();
+    public List<String> registeredVertices = new ArrayList<String>();
 
     public PrintVertexPlugin(String... vertices) {
         Collections.addAll(registeredVertices, vertices);

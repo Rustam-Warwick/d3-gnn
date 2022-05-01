@@ -5,12 +5,13 @@ import iterations.MessageDirection;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
-public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
+public class CoStreamingGNNLayerFunction extends KeyedCoProcessFunction<String, GraphOp, GraphOp, GraphOp> implements GNNLayerFunction {
     final OutputTag<GraphOp> forwardOutput = new OutputTag<GraphOp>("forward") {
     };
     final OutputTag<GraphOp> backwardOutput = new OutputTag<GraphOp>("backward") {
@@ -20,9 +21,9 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     public short numLayers;
     public transient short currentPart;
     public transient Collector<GraphOp> collector;
-    public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
+    public transient KeyedCoProcessFunction<String,GraphOp, GraphOp, GraphOp>.Context ctx;
 
-    public StreamingGNNLayerFunction(BaseStorage storage, short position, short numLayers) {
+    public CoStreamingGNNLayerFunction(BaseStorage storage, short position, short numLayers) {
         this.position = position;
         this.numLayers = numLayers;
         this.storage = storage;
@@ -82,7 +83,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
+    public void onTimer(long timestamp, KeyedCoProcessFunction<String, GraphOp, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         getStorage().onTimer(timestamp);
     }
@@ -95,11 +96,18 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public TimerService getTimerService() {
         return ctx.timerService();
+
     }
 
     @Override
-    public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        this.currentPart = Short.parseShort(ctx.getCurrentKey());
+    public void processElement1(GraphOp value, KeyedCoProcessFunction<String, GraphOp, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+        currentPart = Short.parseShort(ctx.getCurrentKey());
+        process(value);
+    }
+
+    @Override
+    public void processElement2(GraphOp value, KeyedCoProcessFunction<String, GraphOp, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+        currentPart = Short.parseShort(ctx.getCurrentKey());
         process(value);
     }
 }

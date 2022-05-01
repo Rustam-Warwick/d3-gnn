@@ -19,7 +19,7 @@
 package operators;
 
 import elements.GraphOp;
-import helpers.IteratingWatermarkUtils;
+import elements.Op;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
@@ -143,11 +143,10 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         if(resolveWatermarks){
-            long iterationState = IteratingWatermarkUtils.getIterationNumber(mark.getTimestamp());
-            System.out.format("WATERMARK - %s at tail\n",iterationState);
-            if(iterationState > 0){
-                GraphOp watermark = GraphOp.makeWatermarkMessage(mark);
-                channel.put(new StreamRecord<>(watermark));
+            long iterationNumber = WatermarkFilterOperator.getIterationNumber(mark.getTimestamp());
+            if(iterationNumber < 3){
+                GraphOp watermark = new GraphOp(Op.WATERMARK, null);
+                channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
             }
         }
     }

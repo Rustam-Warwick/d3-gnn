@@ -32,7 +32,7 @@ public class Main {
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
@@ -60,8 +60,8 @@ public class Main {
                         model.setBlock(myBlock);
                         return model;
                     }
-                })),
-                new StreamingGNNLayerFunction(new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
+                }),
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
@@ -89,8 +89,9 @@ public class Main {
                         model.setBlock(myBlock);
                         return model;
                     }
-                }))
+                })
         ));
+
 //        DataStream<GraphOp> embeddingSessions = embeddings
 //                .keyBy(new ElementForPartKeySelector())
 //                .window(ProcessingTimeSessionWindows.withGap(Time.seconds(1)))

@@ -7,17 +7,22 @@ import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
+import functions.gnn_layers.CoStreamingGNNLayerFunction;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.selectors.ElementForPartKeySelector;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
+import operators.GNNKeyedCoProcessOperator;
 import operators.GNNKeyedProcessOperator;
 import operators.SimpleTailOperator;
+import operators.WatermarkFilterOperator;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.shaded.curator4.com.google.common.annotations.Beta;
+import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -37,6 +42,7 @@ import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
 import serializers.JavaTensor;
 import serializers.TensorSerializer;
+import storage.BaseStorage;
 
 import java.util.List;
 
@@ -115,18 +121,16 @@ public class GraphStream {
 
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
-     *
-     * @param inputGraphOps  non-keyed input graphop to this layer, can be a union of several streams as well
-     * @param storageProcess Storage process with plugins and storage layer
+     * @param topologyUpdates  non-keyed input graphop to this layer, can be a union of several streams as well
+     * @param storage Storage of choice with attached plugins
      * @return output stream dependent on the plugin
      */
-    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> inputGraphOps, StreamingGNNLayerFunction storageProcess) {
-        storageProcess.numLayers = this.layers;
-        storageProcess.position = this.position_index;
+    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
+        StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage, position_index, layers);
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
-        DataStream<GraphOp> keyedLast = inputGraphOps.keyBy(new PartKeySelector());
+        DataStream<GraphOp> keyedLast = topologyUpdates.keyBy(new PartKeySelector());
         SingleOutputStreamOperator<GraphOp>  iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 
@@ -136,8 +140,45 @@ public class GraphStream {
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
             DataStream<GraphOp> backFilter = iterations.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
-            DataStream<Void> backiteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
-            backiteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+        }
+        this.position_index++;
+        this.lastIterationID = localIterationId;
+        return iterations
+                .getSideOutput(new OutputTag<>("forward", TypeInformation.of(GraphOp.class)))
+                .forward()
+                .transform("Filter Watermarks", TypeInformation.of(GraphOp.class), new WatermarkFilterOperator())
+                .setParallelism(thisParallelism);
+    }
+
+    /**
+     * Helper function to add a new layer of GNN Iteration. Creates a connected stream for watermark resolution
+     * @param topologyUpdates  non-keyed input graphop to this layer, can be a union of several streams as well
+     * @param previousLayerUpdates previous GNN Layer inputs
+     * @param storage Storage of choice with attached plugins
+     * @implSpec This one is different because it creates a connected stream to resolve watermarks of previous layer,
+     * @implNote Use this for all GNN Layers except for the first one
+     * @return output stream dependent on the plugin
+     */
+    @Beta
+    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, DataStream<GraphOp> previousLayerUpdates, BaseStorage storage) {
+        CoStreamingGNNLayerFunction storageProcess = new CoStreamingGNNLayerFunction(storage, position_index, layers);
+        int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
+        IterationID localIterationId = new IterationID();
+
+        ConnectedStreams<GraphOp, GraphOp> keyedLast = previousLayerUpdates.connect(topologyUpdates).keyBy(new PartKeySelector(), new PartKeySelector());
+        SingleOutputStreamOperator<GraphOp>  iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedCoProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
+
+        iterations.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+
+        if (position_index > 1) {
+            int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
+            DataStream<GraphOp> backFilter = iterations.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
+            DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
         this.position_index++;
         this.lastIterationID = localIterationId;
@@ -147,52 +188,19 @@ public class GraphStream {
     /**
      * Start of the GNN Chain
      * @param topologyUpdates  External System updates
-     * @param storageProcesses List of Storage Processes with correspondign storage layer and plugins
+     * @param storages List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
-    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, List<StreamingGNNLayerFunction> storageProcesses) {
-        this.layers = (short) storageProcesses.size();
+    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, List<BaseStorage> storages) {
+        this.layers = (short) storages.size();
         assert layers > 0;
         DataStream<GraphOp> lastLayerInputs = null;
-        for (StreamingGNNLayerFunction fn : storageProcesses) {
+        for (BaseStorage storage : storages) {
             if (lastLayerInputs == null) {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, storage);
             } else {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
+                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), storage);
             }
-        }
-        return lastLayerInputs;
-    }
-
-    /**
-     * Start of the GNN Chain, but with a window based on processing time
-     *
-     * @param topologyUpdates      External System updates
-     * @param processingWindowTime Time by which we should pool the input previous layer updates, note that topology is not windowed, only the previous layer updates
-     * @param storageProcesses     List of Storage Processes with correspondign storage layer and plugins
-     * @return Last layer corresponding to vertex embeddings
-     */
-    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, Time processingWindowTime, List<StreamingGNNLayerFunction> storageProcesses) {
-        this.layers = (short) storageProcesses.size();
-        assert layers > 0;
-        DataStream<GraphOp> lastLayerInputs = null;
-        for (StreamingGNNLayerFunction fn : storageProcesses) {
-            if (lastLayerInputs == null) {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, fn);
-            } else {
-                lastLayerInputs = lastLayerInputs.keyBy(new ElementForPartKeySelector()).window(TumblingProcessingTimeWindows.of(processingWindowTime))
-                        .evictor(CountEvictor.of(1))
-                        .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
-                            @Override
-                            public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
-                                for (GraphOp e : input) {
-                                    out.collect(e);
-                                }
-                            }
-                        });
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), fn);
-            }
-
         }
         return lastLayerInputs;
     }

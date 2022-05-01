@@ -63,9 +63,6 @@ public class GraphOp {
         return new GraphOp(this.op, this.part_id, this.element, this.direction, this.ts);
     }
 
-    public static GraphOp makeWatermarkMessage(Watermark mark){
-        return new GraphOp(Op.WATERMARK, (short) -1, null, MessageDirection.BACKWARD, mark.getTimestamp());
-    }
 
     @Override
     public String toString() {

@@ -79,7 +79,7 @@ public class RemoteInvoke {
         Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate);
         message.setTimestamp(this.ts);
         return destinations.stream().map(item -> (
-                new GraphOp(Op.RMI, item, message, messageDirection)
+                new GraphOp(Op.RMI, item, message, messageDirection, this.ts)
         )).collect(Collectors.toList());
     }
 

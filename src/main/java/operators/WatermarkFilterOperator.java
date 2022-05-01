@@ -1,20 +1,37 @@
-package helpers;
+package operators;
 
+import elements.GraphOp;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 /**
+ * FiltersOutWatermarks that are still iterating in the previous operator
  * Utility class that converts watermarks to iterative watermarks for
  * across replica synchronization.
  * @implNote Only takes first 2 bits of timestamp for enconding iteration number. So no iterations of size > 4
  * @implNote Iteration numbers go up, so 0..3
  * @implNote Using bitwise operators, in case the system does not use 2's complement
  */
-public class IteratingWatermarkUtils {
+public class WatermarkFilterOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
-    public static boolean isIterationTimestamp(long timestamp){
-        return (Long.rotateRight(1, 1) & timestamp) != 0;
+    public WatermarkFilterOperator(){
+        this.chainingStrategy = ChainingStrategy.ALWAYS;
     }
 
+    @Override
+    public void processElement(StreamRecord<GraphOp> element) throws Exception {
+        output.collect(element);
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if(getIterationNumber(mark.getTimestamp()) >= 3){
+            super.processWatermark(mark);
+        }
+    }
 
     /**
      * Get the iteration number of this timestamp
@@ -22,12 +39,10 @@ public class IteratingWatermarkUtils {
      * @return Is iterative or not
      */
     public static long getIterationNumber(long timestamp){
-        assert isIterationTimestamp(timestamp);
         return timestamp & 3;
     }
 
-    public static long addIterationNumber(long timestamp, long iterationNumber){
-        assert isIterationTimestamp(timestamp);
+    public static long setIterationNumber(long timestamp, long iterationNumber){
         return (timestamp >> 2 << 2) | iterationNumber;
     }
 
@@ -37,7 +52,7 @@ public class IteratingWatermarkUtils {
      * @return iteration timestamp
      */
     public static long encode(long timestamp){
-         return (Long.rotateRight(1,1) | timestamp) >> 2 << 2;
+         return timestamp >> 2 << 2;
     }
 
     /**
@@ -46,22 +61,6 @@ public class IteratingWatermarkUtils {
      * @return normal timestamp
      */
     public static long decode(long timestamp){
-        return timestamp << 1 >> 1; // Get rid of the sign
+        return timestamp;
     }
-
-
-
-    /**
-     * Decrement the watermark
-     * @param timestamp
-     * @return
-     */
-    public static Watermark getDecrementedWatermark(long timestamp){
-        long iterationNumber = getIterationNumber(timestamp);
-        assert iterationNumber > 0;
-        long noIterationTimestamp = timestamp ^ Long.rotateRight(iterationNumber, 2); // just the timestamp, no iteration data
-        long newIterationTimestamp = noIterationTimestamp | Long.rotateRight(iterationNumber - 1, 2);
-        return new Watermark(newIterationTimestamp);
-    }
-
 }

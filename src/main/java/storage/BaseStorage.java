@@ -87,7 +87,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public void onWatermark(Watermark w) {
-        this.plugins.values().forEach(plugin -> plugin.onWatermark(w));
+        plugins.values().forEach(plugin -> plugin.onWatermark(w));
     }
 
     @Override

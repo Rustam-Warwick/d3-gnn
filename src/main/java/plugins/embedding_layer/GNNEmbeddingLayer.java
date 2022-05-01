@@ -95,7 +95,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
                         .withArgs(MODEL_VERSION, msg, 1)
-                        .withTimestamp(edge.src.getFeature("feature").getTimestamp())
+                        .withTimestamp(Math.max(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
@@ -219,47 +219,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
         }
     }
 
-
-    /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager
-     *
-     * @param feature
-     * @param agg
-     * @param training
-     * @return
-     */
-    public NDArray update(NDArray feature, NDArray agg, boolean training) {
-        NDManager oldFeatureManager = feature.getManager();
-        NDManager oldAggManager = agg.getManager();
-        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
-        feature.attach(tmpManager);
-        agg.attach(tmpManager);
-        NDArray res = this.updateModel.getBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
-        res.attach(storage.manager.getTempManager());
-        feature.attach(oldFeatureManager);
-        agg.attach(oldAggManager);
-        tmpManager.close();
-        return res;
-    }
-
-    /**
-     * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
-     *
-     * @param feature
-     * @param training
-     * @return
-     */
-    public NDArray message(NDArray feature, boolean training) {
-        NDManager oldManager = feature.getManager();
-        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
-        feature.attach(tmpManager);
-        NDArray res = this.messageModel.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
-        res.attach(storage.manager.getTempManager());
-        feature.attach(oldManager);
-        tmpManager.close();
-        return res;
-    }
-
     public boolean allFeaturesReady() {
         for (Vertex v : storage.getVertices()) {
             if (Objects.nonNull(v.getFeature("feature"))) {
@@ -304,6 +263,46 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     }
 
     /**
+     * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager
+     *
+     * @param feature
+     * @param agg
+     * @param training
+     * @return
+     */
+    public NDArray update(NDArray feature, NDArray agg, boolean training) {
+        NDManager oldFeatureManager = feature.getManager();
+        NDManager oldAggManager = agg.getManager();
+        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
+        feature.attach(tmpManager);
+        agg.attach(tmpManager);
+        NDArray res = this.updateModel.getBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
+        res.attach(storage.manager.getTempManager());
+        feature.attach(oldFeatureManager);
+        agg.attach(oldAggManager);
+        tmpManager.close();
+        return res;
+    }
+
+    /**
+     * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
+     *
+     * @param feature
+     * @param training
+     * @return
+     */
+    public NDArray message(NDArray feature, boolean training) {
+        NDManager oldManager = feature.getManager();
+        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
+        feature.attach(tmpManager);
+        NDArray res = this.messageModel.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
+        res.attach(storage.manager.getTempManager());
+        feature.attach(oldManager);
+        tmpManager.close();
+        return res;
+    }
+
+    /**
      * Is the Edge ready to pass on the message
      *
      * @param edge
@@ -312,7 +311,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public boolean messageReady(Edge edge) {
         return !updatePending && Objects.nonNull(edge.src.getFeature("feature")) && ((VTensor) edge.src.getFeature("feature")).isReady(MODEL_VERSION);
     }
-
     /**
      * Is the Vertex ready to be updated
      *

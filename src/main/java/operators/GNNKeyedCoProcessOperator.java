@@ -2,14 +2,17 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
+import functions.gnn_layers.CoStreamingGNNLayerFunction;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.*;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.co.KeyedCoProcessOperator;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
@@ -19,20 +22,18 @@ import org.apache.flink.util.Collector;
 import java.lang.reflect.Field;
 import java.util.concurrent.Executor;
 
-import static org.apache.flink.util.Preconditions.checkNotNull;
-import static org.apache.flink.util.Preconditions.checkState;
-
 /**
  * This operator is tightly coupled with
  * @see StreamingGNNLayerFunction
- * @implNote Only use for the first GNN Layer that consume external updates
+ * This operator handles the insertion of data to StreamingGNNLayerFunction +
+ * Registers MailboxExecutor for consuming iterative events
  */
-public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphOp, GraphOp> implements FeedbackConsumer<StreamRecord<GraphOp>> {
+public class GNNKeyedCoProcessOperator extends KeyedCoProcessOperator<String, GraphOp, GraphOp, GraphOp> implements FeedbackConsumer<StreamRecord<GraphOp>> {
     private static final long serialVersionUID = 1L;
     private final IterationID iterationId;
     private MailboxExecutor mailboxExecutor;
 
-    public GNNKeyedProcessOperator(StreamingGNNLayerFunction function, IterationID iterationId) {
+    public GNNKeyedCoProcessOperator(CoStreamingGNNLayerFunction function, IterationID iterationId) {
         super(function);
         this.iterationId = iterationId;
         this.chainingStrategy = ChainingStrategy.ALWAYS;
@@ -48,13 +49,14 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     public void open() throws Exception {
         super.open();
         Field collector =
-                KeyedProcessOperator.class.getDeclaredField("collector");
+                KeyedCoProcessOperator.class.getDeclaredField("collector");
         collector.setAccessible(true);
         Field context =
-                KeyedProcessOperator.class.getDeclaredField("context");
+                KeyedCoProcessOperator.class.getDeclaredField("context");
         context.setAccessible(true);
-        ((StreamingGNNLayerFunction) userFunction).collector = (Collector<GraphOp>) collector.get(this);
-        ((StreamingGNNLayerFunction) userFunction).ctx = (KeyedProcessFunction.Context) context.get(this);
+
+        ((CoStreamingGNNLayerFunction) userFunction).collector = (Collector<GraphOp>) collector.get(this);
+        ((CoStreamingGNNLayerFunction) userFunction).ctx = (KeyedCoProcessFunction.Context) context.get(this);
         collector.setAccessible(false);
         context.setAccessible(false);
         registerFeedbackConsumer(
@@ -67,7 +69,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if(element.getValue().op == Op.WATERMARK){
             long iterationNumber = WatermarkFilterOperator.getIterationNumber(element.getTimestamp());
-            System.out.format("WATERMARK - %s at position %s \n",iterationNumber, ((StreamingGNNLayerFunction) userFunction).getPosition());
+            System.out.format("WATERMARK - %s at head \n",iterationNumber);
             if(iterationNumber < 3){
                 // Still need to traverse the stream
                 Watermark newWatermark = new Watermark(WatermarkFilterOperator.setIterationNumber(element.getTimestamp(), iterationNumber + 1));
@@ -75,25 +77,33 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
             }else{
                 // Watermark is ready to be consumed
                 Watermark mark = new Watermark(WatermarkFilterOperator.decode(element.getTimestamp()));
-                ((StreamingGNNLayerFunction)userFunction).onWatermark(mark);
                 super.processWatermark(mark);
+                ((CoStreamingGNNLayerFunction)userFunction).onWatermark(mark);
             }
         }else{
-            setKeyContextElement(element);
-            processElement(element);
+            setKeyContextElement1(element);
+            processElement1(element);
         }
     }
 
     /**
-     * Watermarks received should be three times all-reduces in this layer
-     * This ensures consistency
-     * Actual watermarks are send in processFeedback function
-     * @param mark Watermark
+     * Watermarks received are a
+     * @param mark
+     * @throws Exception
      */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        Watermark iterationWatermark = new Watermark(WatermarkFilterOperator.encode(mark.getTimestamp()));
-        output.emitWatermark(iterationWatermark); // Only output, do not register it
+
+    }
+
+    @Override
+    public void processWatermark1(Watermark mark) throws Exception {
+
+    }
+
+    @Override
+    public void processWatermark2(Watermark mark) throws Exception {
+
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
@@ -107,5 +117,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
         FeedbackChannel<StreamRecord<GraphOp>> channel = broker.getChannel(key);
         OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
     }
+
+
 
 }
