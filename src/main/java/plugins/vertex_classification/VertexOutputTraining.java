@@ -1,15 +1,11 @@
 package plugins.vertex_classification;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.VTensor;
-import helpers.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import iterations.Rmi;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.util.OutputTag;
 import scala.Tuple2;
@@ -44,30 +40,30 @@ public class VertexOutputTraining extends Plugin {
             Vertex vcopy = v.copy();
             vcopy.setFeature("prediction", new VTensor(new Tuple2<>(output, inference.MODEL_VERSION)));
             vcopy.setFeature("label", v.getFeature("label").copy());
-            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, vcopy.getPartId(), vcopy, MessageDirection.FORWARD), trainingOutput);
+            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, vcopy.getPartId(), vcopy, MessageDirection.FORWARD, vcopy.getTimestamp()), trainingOutput);
         }
     }
-
-    @RemoteFunction
-    public void backward(VTensor grad) {
-        grad.setStorage(this.storage);
-        Vertex vertex = (Vertex) grad.getElement();
-        if (Objects.nonNull(vertex) && inference.outputReady(vertex) && grad.value._2 == inference.MODEL_VERSION) {
-            VTensor feature = (VTensor) vertex.getFeature("feature");
-            feature.getValue().setRequiresGradient(true);
-            NDArray prediction = inference.output(feature.getValue(), true);
-            JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
-            NDArray vertexGrad = feature.getValue().getGradient();
-            if (MyParameterStore.isTensorCorrect(vertexGrad)) {
-                VTensor srcGradFeature = new VTensor("grad", new Tuple2<>(vertexGrad, inference.MODEL_VERSION));
-                srcGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, vertex.getId());
-                Rmi backwardSrc = new Rmi("trainer", "backward", new Object[]{srcGradFeature}, ElementType.PLUGIN, false);
-                storage.layerFunction.message(new GraphOp(Op.RMI, vertex.masterPart(), backwardSrc, MessageDirection.BACKWARD));
-            }
-            feature.getValue().setRequiresGradient(false);
-            if (vertex.getFeature("label") != null) vertex.getFeature("label").delete();
-        }
-    }
+//
+//    @RemoteFunction
+//    public void backward(VTensor grad) {
+//        grad.setStorage(this.storage);
+//        Vertex vertex = (Vertex) grad.getElement();
+//        if (Objects.nonNull(vertex) && inference.outputReady(vertex) && grad.value._2 == inference.MODEL_VERSION) {
+//            VTensor feature = (VTensor) vertex.getFeature("feature");
+//            feature.getValue().setRequiresGradient(true);
+//            NDArray prediction = inference.output(feature.getValue(), true);
+//            JniUtils.backward((PtNDArray) prediction, (PtNDArray) grad.getValue(), false, false);
+//            NDArray vertexGrad = feature.getValue().getGradient();
+//            if (MyParameterStore.isTensorCorrect(vertexGrad)) {
+//                VTensor srcGradFeature = new VTensor("grad", new Tuple2<>(vertexGrad, inference.MODEL_VERSION));
+//                srcGradFeature.attachedTo = new Tuple2<>(ElementType.VERTEX, vertex.getId());
+//                Rmi backwardSrc = new Rmi("trainer", "backward", new Object[]{srcGradFeature}, ElementType.PLUGIN, false);
+//                storage.layerFunction.message(new GraphOp(Op.RMI, vertex.masterPart(), backwardSrc, MessageDirection.BACKWARD));
+//            }
+//            feature.getValue().setRequiresGradient(false);
+//            if (vertex.getFeature("label") != null) vertex.getFeature("label").delete();
+//        }
+//    }
 
     /**
      * When Master Receives this message, it starts collecting gradients from replicas

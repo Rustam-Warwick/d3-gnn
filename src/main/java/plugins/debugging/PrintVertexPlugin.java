@@ -21,7 +21,7 @@ public class PrintVertexPlugin extends Plugin {
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         if (element.elementType() == ElementType.VERTEX && registeredVertices.contains(element.getId())) {
-            System.out.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPartId(),storage.layerFunction.getPosition(), element.getTimestamp() );
+            System.out.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp());
         }
         if (element.elementType() == ElementType.EDGE) {
             Edge e = (Edge) element;
@@ -40,8 +40,8 @@ public class PrintVertexPlugin extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if(newElement.elementType() == ElementType.FEATURE){
-            Feature<?,?> feature = (Feature<?, ?>) newElement;
+        if (newElement.elementType() == ElementType.FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) newElement;
             if (registeredVertices.contains(feature.attachedTo._2)) {
                 System.out.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n", feature.getName(), feature.attachedTo._2, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp());
             }

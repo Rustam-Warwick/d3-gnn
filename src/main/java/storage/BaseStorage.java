@@ -100,7 +100,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         // pass
     }
 
-
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:

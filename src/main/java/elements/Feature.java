@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Represents a Feature
+ * Represents a Feature either attached to another element or not
  *
  * @param <T> Type that is actually stored in the Feature Object
  * @param <V> Type that is exposed through getValue method
@@ -86,7 +86,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
-                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, MessageDirection.ITERATE)));
+                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, MessageDirection.ITERATE, getTimestamp())));
             }
             return is_created;
         }
@@ -124,7 +124,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
 
         if (isUpdated) {
-            this.setTimestamp(Math.max(getTimestamp() + 1, newElement.getTimestamp())); // Timestamps always max out
+            this.setTimestamp(Math.max(getTimestamp(), newElement.getTimestamp())); // Timestamps always max out
             this.storage.updateFeature(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }

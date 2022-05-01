@@ -49,13 +49,13 @@ public class CoraMergedStreamParser extends RichFlatMapFunction<String, GraphOp>
             Vertex src = new Vertex(res[0]);
             Vertex dest = new Vertex(res[1]);
             Edge edge = new Edge(src, dest);
-            out.collect(new GraphOp(Op.COMMIT, edge));
+            out.collect(new GraphOp(Op.COMMIT, edge, edge.getTimestamp()));
         } catch (Exception e) {
             String sourceId = res[0];
             Vertex vrt = new Vertex(sourceId);
             int index = this.categories.indexOf(res[1]);
             vrt.setFeature("feature", new VTensor(new Tuple2<>(categoriesFeatures.get(index), 0)));
-            out.collect(new GraphOp(Op.COMMIT, vrt));
+            out.collect(new GraphOp(Op.COMMIT, vrt, vrt.getTimestamp()));
         }
     }
 

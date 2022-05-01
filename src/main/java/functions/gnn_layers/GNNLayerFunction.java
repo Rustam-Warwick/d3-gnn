@@ -5,13 +5,11 @@ import elements.GraphOp;
 import elements.ReplicaState;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
-import java.util.List;
 import java.util.Objects;
 
 /**
@@ -20,33 +18,26 @@ import java.util.Objects;
  */
 public interface GNNLayerFunction extends RichFunction {
     /**
-     * Get Current Part that is being processed
-     *
-     * @return
+     * @return Current Part that is being processed
      */
     short getCurrentPart();
 
     /**
-     * Get horizontal position of this GNN Layer
-     *
-     * @return
+     * @return Horizontal Position
      */
     short getPosition();
 
     /**
-     * Get depth of the GNN Layers
-     *
-     * @return
+     * @return Number of GNN Layers
      */
     short getNumLayers();
 
     /**
      * Send message. Should handle BACKWARD, FORWARD and ITERATE Messages separately
      *
-     * @param op
+     * @param op GraphOp to be sent
      */
     void message(GraphOp op);
-
 
     /**
      * Side outputs
@@ -54,9 +45,7 @@ public interface GNNLayerFunction extends RichFunction {
     void sideMessage(GraphOp op, OutputTag<GraphOp> outputTag);
 
     /**
-     * Storage Attached to this GNNLayer
-     *
-     * @return
+     * @return Storage
      */
     BaseStorage getStorage();
 
@@ -68,33 +57,33 @@ public interface GNNLayerFunction extends RichFunction {
     TimerService getTimerService();
 
     /**
+     * Get the current timestamp being processed
+     */
+    long currentTimestamp();
+
+    /**
      * Callback on watermark extra callback to be registered for plugins
+     *
      * @param mark received watermark
      */
     void onWatermark(Watermark mark);
 
     /**
-     * Is this the first GNN-layer
-     *
-     * @return
+     * @return Is this the first GNN Layer
      */
     default boolean isFirst() {
         return getPosition() == 1;
     }
 
     /**
-     * Is this the last or output GNN-layer
-     *
-     * @return
+     * @return Is this the last GNN Layer
      */
     default boolean isLast() {
         return getPosition() >= getNumLayers();
     }
 
     /**
-     * Process incoming value
-     *
-     * @param value
+     * @param value Process The Incoming Value
      */
     default void process(GraphOp value) {
         try {

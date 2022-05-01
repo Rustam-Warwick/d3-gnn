@@ -167,7 +167,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 .toElement(getId(), elementType())
                 .where(MessageDirection.ITERATE)
                 .method("collectGradients")
-                .addDestination((short)0)
+                .addDestination((short) 0)
                 .withArgs(inference.parameterStore.gradientArrays)
                 .noUpdate()
                 .buildAndRun(storage);

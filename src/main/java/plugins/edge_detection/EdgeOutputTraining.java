@@ -54,7 +54,7 @@ public class EdgeOutputTraining extends Plugin {
             messageEdge.setTimestamp(Math.min(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
-            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, MessageDirection.FORWARD), trainingOutput);
+            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, MessageDirection.FORWARD, messageEdge.getTimestamp()), trainingOutput);
             e.delete();
         }
     }

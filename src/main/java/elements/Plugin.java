@@ -13,6 +13,7 @@ import java.util.List;
 public class Plugin extends ReplicableGraphElement {
     public transient List<Short> thisReplicaKeys; // Keys(Parts) Hased to this parallel operator
     public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
+
     public Plugin() {
         super(null, false, (short) 0);
     }
@@ -42,8 +43,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     /**
-     * Replica Parts is the parts where else is this plugin replicate apart from its local master part
-     * @return
+     * @return Replica Parts is the parts where else is this plugin replicate apart from its local master part
      */
     @Override
     public List<Short> replicaParts() {
@@ -51,10 +51,9 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     /**
-     * Othermaster part are the local master parts of each parallel sub-operator
-     * @return
+     * @return parts that are the local master parts of each parallel sub-operators
      */
-    public List<Short> othersMasterParts(){
+    public List<Short> othersMasterParts() {
         return othersMasterParts;
     }
 
@@ -64,29 +63,28 @@ public class Plugin extends ReplicableGraphElement {
     }
 
 
-
     public void addElementCallback(GraphElement element) {
-
+        // pass
     }
 
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-
+        // pass
     }
 
     public void deleteElementCallback(GraphElement deletedElement) {
-
+        // pass
     }
 
     public void onTimer(long timestamp) {
-
+        // passs
     }
 
     public void onWatermark(Watermark w) {
-
+        // pass
     }
 
     public void close() {
-
+        // pass
     }
 
     public void open() {
@@ -94,10 +92,11 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     public void add() {
-
+        // pass
     }
+
     public void setOperatorKeys() {
-        try{
+        try {
             int index = storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask();
             int maxParallelism = storage.layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
             int parallelism = storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
@@ -117,11 +116,10 @@ public class Plugin extends ReplicableGraphElement {
             master = thisReplicaKeys.remove(0);
             this.thisReplicaKeys = thisReplicaKeys;
             this.othersMasterParts = otherMasterKeys;
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Not all parts can be hashed try with different parallelism");
         }
     }
-
 
 
 }

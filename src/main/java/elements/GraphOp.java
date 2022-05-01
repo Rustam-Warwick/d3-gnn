@@ -1,7 +1,6 @@
 package elements;
 
 import iterations.MessageDirection;
-import org.apache.flink.streaming.api.watermark.Watermark;
 
 /**
  * Main message object that gets passed around the system
@@ -34,15 +33,26 @@ public class GraphOp {
         this.op = Op.COMMIT;
     }
 
-    public GraphOp(Op op, GraphElement element) {
+    /**
+     * Constructed used initially
+     * @param op Op
+     * @param element GraphElement
+     */
+    public GraphOp(Op op, GraphElement element, long ts) {
         this.op = op;
         this.element = element;
+        this.ts = ts;
     }
 
-    public GraphOp(Op op, short part_id, GraphElement element, MessageDirection direction) {
-        this(op, part_id, element, direction, 0);
-    }
-
+    /**
+     * Constructor to be used in the system
+     *
+     * @param op
+     * @param part_id
+     * @param element
+     * @param direction
+     * @param ts
+     */
     public GraphOp(Op op, short part_id, GraphElement element, MessageDirection direction, long ts) {
         this.op = op;
         this.part_id = part_id;
@@ -63,14 +73,14 @@ public class GraphOp {
         return new GraphOp(this.op, this.part_id, this.element, this.direction, this.ts);
     }
 
-
     @Override
     public String toString() {
         return "GraphOp{" +
                 "op=" + op +
                 ", part_id=" + part_id +
                 ", element=" + element +
-                ", state=" + direction +
+                ", direction=" + direction +
+                ", ts=" + ts +
                 '}';
     }
 }

@@ -70,6 +70,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
+    public long currentTimestamp() {
+        return ctx.timestamp();
+    }
+
+    @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
         getStorage().open();
@@ -89,6 +94,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public void onWatermark(Watermark mark) {
+        this.currentPart = Short.parseShort(ctx.getCurrentKey());
         getStorage().onWatermark(mark);
     }
 

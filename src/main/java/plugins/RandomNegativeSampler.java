@@ -65,7 +65,7 @@ public class RandomNegativeSampler extends Plugin {
                     if (dest.state() == ReplicaState.MASTER && !hasIntersection(src.replicaParts(), dest.replicaParts()) && storage.getEdge(src.getId() + ":" + dest.getId()) == null) {
                         Edge tmp = new Edge(src.copy(), dest.copy());
                         tmp.setFeature("label", new Feature<Integer, Integer>(0));
-                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, MessageDirection.FORWARD));
+                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, MessageDirection.FORWARD, tmp.getTimestamp()));
                         i = intI;
                         j = intJ + 1;
                         return;

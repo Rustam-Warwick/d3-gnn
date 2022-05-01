@@ -15,21 +15,15 @@ public class ReplicableGraphElement extends GraphElement {
     public boolean halo;
 
     public ReplicableGraphElement() {
-        super();
-        this.master = -1;
-        this.halo = false;
+        this(null, false, (short) -1);
     }
 
     public ReplicableGraphElement(String id) {
-        super(id);
-        this.master = -1;
-        this.halo = false;
+        this(id, false, (short) -1);
     }
 
     public ReplicableGraphElement(String id, boolean halo) {
-        super(id);
-        this.halo = halo;
-        this.master = -1;
+        this(id, halo, (short) -1);
     }
 
     public ReplicableGraphElement(String id, boolean halo, short master) {
@@ -71,7 +65,7 @@ public class ReplicableGraphElement extends GraphElement {
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             } else {
                 // Send Query
-                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, MessageDirection.ITERATE));
+                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, MessageDirection.ITERATE, getTimestamp()));
             }
         }
         return is_created;
@@ -94,6 +88,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .addDestination(masterPart())
                     .where(MessageDirection.ITERATE)
                     .withArgs(newElement.getPartId())
+                    .withTimestamp(getTimestamp())
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (this.state() == ReplicaState.REPLICA) {
@@ -117,7 +112,7 @@ public class ReplicableGraphElement extends GraphElement {
             if (tmp._1) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, MessageDirection.ITERATE));
+            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, MessageDirection.ITERATE, getTimestamp()));
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
@@ -139,11 +134,12 @@ public class ReplicableGraphElement extends GraphElement {
                     .addDestinations(replicaParts())
                     .where(MessageDirection.ITERATE)
                     .withArgs(false)
+                    .withTimestamp(getTimestamp())
                     .buildAndRun(storage);
             return deleteElement();
 
         } else if (state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), MessageDirection.ITERATE));
+            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), MessageDirection.ITERATE, getTimestamp()));
             return false;
         }
 
@@ -167,6 +163,7 @@ public class ReplicableGraphElement extends GraphElement {
                         .withArgs(getPartId())
                         .where(MessageDirection.ITERATE)
                         .addDestination(masterPart())
+                        .withTimestamp(getTimestamp())
                         .buildAndRun(storage);
             }
         }
@@ -187,7 +184,7 @@ public class ReplicableGraphElement extends GraphElement {
             Feature<?, ?> tmp = feature.copy();
             cpy.setFeature(feature.getName(), tmp);
         }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, MessageDirection.ITERATE)));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, MessageDirection.ITERATE, getTimestamp())));
     }
 
     @Override

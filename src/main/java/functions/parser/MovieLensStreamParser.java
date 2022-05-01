@@ -36,8 +36,8 @@ public class MovieLensStreamParser extends RichFlatMapFunction<String, GraphOp> 
             Edge edge = new Edge(src, dest);
             edge.setTimestamp(timestamp); // Added timestamps
             Edge edgeReverse = edge.deepCopy().reverse();
-            out.collect(new GraphOp(Op.COMMIT, edge));
-            out.collect(new GraphOp(Op.COMMIT, edgeReverse));
+            out.collect(new GraphOp(Op.COMMIT, edge, edge.getTimestamp()));
+            out.collect(new GraphOp(Op.COMMIT, edgeReverse, edge.getTimestamp()));
         } catch (Exception e) {
             e.printStackTrace();
         }

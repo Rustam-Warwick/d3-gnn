@@ -19,7 +19,7 @@ public class RemoteInvoke {
     List<Short> destinations = new ArrayList<>();
     Object[] args = null;
     Boolean hasUpdate = null;
-    int ts = Integer.MIN_VALUE;
+    long ts = Long.MIN_VALUE;
 
     public RemoteInvoke toElement(String elementId, ElementType elementType) {
         this.elementId = elementId;
@@ -62,7 +62,7 @@ public class RemoteInvoke {
         return this;
     }
 
-    public RemoteInvoke withTimestamp(int ts) {
+    public RemoteInvoke withTimestamp(long ts) {
         this.ts = ts;
         return this;
     }
@@ -76,10 +76,9 @@ public class RemoteInvoke {
             System.out.println("Error occured in builder");
             return Collections.emptyList();
         }
-        Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate);
-        message.setTimestamp(this.ts);
+        Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate, ts);
         return destinations.stream().map(item -> (
-                new GraphOp(Op.RMI, item, message, messageDirection, this.ts)
+                new GraphOp(Op.RMI, item, message, messageDirection, ts)
         )).collect(Collectors.toList());
     }
 

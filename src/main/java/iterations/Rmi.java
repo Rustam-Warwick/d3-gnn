@@ -17,19 +17,13 @@ public class Rmi extends GraphElement {
         super();
     }
 
-    public Rmi(String id, String methodName, Object[] args, ElementType elemType) {
-        super(id);
-        this.args = args;
-        this.methodName = methodName;
-        this.elemType = elemType;
-    }
-
-    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate) {
+    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate, long ts) {
         super(id);
         this.args = args;
         this.methodName = methodName;
         this.elemType = elemType;
         this.hasUpdate = hasUpdate;
+        this.ts = ts;
     }
 
     public static void execute(GraphElement element, Rmi message) {

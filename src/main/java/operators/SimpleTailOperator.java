@@ -62,7 +62,7 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
-    public SimpleTailOperator(IterationID iterationId){
+    public SimpleTailOperator(IterationID iterationId) {
         this(iterationId, false);
     }
 
@@ -132,20 +132,20 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
         GraphOp cloned = record.getValue().copy();
-        channel.put(new StreamRecord<>(cloned, record.getTimestamp()));
+        channel.put(new StreamRecord<>(cloned, cloned.getTimestamp()));
     }
 
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
-        channel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()));
+        channel.put(new StreamRecord<>(record.getValue(), record.getValue().getTimestamp()));
     }
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(resolveWatermarks){
-            long iterationNumber = WatermarkFilterOperator.getIterationNumber(mark.getTimestamp());
-            if(iterationNumber < 3){
-                GraphOp watermark = new GraphOp(Op.WATERMARK, null);
+        if (resolveWatermarks) {
+            long iterationNumber = WatermarkTimestampResolverOperator.getIterationNumber(mark.getTimestamp());
+            if (iterationNumber < 3) {
+                GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
                 channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
             }
         }

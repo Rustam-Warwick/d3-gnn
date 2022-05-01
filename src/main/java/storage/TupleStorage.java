@@ -13,7 +13,7 @@ public class TupleStorage extends BaseStorage {
     public transient MapState<String, Feature<?, ?>> featureTable;
     public transient MapState<String, List<String>> vertexOutEdges;
     public transient MapState<String, List<String>> vertexInEdges;
-    public transient MapState<String, Integer> edgeTimestamps;
+    public transient MapState<String, Long> edgeTimestamps;
 
 
     @Override
@@ -23,7 +23,7 @@ public class TupleStorage extends BaseStorage {
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor("featureTable", String.class, Feature.class);
         MapStateDescriptor<String, List<String>> vertexOutEdgesDesc = new MapStateDescriptor("vertexOutEdges", String.class, List.class);
         MapStateDescriptor<String, List<String>> vertexInEdgesDesc = new MapStateDescriptor("vertexInEdges", String.class, List.class);
-        MapStateDescriptor<String, Integer> edgeTimeStamps = new MapStateDescriptor("edgeTimestamps", String.class, Integer.class);
+        MapStateDescriptor<String, Long> edgeTimeStamps = new MapStateDescriptor("edgeTimestamps", String.class, Long.class);
         this.vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         this.featureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
         this.vertexOutEdges = layerFunction.getRuntimeContext().getMapState(vertexOutEdgesDesc);
@@ -205,7 +205,7 @@ public class TupleStorage extends BaseStorage {
             Vertex src = getVertex(srcId);
             Vertex dest = getVertex(destId);
             Edge e = new Edge(src, dest);
-            int ts = edgeTimestamps.get(e.getId());
+            long ts = edgeTimestamps.get(e.getId());
             e.setTimestamp(ts);
             e.setStorage(this);
             return e;
@@ -247,7 +247,7 @@ public class TupleStorage extends BaseStorage {
                             String srcId = (String) item;
                             Vertex src = getVertex(srcId);
                             Edge e = new Edge(src, vertex);
-                            int ts = edgeTimestamps.get(e.getId());
+                            long ts = edgeTimestamps.get(e.getId());
                             e.setTimestamp(ts);
                             e.setStorage(_this);
                             return e;
@@ -266,7 +266,7 @@ public class TupleStorage extends BaseStorage {
                             String destId = (String) item;
                             Vertex dest = getVertex(destId);
                             Edge e = new Edge(vertex, dest);
-                            int ts = edgeTimestamps.get(e.getId());
+                            long ts = edgeTimestamps.get(e.getId());
                             e.setTimestamp(ts);
                             e.setStorage(_this);
                             return e;

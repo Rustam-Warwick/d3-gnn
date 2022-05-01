@@ -13,7 +13,7 @@ import java.util.Objects;
 public class GraphElement implements Serializable {
     public String id;
     public short partId;
-    public int ts = 0;
+    public Long ts = null;
     public transient BaseStorage storage;
     public List<Feature<?, ?>> features;
 
@@ -127,7 +127,7 @@ public class GraphElement implements Serializable {
         }
 
         if (is_updated) {
-            this.setTimestamp(Math.max(getTimestamp() + 1, newElement.getTimestamp())); // Timestamps always max out
+            resolveTimestamp(newElement.getTimestamp());
             this.storage.updateElement(this);
             this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }
@@ -230,8 +230,10 @@ public class GraphElement implements Serializable {
      *
      * @return timestamp
      */
-    public int getTimestamp() {
-        return ts;
+    public long getTimestamp() {
+        if (ts == null && storage != null) return storage.layerFunction.currentTimestamp();
+        else if (ts == null) return Long.MIN_VALUE;
+        else return ts;
     }
 
     /**
@@ -239,7 +241,7 @@ public class GraphElement implements Serializable {
      *
      * @param ts timestamp to be added
      */
-    public void setTimestamp(int ts) {
+    public void setTimestamp(long ts) {
         this.ts = ts;
     }
 
@@ -285,7 +287,7 @@ public class GraphElement implements Serializable {
      * Setting storage also affects part id as well id ids of subFeatures
      * In this step we also assign this as element of subFeatures
      *
-     * @param storage
+     * @param storage BaseStorage to be attached to
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
@@ -329,7 +331,11 @@ public class GraphElement implements Serializable {
                 feature.create();
             }
         }
+    }
 
+    public void setFeature(String name, Feature<?, ?> feature, long timestamp) {
+        feature.setTimestamp(timestamp);
+        setFeature(name, feature);
     }
 
     /**
@@ -339,6 +345,32 @@ public class GraphElement implements Serializable {
         if (Objects.nonNull(storage)) {
             storage.cacheFeaturesOf(this);
         }
+    }
+
+    /**
+     * Helper method that decodes feature id from the featureName
+     *
+     * @param name featureName
+     * @return full feature id
+     */
+    public String decodeFeatureId(String name) {
+        return getId() + name;
+    }
+
+    /**
+     * Resolve timestamp of the new Element that just came in
+     *
+     * @param newTimestamp New Element timestamp
+     */
+    public void resolveTimestamp(Long newTimestamp) {
+        if (Objects.nonNull(newTimestamp)) {
+            if (Objects.nonNull(ts)) {
+                ts = Math.max(ts, newTimestamp);
+            } else {
+                ts = newTimestamp;
+            }
+        }
+
     }
 
     @Override
@@ -359,16 +391,6 @@ public class GraphElement implements Serializable {
     @Override
     public int hashCode() {
         return Objects.hash(getId());
-    }
 
-    /**
-     * Helper method that decodes feature id from the featureName
-     *
-     * @param name featureName
-     * @return full feature id
-     */
-    public String decodeFeatureId(String name) {
-        return getId() + name;
     }
-
 }
