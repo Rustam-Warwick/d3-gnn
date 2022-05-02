@@ -18,19 +18,13 @@ public class ReplicableGraphElement extends GraphElement {
         this(null, false, (short) -1);
     }
 
-    public ReplicableGraphElement(String id) {
-        this(id, false, (short) -1);
-    }
-
-    public ReplicableGraphElement(String id, boolean halo) {
-        this(id, halo, (short) -1);
-    }
-
     public ReplicableGraphElement(String id, boolean halo, short master) {
         super(id);
         this.halo = halo;
         this.master = master;
     }
+
+
 
     @Override
     public ReplicableGraphElement copy() {

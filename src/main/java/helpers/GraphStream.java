@@ -7,6 +7,7 @@ import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
+import functions.evictors.UniqueElementEvictor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.selectors.ElementForPartKeySelector;
 import functions.selectors.PartKeySelector;
@@ -23,10 +24,15 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.table.api.Schema;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.types.Row;
+import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
 import serializers.JavaTensor;
@@ -121,7 +127,16 @@ public class GraphStream {
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
-        DataStream<GraphOp> keyedLast = topologyUpdates.keyBy(new PartKeySelector());
+        DataStream<GraphOp> keyedLast = topologyUpdates
+                .keyBy(new PartKeySelector())
+                .window(TumblingEventTimeWindows.of(Time.seconds(5)))
+                .evictor(new UniqueElementEvictor())
+                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
+                    @Override
+                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+                        input.forEach(out::collect);
+                    }
+                }).keyBy(new PartKeySelector());
         SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 

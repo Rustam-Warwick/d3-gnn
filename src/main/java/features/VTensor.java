@@ -11,26 +11,15 @@ import scala.Tuple2;
 public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     public VTensor() {
+        super();
     }
 
     public VTensor(Tuple2<NDArray, Integer> value) {
         super(value);
     }
 
-    public VTensor(Tuple2<NDArray, Integer> value, boolean halo) {
-        super(value, halo);
-    }
-
-    public VTensor(Tuple2<NDArray, Integer> value, boolean halo, short master) {
-        super(value, halo, master);
-    }
-
     public VTensor(String id, Tuple2<NDArray, Integer> value) {
         super(id, value);
-    }
-
-    public VTensor(String id, Tuple2<NDArray, Integer> value, boolean halo) {
-        super(id, value, halo);
     }
 
     public VTensor(String id, Tuple2<NDArray, Integer> value, boolean halo, short master) {

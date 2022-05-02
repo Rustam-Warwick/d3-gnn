@@ -7,11 +7,11 @@ public class Vertex extends ReplicableGraphElement {
     }
 
     public Vertex(String id) {
-        super(id);
+        super(id, false, (short) -1);
     }
 
     public Vertex(String id, boolean halo) {
-        super(id, halo);
+        super(id, halo, (short) -1);
     }
 
     public Vertex(String id, boolean halo, short master) {

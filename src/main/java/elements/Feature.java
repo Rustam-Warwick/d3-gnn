@@ -28,23 +28,13 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
-    public Feature(T value, boolean halo) {
-        super(null, halo);
-        this.value = value;
-    }
-
     public Feature(T value, boolean halo, short master) {
         super(null, halo, master);
         this.value = value;
     }
 
     public Feature(String id, T value) {
-        super(id);
-        this.value = value;
-    }
-
-    public Feature(String id, T value, boolean halo) {
-        super(id, halo);
+        super(id, false, (short) -1);
         this.value = value;
     }
 

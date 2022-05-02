@@ -59,38 +59,37 @@ public class Main {
                         model.setBlock(myBlock);
                         return model;
                     }
+                }),
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
+                    @Override
+                    public Model createMessageModel() {
+                        SequentialBlock myBlock = new SequentialBlock();
+                        myBlock.add(Linear.builder().setUnits(32).build());
+                        myBlock.add(Activation::relu);
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                        Model model = Model.newInstance("inference");
+                        model.setBlock(myBlock);
+                        return model;
+                    }
+
+                    @Override
+                    public Model createUpdateModel() {
+                        SequentialBlock myBlock = new SequentialBlock();
+                        myBlock.add(new LambdaBlock(inputs -> (
+                                new NDList(inputs.get(0).concat(inputs.get(1)))
+                        )));
+                        myBlock.add(Activation::relu);
+                        myBlock.add(Linear.builder().setUnits(16).build());
+                        myBlock.add(Activation::relu);
+                        myBlock.add(Linear.builder().setUnits(7).build());
+                        myBlock.add(Activation::relu);
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
+                        Model model = Model.newInstance("message");
+                        model.setBlock(myBlock);
+                        return model;
+                    }
                 })
-//                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
-//                    @Override
-//                    public Model createMessageModel() {
-//                        SequentialBlock myBlock = new SequentialBlock();
-//                        myBlock.add(Linear.builder().setUnits(32).build());
-//                        myBlock.add(Activation::relu);
-//                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
-//                        Model model = Model.newInstance("inference");
-//                        model.setBlock(myBlock);
-//                        return model;
-//                    }
-//
-//                    @Override
-//                    public Model createUpdateModel() {
-//                        SequentialBlock myBlock = new SequentialBlock();
-//                        myBlock.add(new LambdaBlock(inputs -> (
-//                                new NDList(inputs.get(0).concat(inputs.get(1)))
-//                        )));
-//                        myBlock.add(Activation::relu);
-//                        myBlock.add(Linear.builder().setUnits(16).build());
-//                        myBlock.add(Activation::relu);
-//                        myBlock.add(Linear.builder().setUnits(7).build());
-//                        myBlock.add(Activation::relu);
-//                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
-//                        Model model = Model.newInstance("message");
-//                        model.setBlock(myBlock);
-//                        return model;
-//                    }
-//                })
         ));
-        embeddings.print();
 
 //        DataStream<GraphOp> embeddingSessions = embeddings
 //                .keyBy(new ElementForPartKeySelector())

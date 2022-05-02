@@ -131,15 +131,8 @@ public abstract class GNNEmbeddingLayer extends Plugin {
         }
     }
 
-    @Override
-    public void onWatermark(Watermark w) {
-        super.onWatermark(w);
-
-    }
-
     /**
      * Given newly created vertex init the aggregator and other values of it
-     *
      * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
@@ -149,14 +142,13 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
             if (!externalFeatures && storage.layerFunction.isFirst() && Objects.isNull(element.getFeature("feature"))) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(featureShape);
-                element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)));
+                element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)), storage.layerFunction.currentTimestamp());
             }
         }
     }
 
     /**
      * Push the embedding of this vertex to the next layer
-     *
      * @param v Vertex
      */
     public void forward(Vertex v) {
@@ -166,8 +158,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
             long timestamp = Math.max(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp());
-            messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)));
-            messageVertex.getFeature("feature").setTimestamp(timestamp);
+            messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)), timestamp);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, MessageDirection.FORWARD, timestamp));
         }
     }

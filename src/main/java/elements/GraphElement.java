@@ -333,6 +333,12 @@ public class GraphElement implements Serializable {
         }
     }
 
+    /**
+     * Helper to setFeature with a specific timestamp
+     * @param name Feature name
+     * @param feature Feature object
+     * @param timestamp Timestamp
+     */
     public void setFeature(String name, Feature<?, ?> feature, long timestamp) {
         feature.setTimestamp(timestamp);
         setFeature(name, feature);

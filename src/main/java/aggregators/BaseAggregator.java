@@ -13,20 +13,12 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
         super(value);
     }
 
-    public BaseAggregator(T value, boolean halo) {
-        super(value, halo);
-    }
-
     public BaseAggregator(T value, boolean halo, short master) {
         super(value, halo, master);
     }
 
     public BaseAggregator(String id, T value) {
         super(id, value);
-    }
-
-    public BaseAggregator(String id, T value, boolean halo) {
-        super(id, value, halo);
     }
 
     public BaseAggregator(String id, T value, boolean halo, short master) {

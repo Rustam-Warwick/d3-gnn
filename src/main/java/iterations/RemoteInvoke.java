@@ -19,7 +19,7 @@ public class RemoteInvoke {
     List<Short> destinations = new ArrayList<>();
     Object[] args = null;
     Boolean hasUpdate = null;
-    long ts = Long.MIN_VALUE;
+    Long ts = null;
 
     public RemoteInvoke toElement(String elementId, ElementType elementType) {
         this.elementId = elementId;
@@ -68,7 +68,7 @@ public class RemoteInvoke {
     }
 
     public boolean verify() {
-        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
+        return Objects.nonNull(ts) && Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
 
     private List<GraphOp> build() {

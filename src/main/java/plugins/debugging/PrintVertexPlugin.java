@@ -48,9 +48,4 @@ public class PrintVertexPlugin extends Plugin {
         }
     }
 
-    @Override
-    public void onWatermark(Watermark w) {
-        super.onWatermark(w);
-        System.out.format("[WATERMARK] -> %s, at (%s, %s) \n", w.getTimestamp(), storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask(), storage.layerFunction.getPosition());
-    }
 }

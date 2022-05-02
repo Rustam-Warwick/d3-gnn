@@ -72,7 +72,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().op == Op.WATERMARK) {
             long iterationNumber = WatermarkTimestampResolverOperator.getIterationNumber(element.getTimestamp());
-            System.out.format("WATERMARK - %s at position %s \n", iterationNumber, ((StreamingGNNLayerFunction) userFunction).getPosition());
+//            System.out.format("WATERMARK - %s at position %s \n", iterationNumber, ((StreamingGNNLayerFunction) userFunction).getPosition());
             if (iterationNumber < 2) {
                 // Still need to traverse the stream
                 Watermark newWatermark = new Watermark(WatermarkTimestampResolverOperator.setIterationNumber(element.getTimestamp(), iterationNumber + 1));

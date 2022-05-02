@@ -16,27 +16,11 @@ public class MeanAggregator extends BaseAggregator<Tuple4<NDArray, Integer, Inte
     }
 
     public MeanAggregator(NDArray tensor, boolean halo) {
-        this(new Tuple4<>(tensor, 0, 0, 0), halo);
-    }
-
-    public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value) {
-        super(value);
-    }
-
-    public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo) {
-        super(value, halo);
+        this(new Tuple4<>(tensor, 0, 0, 0), halo, (short) -1);
     }
 
     public MeanAggregator(Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo, short master) {
         super(value, halo, master);
-    }
-
-    public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value) {
-        super(id, value);
-    }
-
-    public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo) {
-        super(id, value, halo);
     }
 
     public MeanAggregator(String id, Tuple4<NDArray, Integer, Integer, Integer> value, boolean halo, short master) {

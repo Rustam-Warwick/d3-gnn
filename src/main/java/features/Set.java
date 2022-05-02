@@ -9,24 +9,8 @@ public class Set<T> extends Feature<List<T>, List<T>> {
     public Set() {
     }
 
-    public Set(List<T> value) {
-        super(value);
-    }
-
     public Set(List<T> value, boolean halo) {
-        super(value, halo);
-    }
-
-    public Set(List<T> value, boolean halo, short master) {
-        super(value, halo, master);
-    }
-
-    public Set(String id, List<T> value) {
-        super(id, value);
-    }
-
-    public Set(String id, List<T> value, boolean halo) {
-        super(id, value, halo);
+        super(value, halo, (short) -1);
     }
 
     public Set(String id, List<T> value, boolean halo, short master) {
