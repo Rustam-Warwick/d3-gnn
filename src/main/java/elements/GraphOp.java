@@ -65,7 +65,7 @@ public class GraphOp {
         return ts;
     }
 
-    public void setTimestamp(int ts) {
+    public void setTimestamp(long ts) {
         this.ts = ts;
     }
 

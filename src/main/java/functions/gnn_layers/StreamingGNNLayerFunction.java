@@ -93,12 +93,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void onWatermark(Watermark mark) {
-        this.currentPart = Short.parseShort(ctx.getCurrentKey());
-        getStorage().onWatermark(mark);
-    }
-
-    @Override
     public TimerService getTimerService() {
         return ctx.timerService();
     }

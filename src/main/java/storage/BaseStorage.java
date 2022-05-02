@@ -86,9 +86,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         plugins.values().forEach(plugin -> plugin.onTimer(timestamp));
     }
 
-    public void onWatermark(Watermark w) {
-        plugins.values().forEach(plugin -> plugin.onWatermark(w));
+    public void onWatermark(long timestamp) {
+        plugins.values().forEach(plugin -> plugin.onWatermark(timestamp));
     }
+
 
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {

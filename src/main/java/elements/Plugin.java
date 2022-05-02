@@ -43,7 +43,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     /**
-     * @return Replica Parts is the parts where else is this plugin replicate apart from its local master part
+     * @return Replica Parts are the parts where else is this plugin replicate apart from its local master part
      */
     @Override
     public List<Short> replicaParts() {
@@ -62,39 +62,73 @@ public class Plugin extends ReplicableGraphElement {
         return ElementType.PLUGIN;
     }
 
-
+    /**
+     * Callback when a graph element is created
+     * @param element Newly created GraphElement
+     */
     public void addElementCallback(GraphElement element) {
         // pass
     }
 
+    /**
+     * Callback when a graph element is updated
+     * @param newElement newElement commited to memory
+     * @param oldElement oldElement removed from memory
+     */
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         // pass
     }
 
+    /**
+     * Callback when a graph element is removed
+     * @param deletedElement element removed from memory
+     */
     public void deleteElementCallback(GraphElement deletedElement) {
         // pass
     }
 
+    /**
+     * Callback when the timer fires
+     * @param timestamp firing timestamp
+     */
     public void onTimer(long timestamp) {
         // passs
     }
 
-    public void onWatermark(Watermark w) {
+    /**
+     * Callback when the system receives a proper watermark. Aligned with all the replica events
+     * @param timestamp timestamp of the watermark
+     */
+    public void onWatermark(long timestamp) {
         // pass
     }
 
+
+    /**
+     * Callback when the system closes. Perform all the clean-up
+     */
     public void close() {
         // pass
     }
 
+    /**
+     * Callback when the system closes. Perform all the initialization
+     */
     public void open() {
         setOperatorKeys();
     }
 
+    /**
+     * Callback when the plugin is added to the storage for the first time on client side.
+     * @implNote Anything initialized here will be serialized and sent to task manager
+     */
     public void add() {
         // pass
     }
 
+    /**
+     * Populates the replicaParts, Master parts and thisReplicaParts for Plugins
+     */
     public void setOperatorKeys() {
         try {
             int index = storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask();

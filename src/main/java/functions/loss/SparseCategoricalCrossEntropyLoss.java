@@ -5,11 +5,14 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.training.GradientCollector;
 import ai.djl.training.loss.Loss;
+import elements.ElementType;
 import elements.Feature;
 import elements.GraphElement;
 import elements.GraphOp;
 import features.VTensor;
 import helpers.MyParameterStore;
+import iterations.MessageDirection;
+import iterations.RemoteInvoke;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
@@ -54,8 +57,16 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 // 3. Prepare and send data
                 GraphElement elementAttached = trainData.element.copy();
                 elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg().mul(0.01), prediction.value._2)));
-//                Rmi backward = new Rmi("trainer", "backward", new Object[]{elementAttached}, ElementType.PLUGIN, false);
-//                out.collect(new GraphOp(Op.RMI, trainData.part_id, backward, MessageDirection.BACKWARD));
+                GraphOp backMsg = new RemoteInvoke()
+                        .toElement("trainer", ElementType.PLUGIN)
+                        .noUpdate()
+                        .withArgs(elementAttached)
+                        .method("backward")
+                        .where(MessageDirection.BACKWARD)
+                        .addDestination(trainData.part_id)
+                        .withTimestamp(trainData.getTimestamp())
+                        .build().get(0);
+                out.collect(backMsg);
                 // 4. Cleanup
                 manager.close();
                 collector.close();
@@ -64,8 +75,16 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 if (count >= BATCH_SIZE) {
                     count = 0;
                     MODEL_VERSION++;
-//                    Rmi rmi = new Rmi("trainer", "startTraining", new Object[0], ElementType.PLUGIN, false);
-//                    out.collect(new GraphOp(Op.RMI, (short) 0, rmi, MessageDirection.BACKWARD));
+                    GraphOp trainMsg = new RemoteInvoke()
+                            .toElement("trainer", ElementType.PLUGIN)
+                            .noUpdate()
+                            .withArgs()
+                            .method("startTraining")
+                            .where(MessageDirection.BACKWARD)
+                            .addDestination((short) 0)
+                            .withTimestamp(trainData.getTimestamp())
+                            .build().get(0);
+                    out.collect(trainMsg);
                 }
             }
         } catch (Exception e) {

@@ -71,9 +71,9 @@ public class RemoteInvoke {
         return Objects.nonNull(ts) && Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
 
-    private List<GraphOp> build() {
+    public List<GraphOp> build() {
         if (!verify()) {
-            System.out.println("Error occured in builder");
+            new Exception("Error occured in builder").printStackTrace();
             return Collections.emptyList();
         }
         Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate, ts);

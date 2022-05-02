@@ -31,7 +31,6 @@ public class GNNEmbeddingLayerTraining extends Plugin {
 
     /**
      * Backward trigger function
-     *
      * @param grad grad to be passed for VJP
      */
     @RemoteFunction
@@ -41,8 +40,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         Vertex v = (Vertex) grad.getElement();
         VTensor feature = (VTensor) v.getFeature("feature");
         BaseAggregator<?> agg = (BaseAggregator<?>) v.getFeature("agg");
-        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && grad.getTimestamp() == Math.min(feature.getTimestamp(), agg.getTimestamp())) {
-            System.out.println("Processing at position:" + storage.layerFunction.getPosition());
+        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && grad.getTimestamp() == Math.max(feature.getTimestamp(), agg.getTimestamp())) {
             feature.getValue().setRequiresGradient(true);
             agg.getValue().setRequiresGradient(true);
             // 2. Prediction & Backward
@@ -63,6 +61,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                             .addDestination(getPartId())
                             .method("backward")
                             .where(MessageDirection.BACKWARD)
+                            .withTimestamp(backwardGrad.getTimestamp())
                             .buildAndRun(storage);
                 }
             }
@@ -76,10 +75,11 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                         .toElement("trainer", ElementType.PLUGIN)
                         .noUpdate()
                         .withArgs(grad)
-                        .addDestination(getPartId())
                         .addDestinations(agg.replicaParts())
+                        .addDestination(getPartId())
                         .method("messageBackward")
                         .where(MessageDirection.ITERATE)
+                        .withTimestamp(grad.getTimestamp())
                         .buildAndRun(storage);
             }
             // 5. Cleanup
@@ -98,20 +98,20 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     @RemoteFunction
     public void messageBackward(VTensor aggGrad) {
         aggGrad.setStorage(storage);
+        Vertex vertex = (Vertex) aggGrad.getElement();
         if (aggGrad.value._2 == inference.MODEL_VERSION) {
-            Vertex vertex = (Vertex) aggGrad.getElement();
             Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
             for (Edge edge : inEdges) {
-                if (inference.messageReady(edge) && aggGrad.getTimestamp() > Math.max(edge.getTimestamp(), edge.src.getFeature("feature").getTimestamp())) {
+                if (inference.messageReady(edge) && aggGrad.getTimestamp() >= Math.max(edge.getTimestamp(), edge.src.getFeature("feature").getTimestamp())) {
                     // 1. Compute the gradient
-                    NDArray inFeature = (NDArray) edge.src.getFeature("feature").getValue();
-                    inFeature.setRequiresGradient(true);
-                    NDArray prediction = inference.message(inFeature, true);
+                    VTensor feature = (VTensor) edge.src.getFeature("feature");
+                    feature.getValue().setRequiresGradient(true);
+                    NDArray prediction = inference.message(feature.getValue(), true);
                     JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
-                    NDArray gradient = inFeature.getGradient();
-                    // 2. If the gradient is correct and this model is not the first one
+                    NDArray gradient = feature.getValue().getGradient();
+                    // 2. If the gradient is correct and this model is not the first one send gradient backwards
                     if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
-                        VTensor grad = new VTensor("grad", new Tuple2<>(inFeature.getGradient(), inference.MODEL_VERSION));
+                        VTensor grad = new VTensor("grad", new Tuple2<>(gradient, inference.MODEL_VERSION));
                         grad.setTimestamp(edge.src.getFeature("feature").getTimestamp());
                         grad.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
                         new RemoteInvoke()
@@ -121,9 +121,11 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                                 .addDestination(edge.src.masterPart())
                                 .method("backward")
                                 .where(MessageDirection.BACKWARD)
+                                .withTimestamp(grad.getTimestamp())
                                 .buildAndRun(storage);
                     }
-                    ((NDArray) edge.src.getFeature("feature").getValue()).setRequiresGradient(false);
+                    // 3. Cleanup
+                    feature.getValue().setRequiresGradient(false);
                 }
             }
         }
@@ -176,7 +178,6 @@ public class GNNEmbeddingLayerTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
-     *
      * @param grads
      */
     @RemoteFunction

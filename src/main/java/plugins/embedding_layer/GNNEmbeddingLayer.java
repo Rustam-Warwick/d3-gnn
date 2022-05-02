@@ -26,11 +26,11 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public transient Model updateModel;
     public transient Shape aggregatorShape;
     public transient Shape featureShape;
-    public int MODEL_VERSION = 0; // Global Model version in the parameter store
-    public boolean updatePending = false; // There is a change of Model happening right now, no need to do anything
-    public List<Short> reInferencePending = new ArrayList<>(); // If current part id is here don't do anything with aggregators
     public MyParameterStore parameterStore = new MyParameterStore();
     public boolean externalFeatures;
+    public int MODEL_VERSION = 0;
+    public boolean updatePending = false;
+    public List<Short> reInferencePending = new ArrayList<>();
 
     public GNNEmbeddingLayer() {
         this(true);
@@ -101,7 +101,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
-            forward((Vertex) feature.getElement());
             if ("feature".equals(feature.getName())) {
                 if (!reInferencePending.contains(getPartId())) {
                     reduceOutEdges((Vertex) feature.getElement());
@@ -117,7 +116,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if ("feature".equals(feature.getName())) {
-                forward((Vertex) feature.getElement());
                 if (reInferencePending.contains(getPartId())) {
                     if (allFeaturesReady()) {
                         reInference();
@@ -125,8 +123,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                 } else {
                     updateOutEdges((VTensor) feature, (VTensor) oldFeature);
                 }
-            } else if ("agg".equals(feature.getName())) {
-                forward((Vertex) feature.getElement());
             }
         }
     }
@@ -166,8 +162,8 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     /**
      * Given oldFeature value and new Feature value update the Out Edged aggregators
      *
-     * @param newFeature
-     * @param oldFeature
+     * @param newFeature Updaated new Feature
+     * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(VTensor newFeature, VTensor oldFeature) {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
@@ -195,7 +191,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Given vertex reduce all the out edges aggregator values
-     *
      * @param vertex Vertex which out edges should be reduces
      */
     public void reduceOutEdges(Vertex vertex) {
@@ -216,6 +211,19 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .withTimestamp(timestamp)
                         .withArgs(MODEL_VERSION, msg, 1)
                         .buildAndRun(storage);
+            }
+        }
+    }
+
+    @Override
+    public void onWatermark(long timestamp) {
+        super.onWatermark(timestamp);
+        for(Vertex v: storage.getVertices()){
+            if(updateReady(v)){
+                long ts = Math.max(v.getFeature("agg").getTimestamp(), v.getFeature("feature").getTimestamp());
+                if(ts > storage.layerFunction.getTimerService().currentWatermark() && ts <= timestamp){
+                    forward(v);
+                }
             }
         }
     }
@@ -269,7 +277,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
      * @param feature  Source Feature
      * @param agg      Aggregator Feature
      * @param training training enabled
-     * @return
+     * @return Next layer feature
      */
     public NDArray update(NDArray feature, NDArray agg, boolean training) {
         NDManager oldFeatureManager = feature.getManager();

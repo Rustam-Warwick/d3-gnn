@@ -19,7 +19,6 @@ import java.util.Map;
 
 public class EdgeOutputTraining extends Plugin {
     public transient EdgeOutputInference inference;
-    public transient OutputTag<GraphOp> trainingOutput;
     public transient int collectedGradsSoFar = 0;
 
     public EdgeOutputTraining() {
@@ -54,7 +53,7 @@ public class EdgeOutputTraining extends Plugin {
             messageEdge.setTimestamp(Math.min(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new VTensor(new Tuple2<>(prediction, inference.MODEL_VERSION)));
             messageEdge.setFeature("label", e.getFeature("label").copy());
-            storage.layerFunction.sideMessage(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, MessageDirection.FORWARD, messageEdge.getTimestamp()), trainingOutput);
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, MessageDirection.FORWARD, messageEdge.getTimestamp()));
             e.delete();
         }
     }
@@ -80,6 +79,7 @@ public class EdgeOutputTraining extends Plugin {
                         .toElement("trainer", ElementType.PLUGIN)
                         .noUpdate()
                         .withArgs(srcGradFeature)
+                        .withTimestamp(srcGradFeature.getTimestamp())
                         .addDestination(edge.src.masterPart())
                         .method("backward")
                         .where(MessageDirection.BACKWARD)
@@ -93,6 +93,7 @@ public class EdgeOutputTraining extends Plugin {
                         .toElement("trainer", ElementType.PLUGIN)
                         .noUpdate()
                         .withArgs(destGradFeature)
+                        .withTimestamp(destGradFeature.getTimestamp())
                         .addDestination(edge.dest.masterPart())
                         .method("backward")
                         .where(MessageDirection.BACKWARD)
@@ -116,7 +117,8 @@ public class EdgeOutputTraining extends Plugin {
                 .toElement(getId(), elementType())
                 .where(MessageDirection.ITERATE)
                 .method("sendGradientsToMaster")
-                .addDestinations(replicaParts())
+                .withTimestamp(storage.layerFunction.currentTimestamp())
+                .addDestinations(othersMasterParts())
                 .withArgs()
                 .noUpdate()
                 .buildAndRun(storage);
@@ -127,6 +129,7 @@ public class EdgeOutputTraining extends Plugin {
                     .where(MessageDirection.BACKWARD)
                     .method("startTraining")
                     .addDestination(masterPart())
+                    .withTimestamp(storage.layerFunction.currentTimestamp())
                     .withArgs()
                     .noUpdate()
                     .buildAndRun(storage);
@@ -143,8 +146,9 @@ public class EdgeOutputTraining extends Plugin {
                 .toElement(getId(), elementType())
                 .where(MessageDirection.ITERATE)
                 .method("collectGradients")
-                .addDestination(masterPart())
+                .addDestination((short) 0)
                 .withArgs(inference.parameterStore.gradientArrays)
+                .withTimestamp(storage.layerFunction.currentTimestamp())
                 .noUpdate()
                 .buildAndRun(storage);
     }
@@ -159,7 +163,7 @@ public class EdgeOutputTraining extends Plugin {
     public void collectGradients(Map<String, Tuple2<NDArray, Integer>> grads) {
         inference.parameterStore.meanAccumulateGrads(grads);
         collectedGradsSoFar++;
-        if (collectedGradsSoFar == replicaParts().size()) {
+        if (collectedGradsSoFar == othersMasterParts().size()) {
             collectedGradsSoFar = 0;
             inference.parameterStore.step();
             new RemoteInvoke()
@@ -168,6 +172,7 @@ public class EdgeOutputTraining extends Plugin {
                     .method("updateParameters")
                     .addDestinations(replicaParts())
                     .addDestination(masterPart())
+                    .withTimestamp(storage.layerFunction.currentTimestamp())
                     .withArgs(inference.parameterStore.parameterArrays)
                     .noUpdate()
                     .buildAndRun(storage);
@@ -187,12 +192,9 @@ public class EdgeOutputTraining extends Plugin {
         inference.updatePending = false; // Model is here
     }
 
-
     @Override
     public void open() {
         super.open();
         inference = (EdgeOutputInference) this.storage.getPlugin("inferencer");
-        trainingOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {
-        };
     }
 }

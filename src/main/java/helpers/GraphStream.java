@@ -56,7 +56,7 @@ public class GraphStream {
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
-        this.env.getConfig().setAutoWatermarkInterval(15000);
+        this.env.getConfig().setAutoWatermarkInterval(5000);
         this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
@@ -137,6 +137,7 @@ public class GraphStream {
                         input.forEach(out::collect);
                     }
                 }).keyBy(new PartKeySelector());
+
         SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 

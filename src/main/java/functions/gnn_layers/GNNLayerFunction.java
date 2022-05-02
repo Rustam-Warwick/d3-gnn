@@ -50,9 +50,7 @@ public interface GNNLayerFunction extends RichFunction {
     BaseStorage getStorage();
 
     /**
-     * Get the timerservice
-     *
-     * @return the TimerService
+     * @return TimerService fro managing timers and watermarks and stuff like that
      */
     TimerService getTimerService();
 
@@ -61,12 +59,6 @@ public interface GNNLayerFunction extends RichFunction {
      */
     long currentTimestamp();
 
-    /**
-     * Callback on watermark extra callback to be registered for plugins
-     *
-     * @param mark received watermark
-     */
-    void onWatermark(Watermark mark);
 
     /**
      * @return Is this the first GNN Layer
@@ -115,6 +107,8 @@ public interface GNNLayerFunction extends RichFunction {
                     GraphElement rpcElement = this.getStorage().getElement(value.element.getId(), value.element.elementType());
                     Rmi.execute(rpcElement, (Rmi) value.element);
                     break;
+                case WATERMARK:
+                    getStorage().onWatermark(value.getTimestamp()); 
             }
         } catch (Exception | Error e) {
             e.printStackTrace();
