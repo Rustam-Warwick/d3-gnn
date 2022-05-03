@@ -56,7 +56,7 @@ public class GraphStream {
 //        this.tableEnv = StreamTableEnvironment.create(this.env);
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.setParallelism(this.parallelism);
-        this.env.getConfig().setAutoWatermarkInterval(5000);
+        this.env.getConfig().setAutoWatermarkInterval(3000);
         this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
@@ -129,7 +129,7 @@ public class GraphStream {
 
         DataStream<GraphOp> keyedLast = topologyUpdates
                 .keyBy(new PartKeySelector())
-                .window(TumblingEventTimeWindows.of(Time.seconds(5)))
+                .window(TumblingEventTimeWindows.of(Time.seconds(14)))
                 .evictor(new UniqueElementEvictor())
                 .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
                     @Override

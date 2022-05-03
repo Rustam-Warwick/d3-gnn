@@ -5,6 +5,8 @@ import elements.Op;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.iteration.broadcast.BroadcastOutput;
+import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.statefun.flink.core.feedback.*;
@@ -35,6 +37,9 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     private final IterationID iterationId;
     private transient List<String> thisOperatorKeys;
     private MailboxExecutor mailboxExecutor;
+    private boolean watermarkInIteration = false;
+    private Long waitingWatermark = null;
+
 
     public GNNKeyedProcessOperator(StreamingGNNLayerFunction function, IterationID iterationId) {
         super(function);
@@ -85,6 +90,11 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
             } else {
                 // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
                 super.processWatermark(newWatermark);
+                watermarkInIteration = false;
+                if(waitingWatermark != null){
+                    processWatermark(new Watermark(waitingWatermark));
+                    waitingWatermark = null;
+                }
             }
         } else {
             setKeyContextElement(element);
@@ -102,14 +112,19 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
      */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
-        GraphOp preWatermark = new GraphOp(Op.WATERMARK, null, iterationWatermark.getTimestamp());
-        StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark,iterationWatermark.getTimestamp());
-        for(String key: thisOperatorKeys){
-            setCurrentKey(key);
-            processElement(element);
+        if(watermarkInIteration){
+            if(waitingWatermark == null) waitingWatermark = mark.getTimestamp();
+            else waitingWatermark = Math.max(waitingWatermark, mark.getTimestamp());
+        }else {
+            Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
+            GraphOp preWatermark = new GraphOp(Op.WATERMARK, null, iterationWatermark.getTimestamp());
+            StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark, iterationWatermark.getTimestamp());
+            for (String key : thisOperatorKeys) {
+                setCurrentKey(key);
+                processElement(element);
+            }
+            output.emitWatermark(iterationWatermark); // Only output, do not register it
         }
-        output.emitWatermark(iterationWatermark); // Only output, do not register it
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {

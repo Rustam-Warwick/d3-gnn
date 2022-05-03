@@ -51,8 +51,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
-    public abstract Iterable<Edge> getEdges();
-
     public abstract Feature getFeature(String id);
 
     public abstract void cacheFeaturesOf(GraphElement e);

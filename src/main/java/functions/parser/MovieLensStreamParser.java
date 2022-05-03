@@ -32,7 +32,9 @@ public class MovieLensStreamParser extends RichFlatMapFunction<String, GraphOp> 
             Integer.valueOf(res[1]);
             int timestamp = Integer.parseInt(res[3]);
             Vertex src = new Vertex(res[0]);
+            src.setTimestamp(timestamp);
             Vertex dest = new Vertex(res[1]);
+            dest.setTimestamp(timestamp);
             Edge edge = new Edge(src, dest);
             edge.setTimestamp(timestamp); // Added timestamps
             Edge edgeReverse = edge.deepCopy().reverse();

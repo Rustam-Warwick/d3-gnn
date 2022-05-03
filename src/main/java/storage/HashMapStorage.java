@@ -39,11 +39,6 @@ public class HashMapStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<Edge> getEdges() {
-        return null;
-    }
-
-    @Override
     public void open() throws Exception {
         super.open();
         MapStateDescriptor<String, Integer> translationTableDesc = new MapStateDescriptor<String, Integer>("translationTable", String.class, Integer.class);

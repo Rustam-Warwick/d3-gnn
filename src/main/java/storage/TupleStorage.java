@@ -226,11 +226,6 @@ public class TupleStorage extends BaseStorage {
 
     }
 
-    @Override
-    public Iterable<Edge> getEdges() {
-        return null;
-    }
-
 
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {

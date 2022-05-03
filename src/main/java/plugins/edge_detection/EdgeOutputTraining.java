@@ -53,7 +53,7 @@ public class EdgeOutputTraining extends Plugin {
     }
 
     public void forwardForTraining(Edge e) {
-        if (inference.ACTIVE && inference.outputReady(e)) {
+        if (inference.ACTIVE && inference.outputReady(e) && storage.layerFunction.getTimerService().currentWatermark() >= Math.max(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp())) {
             NDArray prediction = inference.output((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue(), false);
             Edge messageEdge = e.copy();
             messageEdge.setTimestamp(Math.max(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
@@ -205,12 +205,14 @@ public class EdgeOutputTraining extends Plugin {
                 removeFeaturesOnNextWatermark = false;
                 inference.ACTIVE = true;
             }
+            List<Vertex> vertices = new ArrayList<>();
             for(Vertex v: storage.getVertices()){
                 List<Edge> edges = new ArrayList<Edge>();
                 storage.getIncidentEdges(v, EdgeType.BOTH).forEach(edges::add);
                 edges.forEach(Edge::delete);
-                v.deleteElement();
+                vertices.add(v);
             }
+            vertices.forEach(Vertex::deleteElement);
         }
     }
 }
