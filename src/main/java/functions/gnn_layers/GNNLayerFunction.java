@@ -108,7 +108,9 @@ public interface GNNLayerFunction extends RichFunction {
                     Rmi.execute(rpcElement, (Rmi) value.element);
                     break;
                 case WATERMARK:
-                    getStorage().onWatermark(value.getTimestamp()); 
+                    getStorage().onWatermark(value.getTimestamp());
+                case PRE_WATERMARK:
+                    getStorage().onPreWatermark(value.getTimestamp());
             }
         } catch (Exception | Error e) {
             e.printStackTrace();

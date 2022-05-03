@@ -112,17 +112,6 @@ public class EdgeOutputTraining extends Plugin {
      */
     @RemoteFunction
     public void startTraining() {
-        inference.updatePending = true;
-        new RemoteInvoke()
-                .toElement(getId(), elementType())
-                .where(MessageDirection.ITERATE)
-                .method("sendGradientsToMaster")
-                .withTimestamp(storage.layerFunction.currentTimestamp())
-                .addDestinations(othersMasterParts())
-                .withArgs()
-                .noUpdate()
-                .buildAndRun(storage);
-
         if (!storage.layerFunction.isFirst()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
@@ -134,62 +123,6 @@ public class EdgeOutputTraining extends Plugin {
                     .noUpdate()
                     .buildAndRun(storage);
         }
-    }
-
-    /**
-     * CAll to Sends the local gradients to master
-     */
-    @RemoteFunction
-    public void sendGradientsToMaster() {
-        inference.updatePending = true; // Sending to master waiting for new parameters
-        new RemoteInvoke()
-                .toElement(getId(), elementType())
-                .where(MessageDirection.ITERATE)
-                .method("collectGradients")
-                .addDestination((short) 0)
-                .withArgs(inference.parameterStore.gradientArrays)
-                .withTimestamp(storage.layerFunction.currentTimestamp())
-                .noUpdate()
-                .buildAndRun(storage);
-    }
-
-
-    /**
-     * Accumulates all the gradients in master operator
-     *
-     * @param grads
-     */
-    @RemoteFunction
-    public void collectGradients(Map<String, Tuple2<NDArray, Integer>> grads) {
-        inference.parameterStore.meanAccumulateGrads(grads);
-        collectedGradsSoFar++;
-        if (collectedGradsSoFar == othersMasterParts().size()) {
-            collectedGradsSoFar = 0;
-            inference.parameterStore.step();
-            new RemoteInvoke()
-                    .toElement(getId(), elementType())
-                    .where(MessageDirection.ITERATE)
-                    .method("updateParameters")
-                    .addDestinations(replicaParts())
-                    .addDestination(masterPart())
-                    .withTimestamp(storage.layerFunction.currentTimestamp())
-                    .withArgs(inference.parameterStore.parameterArrays)
-                    .noUpdate()
-                    .buildAndRun(storage);
-        }
-    }
-
-    /**
-     * Given new parameters synchronize them across the parallel instances
-     *
-     * @param params
-     */
-    @RemoteFunction
-    public void updateParameters(Map<String, NDArray> params) {
-        inference.parameterStore.updateParameters(params);
-        inference.parameterStore.resetGrads();
-        inference.MODEL_VERSION++;
-        inference.updatePending = false; // Model is here
     }
 
     @Override

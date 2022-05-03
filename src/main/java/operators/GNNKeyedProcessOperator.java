@@ -73,7 +73,6 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().op == Op.WATERMARK) {
             long iterationNumber = WatermarkTimestampResolverOperator.getIterationNumber(element.getTimestamp());
-//            System.out.format("WATERMARK - %s at position %s \n", iterationNumber, ((StreamingGNNLayerFunction) userFunction).getPosition());
             if (iterationNumber < 2) {
                 // Still need to traverse the stream
                 Watermark newWatermark = new Watermark(WatermarkTimestampResolverOperator.setIterationNumber(element.getTimestamp(), iterationNumber + 1));
@@ -97,14 +96,20 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
 
     /**
      * Watermarks received should be three times all-reduces in this layer
-     * This ensures consistency
+     * This ensures consistency for longest graph operation
      * Actual watermarks are send in processFeedback function
-     *
+     * Also calls ingests PRE_WATERMARK event into the stream
      * @param mark Watermark
      */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         Watermark iterationWatermark = new Watermark(WatermarkTimestampResolverOperator.encode(mark.getTimestamp()));
+        GraphOp preWatermark = new GraphOp(Op.PRE_WATERMARK, null, mark.getTimestamp());
+        StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark,mark.getTimestamp());
+        for(String key: thisOperatorKeys){
+            setCurrentKey(key);
+            processElement(element);
+        }
         output.emitWatermark(iterationWatermark); // Only output, do not register it
     }
 

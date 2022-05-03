@@ -11,9 +11,8 @@ import java.util.List;
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement {
-    public transient List<Short> thisReplicaKeys; // Keys(Parts) Hased to this parallel operator
+    public transient List<Short> thisReplicaKeys; // Keys(Parts) hashed to this parallel operator
     public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
-
     public Plugin() {
         super(null, false, (short) 0);
     }
@@ -57,6 +56,9 @@ public class Plugin extends ReplicableGraphElement {
         return othersMasterParts;
     }
 
+    /**
+     * @return Element Type
+     */
     @Override
     public ElementType elementType() {
         return ElementType.PLUGIN;
@@ -97,12 +99,23 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when the system receives a proper watermark. Aligned with all the replica events
+     * Will be called one-by-one for each part that is in this operator
+     * Order will be exactly as [masterPart(), ...replicaParts()]
      * @param timestamp timestamp of the watermark
      */
     public void onWatermark(long timestamp) {
         // pass
     }
 
+    /**
+     * Callback that notifies the plugin about a watermark that will ingested after exactly 3 all-reduce cycles
+     * Will be called one-by-one for each part that is in this operator
+     * Order will be exactly as [masterPart(), ...replicaParts()]
+     * @param timestamp timestamp of the watermark
+     */
+    public void onPreWatermark(long timestamp){
+        // Pass
+    }
 
     /**
      * Callback when the system closes. Perform all the clean-up
@@ -154,6 +167,5 @@ public class Plugin extends ReplicableGraphElement {
             throw new RuntimeException("Not all parts can be hashed try with different parallelism");
         }
     }
-
 
 }

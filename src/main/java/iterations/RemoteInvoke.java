@@ -68,10 +68,11 @@ public class RemoteInvoke {
     }
 
     public boolean verify() {
-        return Objects.nonNull(ts) && Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
+        return Objects.nonNull(elementId) && Objects.nonNull(elementType) && Objects.nonNull(methodName) && Objects.nonNull(messageDirection) && Objects.nonNull(destinations) && Objects.nonNull(args) && Objects.nonNull(hasUpdate);
     }
 
     public List<GraphOp> build() {
+        if(ts == null) ts = Long.MIN_VALUE;
         if (!verify()) {
             new Exception("Error occured in builder").printStackTrace();
             return Collections.emptyList();
