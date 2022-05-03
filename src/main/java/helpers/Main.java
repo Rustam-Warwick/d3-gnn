@@ -21,6 +21,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.util.OutputTag;
 import partitioner.HDRF;
+import plugins.RandomNegativeSampler;
 import plugins.debugging.PrintVertexPlugin;
 import plugins.edge_detection.EdgeOutputInference;
 import plugins.embedding_layer.GNNEmbeddingLayer;
@@ -98,7 +99,7 @@ public class Main {
                 })
         ));
 
-
+//
         DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
         DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddings.union(trainData), new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new EdgeOutputInference() {
             @Override

@@ -1,7 +1,6 @@
 package plugins.debugging;
 
 import elements.*;
-import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.util.ArrayList;
 import java.util.Collections;

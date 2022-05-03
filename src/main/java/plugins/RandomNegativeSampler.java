@@ -19,12 +19,6 @@ public class RandomNegativeSampler extends Plugin {
         this.p = p;
     }
 
-    public static boolean hasIntersection(List<Short> one, List<Short> two) {
-        for (short el : one) {
-            if (two.contains(el)) return true;
-        }
-        return false;
-    }
 
     @Override
     public void open() {
@@ -64,6 +58,7 @@ public class RandomNegativeSampler extends Plugin {
                     }
                     if (dest.state() == ReplicaState.MASTER && !hasIntersection(src.replicaParts(), dest.replicaParts()) && storage.getEdge(src.getId() + ":" + dest.getId()) == null) {
                         Edge tmp = new Edge(src.copy(), dest.copy());
+                        tmp.setTimestamp(storage.layerFunction.currentTimestamp());
                         tmp.setFeature("label", new Feature<Integer, Integer>(0));
                         storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, MessageDirection.FORWARD, tmp.getTimestamp()));
                         i = intI;
@@ -80,5 +75,12 @@ public class RandomNegativeSampler extends Plugin {
         j = 0;
     }
 
+
+    public static boolean hasIntersection(List<Short> one, List<Short> two) {
+        for (short el : one) {
+            if (two.contains(el)) return true;
+        }
+        return false;
+    }
 
 }

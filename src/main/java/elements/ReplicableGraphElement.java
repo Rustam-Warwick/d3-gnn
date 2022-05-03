@@ -24,8 +24,6 @@ public class ReplicableGraphElement extends GraphElement {
         this.master = master;
     }
 
-
-
     @Override
     public ReplicableGraphElement copy() {
         ReplicableGraphElement tmp = new ReplicableGraphElement(this.id, this.halo, this.master);

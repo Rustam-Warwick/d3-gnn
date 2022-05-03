@@ -1,30 +1,28 @@
 package plugins.embedding_layer;
 
-import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
+import aggregators.NewMeanAggregator;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
-import features.VTensor;
+import features.Tensor;
 import helpers.MyParameterStore;
 import iterations.MessageDirection;
-import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import scala.Tuple2;
 import serializers.JavaTensor;
 
-import java.lang.annotation.Target;
-import java.util.*;
+import java.util.Objects;
 
 public abstract class GNNEmbeddingLayer extends Plugin {
+    // Model implementation details START
     public transient Model messageModel;
     public transient Model updateModel;
     public transient Shape aggregatorShape;
     public transient Shape featureShape;
     public MyParameterStore parameterStore = new MyParameterStore();
+    // Model Implementation details END
     /**
      * If this is the first layer, does it expect external features or should the features be trainable as well
      */
@@ -32,8 +30,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     /**
      * Is this plugin Active? If not only do the vertex initialization
      */
-    public HashMap<Short, Boolean> ACTIVE = new HashMap<>();
-    public int MODEL_VERSION = 0;
+    public boolean ACTIVE = true;
 
     public GNNEmbeddingLayer() {
         this(true);
@@ -47,7 +44,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public abstract Model createMessageModel();
 
     public abstract Model createUpdateModel();
-
 
     @Override
     public void add() {
@@ -73,8 +69,6 @@ public abstract class GNNEmbeddingLayer extends Plugin {
         this.parameterStore.restoreModel(this.messageModel);
         this.parameterStore.restoreModel(this.updateModel);
         this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
-        ACTIVE.put(masterPart(), true);
-        replicaParts().forEach(item->ACTIVE.put(item, true));
     }
 
     @Override
@@ -92,7 +86,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
-            if (ACTIVE.get(getPartId()) && messageReady(edge)) {
+            if (ACTIVE && messageReady(edge)) {
                 NDArray msg = this.message((NDArray) edge.src.getFeature("feature").getValue(), false);
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
@@ -100,13 +94,13 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
-                        .withArgs(MODEL_VERSION, msg, 1)
+                        .withArgs(msg, 1)
                         .withTimestamp(Math.max(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
-            if ("feature".equals(feature.getName()) && ACTIVE.get(getPartId())) {
+            if ("feature".equals(feature.getName()) && ACTIVE){
                 reduceOutEdges((Vertex) feature.getElement());
             }
         }
@@ -118,8 +112,8 @@ public abstract class GNNEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if ("feature".equals(feature.getName()) && ACTIVE.get(getPartId())) {
-                updateOutEdges((VTensor) feature, (VTensor) oldFeature);
+            if ("feature".equals(feature.getName()) && ACTIVE) {
+                updateOutEdges((Tensor) feature, (Tensor) oldFeature);
             }
         }
     }
@@ -131,12 +125,12 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(aggregatorShape);
-            element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true), storage.layerFunction.currentTimestamp());
+            element.setFeature("agg", new NewMeanAggregator(new JavaTensor(aggStart), true), storage.layerFunction.currentTimestamp());
 
             if (!externalFeatures && storage.layerFunction.isFirst()){
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(featureShape); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("feature", new VTensor(new Tuple2<>(new JavaTensor(embeddingRandom), this.MODEL_VERSION)), storage.layerFunction.currentTimestamp());
+                element.setFeature("feature", new Tensor(new JavaTensor(embeddingRandom)), storage.layerFunction.currentTimestamp());
             }
         }
     }
@@ -148,12 +142,12 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     @SuppressWarnings("all")
     public void forward(Vertex v) {
         if (updateReady(v)) {
-            NDArray ft = ((VTensor) v.getFeature("feature")).getValue();
-            NDArray agg = ((BaseAggregator<?>) v.getFeature("agg")).getValue();
+            NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+            NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
             long timestamp = Math.max(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp());
-            messageVertex.setFeature("feature", new VTensor(new Tuple2<>(update, MODEL_VERSION)), timestamp);
+            messageVertex.setFeature("feature", new Tensor(update), timestamp);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, MessageDirection.FORWARD, timestamp));
         }
     }
@@ -164,7 +158,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
      * @param newFeature Updaated new Feature
      * @param oldFeature Updated old Feature
      */
-    public void updateOutEdges(VTensor newFeature, VTensor oldFeature) {
+    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
             Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
             NDArray msgOld = null;
             NDArray msgNew = null;
@@ -182,7 +176,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                             .hasUpdate()
                             .withTimestamp(timestamp)
                             .addDestination(edge.dest.masterPart())
-                            .withArgs(MODEL_VERSION, msgNew, msgOld)
+                            .withArgs(msgNew, msgOld)
                             .buildAndRun(storage);
                 }
             }
@@ -208,16 +202,20 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                             .hasUpdate()
                             .addDestination(edge.dest.masterPart())
                             .withTimestamp(timestamp)
-                            .withArgs(MODEL_VERSION, msg, 1)
+                            .withArgs(msg, 1)
                             .buildAndRun(storage);
                 }
             }
     }
 
+    /**
+     * Forward those Values that have modified in between this and previous watermark
+     * @param timestamp timestamp of the watermark
+     */
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        if(ACTIVE.get(getPartId())){
+        if(timestamp % 4 == 3 && ACTIVE){
             for(Vertex v: storage.getVertices()){
                 if(updateReady(v)){
                     long ts = Math.max(v.getFeature("agg").getTimestamp(), v.getFeature("feature").getTimestamp());

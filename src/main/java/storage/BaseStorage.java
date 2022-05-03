@@ -6,7 +6,6 @@ import helpers.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -17,6 +16,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * List of plugins attached to this storage engine
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
+    /**
+     * The function that this BaseStorage is attached to
+     */
     public GNNLayerFunction layerFunction;
     /**
      * Helper manager for managing tensor memory
@@ -88,10 +90,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public void onWatermark(long timestamp) {
         plugins.values().forEach(plugin -> plugin.onWatermark(timestamp));
-    }
-
-    public void onPreWatermark(long timestamp){
-        plugins.values().forEach(plugin -> plugin.onPreWatermark(timestamp));
     }
 
     @Override

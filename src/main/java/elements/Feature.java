@@ -114,9 +114,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
 
         if (isUpdated) {
-            this.setTimestamp(Math.max(getTimestamp(), newElement.getTimestamp())); // Timestamps always max out
-            this.storage.updateFeature(this);
-            this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
+            resolveTimestamp(newElement.getTimestamp());
+            storage.updateFeature(this);
+            storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
         }
         return new Tuple2<>(isUpdated, memento);
     }

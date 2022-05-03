@@ -7,5 +7,4 @@ public enum Op {
     SYNC,
     RMI,
     WATERMARK,
-    PRE_WATERMARK
 }

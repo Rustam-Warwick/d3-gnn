@@ -9,6 +9,7 @@ import elements.ElementType;
 import elements.Feature;
 import elements.GraphElement;
 import elements.GraphOp;
+import features.Tensor;
 import features.VTensor;
 import helpers.MyParameterStore;
 import iterations.MessageDirection;
@@ -21,7 +22,6 @@ import scala.Tuple2;
 abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<GraphOp, GraphOp> {
     public final int BATCH_SIZE;
     public Loss lossFn;
-    transient public int MODEL_VERSION = 0;
     transient public int count = 0;
 
     public SparseCategoricalCrossEntropyLoss() {
@@ -42,10 +42,10 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
 
     @Override
     public void processElement(GraphOp trainData, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        VTensor prediction = (VTensor) trainData.element.getFeature("prediction");
+        Tensor prediction = (Tensor) trainData.element.getFeature("prediction");
         Integer label = ((Feature<Integer, Integer>) trainData.element.getFeature("label")).getValue();
         try {
-            if (MyParameterStore.isTensorCorrect(prediction.getValue()) && prediction.value._2 == MODEL_VERSION) {
+            if (MyParameterStore.isTensorCorrect(prediction.getValue())) {
                 // 1. Initialize some stupid stuff
                 NDManager manager = NDManager.newBaseManager();
                 GradientCollector collector = manager.getEngine().newGradientCollector();
@@ -53,10 +53,10 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 prediction.getValue().setRequiresGradient(true);
                 NDArray loss = lossFn.evaluate(new NDList(manager.create(label)), new NDList(prediction.getValue()));
                 collector.backward(loss);
-                System.out.println(prediction.getValue());
+                System.out.format("Prediction is : %s \n Label is: %s \n", prediction.getValue(), label);
                 // 3. Prepare and send data
                 GraphElement elementAttached = trainData.element.copy();
-                elementAttached.setFeature("grad", new VTensor(new Tuple2<>(prediction.getValue().getGradient().neg().mul(0.01), prediction.value._2)));
+                elementAttached.setFeature("grad", new Tensor(prediction.getValue().getGradient().neg().mul(0.01)));
                 GraphOp backMsg = new RemoteInvoke()
                         .toElement("trainer", ElementType.PLUGIN)
                         .noUpdate()
@@ -74,7 +74,6 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                 count++;
                 if (count >= BATCH_SIZE) {
                     count = 0;
-                    MODEL_VERSION++;
                     GraphOp trainMsg = new RemoteInvoke()
                             .toElement("trainer", ElementType.PLUGIN)
                             .noUpdate()

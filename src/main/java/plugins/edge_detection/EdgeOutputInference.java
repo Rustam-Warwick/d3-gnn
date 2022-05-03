@@ -15,15 +15,13 @@ import java.util.Objects;
 public abstract class EdgeOutputInference extends Plugin {
     public transient Model outputModel;
     public MyParameterStore parameterStore = new MyParameterStore();
-    public int MODEL_VERSION = 0;
-    public boolean updatePending = false;
+    public boolean ACTIVE = true;
 
     public EdgeOutputInference() {
         super("inferencer");
     }
 
     public abstract Model createOutputModel();
-
 
     @Override
     public void add() {
@@ -50,9 +48,8 @@ public abstract class EdgeOutputInference extends Plugin {
     }
 
     public boolean outputReady(@Nonnull Edge edge) {
-        return !updatePending && Objects.nonNull(edge.src.getFeature("feature")) && ((VTensor) edge.src.getFeature("feature")).isReady(MODEL_VERSION) && Objects.nonNull(edge.dest.getFeature("feature")) && ((VTensor) edge.dest.getFeature("feature")).isReady(MODEL_VERSION);
+        return Objects.nonNull(edge.src.getFeature("feature")) && Objects.nonNull(edge.dest.getFeature("feature"));
     }
-
 
     public NDArray output(NDArray featureSource, NDArray featureDest, boolean training) {
         NDManager oldManagerSrc = featureSource.getManager();

@@ -1,11 +1,12 @@
 package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
+import aggregators.NewMeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
+import features.Tensor;
 import features.VTensor;
 import helpers.MyParameterStore;
 import iterations.MessageDirection;
@@ -13,23 +14,17 @@ import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
 
-import java.rmi.Remote;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class GNNEmbeddingLayerTraining extends Plugin {
     public transient GNNEmbeddingLayer inference;
+    public Long reInferenceWatermark = null; // Next watermark of iteration 1 should be re-Inference
+    public Long sendAlignWatermark = null; // Should I send Align watermarks to the next layer on watermark
+    public boolean alignWatermarks = false; // Should the master(0) align the watermarks of replicas ?
     public int collectedGradsSoFar = 0; // Master node collected gradients count
-    /**
-     * Has the master sent the updated parameters, thus ready to start the inference?
-     */
-    public boolean masterHasSentUpdatedParameters = false;
-    /**
-     * Master is waiting for the preWatermark
-     */
-    public boolean masterWaitingForPreWatermark = false;
-
     public GNNEmbeddingLayerTraining() {
         super("trainer");
     }
@@ -42,16 +37,16 @@ public class GNNEmbeddingLayerTraining extends Plugin {
 
     /**
      * Backward trigger function.
-     * @param grad VTensor that is attached to one vertex. Its value is the gradient of dv(L+1)/dloss
+     * @param grad Tensor that is attached to one vertex. Its value is the gradient of dv(L+1)/dloss
      */
     @RemoteFunction
-    public void backward(VTensor grad) {
+    public void backward(Tensor grad) {
         // 1. Get Data
         grad.setStorage(storage);
         Vertex v = (Vertex) grad.getElement();
-        VTensor feature = (VTensor) v.getFeature("feature");
+        Tensor feature = (Tensor) v.getFeature("feature");
         BaseAggregator<?> agg = (BaseAggregator<?>) v.getFeature("agg");
-        if (inference.updateReady(v) && grad.value._2 == inference.MODEL_VERSION && grad.getTimestamp() == Math.max(feature.getTimestamp(), agg.getTimestamp())) {
+        if (inference.ACTIVE && inference.updateReady(v) && grad.getTimestamp() == Math.max(feature.getTimestamp(), agg.getTimestamp())) {
             feature.getValue().setRequiresGradient(true);
             agg.getValue().setRequiresGradient(true);
             // 2. Prediction & Backward
@@ -62,8 +57,8 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             if (!storage.layerFunction.isFirst()) {
                 NDArray gradient = feature.getValue().getGradient();
                 if (MyParameterStore.isTensorCorrect(gradient)) {
-                    VTensor backwardGrad = grad.copy();
-                    backwardGrad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
+                    Tensor backwardGrad = grad.copy();
+                    backwardGrad.value = gradient;
                     backwardGrad.setTimestamp(feature.getTimestamp());
                     new RemoteInvoke()
                             .toElement("trainer", ElementType.PLUGIN)
@@ -80,12 +75,13 @@ public class GNNEmbeddingLayerTraining extends Plugin {
             // 4. Send to messageBackward to do the message backward steps
             NDArray gradient = agg.grad();
             if (MyParameterStore.isTensorCorrect(gradient)) {
-                grad.value = new Tuple2<>(gradient, inference.MODEL_VERSION);
-                grad.setTimestamp(agg.getTimestamp());
+                Tensor aggGrad = grad.copy();
+                aggGrad.value = gradient;
+                aggGrad.setTimestamp(agg.getTimestamp());
                 new RemoteInvoke()
                         .toElement("trainer", ElementType.PLUGIN)
                         .noUpdate()
-                        .withArgs(grad)
+                        .withArgs(aggGrad)
                         .addDestinations(agg.replicaParts())
                         .addDestination(getPartId())
                         .method("messageBackward")
@@ -107,22 +103,22 @@ public class GNNEmbeddingLayerTraining extends Plugin {
      * @param aggGrad grad of message output w.r.t loss
      */
     @RemoteFunction
-    public void messageBackward(VTensor aggGrad) {
-        aggGrad.setStorage(storage);
-        Vertex vertex = (Vertex) aggGrad.getElement();
-        if (aggGrad.value._2 == inference.MODEL_VERSION) {
-            Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
+    public void messageBackward(Tensor aggGrad) {
+        if(inference.ACTIVE) {
+            aggGrad.setStorage(storage);
+            Vertex vertex = (Vertex) aggGrad.getElement();
+            Iterable<Edge> inEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
             for (Edge edge : inEdges) {
                 if (inference.messageReady(edge) && aggGrad.getTimestamp() >= Math.max(edge.getTimestamp(), edge.src.getFeature("feature").getTimestamp())) {
                     // 1. Compute the gradient
-                    VTensor feature = (VTensor) edge.src.getFeature("feature");
+                    Tensor feature = (Tensor) edge.src.getFeature("feature");
                     feature.getValue().setRequiresGradient(true);
                     NDArray prediction = inference.message(feature.getValue(), true);
                     JniUtils.backward((PtNDArray) prediction, (PtNDArray) aggGrad.getValue(), false, false);
                     NDArray gradient = feature.getValue().getGradient();
                     // 2. If the gradient is correct and this model is not the first one send gradient backwards
-                    if (!this.storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
-                        VTensor grad = new VTensor("grad", new Tuple2<>(gradient, inference.MODEL_VERSION));
+                    if (!storage.layerFunction.isFirst() && MyParameterStore.isTensorCorrect(gradient)) {
+                        Tensor grad = new Tensor("grad", gradient);
                         grad.setTimestamp(edge.src.getFeature("feature").getTimestamp());
                         grad.attachedTo = new Tuple2<>(ElementType.VERTEX, edge.src.getId());
                         new RemoteInvoke()
@@ -142,6 +138,8 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         }
     }
 
+    // ---- PARAMETER UPDATES START
+
     /**
      * When Master Receives this message, it starts collecting gradients from replicas
      * Then it performs mean over the batch and updates the model.
@@ -150,7 +148,8 @@ public class GNNEmbeddingLayerTraining extends Plugin {
      */
     @RemoteFunction
     public void startTraining() {
-        inference.ACTIVE.replaceAll((key, item)->false);
+        assert getPartId() == 0;
+        inference.ACTIVE = false;
         new RemoteInvoke()
                 .toElement(getId(), elementType())
                 .where(MessageDirection.ITERATE)
@@ -158,7 +157,6 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 .addDestinations(othersMasterParts())
                 .withArgs()
                 .noUpdate()
-                .withTimestamp(storage.layerFunction.currentTimestamp())
                 .buildAndRun(storage);
 
         if (!storage.layerFunction.isFirst()) {
@@ -174,34 +172,13 @@ public class GNNEmbeddingLayerTraining extends Plugin {
         }
     }
 
-    @Override
-    public void onPreWatermark(long timestamp) {
-        super.onPreWatermark(timestamp);
-        if(getPartId() == 0 && masterWaitingForPreWatermark && masterHasSentUpdatedParameters){
-            // Ready to call the re-inference methods
-            new RemoteInvoke()
-                .withTimestamp(storage.layerFunction.currentTimestamp())
-                .withArgs()
-                .addDestinations(othersMasterParts())
-                .addDestination(masterPart())
-                .noUpdate()
-                .toElement(getId(), ElementType.PLUGIN)
-                .method("startReInference")
-                .where(MessageDirection.ITERATE)
-                .buildAndRun(storage);
-            masterWaitingForPreWatermark = false;
-            masterHasSentUpdatedParameters = false;
-        }
-    }
-
-
     /**
      * CAll to Sends the local gradients to master
      * This function is called only of masters of operators [1..N] 0(general-master) is exclusive
      */
     @RemoteFunction
     public void sendGradientsToMaster() {
-        inference.ACTIVE.replaceAll((key, item)->false);
+        inference.ACTIVE = false;
         new RemoteInvoke()
                 .toElement(getId(), elementType())
                 .where(MessageDirection.ITERATE)
@@ -209,7 +186,6 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 .addDestination((short) 0)
                 .withArgs(inference.parameterStore.gradientArrays)
                 .noUpdate()
-                .withTimestamp(storage.layerFunction.currentTimestamp())
                 .buildAndRun(storage);
     }
 
@@ -230,21 +206,11 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                     .method("updateParameters")
                     .addDestinations(othersMasterParts())
                     .addDestination(masterPart())
-                    .withTimestamp(storage.layerFunction.currentTimestamp())
                     .withArgs(inference.parameterStore.parameterArrays)
                     .noUpdate()
                     .buildAndRun(storage);
-            if (getPartId() == 0) {
-                // Re-inference should start from the first layer. Rest is done on the inferencer
-                masterHasSentUpdatedParameters = true;
-                if(storage.layerFunction.isFirst()) masterWaitingForPreWatermarkOn();
-            }
+            if(storage.layerFunction.isFirst()) alignWatermarks = true;
         }
-    }
-
-    @RemoteFunction
-    public void masterWaitingForPreWatermarkOn(){
-        masterWaitingForPreWatermark = true;
     }
 
     /**
@@ -255,41 +221,80 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     public void updateParameters(Map<String, NDArray> params) {
         inference.parameterStore.updateParameters(params);
         inference.parameterStore.resetGrads();
-        inference.MODEL_VERSION ++;
+    }
+
+    // ---- PARAMETER UPDATES END
+
+    // ---- REINFERENCE START
+    @Override
+    public void onWatermark(long timestamp) {
+        super.onWatermark(timestamp);
+        if(alignWatermarks && getPartId() == 0  && timestamp % 4 == 0){
+            // Updates sent from master but trigger not yet started
+            new RemoteInvoke()
+                    .toElement(getId(), ElementType.PLUGIN)
+                    .where(MessageDirection.ITERATE)
+                    .method("setReInferenceWatermark")
+                    .addDestinations(othersMasterParts())
+                    .addDestination(getPartId())
+                    .withArgs(timestamp + 1)
+                    .noUpdate()
+                    .buildAndRun(storage);
+
+            if(!storage.layerFunction.isLast()) sendAlignWatermark = timestamp + 3;
+            alignWatermarks = false;
+        }
+        if(reInferenceWatermark != null && timestamp >= reInferenceWatermark){
+            reInference(timestamp);
+            if(getPartId() == replicaParts().get(replicaParts().size()-1)){
+                // Last element so need to clear the
+                System.out.format("Re Inference at subtask %s, position %s \n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask(), storage.layerFunction.getPosition());
+                reInferenceWatermark = null;
+                inference.ACTIVE = true;
+            }
+        }
+        if(sendAlignWatermark != null && timestamp >= sendAlignWatermark && getPartId() == 0){
+            new RemoteInvoke()
+                    .addDestination((short) 0)
+                    .toElement(getId(), ElementType.PLUGIN)
+                    .noUpdate()
+                    .method("setAlignWatermarks")
+                    .withArgs()
+                    .where(MessageDirection.FORWARD)
+                    .buildAndRun(storage);
+            sendAlignWatermark = null;
+        }
     }
 
     @RemoteFunction
-    public void startReInference(){
-        new RemoteInvoke()
-                .where(MessageDirection.ITERATE)
-                .noUpdate()
-                .withArgs()
-                .method("reInference")
-                .addDestinations(replicaParts())
-                .addDestination(masterPart())
-                .withTimestamp(storage.layerFunction.currentTimestamp())
-                .toElement(getId(), ElementType.PLUGIN)
-                .buildAndRun(storage);
+    public void setAlignWatermarks(){
+        alignWatermarks = true;
     }
 
-    /**
-     * New Parameters have been committed, need to increment the model version
-     */
     @RemoteFunction
-    public void reInference() {
+    public void setReInferenceWatermark(long ts){
+        reInferenceWatermark = ts;
+    }
+
+
+    public void reInference(long timestamp) {
         for (Vertex vertex : storage.getVertices()) {
-            Iterable<Edge> inEdges = this.storage.getIncidentEdges(vertex, EdgeType.IN);
+            if(Objects.nonNull(vertex.getFeature("agg"))){
+                // @todo Fix this can be out of sync with the updates
+                ((BaseAggregator<?>)vertex.getFeature("agg")).reset();
+            }
+            Iterable<Edge> inEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
             List<NDArray> bulkReduceMessages = new ArrayList<>();
-            long maxTs = Long.MIN_VALUE;
+            long maxTs = timestamp;
             for (Edge edge : inEdges) {
                 if (inference.messageReady(edge)) {
-                    NDArray msg = inference.message(((VTensor) edge.src.getFeature("feature")).getValue(), false);
+                    NDArray msg = inference.message((NDArray) (edge.src.getFeature("feature")).getValue(), false);
                     bulkReduceMessages.add(msg);
                     maxTs = Math.max(maxTs, Math.max(edge.getTimestamp(), edge.src.getFeature("feature").getTimestamp()));
                 }
             }
             if (bulkReduceMessages.size() > 0) {
-                NDArray msgs = MeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
+                NDArray msgs = NewMeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
                 new RemoteInvoke()
                         .toElement(vertex.decodeFeatureId("agg"), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
@@ -297,10 +302,14 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                         .hasUpdate()
                         .addDestination(vertex.masterPart())
                         .withTimestamp(maxTs)
-                        .withArgs(inference.MODEL_VERSION, msgs, bulkReduceMessages.size())
+                        .withArgs(msgs, bulkReduceMessages.size())
                         .buildAndRun(storage);
+            }else if(Objects.nonNull(vertex.getFeature("agg"))){
+                // If there are no in-messages for aggregator, its timestamp might not be updated.
+                // Update it here so that it is inferred onWatermark. Update can be local since MASTER part is using it
+                vertex.getFeature("agg").resolveTimestamp(timestamp);
+                storage.updateFeature(vertex.getFeature("agg"));
             }
         }
-        inference.ACTIVE.put(getPartId(), true);
     }
 }

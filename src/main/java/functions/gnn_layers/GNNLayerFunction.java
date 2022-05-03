@@ -6,7 +6,6 @@ import elements.ReplicaState;
 import iterations.Rmi;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.streaming.api.TimerService;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
@@ -109,8 +108,6 @@ public interface GNNLayerFunction extends RichFunction {
                     break;
                 case WATERMARK:
                     getStorage().onWatermark(value.getTimestamp());
-                case PRE_WATERMARK:
-                    getStorage().onPreWatermark(value.getTimestamp());
             }
         } catch (Exception | Error e) {
             e.printStackTrace();
@@ -120,3 +117,5 @@ public interface GNNLayerFunction extends RichFunction {
     }
 
 }
+
+

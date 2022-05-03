@@ -1,7 +1,6 @@
 package elements;
 
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import scala.Tuple2;
 
 import java.util.ArrayList;
@@ -101,20 +100,12 @@ public class Plugin extends ReplicableGraphElement {
      * Callback when the system receives a proper watermark. Aligned with all the replica events
      * Will be called one-by-one for each part that is in this operator
      * Order will be exactly as [masterPart(), ...replicaParts()]
+     * Watermarks are encoded as such:
+     * (wt % 4) is the watermark iteration number. Only iteration 3 watermarks are actually committed and pushed to the next layer
      * @param timestamp timestamp of the watermark
      */
     public void onWatermark(long timestamp) {
         // pass
-    }
-
-    /**
-     * Callback that notifies the plugin about a watermark that will ingested after exactly 3 all-reduce cycles
-     * Will be called one-by-one for each part that is in this operator
-     * Order will be exactly as [masterPart(), ...replicaParts()]
-     * @param timestamp timestamp of the watermark
-     */
-    public void onPreWatermark(long timestamp){
-        // Pass
     }
 
     /**

@@ -80,17 +80,14 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void open() throws Exception {
         super.open();
-
         int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
         int attemptNum = getRuntimeContext().getAttemptNumber();
-
         FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
                 OperatorUtils.createFeedbackKey(iterationId, 0);
         SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         this.channel = broker.getChannel(key);
-
         this.recordConsumer =
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
@@ -143,7 +140,7 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         if (resolveWatermarks) {
-            long iterationNumber = WatermarkTimestampResolverOperator.getIterationNumber(mark.getTimestamp());
+            short iterationNumber =  (short) (mark.getTimestamp() % 4);
             if (iterationNumber < 3) {
                 GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
                 channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));

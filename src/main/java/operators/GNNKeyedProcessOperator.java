@@ -36,7 +36,6 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     private transient List<String> thisOperatorKeys;
     private MailboxExecutor mailboxExecutor;
 
-
     public GNNKeyedProcessOperator(StreamingGNNLayerFunction function, IterationID iterationId) {
         super(function);
         this.iterationId = iterationId;
@@ -72,20 +71,19 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().op == Op.WATERMARK) {
-            long iterationNumber = WatermarkTimestampResolverOperator.getIterationNumber(element.getTimestamp());
+            short iterationNumber = (short) (element.getTimestamp() % 4);
+            Watermark newWatermark = new Watermark(element.getTimestamp() + 1);
+            element.setTimestamp(newWatermark.getTimestamp());
+            element.getValue().setTimestamp(newWatermark.getTimestamp());
+            for(String key: thisOperatorKeys){
+                setCurrentKey(key);
+                processElement(element);
+            }
             if (iterationNumber < 2) {
-                // Still need to traverse the stream
-                Watermark newWatermark = new Watermark(WatermarkTimestampResolverOperator.setIterationNumber(element.getTimestamp(), iterationNumber + 1));
+                // Still need to traverse the stream before updating the timer
                 output.emitWatermark(newWatermark);
             } else {
                 // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
-                Watermark newWatermark = new Watermark(WatermarkTimestampResolverOperator.setIterationNumber(element.getTimestamp(), iterationNumber + 1));
-                element.setTimestamp(newWatermark.getTimestamp());
-                element.getValue().setTimestamp(newWatermark.getTimestamp());
-                for(String key: thisOperatorKeys){
-                    setCurrentKey(key);
-                    processElement(element);
-                }
                 super.processWatermark(newWatermark);
             }
         } else {
@@ -93,6 +91,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
             processElement(element);
         }
     }
+
 
     /**
      * Watermarks received should be three times all-reduces in this layer
@@ -103,9 +102,9 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
      */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        Watermark iterationWatermark = new Watermark(WatermarkTimestampResolverOperator.encode(mark.getTimestamp()));
-        GraphOp preWatermark = new GraphOp(Op.PRE_WATERMARK, null, mark.getTimestamp());
-        StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark,mark.getTimestamp());
+        Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
+        GraphOp preWatermark = new GraphOp(Op.WATERMARK, null, iterationWatermark.getTimestamp());
+        StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark,iterationWatermark.getTimestamp());
         for(String key: thisOperatorKeys){
             setCurrentKey(key);
             processElement(element);
@@ -136,7 +135,6 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
                 thisKeys.add(String.valueOf(i));
             }
         }
-
         return thisKeys;
     }
 
