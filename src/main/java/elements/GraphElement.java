@@ -227,7 +227,7 @@ public class GraphElement implements Serializable {
 
     /**
      * Element Timestamp
-     *
+     * If the timestamp does not exist take the current element's timestamp in the pipeline
      * @return timestamp
      */
     public long getTimestamp() {

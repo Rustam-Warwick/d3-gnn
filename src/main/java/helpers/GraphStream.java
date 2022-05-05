@@ -128,15 +128,7 @@ public class GraphStream {
         IterationID localIterationId = new IterationID();
 
         DataStream<GraphOp> keyedLast = topologyUpdates
-                .keyBy(new PartKeySelector())
-                .window(TumblingEventTimeWindows.of(Time.seconds(14)))
-                .evictor(new UniqueElementEvictor())
-                .apply(new WindowFunction<GraphOp, GraphOp, String, TimeWindow>() {
-                    @Override
-                    public void apply(String s, TimeWindow window, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
-                        input.forEach(out::collect);
-                    }
-                }).keyBy(new PartKeySelector());
+                .keyBy(new PartKeySelector());
 
         SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);

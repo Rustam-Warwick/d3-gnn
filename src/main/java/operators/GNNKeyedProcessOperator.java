@@ -39,6 +39,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     private MailboxExecutor mailboxExecutor;
     private boolean watermarkInIteration = false;
     private Long waitingWatermark = null;
+    private long iterationStartTime = 0;
 
 
     public GNNKeyedProcessOperator(StreamingGNNLayerFunction function, IterationID iterationId) {
@@ -91,6 +92,8 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
                 // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
                 super.processWatermark(newWatermark);
                 watermarkInIteration = false;
+                System.out.format("Time taken to complete watermark sync is %s\n", getRuntimeContext().getProcessingTimeService().getCurrentProcessingTime() - iterationStartTime);
+                iterationStartTime = 0;
                 if(waitingWatermark != null){
                     processWatermark(new Watermark(waitingWatermark));
                     waitingWatermark = null;
@@ -106,7 +109,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
     /**
      * Watermarks received should be three times all-reduces in this layer
      * This ensures consistency for longest graph operation
-     * Actual watermarks are send in processFeedback function
+     * Actual watermarks are sent in processFeedback function
      * Also calls ingests PRE_WATERMARK event into the stream
      * @param mark Watermark
      */
@@ -116,6 +119,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
             if(waitingWatermark == null) waitingWatermark = mark.getTimestamp();
             else waitingWatermark = Math.max(waitingWatermark, mark.getTimestamp());
         }else {
+            iterationStartTime = getRuntimeContext().getProcessingTimeService().getCurrentProcessingTime();
             Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
             GraphOp preWatermark = new GraphOp(Op.WATERMARK, null, iterationWatermark.getTimestamp());
             StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark, iterationWatermark.getTimestamp());

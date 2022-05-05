@@ -99,34 +99,34 @@ public class Main {
                 })
         ));
 
+////
+//        DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
+//        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddings.union(trainData), new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new EdgeOutputInference() {
+//            @Override
+//            public Model createOutputModel() {
+//                SequentialBlock myBlock = new SequentialBlock();
+//                myBlock.add(new LambdaBlock(inputs -> (
+//                        new NDList(inputs.get(0).concat(inputs.get(1)))
+//                )));
+//                myBlock.add(Linear.builder().setUnits(16).build());
+//                myBlock.add(Activation::relu);
+//                myBlock.add(Linear.builder().setUnits(32).build());
+//                myBlock.add(Activation::relu);
+//                myBlock.add(Linear.builder().setUnits(1).build());
+//                myBlock.add(Activation::sigmoid);
+//                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(7));
+//                Model model = Model.newInstance("prediction");
+//                model.setBlock(myBlock);
+//                return model;
+//            }
+//        }));
 //
-        DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));
-        DataStream<GraphOp> outputFunction = gs.gnnLayerNewIteration(embeddings.union(trainData), new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new EdgeOutputInference() {
-            @Override
-            public Model createOutputModel() {
-                SequentialBlock myBlock = new SequentialBlock();
-                myBlock.add(new LambdaBlock(inputs -> (
-                        new NDList(inputs.get(0).concat(inputs.get(1)))
-                )));
-                myBlock.add(Linear.builder().setUnits(16).build());
-                myBlock.add(Activation::relu);
-                myBlock.add(Linear.builder().setUnits(32).build());
-                myBlock.add(Activation::relu);
-                myBlock.add(Linear.builder().setUnits(1).build());
-                myBlock.add(Activation::sigmoid);
-                myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(7));
-                Model model = Model.newInstance("prediction");
-                model.setBlock(myBlock);
-                return model;
-            }
-        }));
-
-        gs.gnnLoss(outputFunction, new SparseCategoricalCrossEntropyLoss(120) {
-            @Override
-            public Loss createLossFunction() {
-                return new BinaryCrossEntropy();
-            }
-        });
+//        gs.gnnLoss(outputFunction, new SparseCategoricalCrossEntropyLoss(120) {
+//            @Override
+//            public Loss createLossFunction() {
+//                return new BinaryCrossEntropy();
+//            }
+//        });
 
 
         gs.env.execute();
