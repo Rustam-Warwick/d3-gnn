@@ -6,8 +6,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import elements.Edge;
 import elements.Plugin;
-import features.VTensor;
-import helpers.MyParameterStore;
+import functions.nn.MyParameterStore;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;

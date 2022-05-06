@@ -59,6 +59,7 @@ public class NewMeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> 
         int newCount = this.value._2() + count;
         this.value = new Tuple2<>(this.value._1(), newCount);
     }
+
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {

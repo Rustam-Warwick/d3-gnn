@@ -1,4 +1,4 @@
-package helpers;
+package functions.nn;
 
 import ai.djl.Device;
 import ai.djl.MalformedModelException;

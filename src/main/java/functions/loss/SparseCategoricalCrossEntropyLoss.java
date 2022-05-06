@@ -10,14 +10,12 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.GraphOp;
 import features.Tensor;
-import features.VTensor;
-import helpers.MyParameterStore;
+import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import scala.Tuple2;
 
 abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<GraphOp, GraphOp> {
     public final int BATCH_SIZE;

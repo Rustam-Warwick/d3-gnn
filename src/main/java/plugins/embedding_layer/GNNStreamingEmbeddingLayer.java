@@ -8,14 +8,14 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.Tensor;
-import helpers.MyParameterStore;
+import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
-import serializers.JavaTensor;
+import functions.nn.JavaTensor;
 
 import java.util.Objects;
 
-public abstract class GNNEmbeddingLayer extends Plugin {
+public abstract class GNNStreamingEmbeddingLayer extends Plugin {
     // Model implementation details START
     public transient Model messageModel;
     public transient Model updateModel;
@@ -23,20 +23,14 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     public transient Shape featureShape;
     public MyParameterStore parameterStore = new MyParameterStore();
     // Model Implementation details END
-    /**
-     * If this is the first layer, does it expect external features or should the features be trainable as well
-     */
-    public boolean externalFeatures;
-    /**
-     * Is this plugin Active? If not only do the vertex initialization
-     */
-    public boolean ACTIVE = true;
+    public boolean externalFeatures; // Do we expect external features or have random feature matrices
+    public boolean ACTIVE = true; // Is the plugin currently running
 
-    public GNNEmbeddingLayer() {
+    public GNNStreamingEmbeddingLayer() {
         this(true);
     }
 
-    public GNNEmbeddingLayer(boolean externalFeatures) {
+    public GNNStreamingEmbeddingLayer(boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
     }
@@ -95,7 +89,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
                         .withArgs(msg, 1)
-                        .withTimestamp(Math.max(edge.src.getFeature("feature").getTimestamp(), edge.getTimestamp()))
+                        .withTimestamp(edge.getTimestamp())
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
@@ -114,6 +108,10 @@ public abstract class GNNEmbeddingLayer extends Plugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if ("feature".equals(feature.getName()) && ACTIVE) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
+                forward((Vertex) feature.getElement());
+            }
+            if("agg".equals(feature.getName()) && ACTIVE){
+                forward((Vertex) feature.getElement());
             }
         }
     }
@@ -137,16 +135,17 @@ public abstract class GNNEmbeddingLayer extends Plugin {
 
     /**
      * Push the embedding of this vertex to the next layer
+     * After first layer, this is only fushed if agg and features are in sync
      * @param v Vertex
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (updateReady(v)) {
+        if (updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
-            long timestamp = Math.max(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp());
+            long timestamp = v.getFeature("agg").getTimestamp();
             messageVertex.setFeature("feature", new Tensor(update), timestamp);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, MessageDirection.FORWARD, timestamp));
         }
@@ -168,13 +167,12 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                         msgOld = this.message(oldFeature.getValue(), false);
                         msgNew = this.message(newFeature.getValue(), false);
                     }
-                    long timestamp = Math.max(newFeature.getTimestamp(), edge.getTimestamp());
                     new RemoteInvoke()
                             .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
                             .where(MessageDirection.ITERATE)
                             .method("replace")
                             .hasUpdate()
-                            .withTimestamp(timestamp)
+                            .withTimestamp(edge.getTimestamp())
                             .addDestination(edge.dest.masterPart())
                             .withArgs(msgNew, msgOld)
                             .buildAndRun(storage);
@@ -194,14 +192,13 @@ public abstract class GNNEmbeddingLayer extends Plugin {
                     if (Objects.isNull(msg)) {
                         msg = this.message((NDArray) vertex.getFeature("feature").getValue(), false);
                     }
-                    long timestamp = Math.max(vertex.getFeature("feature").getTimestamp(), edge.getTimestamp());
                     new RemoteInvoke()
                             .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
                             .where(MessageDirection.ITERATE)
                             .method("reduce")
                             .hasUpdate()
                             .addDestination(edge.dest.masterPart())
-                            .withTimestamp(timestamp)
+                            .withTimestamp(edge.getTimestamp())
                             .withArgs(msg, 1)
                             .buildAndRun(storage);
                 }
@@ -228,7 +225,7 @@ public abstract class GNNEmbeddingLayer extends Plugin {
     }
 
     /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to taskLifeCycleManager
+     * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *
      * @param feature  Source Feature
      * @param agg      Aggregator Feature

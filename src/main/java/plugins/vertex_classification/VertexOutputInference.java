@@ -7,7 +7,7 @@ import ai.djl.ndarray.NDManager;
 import elements.Plugin;
 import elements.Vertex;
 import features.VTensor;
-import helpers.MyParameterStore;
+import functions.nn.MyParameterStore;
 
 import java.util.Objects;
 

@@ -2,7 +2,7 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
-import helpers.TaskNDManager;
+import functions.nn.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;

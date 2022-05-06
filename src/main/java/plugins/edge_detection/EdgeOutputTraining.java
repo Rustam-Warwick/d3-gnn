@@ -5,15 +5,13 @@ import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import features.Tensor;
-import features.VTensor;
-import helpers.MyParameterStore;
+import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import scala.Tuple2;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 

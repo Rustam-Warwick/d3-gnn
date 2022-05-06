@@ -1,4 +1,4 @@
-package serializers;
+package functions.nn;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;

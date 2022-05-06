@@ -9,22 +9,15 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.training.loss.Loss;
 import elements.GraphOp;
-import functions.loss.BinaryCrossEntropy;
-import functions.loss.SparseCategoricalCrossEntropyLoss;
+import functions.nn.StateDictLoader;
 import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.util.OutputTag;
 import partitioner.HDRF;
-import plugins.RandomNegativeSampler;
 import plugins.debugging.PrintVertexPlugin;
-import plugins.edge_detection.EdgeOutputInference;
-import plugins.embedding_layer.GNNEmbeddingLayer;
+import plugins.embedding_layer.GNNStreamingEmbeddingLayer;
 import storage.TupleStorage;
 
 import java.time.Duration;
@@ -32,6 +25,10 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
+        StateDictLoader.loadModel();
+
+
+
         GraphStream gs = new GraphStream((short) 3);
         DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090)
                 .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(2)).withTimestampAssigner((event, ts) -> event.getTimestamp()));
@@ -39,13 +36,12 @@ public class Main {
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNStreamingEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(Linear.builder().setUnits(32).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                        myBlock.add(new LambdaBlock(item->item));
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32));
                         Model model = Model.newInstance("inference");
                         model.setBlock(myBlock);
                         return model;
@@ -60,21 +56,20 @@ public class Main {
                         myBlock.add(Activation::relu);
                         myBlock.add(Linear.builder().setUnits(16).build());
                         myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(7).build());
+                        myBlock.add(Linear.builder().setUnits(32).build());
                         myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32), new Shape(32));
                         Model model = Model.newInstance("message");
                         model.setBlock(myBlock);
                         return model;
                     }
                 }),
-                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNEmbeddingLayer(false) {
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNStreamingEmbeddingLayer(false) {
                     @Override
                     public Model createMessageModel() {
                         SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(Linear.builder().setUnits(32).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7));
+                        myBlock.add(new LambdaBlock(item->item));
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32));
                         Model model = Model.newInstance("inference");
                         model.setBlock(myBlock);
                         return model;
@@ -89,14 +84,15 @@ public class Main {
                         myBlock.add(Activation::relu);
                         myBlock.add(Linear.builder().setUnits(16).build());
                         myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(7).build());
+                        myBlock.add(Linear.builder().setUnits(32).build());
                         myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(7), new Shape(32));
+                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32), new Shape(32));
                         Model model = Model.newInstance("message");
                         model.setBlock(myBlock);
                         return model;
                     }
                 })
+
         ));
 
 ////

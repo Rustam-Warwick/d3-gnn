@@ -1,4 +1,4 @@
-package helpers;
+package functions.nn;
 
 import ai.djl.ndarray.NDManager;
 
