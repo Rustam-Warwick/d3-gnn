@@ -27,8 +27,6 @@ public class Main {
     public static void main(String[] args) throws Exception {
         StateDictLoader.loadModel();
 
-
-
         GraphStream gs = new GraphStream((short) 3);
         DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090)
                 .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(2)).withTimestampAssigner((event, ts) -> event.getTimestamp()));
@@ -92,7 +90,6 @@ public class Main {
                         return model;
                     }
                 })
-
         ));
 
 ////
