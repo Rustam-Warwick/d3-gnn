@@ -1,23 +1,18 @@
 package helpers;
 
-import ai.djl.Model;
-import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Activation;
-import ai.djl.nn.LambdaBlock;
-import ai.djl.nn.SequentialBlock;
-import ai.djl.nn.core.Linear;
+import ai.djl.nn.BlockList;
 import elements.GraphOp;
+import serializers.SerializableShape;
 import functions.nn.StateDictLoader;
+import functions.nn.gnn.GNNBlock;
 import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import partitioner.HDRF;
 import plugins.debugging.PrintVertexPlugin;
-import plugins.embedding_layer.GNNStreamingEmbeddingLayer;
+import plugins.newblock.embedding_layer.GNNStreamingEmbeddingLayer;
 import storage.TupleStorage;
 
 import java.time.Duration;
@@ -25,7 +20,8 @@ import java.util.List;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        StateDictLoader.loadModel();
+        Shape inputShape = new SerializableShape(7);
+        BlockList layers = StateDictLoader.loadModel();
 
         GraphStream gs = new GraphStream((short) 3);
         DataStream<GraphOp> ratingsEdgeStream = gs.readSocket(new MovieLensStreamParser(), "localhost", 9090)
@@ -34,62 +30,8 @@ public class Main {
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
 
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNStreamingEmbeddingLayer(false) {
-                    @Override
-                    public Model createMessageModel() {
-                        SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(new LambdaBlock(item->item));
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32));
-                        Model model = Model.newInstance("inference");
-                        model.setBlock(myBlock);
-                        return model;
-                    }
+                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNStreamingEmbeddingLayer( inputShape, (GNNBlock) layers.get(0).getValue(), false))
 
-                    @Override
-                    public Model createUpdateModel() {
-                        SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(new LambdaBlock(inputs -> (
-                                new NDList(inputs.get(0).concat(inputs.get(1)))
-                        )));
-                        myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(16).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(32).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32), new Shape(32));
-                        Model model = Model.newInstance("message");
-                        model.setBlock(myBlock);
-                        return model;
-                    }
-                }),
-                new TupleStorage().withPlugin(new PrintVertexPlugin("2262")).withPlugin(new GNNStreamingEmbeddingLayer(false) {
-                    @Override
-                    public Model createMessageModel() {
-                        SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(new LambdaBlock(item->item));
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32));
-                        Model model = Model.newInstance("inference");
-                        model.setBlock(myBlock);
-                        return model;
-                    }
-
-                    @Override
-                    public Model createUpdateModel() {
-                        SequentialBlock myBlock = new SequentialBlock();
-                        myBlock.add(new LambdaBlock(inputs -> (
-                                new NDList(inputs.get(0).concat(inputs.get(1)))
-                        )));
-                        myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(16).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.add(Linear.builder().setUnits(32).build());
-                        myBlock.add(Activation::relu);
-                        myBlock.initialize(NDManager.newBaseManager(), DataType.FLOAT32, new Shape(32), new Shape(32));
-                        Model model = Model.newInstance("message");
-                        model.setBlock(myBlock);
-                        return model;
-                    }
-                })
         ));
 
 ////
