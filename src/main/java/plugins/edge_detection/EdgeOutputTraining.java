@@ -9,7 +9,7 @@ import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;

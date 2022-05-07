@@ -1,7 +1,7 @@
 package elements;
 
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
-import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;

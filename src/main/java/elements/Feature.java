@@ -1,7 +1,7 @@
 package elements;
 
 import iterations.MessageDirection;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -72,7 +72,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public Boolean create() {
-        if (this.attachedTo._1 == ElementType.NONE) return super.create();
+        if (this.attachedTo.f0 == ElementType.NONE) return super.create();
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
@@ -94,14 +94,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         boolean isUpdated = !this.valuesEqual(newFeature.value, this.value);
         if (isUpdated) this.value = newFeature.value;
-        if (this.attachedTo._1 == ElementType.NONE) {
+        if (this.attachedTo.f0 == ElementType.NONE) {
             // If none sub-features may exist
             for (Feature<?, ?> newSubFeature : newElement.features) {
                 Feature<?, ?> thisSubFeature = this.getFeature(newSubFeature.getName());
                 if (Objects.nonNull(thisSubFeature)) {
                     Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
-                    isUpdated |= tmp._1();
-                    addIfNotExists(memento.features, (Feature<?, ?>) tmp._2);
+                    isUpdated |= tmp.f0;
+                    addIfNotExists(memento.features, (Feature<?, ?>) tmp.f1);
                 } else {
                     Feature<?, ?> featureCopy = newSubFeature.copy();
                     featureCopy.setElement(this);
@@ -177,8 +177,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        if (this.attachedTo._1 == ElementType.NONE) return super.getId();
-        return this.attachedTo._2 + this.id;
+        if (this.attachedTo.f0 == ElementType.NONE) return super.getId();
+        return this.attachedTo.f1 + this.id;
     }
 
     /**
@@ -197,9 +197,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Nullable
     public GraphElement getElement() {
-        if (attachedTo._1 == ElementType.NONE) return null;
+        if (attachedTo.f0 == ElementType.NONE) return null;
         if (element == null && storage != null) {
-            setElement(storage.getElement(attachedTo._2, attachedTo._1));
+            setElement(storage.getElement(attachedTo.f1, attachedTo.f0));
         }
         return element;
     }
@@ -228,7 +228,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     @Nullable
     public Feature<?, ?> getFeature(String name) {
-        if (attachedTo._1 == ElementType.NONE) return super.getFeature(name);
+        if (attachedTo.f0 == ElementType.NONE) return super.getFeature(name);
         return null;
     }
 
@@ -240,7 +240,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo._1 == ElementType.NONE) super.setFeature(name, feature);
+        if (attachedTo.f0 == ElementType.NONE) super.setFeature(name, feature);
         throw new IllegalStateException("Nested features not allowed");
     }
 

@@ -4,7 +4,7 @@ import features.Set;
 import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -101,7 +101,7 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (this.state() == ReplicaState.MASTER) {
             Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
-            if (tmp._1) this.syncReplicas(replicaParts());
+            if (tmp.f0) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
             this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, MessageDirection.ITERATE, getTimestamp()));

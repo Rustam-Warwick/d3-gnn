@@ -9,7 +9,7 @@ import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.training.ParameterStore;
 import ai.djl.util.Pair;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -41,7 +41,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
             value.attach(newManager);
         });
         this.gradientArrays.forEach((id, value) -> {
-            value._1.attach(newManager);
+            value.f0.attach(newManager);
         });
         manager.close();
         this.manager = newManager;
@@ -53,7 +53,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     public void step() {
         parameterArrays.forEach((key, item) -> {
             item.setRequiresGradient(false);
-            NDArray grad = gradientArrays.get(key)._1;
+            NDArray grad = gradientArrays.get(key).f0;
             item.addi(grad);
             System.out.println(item);
         });
@@ -75,11 +75,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         });
     }
 
-    /**
-     * Change ids of model parameters to a single standard
-     *
-     * @param model
-     */
+    @Deprecated
     public void canonizeModel(Model model) {
         String modelName = model.getName();
         ParameterList params = model.getBlock().getParameters();
@@ -101,8 +97,9 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      */
     public void loadModel(Model model) {
         model.getBlock().getParameters().forEach(item -> {
+            item.getValue().getArray().attach(getManager()); // Attach to this manager
             this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
-            this.gradientArrays.putIfAbsent(item.getValue().getId(), new Tuple2(item.getValue().getArray().zerosLike(), 0));
+            this.gradientArrays.putIfAbsent(item.getValue().getId(), new Tuple2<NDArray, Integer>(item.getValue().getArray().zerosLike(), 0));
         });
     }
 
@@ -127,14 +124,14 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      * @param parameterId
      */
     public void meanAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
-        if (grad._2 <= 0 || !isTensorCorrect(grad._1)) return;
+        if (grad.f1 <= 0 || !isTensorCorrect(grad.f0)) return;
         NDManager tmpManager = getManager().newSubManager();
         Tuple2<NDArray, Integer> thisGrad = gradientArrays.get(parameterId);
-        thisGrad._1.attach(tmpManager);
-        grad._1.attach(tmpManager);
-        int sumTotal = thisGrad._2 + grad._2;
-        NDArray thisTotal = thisGrad._1.mul(thisGrad._2);
-        NDArray remoteTotal = grad._1.mul(grad._2);
+        thisGrad.f0.attach(tmpManager);
+        grad.f0.attach(tmpManager);
+        int sumTotal = thisGrad.f1 + grad.f1;
+        NDArray thisTotal = thisGrad.f0.mul(thisGrad.f1);
+        NDArray remoteTotal = grad.f0.mul(grad.f1);
         NDArray finalResult = (thisTotal.add(remoteTotal)).div(sumTotal);
         finalResult.attach(getManager());
         gradientArrays.put(parameterId, new Tuple2<>(finalResult, sumTotal));
@@ -148,10 +145,10 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      * @param parameterId
      */
     public void sumAccumulateGrads(Tuple2<NDArray, Integer> grad, String parameterId) {
-        if (grad._2 <= 0 || !isTensorCorrect(grad._1)) return;
+        if (grad.f1 <= 0 || !isTensorCorrect(grad.f0)) return;
         Tuple2<NDArray, Integer> currentGrad = gradientArrays.get(parameterId);
-        currentGrad._1.addi(grad._1);
-        gradientArrays.put(parameterId, new Tuple2<>(currentGrad._1, currentGrad._2 + grad._2));
+        currentGrad.f0.addi(grad.f0);
+        gradientArrays.put(parameterId, new Tuple2<>(currentGrad.f0, currentGrad.f1 + grad.f1));
     }
 
     /**
@@ -170,9 +167,9 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      */
     public void resetGrads() {
         this.gradientArrays.forEach((key, item) -> {
-            item._1.setRequiresGradient(false);
-            gradientArrays.put(key, new Tuple2<>(item._1.zerosLike(), 0));
-            item._1.close();
+            item.f0.setRequiresGradient(false);
+            gradientArrays.put(key, new Tuple2<>(item.f0.zerosLike(), 0));
+            item.f0.close();
 
         });
     }
@@ -199,29 +196,5 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     @Override
     public void sync() {
         super.sync();
-    }
-
-    private void writeObject(ObjectOutputStream oos) throws IOException {
-        DataOutputStream dos = new DataOutputStream(oos);
-        dos.writeInt(this.parameterArrays.size());
-        for (Map.Entry<String, NDArray> entry : this.parameterArrays.entrySet()) {
-            dos.writeUTF(entry.getKey());
-            dos.write(entry.getValue().encode());
-        }
-    }
-
-    private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
-        DataInputStream dis = new DataInputStream(ois);
-        this.manager = NDManager.newBaseManager();
-        this.parameterArrays = new ConcurrentHashMap<>();
-        this.gradientArrays = new HashMap<>();
-        int i = dis.readInt();
-        for (; i > 0; i--) {
-            String id = dis.readUTF();
-            NDArray value = this.manager.decode(dis);
-            this.parameterArrays.putIfAbsent(id, value);
-            this.gradientArrays.putIfAbsent(id, new Tuple2(value.zerosLike(), 0));
-        }
-
     }
 }

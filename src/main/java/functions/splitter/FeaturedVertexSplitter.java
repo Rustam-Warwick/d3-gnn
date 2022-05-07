@@ -4,10 +4,10 @@ import elements.ElementType;
 import elements.GraphOp;
 import features.VTensor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
-import scala.Tuple2;
 
 public class FeaturedVertexSplitter extends ProcessFunction<GraphOp, GraphOp> {
     public final double p;

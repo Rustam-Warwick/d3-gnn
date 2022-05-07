@@ -9,16 +9,19 @@ import ai.djl.nn.Block;
 import ai.djl.nn.core.Linear;
 import ai.djl.training.ParameterStore;
 import ai.djl.util.PairList;
-import scala.xml.PrettyPrinter;
+
+import java.util.Arrays;
 
 /**
  * Represents a Single GNN Block
  */
-abstract public class GNNBlock extends AbstractBlock {
-    AggregatorVariant agg;
-    Block messageBlock;
-    Block updateBlock;
+public class GNNBlock extends AbstractBlock {
+    AggregatorVariant agg = AggregatorVariant.MEAN;
+    Block messageBlock = null;
+    Block updateBlock = null;
+    public GNNBlock(){
 
+    }
 
     public AggregatorVariant getAgg() {
         return agg;
@@ -34,6 +37,7 @@ abstract public class GNNBlock extends AbstractBlock {
 
     public void setMessageBlock(Block messageBlock) {
         this.messageBlock = messageBlock;
+        addChildBlock("message", messageBlock);
     }
 
     public Block getUpdateBlock() {
@@ -42,18 +46,25 @@ abstract public class GNNBlock extends AbstractBlock {
 
     public void setUpdateBlock(Block updateBlock) {
         this.updateBlock = updateBlock;
+        addChildBlock("update", updateBlock);
     }
 
     @Override
     protected NDList forwardInternal(ParameterStore parameterStore, NDList inputs, boolean training, PairList<String, Object> params) {
-        throw new IllegalStateException("GNN Blocks are not used separately yet");
+        throw new IllegalStateException("GNN Blocks are not used  yet instead use the message and update blocks separately");
     }
 
     @Override
     protected void initializeChildBlocks(NDManager manager, DataType dataType, Shape... inputShapes) {
-        super.initializeChildBlocks(manager, dataType, inputShapes);
         messageBlock.initialize(manager, dataType, inputShapes);
         Shape[] messageShapes = messageBlock.getOutputShapes(inputShapes);
-        updateBlock.initialize(manager, dataType, messageShapes);
+        updateBlock.initialize(manager, dataType, messageShapes[0], messageShapes[0]); // One is aggregator one is message shape
+    }
+
+    @Override
+    public Shape[] getOutputShapes(Shape[] inputShapes) {
+        Shape[] messsageShapes = getMessageBlock().getOutputShapes(inputShapes);
+        Shape[] shape = new Shape[]{messsageShapes[0], messsageShapes[0]};
+        return getUpdateBlock().getOutputShapes(shape);
     }
 }

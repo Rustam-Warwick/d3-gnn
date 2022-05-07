@@ -3,6 +3,7 @@ package helpers;
 import aggregators.BaseAggregator;
 import aggregators.NewMeanAggregator;
 import ai.djl.ndarray.NDArray;
+import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
@@ -23,13 +24,10 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.table.api.Schema;
-import org.apache.flink.table.api.Table;
-import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
-import org.apache.flink.types.Row;
 import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
 import functions.nn.JavaTensor;
+import serializers.ParameterSerializer;
 import serializers.TensorSerializer;
 import storage.BaseStorage;
 
@@ -42,7 +40,6 @@ public class GraphStream {
     public short position_index = 1; // Counter of the Current GNN layer being deployed
     public double lambda = 1.8; // GNN operator explosion coefficient
     public StreamExecutionEnvironment env; // Stream environment
-    public StreamTableEnvironment tableEnv;
 
     public GraphStream(short parallelism) {
         this.parallelism = parallelism;
@@ -59,6 +56,7 @@ public class GraphStream {
     public void configureSerializers() {
         env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
+        env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);
@@ -166,36 +164,36 @@ public class GraphStream {
         return lastLayerInputs;
     }
 
-    public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
-        assert position_index == layers;
-        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
-            @Override
-            public Row map(GraphOp value) throws Exception {
-                VTensor feature = (VTensor) value.element;
-                return Row.of(feature.attachedTo._2, feature.masterPart(), feature.value._1, feature.value._2);
-            }
-        }).returns(Types.ROW(Types.STRING, TypeInformation.of(Short.class), TypeInformation.of(NDArray.class), Types.INT));
-        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().primaryKey("f0").columnByExpression("event_time", "PROCTIME()").build()).as("id", "master", "feature", "version");
-        Table vertexEmbeddingsUpsert = tableEnv.sqlQuery("SELECT id, LAST_VALUE(master), LAST_VALUE(feature), LAST_VALUE(version), LAST_VALUE(event_time) FROM " + vertexEmbeddingTable +
-                " GROUP BY id");
-
-        tableEnv.createTemporaryView("vertexEmbeddings", vertexEmbeddingsUpsert);
-        return vertexEmbeddingTable;
-    }
-
-    public Table toEdgeTable(DataStream<GraphOp> output) {
-        assert position_index == layers;
-        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
-            @Override
-            public Row map(GraphOp value) throws Exception {
-                Edge edge = (Edge) value.element;
-                return Row.of(edge.src.getId(), edge.dest.getId());
-            }
-        }).returns(Types.ROW(Types.STRING, Types.STRING));
-        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().columnByExpression("event_time", "PROCTIME()").primaryKey("f0", "f1").build()).as("srcId", "destId");
-        tableEnv.createTemporaryView("edges", vertexEmbeddingTable);
-        return vertexEmbeddingTable;
-    }
+//    public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
+//        assert position_index == layers;
+//        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
+//            @Override
+//            public Row map(GraphOp value) throws Exception {
+//                VTensor feature = (VTensor) value.element;
+//                return Row.of(feature.attachedTo._2, feature.masterPart(), feature.value._1, feature.value._2);
+//            }
+//        }).returns(Types.ROW(Types.STRING, TypeInformation.of(Short.class), TypeInformation.of(NDArray.class), Types.INT));
+//        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().primaryKey("f0").columnByExpression("event_time", "PROCTIME()").build()).as("id", "master", "feature", "version");
+//        Table vertexEmbeddingsUpsert = tableEnv.sqlQuery("SELECT id, LAST_VALUE(master), LAST_VALUE(feature), LAST_VALUE(version), LAST_VALUE(event_time) FROM " + vertexEmbeddingTable +
+//                " GROUP BY id");
+//
+//        tableEnv.createTemporaryView("vertexEmbeddings", vertexEmbeddingsUpsert);
+//        return vertexEmbeddingTable;
+//    }
+//
+//    public Table toEdgeTable(DataStream<GraphOp> output) {
+//        assert position_index == layers;
+//        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
+//            @Override
+//            public Row map(GraphOp value) throws Exception {
+//                Edge edge = (Edge) value.element;
+//                return Row.of(edge.src.getId(), edge.dest.getId());
+//            }
+//        }).returns(Types.ROW(Types.STRING, Types.STRING));
+//        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().columnByExpression("event_time", "PROCTIME()").primaryKey("f0", "f1").build()).as("srcId", "destId");
+//        tableEnv.createTemporaryView("edges", vertexEmbeddingTable);
+//        return vertexEmbeddingTable;
+//    }
 
     /**
      * With some p probability split the stream into 2. First one is the normal stream and the second one is the training stream

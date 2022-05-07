@@ -1,13 +1,10 @@
 package plugins.newblock.embedding_layer;
 
 import aggregators.NewMeanAggregator;
-import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Block;
-import ai.djl.pytorch.engine.PtModel;
 import elements.*;
 import features.Tensor;
 import functions.nn.JavaTensor;
@@ -15,37 +12,32 @@ import functions.nn.MyParameterStore;
 import functions.nn.gnn.GNNBlock;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
-import serializers.SerializableModel;
+import functions.nn.SerializableModel;
 
 import java.util.Objects;
 
 public class GNNStreamingEmbeddingLayer extends Plugin {
-    // Model implementation details START
+    // ---------------------- MODEL ---------------------
     public SerializableModel<GNNBlock> model;
-    public Shape inputShape;
-    public MyParameterStore parameterStore = new MyParameterStore();
-    // Model Implementation details END
+    public transient Shape inputShape;
+    public transient MyParameterStore parameterStore;
+    // ---------------------- RUNTIME -------------------
     public boolean externalFeatures; // Do we expect external features or have random feature matrices
     public boolean ACTIVE = true; // Is the plugin currently running
 
-    public GNNStreamingEmbeddingLayer(Shape inputShape, SerializableModel<GNNBlock> model, boolean externalFeatures) {
+    public GNNStreamingEmbeddingLayer(SerializableModel<GNNBlock> model, boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
         this.model = model;
-        this.inputShape = inputShape;
     }
 
-
-    @Override
-    public void add() {
-        super.add();
-//        this.storage.withPlugin(new GNNEmbeddingLayerTraining());
-    }
 
     @Override
     public void open() {
         super.open();
-        this.parameterStore.setNDManager(this.storage.manager.getLifeCycleManager());
+        parameterStore = new MyParameterStore(storage.manager.getLifeCycleManager());
+        parameterStore.loadModel(model);
+        inputShape = model.describeInput().get(0).getValue();
     }
 
     @Override
@@ -219,7 +211,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         NDManager tmpManager = storage.manager.getTempManager().newSubManager();
         feature.attach(tmpManager);
         agg.attach(tmpManager);
-        NDArray res = model.getUpdateBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
+        NDArray res = model.getBlock().getUpdateBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
         res.attach(storage.manager.getTempManager());
         feature.attach(oldFeatureManager);
         agg.attach(oldAggManager);
@@ -237,7 +229,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         NDManager oldManager = feature.getManager();
         NDManager tmpManager = storage.manager.getTempManager().newSubManager();
         feature.attach(tmpManager);
-        NDArray res = model.getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
+        NDArray res = model.getBlock().getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
         res.attach(storage.manager.getTempManager());
         feature.attach(oldManager);
         tmpManager.close();

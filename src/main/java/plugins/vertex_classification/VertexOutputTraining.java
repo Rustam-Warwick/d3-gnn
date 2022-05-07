@@ -7,8 +7,8 @@ import iterations.MessageDirection;
 import iterations.RemoteFunction;
 import iterations.RemoteInvoke;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.OutputTag;
-import scala.Tuple2;
 
 import java.util.Map;
 import java.util.Objects;

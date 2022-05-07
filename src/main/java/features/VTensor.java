@@ -2,7 +2,7 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions
@@ -37,8 +37,8 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public VTensor deepCopy() {
-        NDArray copyArray = this.value._1.duplicate();
-        VTensor tmp = new VTensor(this.id, new Tuple2<>(copyArray, this.value._2), this.halo, this.master);
+        NDArray copyArray = this.value.f0.duplicate();
+        VTensor tmp = new VTensor(this.id, new Tuple2<>(copyArray, this.value.f1), this.halo, this.master);
         tmp.ts = this.ts;
         tmp.attachedTo = this.attachedTo;
         tmp.element = this.element;
@@ -50,11 +50,11 @@ public class VTensor extends Feature<Tuple2<NDArray, Integer>, NDArray> {
 
     @Override
     public NDArray getValue() {
-        return this.value._1;
+        return this.value.f0;
     }
 
     public boolean isReady(int modelVersion) {
         if (this.storage.layerFunction.isFirst()) return true;
-        return this.value._2 == modelVersion;
+        return this.value.f1 == modelVersion;
     }
 }

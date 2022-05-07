@@ -30,8 +30,8 @@ public class PrintVertexPlugin extends Plugin {
         }
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (registeredVertices.contains(feature.attachedTo._2)) {
-                System.out.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n", feature.getName(), feature.attachedTo._2, getPartId(), storage.layerFunction.getPosition(), element.getTimestamp());
+            if (registeredVertices.contains(feature.attachedTo.f1)) {
+                System.out.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), element.getTimestamp());
             }
         }
     }
@@ -41,8 +41,8 @@ public class PrintVertexPlugin extends Plugin {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
-            if (registeredVertices.contains(feature.attachedTo._2)) {
-                System.out.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n", feature.getName(), feature.attachedTo._2, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp());
+            if (registeredVertices.contains(feature.attachedTo.f1)) {
+                System.out.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp());
             }
         }
     }

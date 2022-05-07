@@ -1,10 +1,10 @@
 package elements;
 
-import scala.Serializable;
-import scala.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -115,8 +115,8 @@ public class GraphElement implements Serializable {
             Feature<?, ?> thisFeature = this.getFeature(feature.getName());
             if (Objects.nonNull(thisFeature)) {
                 Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
-                is_updated |= tmp._1();
-                memento.setFeature(feature.getName(), (Feature<?, ?>) tmp._2);
+                is_updated |= tmp.f0;
+                memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
             } else {
                 Feature<?, ?> featureCopy = feature.copy();
                 featureCopy.setStorage(storage);

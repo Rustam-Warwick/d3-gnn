@@ -8,9 +8,9 @@ import elements.Op;
 import elements.Vertex;
 import features.VTensor;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.Collector;
-import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;
