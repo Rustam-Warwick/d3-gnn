@@ -16,10 +16,8 @@ import java.util.List;
 import java.util.function.Function;
 
 public class SAGEConv extends GNNBlock{
-    int outFeatures;
 
     public SAGEConv(int outFeatures) {
-        this.outFeatures = outFeatures;
         // Update Block
         ParallelBlock updateBLock = new ParallelBlock(new Function<List<NDList>, NDList>() {
             @Override
@@ -36,7 +34,7 @@ public class SAGEConv extends GNNBlock{
                                 return new NDList(ndArrays.get(0));
                             }
                         }))
-                        .add(Linear.builder().setUnits(outFeatures).optBias(true).build())
+                        .add(Linear.builder().setUnits(outFeatures).optBias(false).build())
         );
         updateBLock.add(
                 new SequentialBlock()
@@ -46,7 +44,7 @@ public class SAGEConv extends GNNBlock{
                                 return new NDList(ndArrays.get(1));
                             }
                         }))
-                        .add(Linear.builder().setUnits(outFeatures).optBias(true).build())
+                        .add(Linear.builder().setUnits(outFeatures).optBias(false).build())
         );
         // Message block is just a forward
         LambdaBlock messageBlock = new LambdaBlock(new Function<NDList, NDList>() {

@@ -70,7 +70,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public long currentTimestamp() {
-        return ctx.timestamp();
+        return ctx.timestamp() == null?0:ctx.timestamp();
     }
 
     @Override

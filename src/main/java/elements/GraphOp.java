@@ -69,6 +69,12 @@ public class GraphOp {
         this.ts = ts;
     }
 
+    public boolean isTopologicalUpdate(){
+        return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
+    }
+
+
+
     public GraphOp copy() {
         return new GraphOp(this.op, this.part_id, this.element, this.direction, this.ts);
     }

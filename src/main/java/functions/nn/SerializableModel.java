@@ -12,8 +12,6 @@ import ai.djl.nn.Block;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.pytorch.engine.PtNDManager;
-import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
 import ai.djl.translate.Translator;
@@ -23,14 +21,16 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import org.objenesis.strategy.StdInstantiatorStrategy;
+import serializers.NDSerializer;
 import serializers.ParameterSerializer;
 import serializers.TensorSerializer;
 
+import javax.annotation.Nonnull;
 import java.io.*;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.file.Path;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 
 
@@ -43,15 +43,46 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
     public T block = null;
     public String modelName = null;
     public transient PairList<String, Shape> inputData = null;
+    protected transient NDManager manager;
+
     public SerializableModel(){
+
     }
     public SerializableModel(String modelName, Block block){
         this.block = (T) block;
         this.modelName = modelName;
         canonizeModel();
     }
+
+    public void setManager(@Nonnull NDManager manager) {
+        this.manager = manager;
+        getBlock().getParameters().forEach(item->{
+            if(item.getValue().isInitialized()){
+                item.getValue().getArray().detach();
+                item.getValue().getArray().attach(manager);
+            }
+        });
+    }
+
     @Override
     public void load(Path modelPath, String prefix, Map<String, ?> options) throws IOException, MalformedModelException {
+        File folder = new File(String.valueOf(modelPath));
+        FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
+        List<File> numpyParameterFiles = new ArrayList<>();
+        Collections.addAll(numpyParameterFiles, folder.listFiles(onlyNumpy));
+        numpyParameterFiles.sort(Comparator.comparing(File::toString));
+        getBlock().getParameters().forEach(param->{
+            try {
+                System.out.println(numpyParameterFiles.get(0));
+                InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
+                NDArray tmp = NDSerializer.decodeNumpy(getNDManager(), in);
+                param.getValue().setArray(tmp);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     @Override
@@ -96,7 +127,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
 
     @Override
     public NDManager getNDManager() {
-        return null;
+        return manager;
     }
 
     @Override
@@ -186,13 +217,6 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
         Model.super.quantize();
     }
 
-    /**
-     * Load state dict from the same pytorch model
-     * @param path of the directory with individual weights
-     */
-    public void loadPytorchStateDict(Path path){
-
-    }
 
     /**
      * Remove the randoom ids from the parameters of this block

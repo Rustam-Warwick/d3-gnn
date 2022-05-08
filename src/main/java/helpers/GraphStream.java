@@ -41,19 +41,17 @@ public class GraphStream {
     public double lambda = 1.8; // GNN operator explosion coefficient
     public StreamExecutionEnvironment env; // Stream environment
 
-    public GraphStream(short parallelism) {
-        this.parallelism = parallelism;
-        this.env = StreamExecutionEnvironment.getExecutionEnvironment();
-//        this.tableEnv = StreamTableEnvironment.create(this.env);
+    public GraphStream(StreamExecutionEnvironment env) {
+        this.env = env;
+        this.parallelism = (short) this.env.getParallelism();
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.setParallelism(this.parallelism);
         this.env.getConfig().setAutoWatermarkInterval(3000);
         this.env.getConfig().enableObjectReuse(); // Optimization
         this.env.setMaxParallelism(128);
         configureSerializers();
     }
 
-    public void configureSerializers() {
+    private void configureSerializers() {
         env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
@@ -68,29 +66,6 @@ public class GraphStream {
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
         env.registerType(NewMeanAggregator.class);
-    }
-
-    /**
-     * Read a socket channel and parse the data
-     *
-     * @param parser FlatMap Parser
-     * @param host
-     * @param port
-     * @return
-     */
-    public DataStream<GraphOp> readSocket(FlatMapFunction<String, GraphOp> parser, String host, int port) {
-        return this.env.socketTextStream(host, port).startNewChain().flatMap(parser).setParallelism(1).name("Input Stream Parser");
-    }
-
-    /**
-     * Read the file and parse it
-     *
-     * @param parser   MapFunction to parse the incoming Stringsto GraphElements
-     * @param fileName Name of the file in local or distributed file system
-     * @return Datastream of GraphOps
-     */
-    public DataStream<GraphOp> readTextFile(FlatMapFunction<String, GraphOp> parser, String fileName) {
-        return env.readTextFile(fileName).flatMap(parser).name("Input Stream Parser");
     }
 
     /**
@@ -146,19 +121,23 @@ public class GraphStream {
     /**
      * Start of the GNN Chain
      *
-     * @param topologyUpdates External System updates
+     * @param allUpdates External System updates
      * @param storages        List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
-    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> topologyUpdates, List<BaseStorage> storages) {
+    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
         this.layers = (short) storages.size();
+        DataStream<GraphOp> rawTopologicalUpdates = allUpdates.map(item->{
+           if(item.element != null) item.element.features.clear();
+           return item;
+        });
         assert layers > 0;
         DataStream<GraphOp> lastLayerInputs = null;
         for (BaseStorage storage : storages) {
             if (lastLayerInputs == null) {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates, storage);
+                lastLayerInputs = gnnLayerNewIteration(allUpdates, storage);
             } else {
-                lastLayerInputs = gnnLayerNewIteration(topologyUpdates.union(lastLayerInputs), storage);
+                lastLayerInputs = gnnLayerNewIteration(rawTopologicalUpdates.union(lastLayerInputs), storage);
             }
         }
         return lastLayerInputs;
@@ -202,7 +181,7 @@ public class GraphStream {
      * @return Output GraphStream with training features
      */
     public DataStream<GraphOp> trainTestSplit(DataStream<GraphOp> inputStream, ProcessFunction<GraphOp, GraphOp> splitter) {
-        return inputStream.process(splitter);
+        return inputStream.process(splitter).setParallelism(1);
     }
 
     public DataStream<GraphOp> gnnLoss(DataStream<GraphOp> trainingStream, ProcessFunction<GraphOp, GraphOp> lossFunction) {

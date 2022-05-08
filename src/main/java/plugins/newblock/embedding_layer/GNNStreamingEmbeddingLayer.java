@@ -35,6 +35,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
+        model.setManager(storage.manager.getLifeCycleManager());
         parameterStore = new MyParameterStore(storage.manager.getLifeCycleManager());
         parameterStore.loadModel(model);
         inputShape = model.describeInput().get(0).getValue();
@@ -43,6 +44,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
     @Override
     public void close() {
         super.close();
+        model.close();
     }
 
     @Override
@@ -68,6 +70,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
             if ("feature".equals(feature.getName()) && ACTIVE){
+                ((Tensor) element).getValue().attach(storage.manager.getLifeCycleManager()); // Attach to life cycle manager
                 reduceOutEdges((Vertex) feature.getElement());
             }
         }
@@ -179,27 +182,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
     }
 
     /**
-     * Forward those Values that have modified in between this and previous watermark
-     * @param timestamp timestamp of the watermark
-     */
-    @Override
-    public void onWatermark(long timestamp) {
-        super.onWatermark(timestamp);
-        if(timestamp % 4 == 3 && ACTIVE){
-            for(Vertex v: storage.getVertices()){
-                if(updateReady(v)){
-                    long ts = Math.max(v.getFeature("agg").getTimestamp(), v.getFeature("feature").getTimestamp());
-                    if(ts > storage.layerFunction.getTimerService().currentWatermark() && ts <= timestamp){
-                        forward(v);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
-     *
      * @param feature  Source Feature
      * @param agg      Aggregator Feature
      * @param training training enabled

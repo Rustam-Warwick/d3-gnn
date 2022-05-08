@@ -97,7 +97,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
      */
     public void loadModel(Model model) {
         model.getBlock().getParameters().forEach(item -> {
-            item.getValue().getArray().attach(getManager()); // Attach to this manager
             this.parameterArrays.putIfAbsent(item.getValue().getId(), item.getValue().getArray());
             this.gradientArrays.putIfAbsent(item.getValue().getId(), new Tuple2<NDArray, Integer>(item.getValue().getArray().zerosLike(), 0));
         });
@@ -176,16 +175,21 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        NDArray valueParam = this.parameterArrays.get(parameter.getId());
-        if (valueParam.hasGradient() && !training) {
-            NDArray grad = valueParam.getGradient();
-            meanAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
-            valueParam.setRequiresGradient(false);
-        } else if (!valueParam.hasGradient() && training) {
-            valueParam.setRequiresGradient(true);
+        if(parameter!=null && parameterArrays.containsKey(parameter.getId())){
+            NDArray valueParam = this.parameterArrays.get(parameter.getId());
+            if (valueParam.hasGradient() && !training) {
+                NDArray grad = valueParam.getGradient();
+                meanAccumulateGrads(new Tuple2<>(grad, 1), parameter.getId());
+                valueParam.setRequiresGradient(false);
+            } else if (!valueParam.hasGradient() && training) {
+                valueParam.setRequiresGradient(true);
+            }
+
+            return valueParam;
+        }else{
+            return null;
         }
 
-        return valueParam;
     }
 
     @Override

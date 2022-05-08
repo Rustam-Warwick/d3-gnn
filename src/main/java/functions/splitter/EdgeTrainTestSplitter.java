@@ -1,5 +1,6 @@
 package functions.splitter;
 
+import elements.ElementType;
 import elements.Feature;
 import elements.GraphOp;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -23,7 +24,7 @@ public class EdgeTrainTestSplitter extends ProcessFunction<GraphOp, GraphOp> {
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         double valueRandom = Math.random();
-        if (valueRandom < p) {
+        if (value.element.elementType() == ElementType.EDGE && valueRandom < p) {
             value.element.setFeature("label", new Feature<Integer, Integer>(1));
             ctx.output(trainOutput, value);
             return;

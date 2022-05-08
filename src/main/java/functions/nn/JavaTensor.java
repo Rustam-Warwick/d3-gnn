@@ -10,7 +10,8 @@ import java.nio.ByteBuffer;
 
 /**
  * Proxy wrapper for NDArray. NDArray that need to be managed by JVM should be wrapped by this
- * Note that all operations just return a normal NDArray
+ * In other words if your want NDArray to be GC-ed and closed by JVM this should be the class of choice
+ * @implNote All non-inplace tensor operations will still return a normal Tensor so you have to manually manage all tensors
  * This is done because some tensors are intrinsic to the system and shouldn't be garbadge collected at all, like backward pass gradients and etc.
  */
 public class JavaTensor extends PtNDArray {
