@@ -2,6 +2,7 @@ package functions.gnn_layers;
 
 import elements.GraphOp;
 import iterations.MessageDirection;
+import operators.BaseWrapperOperator;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -10,16 +11,13 @@ import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
-    final OutputTag<GraphOp> forwardOutput = new OutputTag<GraphOp>("forward") {
-    };
-    final OutputTag<GraphOp> backwardOutput = new OutputTag<GraphOp>("backward") {
-    };
     public BaseStorage storage;
     public short position;
     public short numLayers;
     public transient short currentPart;
     public transient Collector<GraphOp> collector;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
+    public transient BaseWrapperOperator.Context baseWrapperContext;
 
     public StreamingGNNLayerFunction(BaseStorage storage, short position, short numLayers) {
         this.position = position;
@@ -34,8 +32,28 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
+    public void setCurrentPart(short part) {
+        this.currentPart = part;
+    }
+
+    @Override
     public short getPosition() {
         return position;
+    }
+
+    @Override
+    public void setPosition(short position) {
+        this.position = position;
+    }
+
+    @Override
+    public BaseWrapperOperator.Context getWrapperContext() {
+        return baseWrapperContext;
+    }
+
+    @Override
+    public void setWrapperContext(BaseWrapperOperator.Context context) {
+        this.baseWrapperContext = context;
     }
 
     @Override
@@ -44,14 +62,19 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
+    public void setNumLayers(short numLayers) {
+        this.numLayers = numLayers;
+    }
+
+    @Override
     public void message(GraphOp op) {
         try {
             if (op.direction == MessageDirection.BACKWARD) {
-                ctx.output(backwardOutput, op);
+                ctx.output(BaseWrapperOperator.backwardOutputTag, op);
             } else if (op.direction == MessageDirection.FORWARD) {
-                ctx.output(forwardOutput, op);
-            } else {
                 collector.collect(op);
+            } else {
+                ctx.output(BaseWrapperOperator.iterateOutputTag, op);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -66,6 +89,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public BaseStorage getStorage() {
         return storage;
+    }
+
+    @Override
+    public void setStorage(BaseStorage storage) {
+        this.storage = storage;
     }
 
     @Override
@@ -98,7 +126,9 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        this.currentPart = Short.parseShort(ctx.getCurrentKey());
+        setCurrentPart(Short.parseShort(ctx.getCurrentKey()));
+        if (this.collector == null) this.collector = out;
+        if (this.ctx == null) this.ctx = ctx;
         process(value);
     }
 }

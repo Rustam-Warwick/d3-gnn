@@ -4,6 +4,7 @@ import elements.GraphElement;
 import elements.GraphOp;
 import elements.ReplicaState;
 import iterations.Rmi;
+import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
@@ -21,15 +22,28 @@ public interface GNNLayerFunction extends RichFunction {
      */
     short getCurrentPart();
 
+    void setCurrentPart(short part);
+
     /**
      * @return Horizontal Position
      */
     short getPosition();
 
+    void setPosition(short position);
+
     /**
      * @return Number of GNN Layers
      */
     short getNumLayers();
+
+    void setNumLayers(short numLayers);
+
+    /**
+     * BaseWrapper Context for sending broadCastElements
+     */
+    BaseWrapperOperator.Context getWrapperContext();
+
+    void setWrapperContext(BaseWrapperOperator.Context context);
 
     /**
      * Send message. Should handle BACKWARD, FORWARD and ITERATE Messages separately
@@ -48,6 +62,8 @@ public interface GNNLayerFunction extends RichFunction {
      */
     BaseStorage getStorage();
 
+    void setStorage(BaseStorage storage);
+
     /**
      * @return TimerService fro managing timers and watermarks and stuff like that
      */
@@ -57,7 +73,6 @@ public interface GNNLayerFunction extends RichFunction {
      * Get the current timestamp being processed
      */
     long currentTimestamp();
-
 
     /**
      * @return Is this the first GNN Layer

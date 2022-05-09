@@ -7,17 +7,16 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
+import datasets.CoraFull;
+import datasets.Dataset;
 import elements.GraphOp;
 import functions.nn.MyActivations;
 import functions.nn.SerializableModel;
-import functions.nn.gnn.GNNBlock;
 import functions.nn.gnn.SAGEConv;
-import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
-import plugins.newblock.embedding_layer.GNNStreamingEmbeddingLayer;
 import storage.TupleStorage;
 
 import java.io.IOException;
@@ -53,9 +52,9 @@ public class Main {
 //        SerializableModel<SequentialBlock> model = myPartitionedModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
-        DataStream<GraphOp> dataset = env.socketTextStream("localhost", 9090).flatMap(new MovieLensStreamParser());
         GraphStream gs = new GraphStream(env);
-        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF());
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/edges"), Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/vertices"));
+        DataStream<GraphOp> partitioned = gs.partition(dataset.build(env), new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
                 new TupleStorage(),

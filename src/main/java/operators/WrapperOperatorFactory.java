@@ -6,23 +6,26 @@ import org.apache.flink.streaming.api.operators.*;
 
 public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp> {
     protected StreamOperator<GraphOp> innerOperator;
-    protected IterationID iteraitonId;
-    public WrapperOperatorFactory(StreamOperator<GraphOp> innerOperatorFactory, IterationID iterationId){
+    protected IterationID iterationId;
+
+    public WrapperOperatorFactory(StreamOperator<GraphOp> innerOperatorFactory, IterationID iterationId) {
         this.innerOperator = innerOperatorFactory;
-        this.iteraitonId = iterationId;
+        this.iterationId = iterationId;
     }
 
     @Override
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
-        if(innerOperator.getClass().isAssignableFrom(KeyedProcessOperator.class)){
-            return (T) new OneInputUDFWrapperOperator(parameters, new SimpleUdfStreamOperatorFactory((KeyedProcessOperator) innerOperator), iteraitonId);
+        StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
+        if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
+            return (T) new OneInputUDFWrapperOperator(parameters, factory, iterationId);
         }
+
         return null;
     }
 
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
-        if(innerOperator.getClass().isAssignableFrom(KeyedProcessOperator.class)){
+        if (innerOperator.getClass().isAssignableFrom(KeyedProcessOperator.class)) {
             return KeyedProcessOperator.class;
         }
         return null;

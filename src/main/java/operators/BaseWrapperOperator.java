@@ -2,11 +2,15 @@ package operators;
 
 
 import elements.GraphOp;
+import helpers.MyOutputReflectionContext;
 import org.apache.flink.api.common.operators.MailboxExecutor;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
+import org.apache.flink.iteration.broadcast.OutputReflectionContext;
 import org.apache.flink.iteration.operator.OperatorUtils;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.execution.Environment;
@@ -17,24 +21,34 @@ import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
+import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
+import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * Operator that Wraps around other operators and implements some common logic
- * @see OneInputUDFWrapperOperator single wrapping
+ * Operator that Wraps around another operators and implements some common logic
+ *
+ * @implNote This operator is also acting as HeadOperator for the feedback streams
+ * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>> {
-
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
-
+    public static OutputTag<GraphOp> iterateOutputTag = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> backwardOutputTag = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
     protected final StreamOperatorParameters<GraphOp> parameters;
 
     protected final StreamConfig streamConfig;
@@ -42,30 +56,26 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final StreamTask<?, ?> containingTask;
 
     protected final Output<StreamRecord<GraphOp>> output;
-
     protected final StreamOperatorFactory<GraphOp> operatorFactory;
-
     protected final T wrappedOperator;
-
     protected final IterationID iterationId;
-
     protected final MailboxExecutor mailboxExecutor;
+    protected final Context context;
+    /**
+     * Metric group for the operator.
+     */
+    protected final InternalOperatorMetricGroup metrics;
+    protected final String uniqueSenderId;
+    protected Output<StreamRecord<GraphOp>>[] internalOutputs;
     // --------------- proxy ---------------------------
 
 //    protected final ProxyOutput<T> proxyOutput;
 
     // --------------- Metrics ---------------------------
-
-    /**
-     * Metric group for the operator.
-     */
-    protected final InternalOperatorMetricGroup metrics;
+    protected BroadcastOutput<GraphOp>[] internalBroadcastOutputs;
 
     // ------------- Iteration Related --------------------
-
-    protected final String uniqueSenderId;
-
-    protected final BroadcastOutput<GraphOp> broadCastOutput;
+    protected OutputTag<GraphOp>[] internalOutputTags;
 
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
@@ -84,19 +94,23 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
                                 operatorFactory,
                                 (StreamTask) parameters.getContainingTask(),
                                 streamConfig,
-                                output,
+                                new ProxyOutput<>(output),
                                 parameters.getOperatorEventDispatcher())
                                 .f0;
-//        this.proxyOutput = new ProxyOutput<>(output);
 
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
 
         this.uniqueSenderId =
                 OperatorUtils.getUniqueSenderId(
                         streamConfig.getOperatorID(), containingTask.getIndexInSubtaskGroup());
-        this.broadCastOutput =
-                BroadcastOutputFactory.createBroadcastOutput(
-                        output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
+
+        try {
+            this.createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
+            this.context = new Context();
+        } catch (Exception e) {
+            throw new RuntimeException("OutputTags cannot be properly set up");
+        }
+
 
     }
 
@@ -165,13 +179,13 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     }
 
     @Override
-    public void setCurrentKey(Object key) {
-        wrappedOperator.setCurrentKey(key);
+    public Object getCurrentKey() {
+        return wrappedOperator.getCurrentKey();
     }
 
     @Override
-    public Object getCurrentKey() {
-        return wrappedOperator.getCurrentKey();
+    public void setCurrentKey(Object key) {
+        wrappedOperator.setCurrentKey(key);
     }
 
     public T getWrappedOperator() {
@@ -211,5 +225,127 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         FeedbackChannel<StreamRecord<GraphOp>> channel = broker.getChannel(key);
         OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
     }
+
+    /**
+     * Finding and creating the individual outputs
+     *
+     * @throws NoSuchMethodException
+     * @throws InvocationTargetException
+     * @throws IllegalAccessException
+     */
+    public void createIndividualOutputs(
+            Output<StreamRecord<GraphOp>> output, Counter numRecordsOut) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        Method createInternalBroadcastOutput = BroadcastOutputFactory.class.getDeclaredMethod("createInternalBroadcastOutput", Output.class, OutputReflectionContext.class);
+        createInternalBroadcastOutput.setAccessible(true);
+        Output<StreamRecord<GraphOp>>[] rawOutputs;
+        BroadcastOutput<GraphOp>[] rawBroadcastOutputs;
+        OutputTag<GraphOp>[] rawOutputTags;
+        MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
+
+        List<BroadcastOutput<GraphOp>> internalOutputs = new ArrayList<>();
+        if (myOutputReflectionContext.isBroadcastingOutput(output)) {
+            rawOutputs =
+                    myOutputReflectionContext.getBroadcastingInternalOutputs(output);
+        } else {
+            rawOutputs = new Output[]{output};
+        }
+        rawBroadcastOutputs = new BroadcastOutput[rawOutputs.length];
+        rawOutputTags = new OutputTag[rawOutputs.length];
+        for (int i = 0; i < rawOutputs.length; i++) {
+            if (myOutputReflectionContext.isRecordWriterOutput(rawOutputs[i])) {
+                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getRecordWriterOutputTag(rawOutputs[i]);
+                rawOutputTags[i] = outputTag;
+            } else {
+                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getChainingOutputTag(rawOutputs[i]);
+                rawOutputTags[i] = outputTag;
+            }
+            rawBroadcastOutputs[i] = (BroadcastOutput<GraphOp>) createInternalBroadcastOutput.invoke(null, rawOutputs[i], myOutputReflectionContext);
+        }
+        this.internalOutputs = rawOutputs;
+        this.internalBroadcastOutputs = rawBroadcastOutputs;
+        this.internalOutputTags = rawOutputTags;
+        createInternalBroadcastOutput.setAccessible(false);
+    }
+
+    /**
+     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
+     *
+     * @param <T>
+     */
+    public static class ProxyOutput<T> implements Output<T> {
+        Output<T> output;
+
+        ProxyOutput(Output<T> output) {
+            this.output = output;
+        }
+
+        @Override
+        public void emitWatermark(Watermark mark) {
+            // Pass because watermarks should be emitted by the wrapper operators
+        }
+
+        @Override
+        public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
+            // Pass because watermarkStatuses should be managed by the wrapper operators
+        }
+
+        @Override
+        public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
+            output.collect(outputTag, record);
+        }
+
+        @Override
+        public void emitLatencyMarker(LatencyMarker latencyMarker) {
+            // Pass because watermarkStatuses should be managed by the wrapper operators
+        }
+
+        @Override
+        public void collect(T record) {
+            output.collect(record);
+        }
+
+        @Override
+        public void close() {
+            output.close();
+        }
+    }
+
+    /**
+     * Context is used to have more fine grained control over where to send watermarks
+     */
+    public class Context {
+        protected void emitWatermark(OutputTag<?> outputTag, Watermark e) {
+
+        }
+
+        protected void emitWatermark(Watermark e) {
+
+        }
+
+        public void broadcastElement(OutputTag<GraphOp> outputTag, GraphOp el) {
+
+        }
+
+        public void broadcastElement(GraphOp el) {
+
+        }
+
+        protected void emitWatermarkStatus(OutputTag<?> outputTag, Watermark e) {
+
+        }
+
+        protected void emitWatermarkStatus(Watermark e) {
+
+        }
+
+        protected void emitLatencyMarker(OutputTag<?> outputTag, LatencyMarker m) {
+
+        }
+
+        protected void emitLatencyMarker(LatencyMarker m) {
+        }
+
+    }
+
 
 }

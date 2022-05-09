@@ -11,8 +11,9 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.nn.JavaTensor;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
-import operators.*;
-import org.apache.commons.math3.analysis.function.Sin;
+import operators.BaseWrapperOperator;
+import operators.SimpleTailOperator;
+import operators.WrapperOperatorFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -21,10 +22,6 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
-import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
-import org.apache.flink.streaming.api.operators.SimpleUdfStreamOperatorFactory;
-import org.apache.flink.streaming.api.transformations.OneInputTransformation;
-import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
 import serializers.ParameterSerializer;
 import serializers.TensorSerializer;
@@ -95,26 +92,21 @@ public class GraphStream {
 
         KeyedStream<GraphOp, String> keyedLast = topologyUpdates
                 .keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess),localIterationId)).setParallelism(thisParallelism);
-//        SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
-        DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess), localIterationId)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.iterateOutputTag).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 
-        iterations.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
 
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
-            DataStream<GraphOp> backFilter = iterations.getSideOutput(new OutputTag<>("backward", TypeInformation.of(GraphOp.class)));
+            DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.backwardOutputTag);
             DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
         this.position_index++;
         this.lastIterationID = localIterationId;
-        return iterations
-                .getSideOutput(new OutputTag<>("forward", TypeInformation.of(GraphOp.class)))
-                .forward()
-                .transform("Filter Watermarks", TypeInformation.of(GraphOp.class), new WatermarkTimestampResolverOperator())
-                .setParallelism(thisParallelism);
+        return forward;
     }
 
 
