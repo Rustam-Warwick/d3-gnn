@@ -140,7 +140,7 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         if (resolveWatermarks) {
-            short iterationNumber =  (short) (mark.getTimestamp() % 4);
+            short iterationNumber = (short) (mark.getTimestamp() % 4);
             if (iterationNumber < 3) {
                 GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
                 channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));

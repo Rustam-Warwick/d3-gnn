@@ -2,31 +2,30 @@ package helpers;
 
 import aggregators.BaseAggregator;
 import aggregators.NewMeanAggregator;
-import ai.djl.ndarray.NDArray;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
 import features.Set;
 import features.VTensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import functions.selectors.ElementForPartKeySelector;
+import functions.nn.JavaTensor;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
-import operators.GNNKeyedProcessOperator;
-import operators.SimpleTailOperator;
-import operators.WatermarkTimestampResolverOperator;
-import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.MapFunction;
+import operators.*;
+import org.apache.commons.math3.analysis.function.Sin;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
+import org.apache.flink.streaming.api.operators.SimpleOperatorFactory;
+import org.apache.flink.streaming.api.operators.SimpleUdfStreamOperatorFactory;
+import org.apache.flink.streaming.api.transformations.OneInputTransformation;
 import org.apache.flink.util.OutputTag;
 import partitioner.BasePartitioner;
-import functions.nn.JavaTensor;
 import serializers.ParameterSerializer;
 import serializers.TensorSerializer;
 import storage.BaseStorage;
@@ -94,10 +93,10 @@ public class GraphStream {
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
-        DataStream<GraphOp> keyedLast = topologyUpdates
+        KeyedStream<GraphOp, String> keyedLast = topologyUpdates
                 .keyBy(new PartKeySelector());
-
-        SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess),localIterationId)).setParallelism(thisParallelism);
+//        SingleOutputStreamOperator<GraphOp> iterations = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new GNNKeyedProcessOperator(storageProcess, localIterationId)).setParallelism(thisParallelism);
         DataStream<Void> iterationHandler = iterations.keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
 
         iterations.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
@@ -118,18 +117,19 @@ public class GraphStream {
                 .setParallelism(thisParallelism);
     }
 
+
     /**
      * Start of the GNN Chain
      *
      * @param allUpdates External System updates
-     * @param storages        List of Storages with corresponding plugins
+     * @param storages   List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
     public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
         this.layers = (short) storages.size();
-        DataStream<GraphOp> rawTopologicalUpdates = allUpdates.map(item->{
-           if(item.element != null) item.element.features.clear();
-           return item;
+        DataStream<GraphOp> rawTopologicalUpdates = allUpdates.map(item -> {
+            if (item.element != null) item.element.features.clear();
+            return item;
         });
         assert layers > 0;
         DataStream<GraphOp> lastLayerInputs = null;

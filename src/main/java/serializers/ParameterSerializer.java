@@ -1,6 +1,5 @@
 package serializers;
 
-import ai.djl.MalformedModelException;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
@@ -16,6 +15,7 @@ import java.lang.reflect.Field;
 public class ParameterSerializer extends Serializer<Parameter> {
     private static final NDManager manager = NDManager.newBaseManager();
     private static Field idField;
+
     static {
         try {
             Field id = Parameter.class.getDeclaredField("id");
@@ -25,6 +25,7 @@ public class ParameterSerializer extends Serializer<Parameter> {
             e.printStackTrace();
         }
     }
+
     @Override
     public void write(Kryo kryo, Output output, Parameter object) {
         if (!object.isInitialized()) {

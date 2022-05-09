@@ -8,10 +8,10 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.Tensor;
+import functions.nn.JavaTensor;
 import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
-import functions.nn.JavaTensor;
 
 import java.util.Objects;
 
@@ -94,7 +94,7 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
-            if ("feature".equals(feature.getName()) && ACTIVE){
+            if ("feature".equals(feature.getName()) && ACTIVE) {
                 reduceOutEdges((Vertex) feature.getElement());
             }
         }
@@ -110,7 +110,7 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 forward((Vertex) feature.getElement());
             }
-            if("agg".equals(feature.getName()) && ACTIVE){
+            if ("agg".equals(feature.getName()) && ACTIVE) {
                 forward((Vertex) feature.getElement());
             }
         }
@@ -118,6 +118,7 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
+     *
      * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
@@ -125,7 +126,7 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(aggregatorShape);
             element.setFeature("agg", new NewMeanAggregator(new JavaTensor(aggStart), true), storage.layerFunction.currentTimestamp());
 
-            if (!externalFeatures && storage.layerFunction.isFirst()){
+            if (!externalFeatures && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(featureShape); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(new JavaTensor(embeddingRandom)), storage.layerFunction.currentTimestamp());
@@ -136,6 +137,7 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
     /**
      * Push the embedding of this vertex to the next layer
      * After first layer, this is only fushed if agg and features are in sync
+     *
      * @param v Vertex
      */
     @SuppressWarnings("all")
@@ -158,65 +160,67 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-            Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-            NDArray msgOld = null;
-            NDArray msgNew = null;
-            for (Edge edge : outEdges) {
-                if (this.messageReady(edge)) {
-                    if (Objects.isNull(msgOld)) {
-                        msgOld = this.message(oldFeature.getValue(), false);
-                        msgNew = this.message(newFeature.getValue(), false);
-                    }
-                    new RemoteInvoke()
-                            .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                            .where(MessageDirection.ITERATE)
-                            .method("replace")
-                            .hasUpdate()
-                            .withTimestamp(edge.getTimestamp())
-                            .addDestination(edge.dest.masterPart())
-                            .withArgs(msgNew, msgOld)
-                            .buildAndRun(storage);
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        NDArray msgOld = null;
+        NDArray msgNew = null;
+        for (Edge edge : outEdges) {
+            if (this.messageReady(edge)) {
+                if (Objects.isNull(msgOld)) {
+                    msgOld = this.message(oldFeature.getValue(), false);
+                    msgNew = this.message(newFeature.getValue(), false);
                 }
+                new RemoteInvoke()
+                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(MessageDirection.ITERATE)
+                        .method("replace")
+                        .hasUpdate()
+                        .withTimestamp(edge.getTimestamp())
+                        .addDestination(edge.dest.masterPart())
+                        .withArgs(msgNew, msgOld)
+                        .buildAndRun(storage);
             }
+        }
     }
 
     /**
      * Given vertex reduce all the out edges aggregator values
+     *
      * @param vertex Vertex which out edges should be reduces
      */
     public void reduceOutEdges(Vertex vertex) {
-            Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
-            NDArray msg = null;
-            for (Edge edge : outEdges) {
-                if (this.messageReady(edge)) {
-                    if (Objects.isNull(msg)) {
-                        msg = this.message((NDArray) vertex.getFeature("feature").getValue(), false);
-                    }
-                    new RemoteInvoke()
-                            .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                            .where(MessageDirection.ITERATE)
-                            .method("reduce")
-                            .hasUpdate()
-                            .addDestination(edge.dest.masterPart())
-                            .withTimestamp(edge.getTimestamp())
-                            .withArgs(msg, 1)
-                            .buildAndRun(storage);
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
+        NDArray msg = null;
+        for (Edge edge : outEdges) {
+            if (this.messageReady(edge)) {
+                if (Objects.isNull(msg)) {
+                    msg = this.message((NDArray) vertex.getFeature("feature").getValue(), false);
                 }
+                new RemoteInvoke()
+                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(MessageDirection.ITERATE)
+                        .method("reduce")
+                        .hasUpdate()
+                        .addDestination(edge.dest.masterPart())
+                        .withTimestamp(edge.getTimestamp())
+                        .withArgs(msg, 1)
+                        .buildAndRun(storage);
             }
+        }
     }
 
     /**
      * Forward those Values that have modified in between this and previous watermark
+     *
      * @param timestamp timestamp of the watermark
      */
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        if(timestamp % 4 == 3 && ACTIVE){
-            for(Vertex v: storage.getVertices()){
-                if(updateReady(v)){
+        if (timestamp % 4 == 3 && ACTIVE) {
+            for (Vertex v : storage.getVertices()) {
+                if (updateReady(v)) {
                     long ts = Math.max(v.getFeature("agg").getTimestamp(), v.getFeature("feature").getTimestamp());
-                    if(ts > storage.layerFunction.getTimerService().currentWatermark() && ts <= timestamp){
+                    if (ts > storage.layerFunction.getTimerService().currentWatermark() && ts <= timestamp) {
                         forward(v);
                     }
                 }
@@ -248,7 +252,8 @@ public abstract class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
-     * @param feature Source Vertex feature
+     *
+     * @param feature  Source Vertex feature
      * @param training Should we construct the training graph
      * @return Message Tensor to be send to the aggregator
      */

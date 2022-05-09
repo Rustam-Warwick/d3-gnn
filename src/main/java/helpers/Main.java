@@ -5,13 +5,8 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Activation;
-import ai.djl.nn.Block;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.training.initializer.Initializer;
-import datasets.CoraFull;
-import datasets.Dataset;
 import elements.GraphOp;
 import functions.nn.MyActivations;
 import functions.nn.SerializableModel;
@@ -19,17 +14,14 @@ import functions.nn.gnn.GNNBlock;
 import functions.nn.gnn.SAGEConv;
 import functions.parser.MovieLensStreamParser;
 import functions.splitter.EdgeTrainTestSplitter;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.newblock.embedding_layer.GNNStreamingEmbeddingLayer;
-import plugins.vertex_classification.VertexOutputInference;
 import storage.TupleStorage;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 import java.util.function.Function;
 
@@ -58,22 +50,19 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        SerializableModel<SequentialBlock> model = myPartitionedModel();
+//        SerializableModel<SequentialBlock> model = myPartitionedModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
-        Dataset dataset = new CoraFull(
-                Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/edges"),
-                Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/vertices")
-        );
+        DataStream<GraphOp> dataset = env.socketTextStream("localhost", 9090).flatMap(new MovieLensStreamParser());
         GraphStream gs = new GraphStream(env);
-        DataStream<GraphOp> partitioned = gs.partition(dataset.build(env), new HDRF());
+        DataStream<GraphOp> partitioned = gs.partition(dataset, new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new TupleStorage().withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<GNNBlock>("gnn", (GNNBlock) model.getBlock().getChildren().get(0).getValue()), true)),
-                new TupleStorage().withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<GNNBlock>("gnn", (GNNBlock) model.getBlock().getChildren().get(1).getValue()), true))
+                new TupleStorage(),
+                new TupleStorage()
         ));
-        gs.gnnLayerNewIteration(embeddings, new TupleStorage().withPlugin(new VertexOutputInference(new SerializableModel<>("outputgnn", model.getBlock().getChildren().get(2).getValue()))));
-//        embeddings.print();
+//        gs.gnnLayerNewIteration(embeddings, new TupleStorage().withPlugin(new VertexOutputInference(new SerializableModel<>("outputgnn", model.getBlock().getChildren().get(2).getValue()))));
+        embeddings.print();
 
 ////
 //        DataStream<GraphOp> trainData = ((SingleOutputStreamOperator<GraphOp>) splittedData).getSideOutput(new OutputTag<>("training", TypeInformation.of(GraphOp.class)));

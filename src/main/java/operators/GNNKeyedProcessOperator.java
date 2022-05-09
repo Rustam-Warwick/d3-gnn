@@ -5,9 +5,10 @@ import elements.Op;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.iteration.IterationID;
-import org.apache.flink.iteration.broadcast.BroadcastOutput;
-import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.operator.OperatorUtils;
+import org.apache.flink.runtime.jobgraph.tasks.TaskOperatorEventGateway;
+import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
+import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -35,7 +36,7 @@ import java.util.concurrent.Executor;
 public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphOp, GraphOp> implements FeedbackConsumer<StreamRecord<GraphOp>> {
     private static final long serialVersionUID = 1L;
     private final IterationID iterationId;
-    private transient List<String> thisOperatorKeys;
+    private transient List<String> thisOperatorKeys; // Will need this to send messages to plugins
     private MailboxExecutor mailboxExecutor;
     private boolean watermarkInIteration = false;
     private Long waitingWatermark = null;
@@ -74,6 +75,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
                 });
     }
 
+
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().op == Op.WATERMARK) {
@@ -81,10 +83,6 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
             Watermark newWatermark = new Watermark(element.getTimestamp() + 1);
             element.setTimestamp(newWatermark.getTimestamp());
             element.getValue().setTimestamp(newWatermark.getTimestamp());
-            for(String key: thisOperatorKeys){
-                setCurrentKey(key);
-                processElement(element);
-            }
             if (iterationNumber < 2) {
                 // Still need to traverse the stream before updating the timer
                 output.emitWatermark(newWatermark);
@@ -94,7 +92,7 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
                 watermarkInIteration = false;
                 System.out.format("Time taken to complete watermark sync is %s\n", getRuntimeContext().getProcessingTimeService().getCurrentProcessingTime() - iterationStartTime);
                 iterationStartTime = 0;
-                if(waitingWatermark != null){
+                if (waitingWatermark != null) {
                     processWatermark(new Watermark(waitingWatermark));
                     waitingWatermark = null;
                 }
@@ -105,28 +103,23 @@ public class GNNKeyedProcessOperator extends KeyedProcessOperator<String, GraphO
         }
     }
 
-
     /**
      * Watermarks received should be three times all-reduces in this layer
      * This ensures consistency for longest graph operation
      * Actual watermarks are sent in processFeedback function
      * Also calls ingests PRE_WATERMARK event into the stream
+     *
      * @param mark Watermark
      */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(watermarkInIteration){
-            if(waitingWatermark == null) waitingWatermark = mark.getTimestamp();
+        if (watermarkInIteration) {
+            if (waitingWatermark == null) waitingWatermark = mark.getTimestamp();
             else waitingWatermark = Math.max(waitingWatermark, mark.getTimestamp());
-        }else {
+        } else {
+            watermarkInIteration = true;
             iterationStartTime = getRuntimeContext().getProcessingTimeService().getCurrentProcessingTime();
             Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
-            GraphOp preWatermark = new GraphOp(Op.WATERMARK, null, iterationWatermark.getTimestamp());
-            StreamRecord<GraphOp> element = new StreamRecord<>(preWatermark, iterationWatermark.getTimestamp());
-            for (String key : thisOperatorKeys) {
-                setCurrentKey(key);
-                processElement(element);
-            }
             output.emitWatermark(iterationWatermark); // Only output, do not register it
         }
     }

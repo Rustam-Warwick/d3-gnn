@@ -1,7 +1,6 @@
 package functions.nn;
 
 import ai.djl.Device;
-import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
@@ -11,7 +10,7 @@ import ai.djl.training.ParameterStore;
 import ai.djl.util.Pair;
 import org.apache.flink.api.java.tuple.Tuple2;
 
-import java.io.*;
+import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
@@ -175,7 +174,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     @Override
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        if(parameter!=null && parameterArrays.containsKey(parameter.getId())){
+        if (parameter != null && parameterArrays.containsKey(parameter.getId())) {
             NDArray valueParam = this.parameterArrays.get(parameter.getId());
             if (valueParam.hasGradient() && !training) {
                 NDArray grad = valueParam.getGradient();
@@ -186,7 +185,7 @@ public class MyParameterStore extends ParameterStore implements Serializable {
             }
 
             return valueParam;
-        }else{
+        } else {
             return null;
         }
 

@@ -12,16 +12,13 @@
  */
 
 package serializers;
+
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -29,7 +26,9 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** A class contains encoding and decoding logic for NDArray. */
+/**
+ * A class contains encoding and decoding logic for NDArray.
+ */
 public final class NDSerializer {
 
     private static final int VERSION = 3;
@@ -42,7 +41,8 @@ public final class NDSerializer {
     private static final Pattern PATTERN =
             Pattern.compile("\\{'descr': '(.+)', 'fortran_order': False, 'shape': \\((.*)\\),");
 
-    private NDSerializer() {}
+    private NDSerializer() {
+    }
 
     /**
      * Encodes {@link NDArray} to byte array.
@@ -134,7 +134,7 @@ public final class NDSerializer {
      * Decodes {@link NDArray} through {@link DataInputStream}.
      *
      * @param manager the {@link NDManager} assigned to the {@link NDArray}
-     * @param is input stream data to load from
+     * @param is      input stream data to load from
      * @return {@link NDArray}
      * @throws IOException data is not readable
      */

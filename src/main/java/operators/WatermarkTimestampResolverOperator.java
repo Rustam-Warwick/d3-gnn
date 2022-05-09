@@ -64,7 +64,7 @@ public class WatermarkTimestampResolverOperator extends AbstractStreamOperator<G
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(mark.getTimestamp() % 4 == 3){
+        if (mark.getTimestamp() % 4 == 3) {
             super.processWatermark(mark);
         }
     }

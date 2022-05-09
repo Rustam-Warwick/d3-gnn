@@ -11,7 +11,7 @@ public class NewMeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> 
     public NewMeanAggregator() {
     }
 
-    public NewMeanAggregator(NDArray value, boolean halo){
+    public NewMeanAggregator(NDArray value, boolean halo) {
         this(new Tuple2<>(value, 0), halo, (short) -1);
     }
 
@@ -29,6 +29,11 @@ public class NewMeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> 
 
     public NewMeanAggregator(String id, Tuple2<NDArray, Integer> value, boolean halo, short master) {
         super(id, value, halo, master);
+    }
+
+    public static NDArray bulkReduce(NDArray... newElements) {
+        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
+        return sum;
     }
 
     @Override
@@ -86,9 +91,5 @@ public class NewMeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> 
     @Override
     public void reset() {
         value = new Tuple2<>(value.f0, 0);
-    }
-    public static NDArray bulkReduce(NDArray... newElements) {
-        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
-        return sum;
     }
 }

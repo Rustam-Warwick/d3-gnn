@@ -1,21 +1,15 @@
 package functions.nn.gnn;
 
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.DataType;
-import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Block;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.ParallelBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.training.ParameterStore;
 
 import java.util.List;
 import java.util.function.Function;
 
-public class SAGEConv extends GNNBlock{
+public class SAGEConv extends GNNBlock {
 
     public SAGEConv(int outFeatures) {
         // Update Block

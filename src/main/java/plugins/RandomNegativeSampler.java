@@ -19,6 +19,12 @@ public class RandomNegativeSampler extends Plugin {
         this.p = p;
     }
 
+    public static boolean hasIntersection(List<Short> one, List<Short> two) {
+        for (short el : one) {
+            if (two.contains(el)) return true;
+        }
+        return false;
+    }
 
     @Override
     public void open() {
@@ -73,14 +79,6 @@ public class RandomNegativeSampler extends Plugin {
         }
         i = 0;
         j = 0;
-    }
-
-
-    public static boolean hasIntersection(List<Short> one, List<Short> two) {
-        for (short el : one) {
-            if (two.contains(el)) return true;
-        }
-        return false;
     }
 
 }

@@ -4,7 +4,10 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Block;
-import elements.*;
+import elements.ElementType;
+import elements.GraphElement;
+import elements.Plugin;
+import elements.Vertex;
 import features.Tensor;
 import functions.nn.MyParameterStore;
 import functions.nn.SerializableModel;
@@ -31,17 +34,19 @@ public class VertexOutputInference extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if(newElement.elementType() == ElementType.FEATURE){
+        if (newElement.elementType() == ElementType.FEATURE) {
             Tensor feature = (Tensor) newElement;
-            if("feature".equals(feature.getName())){
+            if ("feature".equals(feature.getName())) {
                 forward(feature);
             }
         }
     }
-    public void forward(Tensor feature){
-            NDArray update = output(feature.getValue(), false);
-            System.out.println(update);
+
+    public void forward(Tensor feature) {
+        NDArray update = output(feature.getValue(), false);
+        System.out.println(update);
     }
+
     @Override
     public void close() {
         super.close();

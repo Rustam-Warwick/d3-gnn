@@ -83,7 +83,7 @@ public class RemoteInvoke {
     }
 
     public void buildAndRun(BaseStorage storage) {
-        if(ts == null) ts = storage.layerFunction.currentTimestamp();
+        if (ts == null) ts = storage.layerFunction.currentTimestamp();
         List<GraphOp> graphOps = build();
         for (GraphOp a : graphOps) {
             if (a.part_id == storage.layerFunction.getCurrentPart() && a.direction == MessageDirection.ITERATE) {

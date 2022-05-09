@@ -17,19 +17,19 @@ public class UniqueElementEvictor implements Evictor<GraphOp, TimeWindow> {
     @Override
     public void evictBefore(Iterable<TimestampedValue<GraphOp>> elements, int size, TimeWindow window, EvictorContext evictorContext) {
         HashMap<String, Integer> idCount = new HashMap<>();
-        for(TimestampedValue<GraphOp> op: elements){
-            if(idCount.containsKey(op.getValue().element.getId())){
-                idCount.compute(op.getValue().element.getId(), (key,value)->value + 1);
-            }else{
+        for (TimestampedValue<GraphOp> op : elements) {
+            if (idCount.containsKey(op.getValue().element.getId())) {
+                idCount.compute(op.getValue().element.getId(), (key, value) -> value + 1);
+            } else {
                 idCount.put(op.getValue().element.getId(), 1);
             }
         }
         Iterator<TimestampedValue<GraphOp>> iterator = elements.iterator();
-        while(iterator.hasNext()){
+        while (iterator.hasNext()) {
             GraphElement el = iterator.next().getValue().element;
             int count = idCount.get(el.getId());
-            if(count > 1){
-                idCount.compute(el.getId(), (key,value)->value - 1);
+            if (count > 1) {
+                idCount.compute(el.getId(), (key, value) -> value - 1);
                 iterator.remove();
             }
         }

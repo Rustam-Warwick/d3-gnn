@@ -19,6 +19,7 @@ public class EdgeOutputTraining extends Plugin {
     public transient EdgeOutputInference inference;
     public transient int collectedGradsSoFar = 0;
     public boolean removeFeaturesOnNextWatermark = false;
+
     public EdgeOutputTraining() {
         super("trainer");
     }
@@ -105,8 +106,7 @@ public class EdgeOutputTraining extends Plugin {
             }
             srcFeature.getValue().setRequiresGradient(false);
             destFeature.getValue().setRequiresGradient(false);
-        }
-        else {
+        } else {
             System.out.format("Backward failed since version out-of-date error %s", inference.ACTIVE);
         }
     }
@@ -164,6 +164,7 @@ public class EdgeOutputTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads Gradients of model parameters
      */
     @RemoteFunction
@@ -187,6 +188,7 @@ public class EdgeOutputTraining extends Plugin {
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params Parameters for this model
      */
     @RemoteFunction
@@ -198,13 +200,13 @@ public class EdgeOutputTraining extends Plugin {
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        if(removeFeaturesOnNextWatermark){
-            if(getPartId() == replicaParts().get(replicaParts().size() - 1)){
+        if (removeFeaturesOnNextWatermark) {
+            if (getPartId() == replicaParts().get(replicaParts().size() - 1)) {
                 removeFeaturesOnNextWatermark = false;
                 inference.ACTIVE = true;
             }
             List<Vertex> vertices = new ArrayList<>();
-            for(Vertex v: storage.getVertices()){
+            for (Vertex v : storage.getVertices()) {
                 List<Edge> edges = new ArrayList<Edge>();
                 storage.getIncidentEdges(v, EdgeType.BOTH).forEach(edges::add);
                 edges.forEach(Edge::delete);

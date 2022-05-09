@@ -24,6 +24,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     public Long sendAlignWatermark = null; // Should I send Align watermarks to the next layer on watermark
     public boolean alignWatermarks = false; // Should the master(0) align the watermarks of replicas ?
     public int collectedGradsSoFar = 0; // Master node collected gradients count
+
     public GNNEmbeddingLayerTraining() {
         super("trainer");
     }
@@ -36,6 +37,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
 
     /**
      * Backward trigger function.
+     *
      * @param grad Tensor that is attached to one vertex. Its value is the gradient of dv(L+1)/dloss
      */
     @RemoteFunction
@@ -103,7 +105,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
      */
     @RemoteFunction
     public void messageBackward(Tensor aggGrad) {
-        if(inference.ACTIVE) {
+        if (inference.ACTIVE) {
             aggGrad.setStorage(storage);
             Vertex vertex = (Vertex) aggGrad.getElement();
             Iterable<Edge> inEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
@@ -190,6 +192,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
 
     /**
      * Accumulates all the gradients in master operator
+     *
      * @param grads Gradients of model parameters
      */
     @RemoteFunction
@@ -208,12 +211,13 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                     .withArgs(inference.parameterStore.parameterArrays)
                     .noUpdate()
                     .buildAndRun(storage);
-            if(storage.layerFunction.isFirst()) alignWatermarks = true;
+            if (storage.layerFunction.isFirst()) alignWatermarks = true;
         }
     }
 
     /**
      * Given new parameters synchronize them across the parallel instances
+     *
      * @param params Parameters for this model
      */
     @RemoteFunction
@@ -228,7 +232,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        if(alignWatermarks && getPartId() == 0  && timestamp % 4 == 0){
+        if (alignWatermarks && getPartId() == 0 && timestamp % 4 == 0) {
             // Updates sent from master but trigger not yet started
             new RemoteInvoke()
                     .toElement(getId(), ElementType.PLUGIN)
@@ -240,19 +244,19 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                     .noUpdate()
                     .buildAndRun(storage);
 
-            if(!storage.layerFunction.isLast()) sendAlignWatermark = timestamp + 3;
+            if (!storage.layerFunction.isLast()) sendAlignWatermark = timestamp + 3;
             alignWatermarks = false;
         }
-        if(reInferenceWatermark != null && timestamp >= reInferenceWatermark){
+        if (reInferenceWatermark != null && timestamp >= reInferenceWatermark) {
             reInference(timestamp);
-            if(getPartId() == replicaParts().get(replicaParts().size()-1)){
+            if (getPartId() == replicaParts().get(replicaParts().size() - 1)) {
                 // Last element so need to clear the
                 System.out.format("Re Inference at subtask %s, position %s \n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask(), storage.layerFunction.getPosition());
                 reInferenceWatermark = null;
                 inference.ACTIVE = true;
             }
         }
-        if(sendAlignWatermark != null && timestamp >= sendAlignWatermark && getPartId() == 0){
+        if (sendAlignWatermark != null && timestamp >= sendAlignWatermark && getPartId() == 0) {
             new RemoteInvoke()
                     .addDestination((short) 0)
                     .toElement(getId(), ElementType.PLUGIN)
@@ -266,21 +270,21 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     }
 
     @RemoteFunction
-    public void setAlignWatermarks(){
+    public void setAlignWatermarks() {
         alignWatermarks = true;
     }
 
     @RemoteFunction
-    public void setReInferenceWatermark(long ts){
+    public void setReInferenceWatermark(long ts) {
         reInferenceWatermark = ts;
     }
 
 
     public void reInference(long timestamp) {
         for (Vertex vertex : storage.getVertices()) {
-            if(Objects.nonNull(vertex.getFeature("agg"))){
+            if (Objects.nonNull(vertex.getFeature("agg"))) {
                 // @todo Fix this can be out of sync with the updates
-                ((BaseAggregator<?>)vertex.getFeature("agg")).reset();
+                ((BaseAggregator<?>) vertex.getFeature("agg")).reset();
             }
             Iterable<Edge> inEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
             List<NDArray> bulkReduceMessages = new ArrayList<>();
@@ -303,7 +307,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                         .withTimestamp(maxTs)
                         .withArgs(msgs, bulkReduceMessages.size())
                         .buildAndRun(storage);
-            }else if(Objects.nonNull(vertex.getFeature("agg"))){
+            } else if (Objects.nonNull(vertex.getFeature("agg"))) {
                 // If there are no in-messages for aggregator, its timestamp might not be updated.
                 // Update it here so that it is inferred onWatermark. Update can be local since MASTER part is using it
                 vertex.getFeature("agg").resolveTimestamp(timestamp);

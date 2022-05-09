@@ -228,6 +228,7 @@ public class GraphElement implements Serializable {
     /**
      * Element Timestamp
      * If the timestamp does not exist take the current element's timestamp in the pipeline
+     *
      * @return timestamp
      */
     public long getTimestamp() {
@@ -335,8 +336,9 @@ public class GraphElement implements Serializable {
 
     /**
      * Helper to setFeature with a specific timestamp
-     * @param name Feature name
-     * @param feature Feature object
+     *
+     * @param name      Feature name
+     * @param feature   Feature object
      * @param timestamp Timestamp
      */
     public void setFeature(String name, Feature<?, ?> feature, long timestamp) {

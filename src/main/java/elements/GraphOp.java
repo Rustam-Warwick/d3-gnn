@@ -35,7 +35,8 @@ public class GraphOp {
 
     /**
      * Constructed used initially
-     * @param op Op
+     *
+     * @param op      Op
      * @param element GraphElement
      */
     public GraphOp(Op op, GraphElement element, long ts) {
@@ -69,10 +70,9 @@ public class GraphOp {
         this.ts = ts;
     }
 
-    public boolean isTopologicalUpdate(){
+    public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }
-
 
 
     public GraphOp copy() {

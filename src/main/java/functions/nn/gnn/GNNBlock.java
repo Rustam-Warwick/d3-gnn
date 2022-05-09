@@ -6,11 +6,8 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.AbstractBlock;
 import ai.djl.nn.Block;
-import ai.djl.nn.core.Linear;
 import ai.djl.training.ParameterStore;
 import ai.djl.util.PairList;
-
-import java.util.Arrays;
 
 /**
  * Represents a Single GNN Block
@@ -19,7 +16,8 @@ public class GNNBlock extends AbstractBlock {
     AggregatorVariant agg = AggregatorVariant.MEAN;
     Block messageBlock = null;
     Block updateBlock = null;
-    public GNNBlock(){
+
+    public GNNBlock() {
 
     }
 

@@ -2,25 +2,21 @@ package serializers;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.types.DataType;
-import ai.djl.ndarray.types.Shape;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import functions.nn.JavaTensor;
 
-import java.io.DataInputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 /**
  * Kryo implementation of Tensor Serializer. Works with all Pt
  */
 public class TensorSerializer extends Serializer<NDArray> {
+    private final static NDManager manager = NDManager.newBaseManager();
     private final String MAGIC_NUMBER = "NDAR";
     private final Integer VERSION = 3;
-    private final static NDManager manager = NDManager.newBaseManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {

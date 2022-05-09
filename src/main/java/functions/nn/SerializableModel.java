@@ -37,18 +37,20 @@ import java.util.function.Function;
 /**
  * A model that contains a single block and that is able to serialize itself
  * Serialization of this model is actually falled back by creating a kryo serializer instead
+ *
  * @param <T> the class of the upper block contained in this model
  */
-public class SerializableModel<T extends Block>  implements Serializable, Model {
+public class SerializableModel<T extends Block> implements Serializable, Model {
     public T block = null;
     public String modelName = null;
     public transient PairList<String, Shape> inputData = null;
     protected transient NDManager manager;
 
-    public SerializableModel(){
+    public SerializableModel() {
 
     }
-    public SerializableModel(String modelName, Block block){
+
+    public SerializableModel(String modelName, Block block) {
         this.block = (T) block;
         this.modelName = modelName;
         canonizeModel();
@@ -56,8 +58,8 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
 
     public void setManager(@Nonnull NDManager manager) {
         this.manager = manager;
-        getBlock().getParameters().forEach(item->{
-            if(item.getValue().isInitialized()){
+        getBlock().getParameters().forEach(item -> {
+            if (item.getValue().isInitialized()) {
                 item.getValue().getArray().detach();
                 item.getValue().getArray().attach(manager);
             }
@@ -71,7 +73,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
         List<File> numpyParameterFiles = new ArrayList<>();
         Collections.addAll(numpyParameterFiles, folder.listFiles(onlyNumpy));
         numpyParameterFiles.sort(Comparator.comparing(File::toString));
-        getBlock().getParameters().forEach(param->{
+        getBlock().getParameters().forEach(param -> {
             try {
                 System.out.println(numpyParameterFiles.get(0));
                 InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
@@ -145,7 +147,8 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
         if (inputData == null) {
             inputData = block.describeInput();
         }
-        return inputData;}
+        return inputData;
+    }
 
     @Override
     public PairList<String, Shape> describeOutput() {
@@ -173,13 +176,13 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
     }
 
     @Override
-    public void setDataType(DataType dataType) {
-
+    public DataType getDataType() {
+        return null;
     }
 
     @Override
-    public DataType getDataType() {
-        return null;
+    public void setDataType(DataType dataType) {
+
     }
 
     @Override
@@ -220,6 +223,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
 
     /**
      * Remove the randoom ids from the parameters of this block
+     *
      * @implNote Do this before sending the model to the operator
      */
     public SerializableModel<T> canonizeModel() {
@@ -230,7 +234,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
             idField.setAccessible(true);
             int i = 0;
             for (Pair<String, Parameter> param : params) {
-                idField.set(param.getValue(), String.format("{%s}%s:%s",++i,modelName, param.getKey()));
+                idField.set(param.getValue(), String.format("{%s}%s:%s", ++i, modelName, param.getKey()));
             }
             idField.setAccessible(false);
         } catch (NoSuchFieldException | IllegalAccessException e) {
@@ -241,6 +245,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
 
     /**
      * Fallback to a Kryo Serializer
+     *
      * @param oos
      * @throws IOException
      */
@@ -257,6 +262,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
 
     /**
      * Fallback to a KryoSerializer
+     *
      * @param ois
      * @throws ClassNotFoundException
      * @throws IOException
@@ -271,7 +277,7 @@ public class SerializableModel<T extends Block>  implements Serializable, Model 
         a.register(JavaTensor.class, new TensorSerializer());
         a.register(Parameter.class, new ParameterSerializer());
         Input input = new Input(ois);
-        SerializableModel<T> tmp = a.readObject(input,SerializableModel.class);
+        SerializableModel<T> tmp = a.readObject(input, SerializableModel.class);
         this.block = tmp.block;
         this.modelName = tmp.modelName;
     }

@@ -12,6 +12,7 @@ import java.util.List;
 public class Plugin extends ReplicableGraphElement {
     public transient List<Short> thisReplicaKeys; // Keys(Parts) hashed to this parallel operator
     public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
+
     public Plugin() {
         super(null, false, (short) 0);
     }
@@ -65,6 +66,7 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when a graph element is created
+     *
      * @param element Newly created GraphElement
      */
     public void addElementCallback(GraphElement element) {
@@ -73,6 +75,7 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when a graph element is updated
+     *
      * @param newElement newElement commited to memory
      * @param oldElement oldElement removed from memory
      */
@@ -82,6 +85,7 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when a graph element is removed
+     *
      * @param deletedElement element removed from memory
      */
     public void deleteElementCallback(GraphElement deletedElement) {
@@ -90,6 +94,7 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when the timer fires
+     *
      * @param timestamp firing timestamp
      */
     public void onTimer(long timestamp) {
@@ -102,6 +107,7 @@ public class Plugin extends ReplicableGraphElement {
      * Order will be exactly as [masterPart(), ...replicaParts()]
      * Watermarks are encoded as such:
      * (wt % 4) is the watermark iteration number. Only iteration 3 watermarks are actually committed and pushed to the next layer
+     *
      * @param timestamp timestamp of the watermark
      */
     public void onWatermark(long timestamp) {
@@ -124,6 +130,7 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when the plugin is added to the storage for the first time on client side.
+     *
      * @implNote Anything initialized here will be serialized and sent to task manager
      */
     public void add() {
