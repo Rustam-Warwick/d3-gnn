@@ -76,7 +76,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
-                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, MessageDirection.ITERATE, getTimestamp())));
+                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, getTimestamp()), MessageDirection.ITERATE));
             }
             return is_created;
         }

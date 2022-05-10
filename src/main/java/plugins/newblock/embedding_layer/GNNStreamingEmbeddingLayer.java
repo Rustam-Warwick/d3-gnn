@@ -1,6 +1,6 @@
 package plugins.newblock.embedding_layer;
 
-import aggregators.NewMeanAggregator;
+import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
@@ -100,7 +100,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(inputShape);
-            element.setFeature("agg", new NewMeanAggregator(new JavaTensor(aggStart), true), storage.layerFunction.currentTimestamp());
+            element.setFeature("agg", new MeanAggregator(new JavaTensor(aggStart), true), storage.layerFunction.currentTimestamp());
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(inputShape); // Initialize to random value
@@ -125,7 +125,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
             Vertex messageVertex = v.copy();
             long timestamp = v.getFeature("agg").getTimestamp();
             messageVertex.setFeature("feature", new Tensor(update), timestamp);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, MessageDirection.FORWARD, timestamp));
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, timestamp), MessageDirection.FORWARD);
         }
     }
 

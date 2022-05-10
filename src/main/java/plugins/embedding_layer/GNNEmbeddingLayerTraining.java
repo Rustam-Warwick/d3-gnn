@@ -1,7 +1,7 @@
 package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
-import aggregators.NewMeanAggregator;
+import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
@@ -297,7 +297,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
                 }
             }
             if (bulkReduceMessages.size() > 0) {
-                NDArray msgs = NewMeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
+                NDArray msgs = MeanAggregator.bulkReduce(bulkReduceMessages.toArray(NDArray[]::new));
                 new RemoteInvoke()
                         .toElement(vertex.decodeFeatureId("agg"), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)

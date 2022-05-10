@@ -5,6 +5,7 @@ import ai.djl.ndarray.NDManager;
 import elements.*;
 import features.Tensor;
 import functions.nn.JavaTensor;
+import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -14,6 +15,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -75,6 +77,7 @@ public class CoraFull implements Dataset {
             public void flatMap(GraphOp value, Collector<GraphOp> out) throws Exception {
                 if (value.element.elementType() == ElementType.VERTEX) {
                     value.element.getFeature("feature").setTimestamp(++timestamp);
+                    value.setTimestamp(timestamp);
                     if (pendingVertices.containsKey(value.element.getId())) {
                         out.collect(value);
                     } else {
@@ -84,6 +87,7 @@ public class CoraFull implements Dataset {
                 } else if (value.element.elementType() == ElementType.EDGE) {
                     Edge e = (Edge) value.element;
                     value.element.setTimestamp(++timestamp);
+                    value.setTimestamp(timestamp);
                     out.collect(value);
                     if (pendingVertices.getOrDefault(e.src.getId(), null) != null) {
                         out.collect(pendingVertices.get(e.src.getId()));
@@ -104,6 +108,11 @@ public class CoraFull implements Dataset {
         DataStream<String> vertices = env.readTextFile(vertexFile.toString());
         DataStream<GraphOp> parsedEdges = edges.map(edgeMapper());
         DataStream<GraphOp> parsedVertices = vertices.map(vertexMapper());
-        return parsedEdges.union(parsedVertices).flatMap(joiner()).setParallelism(1);
+        return parsedEdges.union(parsedVertices)
+                .flatMap(joiner())
+                .setParallelism(1)
+                .assignTimestampsAndWatermarks(WatermarkStrategy
+                        .<GraphOp>forBoundedOutOfOrderness(Duration.ofMillis(10))
+                        .withTimestampAssigner((event, ts)->event.getTimestamp()));
     }
 }

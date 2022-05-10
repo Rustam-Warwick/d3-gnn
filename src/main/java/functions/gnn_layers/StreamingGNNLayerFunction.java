@@ -67,11 +67,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void message(GraphOp op) {
+    public void message(GraphOp op, MessageDirection direction) {
         try {
-            if (op.direction == MessageDirection.BACKWARD) {
+            if (direction == MessageDirection.BACKWARD) {
                 ctx.output(BaseWrapperOperator.backwardOutputTag, op);
-            } else if (op.direction == MessageDirection.FORWARD) {
+            } else if (direction == MessageDirection.FORWARD) {
                 collector.collect(op);
             } else {
                 ctx.output(BaseWrapperOperator.iterateOutputTag, op);

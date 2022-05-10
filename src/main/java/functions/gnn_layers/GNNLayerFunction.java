@@ -3,6 +3,7 @@ package functions.gnn_layers;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.ReplicaState;
+import iterations.MessageDirection;
 import iterations.Rmi;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
@@ -50,7 +51,7 @@ public interface GNNLayerFunction extends RichFunction {
      *
      * @param op GraphOp to be sent
      */
-    void message(GraphOp op);
+    void message(GraphOp op, MessageDirection direction);
 
     /**
      * Side outputs

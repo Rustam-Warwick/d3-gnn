@@ -31,6 +31,7 @@ import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -40,7 +41,6 @@ import java.util.concurrent.Executor;
 
 /**
  * Operator that Wraps around another operators and implements some common logic
- *
  * @implNote This operator is also acting as HeadOperator for the feedback streams
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
@@ -67,15 +67,15 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final InternalOperatorMetricGroup metrics;
     protected final String uniqueSenderId;
     protected Output<StreamRecord<GraphOp>>[] internalOutputs;
+    protected BroadcastOutput<GraphOp>[] internalBroadcastOutputs;
+    protected OutputTag<GraphOp>[] internalOutputTags;
     // --------------- proxy ---------------------------
 
 //    protected final ProxyOutput<T> proxyOutput;
 
     // --------------- Metrics ---------------------------
-    protected BroadcastOutput<GraphOp>[] internalBroadcastOutputs;
 
     // ------------- Iteration Related --------------------
-    protected OutputTag<GraphOp>[] internalOutputTags;
 
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
@@ -210,10 +210,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
     }
 
-    @Override
-    public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-
-    }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
         int indexOfThisSubtask = containingTask.getIndexInSubtaskGroup();
@@ -314,12 +310,26 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
-        protected void emitWatermark(OutputTag<?> outputTag, Watermark e) {
-
+        /**
+         * Send watermark exactly to one output channel
+         * @implNote if @param outputTag is null, will send it to forward channel
+         */
+        protected void emitWatermark(@Nullable OutputTag<?> outputTag, Watermark e) {
+            for(int i=0; i < internalOutputTags.length;i++){
+                if(Objects.equals(outputTag, internalOutputTags[i])){
+                    internalOutputs[i].emitWatermark(e);
+                }
+            }
         }
 
+        /**
+         * Emit watermark to all channels
+         * @param e
+         */
         protected void emitWatermark(Watermark e) {
-
+            for(int i=0; i< internalOutputs.length;i++){
+                internalOutputs[i].emitWatermark(e);
+            }
         }
 
         public void broadcastElement(OutputTag<GraphOp> outputTag, GraphOp el) {
@@ -327,7 +337,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
 
         public void broadcastElement(GraphOp el) {
-
         }
 
         protected void emitWatermarkStatus(OutputTag<?> outputTag, Watermark e) {
@@ -335,7 +344,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
 
         protected void emitWatermarkStatus(Watermark e) {
-
         }
 
         protected void emitLatencyMarker(OutputTag<?> outputTag, LatencyMarker m) {

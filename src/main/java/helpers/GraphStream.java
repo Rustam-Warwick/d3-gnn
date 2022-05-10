@@ -1,7 +1,7 @@
 package helpers;
 
 import aggregators.BaseAggregator;
-import aggregators.NewMeanAggregator;
+import aggregators.MeanAggregator;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
@@ -61,7 +61,7 @@ public class GraphStream {
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
-        env.registerType(NewMeanAggregator.class);
+        env.registerType(MeanAggregator.class);
     }
 
     /**

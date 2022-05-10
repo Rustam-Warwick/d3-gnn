@@ -57,7 +57,7 @@ public class ReplicableGraphElement extends GraphElement {
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             } else {
                 // Send Query
-                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this, MessageDirection.ITERATE, getTimestamp()));
+                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this,  getTimestamp()), MessageDirection.ITERATE);
             }
         }
         return is_created;
@@ -104,7 +104,7 @@ public class ReplicableGraphElement extends GraphElement {
             if (tmp.f0) this.syncReplicas(replicaParts());
             return tmp;
         } else if (this.state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, MessageDirection.ITERATE, getTimestamp()));
+            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, getTimestamp()), MessageDirection.ITERATE);
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
@@ -131,7 +131,7 @@ public class ReplicableGraphElement extends GraphElement {
             return deleteElement();
 
         } else if (state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), MessageDirection.ITERATE, getTimestamp()));
+            this.storage.layerFunction.message(new GraphOp(Op.REMOVE, this.masterPart(), this.copy(), getTimestamp()), MessageDirection.ITERATE);
             return false;
         }
 
@@ -176,7 +176,7 @@ public class ReplicableGraphElement extends GraphElement {
             Feature<?, ?> tmp = feature.copy();
             cpy.setFeature(feature.getName(), tmp);
         }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, MessageDirection.ITERATE, getTimestamp())));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy,  getTimestamp()),MessageDirection.ITERATE));
     }
 
     @Override

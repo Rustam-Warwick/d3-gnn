@@ -66,7 +66,7 @@ public class RandomNegativeSampler extends Plugin {
                         Edge tmp = new Edge(src.copy(), dest.copy());
                         tmp.setTimestamp(storage.layerFunction.currentTimestamp());
                         tmp.setFeature("label", new Feature<Integer, Integer>(0));
-                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, MessageDirection.FORWARD, tmp.getTimestamp()));
+                        storage.layerFunction.message(new GraphOp(Op.COMMIT, getPartId(), tmp, tmp.getTimestamp()),MessageDirection.FORWARD);
                         i = intI;
                         j = intJ + 1;
                         return;

@@ -19,10 +19,7 @@ public class GraphOp {
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
-    /**
-     * The direction to where this message should be sent to
-     */
-    public MessageDirection direction = MessageDirection.FORWARD;
+
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
@@ -51,14 +48,12 @@ public class GraphOp {
      * @param op
      * @param part_id
      * @param element
-     * @param direction
      * @param ts
      */
-    public GraphOp(Op op, short part_id, GraphElement element, MessageDirection direction, long ts) {
+    public GraphOp(Op op, short part_id, GraphElement element,  long ts) {
         this.op = op;
         this.part_id = part_id;
         this.element = element;
-        this.direction = direction;
         this.ts = ts;
     }
 
@@ -76,7 +71,7 @@ public class GraphOp {
 
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.part_id, this.element, this.direction, this.ts);
+        return new GraphOp(this.op, this.part_id, this.element, this.ts);
     }
 
     @Override
@@ -85,7 +80,6 @@ public class GraphOp {
                 "op=" + op +
                 ", part_id=" + part_id +
                 ", element=" + element +
-                ", direction=" + direction +
                 ", ts=" + ts +
                 '}';
     }
