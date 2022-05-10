@@ -52,8 +52,8 @@ public class Main {
 //        SerializableModel<SequentialBlock> model = myPartitionedModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
-        GraphStream gs = new GraphStream(env);
-        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/edges"), Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/vertices"));
+        GraphStream gs = new GraphStream(env, (short)3);
+        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora/edges"), Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora/vertices"));
         DataStream<GraphOp> partitioned = gs.partition(dataset.build(env), new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(

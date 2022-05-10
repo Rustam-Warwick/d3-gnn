@@ -3,25 +3,25 @@ package functions.gnn_layers;
 import elements.GraphOp;
 import iterations.MessageDirection;
 import operators.BaseWrapperOperator;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
+import java.io.IOException;
+
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;
-    public short position;
-    public short numLayers;
     public transient short currentPart;
     public transient Collector<GraphOp> collector;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
-    public transient BaseWrapperOperator.Context baseWrapperContext;
+    public transient BaseWrapperOperator<?>.Context baseWrapperContext;
 
-    public StreamingGNNLayerFunction(BaseStorage storage, short position, short numLayers) {
-        this.position = position;
-        this.numLayers = numLayers;
+    public StreamingGNNLayerFunction(BaseStorage storage) {
         this.storage = storage;
         storage.layerFunction = this;
     }
@@ -37,33 +37,13 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public short getPosition() {
-        return position;
-    }
-
-    @Override
-    public void setPosition(short position) {
-        this.position = position;
-    }
-
-    @Override
-    public BaseWrapperOperator.Context getWrapperContext() {
+    public BaseWrapperOperator<?>.Context getWrapperContext() {
         return baseWrapperContext;
     }
 
     @Override
-    public void setWrapperContext(BaseWrapperOperator.Context context) {
+    public void setWrapperContext(BaseWrapperOperator<?>.Context context) {
         this.baseWrapperContext = context;
-    }
-
-    @Override
-    public short getNumLayers() {
-        return numLayers;
-    }
-
-    @Override
-    public void setNumLayers(short numLayers) {
-        this.numLayers = numLayers;
     }
 
     @Override
@@ -82,7 +62,27 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void sideMessage(GraphOp op, OutputTag<GraphOp> outputTag) {
+    public void broadcastMessage(GraphOp op, MessageDirection direction) {
+        try {
+            if (direction == MessageDirection.BACKWARD) {
+                getWrapperContext().broadcastElement(BaseWrapperOperator.backwardOutputTag, new StreamRecord<>(op, op.getTimestamp()));
+            } else if (direction == MessageDirection.FORWARD) {
+                getWrapperContext().broadcastElement(null, new StreamRecord<>(op, op.getTimestamp()));
+            } else {
+                getWrapperContext().broadcastElement(BaseWrapperOperator.iterateOutputTag, new StreamRecord<>(op, op.getTimestamp()));
+            }
+        } catch (NullPointerException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Override
+    public <OUT> void sideBroadcast(OUT op, OutputTag<OUT> outputTag) {
+        getWrapperContext().broadcastElement(outputTag, new StreamRecord<>(op, currentTimestamp()));
+    }
+
+    @Override
+    public <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag) {
         ctx.output(outputTag, op);
     }
 

@@ -2,6 +2,7 @@ package operators;
 
 
 import elements.GraphOp;
+import elements.Op;
 import helpers.MyOutputReflectionContext;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -26,12 +27,14 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
+import org.apache.flink.streaming.runtime.watermarkstatus.StatusWatermarkValve;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -45,10 +48,12 @@ import java.util.concurrent.Executor;
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>> {
+        implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp> {
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
     public static OutputTag<GraphOp> iterateOutputTag = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
     public static OutputTag<GraphOp> backwardOutputTag = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+
+    // ---- Configuration details
     protected final StreamOperatorParameters<GraphOp> parameters;
 
     protected final StreamConfig streamConfig;
@@ -61,26 +66,30 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final IterationID iterationId;
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
-    /**
-     * Metric group for the operator.
-     */
     protected final InternalOperatorMetricGroup metrics;
     protected final String uniqueSenderId;
-    protected Output<StreamRecord<GraphOp>>[] internalOutputs;
-    protected BroadcastOutput<GraphOp>[] internalBroadcastOutputs;
-    protected OutputTag<GraphOp>[] internalOutputTags;
-    // --------------- proxy ---------------------------
+    // -------- Additional outputs by me
+    protected Output[] internalOutputs;
+    protected BroadcastOutput[] internalBroadcastOutputs;
+    protected OutputTag[] internalOutputTags;
 
-//    protected final ProxyOutput<T> proxyOutput;
-
-    // --------------- Metrics ---------------------------
-
-    // ------------- Iteration Related --------------------
-
+    // --------- Position and watermarking related stuff
+    protected final short position;
+    protected final short totalLayers;
+    protected final short operatorIndex;
+    private boolean watermarkInIteration = false;
+    private Watermark waitingWatermark = null;
+    private boolean backWatermarkInIteration = false;
+    private Watermark waitingBackWatermark = null;
+    private StatusWatermarkValve backwardWatermarkValve;
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
             StreamOperatorFactory<GraphOp> operatorFactory,
-            IterationID iterationID) {
+            IterationID iterationID,
+            short position,
+            short totalLayers) {
+        this.position = position;
+        this.totalLayers = totalLayers;
         this.parameters = Objects.requireNonNull(parameters);
         this.streamConfig = Objects.requireNonNull(parameters.getStreamConfig());
         this.containingTask = Objects.requireNonNull(parameters.getContainingTask());
@@ -103,8 +112,10 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         this.uniqueSenderId =
                 OperatorUtils.getUniqueSenderId(
                         streamConfig.getOperatorID(), containingTask.getIndexInSubtaskGroup());
+        this.operatorIndex = (short) containingTask.getIndexInSubtaskGroup();
 
         try {
+            // Creat individual outputs and the context
             this.createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
             this.context = new Context();
         } catch (Exception e) {
@@ -192,6 +203,59 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         return wrappedOperator;
     }
 
+    // WATERMARKING
+
+    public abstract void processActualWatermark(Watermark mark) throws Exception;
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if (watermarkInIteration) {
+            if (waitingWatermark == null) waitingWatermark = mark;
+            else {
+                waitingWatermark = new Watermark(Math.max(waitingWatermark.getTimestamp(), mark.getTimestamp()));
+            }
+        } else {
+            Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4)); // Normalize to have remainder 0
+            watermarkInIteration = true;
+            context.emitWatermark(BaseWrapperOperator.iterateOutputTag, iterationWatermark);
+        }
+    }
+
+
+    @Override
+    public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        if (element.getValue().getOp() == Op.WATERMARK) {
+            short iterationNumber = (short) (element.getTimestamp() % 4);
+            Watermark newWatermark = new Watermark(element.getTimestamp() + 1);
+            if (iterationNumber < 2) {
+                // Still need to traverse the stream before updating the timer
+                context.emitWatermark(BaseWrapperOperator.iterateOutputTag, newWatermark);
+            } else {
+                // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
+                processActualWatermark(newWatermark);
+                context.emitWatermark(newWatermark);
+                watermarkInIteration = false;
+                if (waitingWatermark != null) {
+                    processWatermark(waitingWatermark);
+                    waitingWatermark = null;
+                }
+            }
+        } else if(element.getValue().getOp() == Op.BACK_WATERMARK){
+            short iterationNumber = (short) (element.getTimestamp() % 4);
+            if(iterationNumber < 2){
+                // Send
+                element.setTimestamp(element.getTimestamp() + 1);
+                context.broadcastElement(BaseWrapperOperator.iterateOutputTag, element);
+            }
+            else{
+                // if First and all that logic
+            }
+        } else {
+            processElement(element);
+        }
+    }
+
+    // CONFIGURATION
     private InternalOperatorMetricGroup createOperatorMetricGroup(
             Environment environment, StreamConfig streamConfig) {
         try {
@@ -210,7 +274,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
     }
 
-
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
         int indexOfThisSubtask = containingTask.getIndexInSubtaskGroup();
         FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
@@ -224,21 +287,16 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
     /**
      * Finding and creating the individual outputs
-     *
-     * @throws NoSuchMethodException
-     * @throws InvocationTargetException
-     * @throws IllegalAccessException
      */
     public void createIndividualOutputs(
             Output<StreamRecord<GraphOp>> output, Counter numRecordsOut) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Method createInternalBroadcastOutput = BroadcastOutputFactory.class.getDeclaredMethod("createInternalBroadcastOutput", Output.class, OutputReflectionContext.class);
         createInternalBroadcastOutput.setAccessible(true);
-        Output<StreamRecord<GraphOp>>[] rawOutputs;
-        BroadcastOutput<GraphOp>[] rawBroadcastOutputs;
-        OutputTag<GraphOp>[] rawOutputTags;
+        Output[] rawOutputs;
+        BroadcastOutput[] rawBroadcastOutputs;
+        OutputTag[] rawOutputTags;
         MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
 
-        List<BroadcastOutput<GraphOp>> internalOutputs = new ArrayList<>();
         if (myOutputReflectionContext.isBroadcastingOutput(output)) {
             rawOutputs =
                     myOutputReflectionContext.getBroadcastingInternalOutputs(output);
@@ -265,8 +323,9 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
     /**
      * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
-     *
-     * @param <T>
+     * Those stuff should be handled by the oeprator implementing this class
+     * Also the timestamps are assigned by the GraphOp Timestamps
+     * @param <T> TypeOf the proxu output
      */
     public static class ProxyOutput<T> implements Output<T> {
         Output<T> output;
@@ -324,19 +383,58 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
         /**
          * Emit watermark to all channels
-         * @param e
          */
         protected void emitWatermark(Watermark e) {
-            for(int i=0; i< internalOutputs.length;i++){
-                internalOutputs[i].emitWatermark(e);
+            for (Output internalOutput : internalOutputs) {
+                internalOutput.emitWatermark(e);
             }
         }
 
-        public void broadcastElement(OutputTag<GraphOp> outputTag, GraphOp el) {
-
+        /**
+         * Broadcast element to one input channel
+         * @param outputTag outputTag or null for broadcasting to forward operator
+         * @param el Element
+         */
+        public <OUT> void broadcastElement(@Nullable OutputTag<OUT> outputTag, StreamRecord<OUT> el){
+            for(int i=0; i < internalOutputTags.length;i++){
+                if(Objects.equals(outputTag, internalOutputTags[i])){
+                    try {
+                        internalBroadcastOutputs[i].broadcastEmit(el);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
         }
 
-        public void broadcastElement(GraphOp el) {
+        /**
+         * BackWatermarks are special watermarks that traverse the stream in two directions
+         * They can only be emited from the last operator and they flow the ML Graph Backward then Forward
+         * P1 <- P2 <-P3*
+         * P1 -> P2 -> P3
+         * @param timestamp Timestamp of the watermark
+         * @implNote  Note that timestamp will be increasing as this watermark makes a complement path
+         */
+        public void startBackWatermark(long timestamp){
+            assert getPosition() == getNumLayers(); // can only start at the last layer
+            long newTimestamp = (timestamp - (timestamp % 4)); // Normalize to have remainder 0
+            broadcastElement(iterateOutputTag,new StreamRecord<>(new GraphOp(Op.BACK_WATERMARK, operatorIndex, null, newTimestamp), newTimestamp));
+        }
+
+        /**
+         * Horizontal Position of this operator
+         * @return horizontal position
+         */
+        public short getPosition(){
+            return position;
+        }
+
+        /**
+         * Number of operators chained together horizontally
+         * @return layers number
+         */
+        public short getNumLayers(){
+            return totalLayers;
         }
 
         protected void emitWatermarkStatus(OutputTag<?> outputTag, Watermark e) {
@@ -351,9 +449,9 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
 
         protected void emitLatencyMarker(LatencyMarker m) {
+
         }
 
     }
-
 
 }

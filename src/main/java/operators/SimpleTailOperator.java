@@ -20,6 +20,7 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
+import helpers.MiniWatermarkValve;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
@@ -34,6 +35,7 @@ import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.watermarkstatus.StatusWatermarkValve;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
@@ -51,25 +53,18 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
      */
     private final IterationID iterationId;
     /**
-     * Should the iteration try to resolve the Watermarks vie three-fold all-reduce
-     */
-    private final boolean resolveWatermarks;
-
-    /**
      * We distinguish how the record is processed according to if objectReuse is enabled.
      */
     private transient Consumer<StreamRecord<GraphOp>> recordConsumer;
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
-    public SimpleTailOperator(IterationID iterationId) {
-        this(iterationId, false);
-    }
+    private MiniWatermarkValve backwardWatermarkValve;
 
-    public SimpleTailOperator(IterationID iterationId, boolean resolveWatermarks) {
+
+    public SimpleTailOperator(IterationID iterationId ){
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
-        this.resolveWatermarks = resolveWatermarks;
     }
 
     @Override
@@ -88,15 +83,36 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         this.channel = broker.getChannel(key);
+        getContainingTask().getConfiguration().getNumberOfNetworkInputs();
         this.recordConsumer =
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
+        int numInputChannels =
+                getContainingTask().getConfiguration().getInputs(getUserCodeClassloader()).length;
+        this.backwardWatermarkValve = new MiniWatermarkValve(numInputChannels);
     }
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-        recordConsumer.accept(streamRecord);
+        if(streamRecord.getValue().getOp() == Op.BACK_WATERMARK){
+            // Special Back Watermark
+            short iterationNumber = (short) (streamRecord.getValue().getTimestamp() % 4);
+            if(iterationNumber < 3){
+                // Perform iteration
+                try {
+                    Watermark aligned = backwardWatermarkValve.inputWatermark(new Watermark(streamRecord.getTimestamp()), streamRecord.getValue().getPart_id());
+                    if(aligned!=null){
+                        // Really aligned
+                        recordConsumer.accept(streamRecord);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }else{
+            recordConsumer.accept(streamRecord);
+        }
     }
 
 //    @Override
@@ -139,13 +155,13 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if (resolveWatermarks) {
             short iterationNumber = (short) (mark.getTimestamp() % 4);
             if (iterationNumber < 3) {
+                // Still not terminated need to iterate still
                 GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
                 channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
             }
-        }
+            // Else Pass
     }
 
     @Override

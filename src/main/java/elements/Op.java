@@ -6,5 +6,6 @@ public enum Op {
     REMOVE,
     SYNC,
     RMI,
-    WATERMARK,
+    WATERMARK, // Normal Watermarks flowing forward
+    BACK_WATERMARK // Backward Watermarks flowing backward
 }

@@ -37,9 +37,10 @@ public class GraphStream {
     public double lambda = 1.8; // GNN operator explosion coefficient
     public StreamExecutionEnvironment env; // Stream environment
 
-    public GraphStream(StreamExecutionEnvironment env) {
+    public GraphStream(StreamExecutionEnvironment env, short layers) {
         this.env = env;
         this.parallelism = (short) this.env.getParallelism();
+        this.layers = layers;
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.getConfig().setAutoWatermarkInterval(3000);
         this.env.getConfig().enableObjectReuse(); // Optimization
@@ -86,14 +87,14 @@ public class GraphStream {
      * @return output stream dependent on the plugin
      */
     public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
-        StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage, position_index, layers);
+        StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage);
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
         KeyedStream<GraphOp, String> keyedLast = topologyUpdates
                 .keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess), localIterationId)).setParallelism(thisParallelism);
-        DataStream<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.iterateOutputTag).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId, true)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess), localIterationId, position_index, layers)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.iterateOutputTag).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
 
         forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
@@ -101,7 +102,7 @@ public class GraphStream {
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.backwardOutputTag);
-            DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID, false)).setParallelism(previousParallelism);
+            DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
         this.position_index++;
@@ -118,7 +119,6 @@ public class GraphStream {
      * @return Last layer corresponding to vertex embeddings
      */
     public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
-        this.layers = (short) storages.size();
         DataStream<GraphOp> rawTopologicalUpdates = allUpdates.map(item -> {
             if (item.element != null) item.element.features.clear();
             return item;

@@ -19,7 +19,6 @@ public class GraphOp {
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
-
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
@@ -57,6 +56,30 @@ public class GraphOp {
         this.ts = ts;
     }
 
+    public Op getOp() {
+        return op;
+    }
+
+    public void setOp(Op op) {
+        this.op = op;
+    }
+
+    public short getPart_id() {
+        return part_id;
+    }
+
+    public void setPart_id(short part_id) {
+        this.part_id = part_id;
+    }
+
+    public GraphElement getElement() {
+        return element;
+    }
+
+    public void setElement(GraphElement element) {
+        this.element = element;
+    }
+
     public long getTimestamp() {
         return ts;
     }
@@ -68,7 +91,6 @@ public class GraphOp {
     public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }
-
 
     public GraphOp copy() {
         return new GraphOp(this.op, this.part_id, this.element, this.ts);

@@ -14,66 +14,79 @@ import storage.BaseStorage;
 import java.util.Objects;
 
 /**
- * Function that the storage and everything else interacts with
+ * Interface that the storage and everything else interacts with
  * Real implementation should be tightly coupled with their respective operators
  */
 public interface GNNLayerFunction extends RichFunction {
+    // ---------------> Externally set Features, Variables
     /**
      * @return Current Part that is being processed
      */
     short getCurrentPart();
 
+    /**
+     * Set the current part that is being processed
+     * @param part Part
+     */
     void setCurrentPart(short part);
 
     /**
-     * @return Horizontal Position
+     * @return Attached storage engine
      */
-    short getPosition();
-
-    void setPosition(short position);
+    BaseStorage getStorage();
 
     /**
-     * @return Number of GNN Layers
+     * Set the storage engine
      */
-    short getNumLayers();
-
-    void setNumLayers(short numLayers);
+    void setStorage(BaseStorage storage);
 
     /**
-     * BaseWrapper Context for sending broadCastElements
+     * BaseWrapper Context for doing higher-order stuff
      */
-    BaseWrapperOperator.Context getWrapperContext();
+    BaseWrapperOperator<?>.Context getWrapperContext();
 
-    void setWrapperContext(BaseWrapperOperator.Context context);
+    /**
+     * Set the base wrapper context
+     */
+    void setWrapperContext(BaseWrapperOperator<?>.Context context);
+
+    /**
+     * @return TimerService for managing timers and watermarks and stuff like that
+     */
+    TimerService getTimerService();
+
+    /**
+     * Get the current timestamp that being processed
+     */
+    long currentTimestamp();
+
+    // ----------------> Communication primitives
 
     /**
      * Send message. Should handle BACKWARD, FORWARD and ITERATE Messages separately
-     *
      * @param op GraphOp to be sent
      */
     void message(GraphOp op, MessageDirection direction);
 
     /**
-     * Side outputs
+     * Broadcast message in a specific direction
      */
-    void sideMessage(GraphOp op, OutputTag<GraphOp> outputTag);
+    void broadcastMessage(GraphOp op, MessageDirection direction);
 
     /**
-     * @return Storage
+     * Side outputs apart from those iterate, forward, backward messages
      */
-    BaseStorage getStorage();
-
-    void setStorage(BaseStorage storage);
+     <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
 
     /**
-     * @return TimerService fro managing timers and watermarks and stuff like that
+     * Broadcast message to a specific side output
+     * @param op Operation
+     * @param outputTag OutputTag to broadcast to
+     * @param <OUT> Type of the message to be broadcasted
      */
-    TimerService getTimerService();
+     <OUT> void sideBroadcast(OUT op, OutputTag<OUT> outputTag);
 
-    /**
-     * Get the current timestamp being processed
-     */
-    long currentTimestamp();
+     // ----------------> Derived methods
 
     /**
      * @return Is this the first GNN Layer
@@ -89,6 +102,12 @@ public interface GNNLayerFunction extends RichFunction {
         return getPosition() >= getNumLayers();
     }
 
+    default short getPosition(){
+        return getWrapperContext().getPosition();
+    }
+    default short getNumLayers(){
+        return getWrapperContext().getNumLayers();
+    }
     /**
      * @param value Process The Incoming Value
      */
