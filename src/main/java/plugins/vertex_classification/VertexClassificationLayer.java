@@ -4,21 +4,21 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Block;
-import elements.ElementType;
-import elements.GraphElement;
-import elements.Plugin;
-import elements.Vertex;
+import elements.*;
 import features.Tensor;
 import functions.nn.MyParameterStore;
 import functions.nn.SerializableModel;
 
 import java.util.Objects;
 
-public class VertexOutputInference extends Plugin {
+/**
+ * Simply stores and initializes the model, does not do any continuous inference
+ */
+public class VertexClassificationLayer extends Plugin {
     public SerializableModel<Block> model;
     public transient MyParameterStore parameterStore;
 
-    public VertexOutputInference(SerializableModel<Block> model) {
+    public VertexClassificationLayer(SerializableModel<Block> model) {
         super("inferencer");
         this.model = model;
     }
@@ -29,22 +29,6 @@ public class VertexOutputInference extends Plugin {
         parameterStore = new MyParameterStore(storage.manager.getLifeCycleManager());
         model.setManager(storage.manager.getLifeCycleManager());
         parameterStore.loadModel(this.model);
-    }
-
-    @Override
-    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-        super.updateElementCallback(newElement, oldElement);
-        if (newElement.elementType() == ElementType.FEATURE) {
-            Tensor feature = (Tensor) newElement;
-            if ("feature".equals(feature.getName())) {
-                forward(feature);
-            }
-        }
-    }
-
-    public void forward(Tensor feature) {
-        NDArray update = output(feature.getValue(), false);
-        System.out.println(update);
     }
 
     @Override

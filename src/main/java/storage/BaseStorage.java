@@ -11,9 +11,16 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.stream.Stream;
 
+/**
+ * Base Class for all storage Engines
+ * @implNote Subclassses extendind from this class should not care about foreign keys. All GraphElements should be stored rather independent from each other
+ * @implNote This is done so that late events are handled correctly, so all the logic is withing the specific graph element
+ * @implNote However, do check for redundancy is create methods.
+ */
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
     /**
      * List of plugins attached to this storage engine
+     * These are stored separately in operator state store
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
     /**
@@ -24,6 +31,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Helper manager for managing tensor memory
      */
     public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
+
+    // -------- Abstract methods
 
     public abstract boolean addFeature(Feature feature);
 
@@ -55,6 +64,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract void cacheFeaturesOf(GraphElement e);
 
+    // ----- Plugin Implementation and some common methods
 
     public Plugin getPlugin(String id) {
         return this.plugins.get(id);

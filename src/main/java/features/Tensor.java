@@ -47,6 +47,16 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return tmp;
     }
 
+    /**
+     * Additionally attach all Tensor to lifeCycleManager
+     */
+    @Override
+    public Boolean createElement() {
+        Boolean isCreated = super.createElement();
+        if(isCreated) getValue().attach(storage.manager.getLifeCycleManager()); // Always attach to life cycle manager
+        return isCreated;
+    }
+
     @Override
     public NDArray getValue() {
         return this.value;

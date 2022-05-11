@@ -69,6 +69,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
     protected final InternalOperatorMetricGroup metrics;
+
     // -------- Additional outputs by me
     protected Output[] internalOutputs;
     protected BroadcastOutput[] internalBroadcastOutputs;

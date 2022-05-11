@@ -218,7 +218,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
     }
 
-
     /**
      * Attached Features cannot have subFeatures otherwise behaves as usual
      *

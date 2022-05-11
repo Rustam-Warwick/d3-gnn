@@ -34,7 +34,7 @@ public class GraphStream {
     public short layers = 0; // Number of GNN Layers in the pipeline
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
     public short position_index = 1; // Counter of the Current GNN layer being deployed
-    public double lambda = 1.8; // GNN operator explosion coefficient
+    public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
     public StreamExecutionEnvironment env; // Stream environment
 
     public GraphStream(StreamExecutionEnvironment env, short layers) {
@@ -86,7 +86,7 @@ public class GraphStream {
      * @param storage         Storage of choice with attached plugins
      * @return output stream dependent on the plugin
      */
-    public DataStream<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
+    public SingleOutputStreamOperator<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
         StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage);
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
@@ -118,13 +118,13 @@ public class GraphStream {
      * @param storages   List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
-    public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
         DataStream<GraphOp> rawTopologicalUpdates = allUpdates.forward().map(item -> {
             if (item.element != null) item.element.features.clear();
             return item;
         }).setParallelism(allUpdates.getParallelism()); // Chain + Clean all the non-topological features
         assert layers > 0;
-        DataStream<GraphOp> lastLayerInputs = null;
+        SingleOutputStreamOperator<GraphOp> lastLayerInputs = null;
         for (BaseStorage storage : storages) {
             if (lastLayerInputs == null) {
                 lastLayerInputs = gnnLayerNewIteration(allUpdates, storage);

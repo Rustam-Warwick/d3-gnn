@@ -1,9 +1,6 @@
 package partitioner;
 
-import elements.Edge;
-import elements.ElementType;
-import elements.GraphOp;
-import elements.Vertex;
+import elements.*;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 
@@ -131,17 +128,31 @@ public class HDRF extends BasePartitioner {
 
     @Override
     public GraphOp map(GraphOp value) throws Exception {
-        if (value.element.elementType() == ElementType.EDGE) {
+        GraphElement elementToPartition = value.element;
+        if(elementToPartition.elementType()==ElementType.FEATURE){
+            Feature<?,?> feature = (Feature<?, ?>) elementToPartition;
+            if(feature.attachedTo.f0 == ElementType.VERTEX){
+                elementToPartition = new Vertex(feature.attachedTo.f1);
+            }
+            else{
+                String[] srcDestIds = feature.attachedTo.f1.split(":");
+                Vertex src = new Vertex(srcDestIds[0]);
+                Vertex dest = new Vertex(srcDestIds[1]);
+                elementToPartition = new Edge(src,dest);
+            }
+        }
+
+        if (elementToPartition.elementType() == ElementType.EDGE) {
             // Main partitioning logic, otherwise just assign edges
-            Edge edge = (Edge) value.element;
+            Edge edge = (Edge) elementToPartition;
             if (!this.partitionTable.containsKey(edge.src.getId())) this.totalNumberOfVertices++;
             if (!this.partitionTable.containsKey(edge.dest.getId())) this.totalNumberOfVertices++;
             short partition = this.computePartition(edge);
             edge.src.master = this.partitionTable.get(edge.src.getId()).get(0);
             edge.dest.master = this.partitionTable.get(edge.dest.getId()).get(0);
             value.partId = partition;
-        } else if (value.element.elementType() == ElementType.VERTEX) {
-            Vertex vertex = (Vertex) value.element;
+        } else if (elementToPartition.elementType() == ElementType.VERTEX) {
+            Vertex vertex = (Vertex) elementToPartition;
             if (!this.partitionTable.containsKey(vertex.getId())) this.totalNumberOfVertices++;
             short partition = this.computePartition(vertex);
             vertex.master = this.partitionTable.get(vertex.getId()).get(0);
@@ -149,6 +160,5 @@ public class HDRF extends BasePartitioner {
         }
         this.replicationFactor = (float) this.totalNumberOfReplicas / this.totalNumberOfVertices;
         return value;
-
     }
 }

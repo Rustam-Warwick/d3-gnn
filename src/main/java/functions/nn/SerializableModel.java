@@ -56,6 +56,10 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
         canonizeModel();
     }
 
+    /**
+     * Set the manager of this model + move all the parameters to this manager
+     * @param manager NDManager
+     */
     public void setManager(@Nonnull NDManager manager) {
         this.manager = manager;
         getBlock().getParameters().forEach(item -> {
@@ -187,7 +191,9 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     @Override
     public void close() {
-
+        getBlock().getParameters().forEach(item->{
+            item.getValue().close();
+        });
     }
 
     @Override
@@ -245,7 +251,6 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     /**
      * Fallback to a Kryo Serializer
-     *
      * @param oos
      * @throws IOException
      */

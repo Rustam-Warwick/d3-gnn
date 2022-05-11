@@ -19,7 +19,9 @@ public class GraphOp {
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
-    
+    /**
+     * Type of communication message Part-to-Part or Broadcast
+     */
     public MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
     /**
      * Timestamp associated with this GraphOp
@@ -45,11 +47,6 @@ public class GraphOp {
 
     /**
      * Constructor to be used in the system
-     *
-     * @param op
-     * @param partId
-     * @param element
-     * @param ts
      */
     public GraphOp(Op op, short partId, GraphElement element, long ts) {
         this.op = op;

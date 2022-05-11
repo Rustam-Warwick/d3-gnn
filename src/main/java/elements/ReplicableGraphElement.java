@@ -52,12 +52,12 @@ public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.REPLICA) features.clear();
         boolean is_created = createElement();
         if (is_created) {
-            if (this.state() == ReplicaState.MASTER) {
+            if (state() == ReplicaState.MASTER) {
                 // Add setFeature
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
-            } else {
+            } else if(state() == ReplicaState.REPLICA) {
                 // Send Query
-                this.storage.layerFunction.message(new GraphOp(Op.SYNC, this.masterPart(), this,  getTimestamp()), MessageDirection.ITERATE);
+                storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this,  getTimestamp()), MessageDirection.ITERATE);
             }
         }
         return is_created;
@@ -99,11 +99,11 @@ public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
-        if (this.state() == ReplicaState.MASTER) {
+        if (state() == ReplicaState.MASTER) {
             Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
             if (tmp.f0) this.syncReplicas(replicaParts());
             return tmp;
-        } else if (this.state() == ReplicaState.REPLICA) {
+        } else if (state() == ReplicaState.REPLICA) {
             this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, getTimestamp()), MessageDirection.ITERATE);
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
@@ -141,7 +141,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
      *
-     * @param notifyMaster should notify master part after deletion?
+     * @param notifyMaster should notify it master part after deletion?
      */
     @RemoteFunction
     public void deleteReplica(boolean notifyMaster) {
@@ -191,7 +191,7 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        Feature<?, ?> parts = this.getFeature("parts");
+        Feature<?, ?> parts = getFeature("parts");
         if (Objects.isNull(parts)) return super.replicaParts();
         else {
             return (List<Short>) parts.getValue();

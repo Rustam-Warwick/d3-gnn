@@ -327,7 +327,7 @@ public class GraphElement implements Serializable {
         if (Objects.isNull(getFeature(name))) {
             feature.setId(name);
             feature.setStorage(storage);
-            feature.setElement(this);
+            feature.setElement(this); // This also adds this feature to my element
             if (Objects.nonNull(storage)) {
                 feature.create();
             }

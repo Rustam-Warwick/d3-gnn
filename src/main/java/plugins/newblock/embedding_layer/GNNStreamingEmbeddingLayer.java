@@ -16,13 +16,17 @@ import iterations.RemoteInvoke;
 
 import java.util.Objects;
 
+/**
+ * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding
+ * Outputs -> New Feature to the next layer
+ */
 public class GNNStreamingEmbeddingLayer extends Plugin {
     // ---------------------- MODEL ---------------------
     public SerializableModel<GNNBlock> model;
     public transient Shape inputShape;
     public transient MyParameterStore parameterStore;
     // ---------------------- RUNTIME -------------------
-    public boolean externalFeatures; // Do we expect external features or have random feature matrices
+    public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public boolean ACTIVE = true; // Is the plugin currently running
 
     public GNNStreamingEmbeddingLayer(SerializableModel<GNNBlock> model, boolean externalFeatures) {
@@ -30,7 +34,6 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         this.externalFeatures = externalFeatures;
         this.model = model;
     }
-
 
     @Override
     public void open() {
@@ -70,8 +73,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature feature = (Feature) element;
             if ("feature".equals(feature.getName()) && ACTIVE) {
-                ((Tensor) element).getValue().attach(storage.manager.getLifeCycleManager()); // Attach to life cycle manager
-                reduceOutEdges((Vertex) feature.getElement());
+                reduceOutEdges((Tensor) feature);
             }
         }
     }
@@ -94,7 +96,6 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
-     *
      * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
@@ -118,7 +119,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
+        if (v!= null && updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
@@ -136,6 +137,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
+        if(newFeature.getElement() == null) return; // Element might be null if not yet arrived
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDArray msgOld = null;
         NDArray msgNew = null;
@@ -160,16 +162,17 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Given vertex reduce all the out edges aggregator values
-     *
-     * @param vertex Vertex which out edges should be reduces
+     * @param feature which belong to a feature
      */
-    public void reduceOutEdges(Vertex vertex) {
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
+    public void reduceOutEdges(Tensor feature) {
+        if(feature.getElement() == null) return;
+
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) feature.getElement(), EdgeType.OUT);
         NDArray msg = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
                 if (Objects.isNull(msg)) {
-                    msg = this.message((NDArray) vertex.getFeature("feature").getValue(), false);
+                    msg = this.message(feature.getValue(), false);
                 }
                 new RemoteInvoke()
                         .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)

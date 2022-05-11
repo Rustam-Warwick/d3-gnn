@@ -40,22 +40,15 @@ public class TupleStorage extends BaseStorage {
         try {
             if (featureTable.contains(feature.getId()))
                 throw new Exception("Graph Element exists"); // if exists not create;
-            if (feature.attachedTo.f0 == ElementType.VERTEX) {
-                if (!vertexTable.contains((String) feature.attachedTo.f1)) throw new Exception("Vertex not here yet");
+            if (feature.attachedTo.f0 != ElementType.NONE) {
                 registerFieldName(feature);
             }
-            if (feature.attachedTo.f0 == ElementType.EDGE) {
-                if (Objects.isNull(getEdge((String) feature.attachedTo.f1))) throw new Exception("Edge not here yet");
-                registerFieldName(feature);
-            }
-
             this.featureTable.put(feature.getId(), (Feature<?, ?>) feature.copy());
             return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
-
     }
 
 
@@ -91,8 +84,8 @@ public class TupleStorage extends BaseStorage {
             this.vertexInEdges.put(edge.dest.getId(), destInEdges);
             this.edgeTimestamps.put(edge.getId(), edge.getTimestamp());
             return true;
-
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -104,6 +97,7 @@ public class TupleStorage extends BaseStorage {
             this.featureTable.put(feature.getId(), (Feature<?, ?>) feature.copy());
             return true;
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -114,6 +108,7 @@ public class TupleStorage extends BaseStorage {
             if (!vertexTable.contains(vertex.getId())) throw new Exception("Vertex not here");
             return true;
         } catch (Exception e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -214,7 +209,6 @@ public class TupleStorage extends BaseStorage {
         }
     }
 
-
     @Override
     public Edge getEdge(String id) {
         try {
@@ -225,7 +219,6 @@ public class TupleStorage extends BaseStorage {
         }
 
     }
-
 
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
