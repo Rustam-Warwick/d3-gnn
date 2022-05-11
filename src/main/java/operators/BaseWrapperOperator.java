@@ -19,6 +19,7 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
@@ -43,7 +44,8 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 
 /**
- * Operator that Wraps around another operators and implements some common logic
+ * Operator that Wraps around another operator and implements some common logic
+ * This common logic is Edge-to-Edge broadcast, triple-all-reduce Watermarking strategy
  * @implNote This operator is also acting as HeadOperator for the feedback streams
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
@@ -67,7 +69,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
     protected final InternalOperatorMetricGroup metrics;
-    protected final String uniqueSenderId;
     // -------- Additional outputs by me
     protected Output[] internalOutputs;
     protected BroadcastOutput[] internalBroadcastOutputs;
@@ -77,11 +78,11 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final short position;
     protected final short totalLayers;
     protected final short operatorIndex;
+    protected List<Short> thisParts;
     private boolean watermarkInIteration = false;
     private Watermark waitingWatermark = null;
-    private boolean backWatermarkInIteration = false;
-    private Watermark waitingBackWatermark = null;
-    private StatusWatermarkValve backwardWatermarkValve;
+
+
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
             StreamOperatorFactory<GraphOp> operatorFactory,
@@ -108,12 +109,8 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
                                 .f0;
 
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
-
-        this.uniqueSenderId =
-                OperatorUtils.getUniqueSenderId(
-                        streamConfig.getOperatorID(), containingTask.getIndexInSubtaskGroup());
-        this.operatorIndex = (short) containingTask.getIndexInSubtaskGroup();
-
+        this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
+        assignThisKeys();
         try {
             // Creat individual outputs and the context
             this.createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
@@ -121,8 +118,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         } catch (Exception e) {
             throw new RuntimeException("OutputTags cannot be properly set up");
         }
-
-
     }
 
     @Override
@@ -208,7 +203,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     public abstract void processActualWatermark(Watermark mark) throws Exception;
 
     @Override
-    public void processWatermark(Watermark mark) throws Exception {
+    public final void processWatermark(Watermark mark) throws Exception {
         if (watermarkInIteration) {
             if (waitingWatermark == null) waitingWatermark = mark;
             else {
@@ -220,7 +215,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
             context.emitWatermark(BaseWrapperOperator.iterateOutputTag, iterationWatermark);
         }
     }
-
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
@@ -240,22 +234,13 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
                     waitingWatermark = null;
                 }
             }
-        } else if(element.getValue().getOp() == Op.BACK_WATERMARK){
-            short iterationNumber = (short) (element.getTimestamp() % 4);
-            if(iterationNumber < 2){
-                // Send
-                element.setTimestamp(element.getTimestamp() + 1);
-                context.broadcastElement(BaseWrapperOperator.iterateOutputTag, element);
-            }
-            else{
-                // if First and all that logic
-            }
         } else {
+            setKeyContextElement(element);
             processElement(element);
         }
     }
 
-    // CONFIGURATION
+    // CONFIGURATION Context + Feedback + MetricGroup + ProxyOutput + This Parts
     private InternalOperatorMetricGroup createOperatorMetricGroup(
             Environment environment, StreamConfig streamConfig) {
         try {
@@ -272,6 +257,20 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
             LOG.warn("An error occurred while instantiating task metrics.", e);
             return UnregisteredMetricGroups.createUnregisteredOperatorMetricGroup();
         }
+    }
+
+    private void assignThisKeys() {
+        List<Short> thisKeys = new ArrayList<>();
+        int index = operatorIndex;
+        int maxParallelism = containingTask.getEnvironment().getTaskInfo().getMaxNumberOfParallelSubtasks();
+        int parallelism = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
+        for (short i = 0; i < maxParallelism; i++) {
+            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
+            if (operatorIndex == index) {
+                thisKeys.add(i);
+            }
+        }
+        this.thisParts = thisKeys;
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
@@ -341,7 +340,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
         @Override
         public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
-            // Pass because watermarkStatuses should be managed by the wrapper operators
+            output.emitWatermarkStatus(watermarkStatus);
         }
 
         @Override
@@ -351,7 +350,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
         @Override
         public void emitLatencyMarker(LatencyMarker latencyMarker) {
-            // Pass because watermarkStatuses should be managed by the wrapper operators
+            output.emitLatencyMarker(latencyMarker);
         }
 
         @Override

@@ -86,7 +86,7 @@ public class RemoteInvoke {
         if (ts == null) ts = storage.layerFunction.currentTimestamp();
         List<GraphOp> graphOps = build();
         for (GraphOp a : graphOps) {
-            if (a.part_id == storage.layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
+            if (a.partId == storage.layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
                 Rmi.execute(storage.getElement(elementId, elementType), (Rmi) a.element);
             } else {
                 storage.layerFunction.message(a, messageDirection);

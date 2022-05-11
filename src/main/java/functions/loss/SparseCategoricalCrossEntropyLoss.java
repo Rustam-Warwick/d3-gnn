@@ -61,7 +61,7 @@ abstract public class SparseCategoricalCrossEntropyLoss extends ProcessFunction<
                         .withArgs(elementAttached)
                         .method("backward")
                         .where(MessageDirection.BACKWARD)
-                        .addDestination(trainData.part_id)
+                        .addDestination(trainData.partId)
                         .withTimestamp(trainData.getTimestamp())
                         .build().get(0);
                 out.collect(backMsg);

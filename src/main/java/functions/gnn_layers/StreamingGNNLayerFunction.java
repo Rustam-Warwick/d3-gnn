@@ -1,6 +1,7 @@
 package functions.gnn_layers;
 
 import elements.GraphOp;
+import iterations.MessageCommunication;
 import iterations.MessageDirection;
 import operators.BaseWrapperOperator;
 import org.apache.commons.lang3.NotImplementedException;
@@ -63,6 +64,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
+        op.setMessageCommunication(MessageCommunication.BROADCAST);
         try {
             if (direction == MessageDirection.BACKWARD) {
                 getWrapperContext().broadcastElement(BaseWrapperOperator.backwardOutputTag, new StreamRecord<>(op, op.getTimestamp()));
@@ -77,7 +79,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public <OUT> void sideBroadcast(OUT op, OutputTag<OUT> outputTag) {
+    public <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag) {
         getWrapperContext().broadcastElement(outputTag, new StreamRecord<>(op, currentTimestamp()));
     }
 

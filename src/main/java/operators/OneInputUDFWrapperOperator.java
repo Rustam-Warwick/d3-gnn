@@ -4,6 +4,7 @@ import com.codahale.metrics.MetricRegistryListener;
 import elements.GraphOp;
 import elements.Op;
 import functions.gnn_layers.GNNLayerFunction;
+import iterations.MessageCommunication;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -22,9 +23,20 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
         getWrappedOperator().getUserFunction().setWrapperContext(context);
     }
 
+    /**
+     * Broadcast elements should go to all parts
+     */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        getWrappedOperator().processElement(element);
+        if(element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST){
+            for(short part: thisParts){
+                element.getValue().setPartId(part);
+                setKeyContextElement(element);
+                getWrappedOperator().processElement(element);
+            }
+        }else{
+            getWrappedOperator().processElement(element);
+        }
     }
 
     @Override

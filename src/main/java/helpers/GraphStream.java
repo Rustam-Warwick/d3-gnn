@@ -119,10 +119,10 @@ public class GraphStream {
      * @return Last layer corresponding to vertex embeddings
      */
     public DataStream<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
-        DataStream<GraphOp> rawTopologicalUpdates = allUpdates.map(item -> {
+        DataStream<GraphOp> rawTopologicalUpdates = allUpdates.forward().map(item -> {
             if (item.element != null) item.element.features.clear();
             return item;
-        });
+        }).setParallelism(allUpdates.getParallelism()); // Chain + Clean all the non-topological features
         assert layers > 0;
         DataStream<GraphOp> lastLayerInputs = null;
         for (BaseStorage storage : storages) {
@@ -134,37 +134,6 @@ public class GraphStream {
         }
         return lastLayerInputs;
     }
-
-//    public Table toVertexEmbeddingTable(DataStream<GraphOp> output) {
-//        assert position_index == layers;
-//        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
-//            @Override
-//            public Row map(GraphOp value) throws Exception {
-//                VTensor feature = (VTensor) value.element;
-//                return Row.of(feature.attachedTo._2, feature.masterPart(), feature.value._1, feature.value._2);
-//            }
-//        }).returns(Types.ROW(Types.STRING, TypeInformation.of(Short.class), TypeInformation.of(NDArray.class), Types.INT));
-//        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().primaryKey("f0").columnByExpression("event_time", "PROCTIME()").build()).as("id", "master", "feature", "version");
-//        Table vertexEmbeddingsUpsert = tableEnv.sqlQuery("SELECT id, LAST_VALUE(master), LAST_VALUE(feature), LAST_VALUE(version), LAST_VALUE(event_time) FROM " + vertexEmbeddingTable +
-//                " GROUP BY id");
-//
-//        tableEnv.createTemporaryView("vertexEmbeddings", vertexEmbeddingsUpsert);
-//        return vertexEmbeddingTable;
-//    }
-//
-//    public Table toEdgeTable(DataStream<GraphOp> output) {
-//        assert position_index == layers;
-//        DataStream<Row> embeddings = output.keyBy(new ElementForPartKeySelector()).map(new MapFunction<GraphOp, Row>() {
-//            @Override
-//            public Row map(GraphOp value) throws Exception {
-//                Edge edge = (Edge) value.element;
-//                return Row.of(edge.src.getId(), edge.dest.getId());
-//            }
-//        }).returns(Types.ROW(Types.STRING, Types.STRING));
-//        Table vertexEmbeddingTable = tableEnv.fromDataStream(embeddings, Schema.newBuilder().columnByExpression("event_time", "PROCTIME()").primaryKey("f0", "f1").build()).as("srcId", "destId");
-//        tableEnv.createTemporaryView("edges", vertexEmbeddingTable);
-//        return vertexEmbeddingTable;
-//    }
 
     /**
      * With some p probability split the stream into 2. First one is the normal stream and the second one is the training stream

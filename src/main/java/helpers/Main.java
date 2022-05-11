@@ -17,6 +17,7 @@ import functions.splitter.EdgeTrainTestSplitter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
+import plugins.newblock.embedding_layer.GNNStreamingEmbeddingLayer;
 import storage.TupleStorage;
 
 import java.io.IOException;
@@ -49,16 +50,16 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-//        SerializableModel<SequentialBlock> model = myPartitionedModel();
+        SerializableModel<SequentialBlock> model = myPartitionedModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
         GraphStream gs = new GraphStream(env, (short)3);
-        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora/edges"), Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora/vertices"));
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/edges"), Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora/vertices"));
         DataStream<GraphOp> partitioned = gs.partition(dataset.build(env), new HDRF());
         DataStream<GraphOp> splittedData = gs.trainTestSplit(partitioned, new EdgeTrainTestSplitter(0.005));
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(splittedData, List.of(
-                new TupleStorage(),
-                new TupleStorage()
+                new TupleStorage().withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<>("GNN-Layer-1",model.getBlock().getChildren().get(0).getValue()),true)),
+                new TupleStorage().withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<>("GNN-Layer-1",model.getBlock().getChildren().get(1).getValue()),true))
         ));
 //        gs.gnnLayerNewIteration(embeddings, new TupleStorage().withPlugin(new VertexOutputInference(new SerializableModel<>("outputgnn", model.getBlock().getChildren().get(2).getValue()))));
         embeddings.print();

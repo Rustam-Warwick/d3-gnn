@@ -10,10 +10,16 @@ import java.util.concurrent.CompletableFuture;
 
 public class WrapperOperatorCoordinator implements OperatorCoordinator {
     protected final Context context;
-    public WrapperOperatorCoordinator(Context context){
-        this.context = context;
-    }
+    protected final IterationID iterationID;
+    protected final short position;
+    protected final short totalLayers;
 
+    public WrapperOperatorCoordinator(Context context, IterationID iterationID, short position, short totalLayers) {
+        this.context = context;
+        this.iterationID = iterationID;
+        this.position = position;
+        this.totalLayers = totalLayers;
+    }
 
     @Override
     public void start() throws Exception {
@@ -27,7 +33,6 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
     @Override
     public void handleEventFromOperator(int subtask, OperatorEvent event) throws Exception {
-
     }
 
     @Override
@@ -66,13 +71,16 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
         private final IterationID iterationId;
 
-        private final int totalHeadParallelism;
+        private final short position;
+
+        private final short totalLayers;
 
         public WrapperOperatorCoordinatorProvider(
-                OperatorID operatorId, IterationID iterationId, int totalHeadParallelism) {
+                OperatorID operatorId, IterationID iterationId, short position, short totalLayers) {
             this.operatorId = operatorId;
             this.iterationId = iterationId;
-            this.totalHeadParallelism = totalHeadParallelism;
+            this.position = position;
+            this.totalLayers  = totalLayers;
         }
 
         @Override
@@ -82,20 +90,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
         @Override
         public OperatorCoordinator create(Context context) {
-//            SharedProgressAligner sharedProgressAligner =
-//                    SharedProgressAligner.getOrCreate(
-//                            iterationId,
-//                            totalHeadParallelism,
-//                            context,
-//                            () ->
-//                                    Executors.newSingleThreadScheduledExecutor(
-//                                            runnable -> {
-//                                                Thread thread = new Thread(runnable);
-//                                                thread.setName(
-//                                                        "SharedProgressAligner-" + iterationId);
-//                                                return thread;
-//                                            }));
-            return new WrapperOperatorCoordinator(context);
+            return new WrapperOperatorCoordinator(context, iterationId, position, totalLayers);
         }
     }
 

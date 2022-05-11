@@ -59,12 +59,12 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
-    private MiniWatermarkValve backwardWatermarkValve;
 
 
     public SimpleTailOperator(IterationID iterationId ){
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
+
     }
 
     @Override
@@ -88,31 +88,11 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
-        int numInputChannels =
-                getContainingTask().getConfiguration().getInputs(getUserCodeClassloader()).length;
-        this.backwardWatermarkValve = new MiniWatermarkValve(numInputChannels);
     }
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-        if(streamRecord.getValue().getOp() == Op.BACK_WATERMARK){
-            // Special Back Watermark
-            short iterationNumber = (short) (streamRecord.getValue().getTimestamp() % 4);
-            if(iterationNumber < 3){
-                // Perform iteration
-                try {
-                    Watermark aligned = backwardWatermarkValve.inputWatermark(new Watermark(streamRecord.getTimestamp()), streamRecord.getValue().getPart_id());
-                    if(aligned!=null){
-                        // Really aligned
-                        recordConsumer.accept(streamRecord);
-                    }
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }else{
-            recordConsumer.accept(streamRecord);
-        }
+        recordConsumer.accept(streamRecord);
     }
 
 //    @Override

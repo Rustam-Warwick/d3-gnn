@@ -139,13 +139,13 @@ public class HDRF extends BasePartitioner {
             short partition = this.computePartition(edge);
             edge.src.master = this.partitionTable.get(edge.src.getId()).get(0);
             edge.dest.master = this.partitionTable.get(edge.dest.getId()).get(0);
-            value.part_id = partition;
+            value.partId = partition;
         } else if (value.element.elementType() == ElementType.VERTEX) {
             Vertex vertex = (Vertex) value.element;
             if (!this.partitionTable.containsKey(vertex.getId())) this.totalNumberOfVertices++;
             short partition = this.computePartition(vertex);
             vertex.master = this.partitionTable.get(vertex.getId()).get(0);
-            value.part_id = partition;
+            value.partId = partition;
         }
         this.replicationFactor = (float) this.totalNumberOfReplicas / this.totalNumberOfVertices;
         return value;

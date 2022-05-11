@@ -19,17 +19,17 @@ public class RandomPartitioner extends BasePartitioner {
     @Override
     public GraphOp map(GraphOp value) throws Exception {
         if (value.element.elementType() == ElementType.EDGE) {
-            value.part_id = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
+            value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
             Edge edge = (Edge) value.element;
-            this.masters.putIfAbsent(edge.src.getId(), value.part_id);
-            this.masters.putIfAbsent(edge.dest.getId(), value.part_id);
+            this.masters.putIfAbsent(edge.src.getId(), value.partId);
+            this.masters.putIfAbsent(edge.dest.getId(), value.partId);
             edge.src.master = this.masters.get(edge.src.getId());
             edge.dest.master = this.masters.get(edge.dest.getId());
         } else if (value.element.elementType() == ElementType.VERTEX) {
             short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
             this.masters.putIfAbsent(value.element.getId(), part_tmp);
             ((Vertex) value.element).master = this.masters.get(value.element.getId());
-            value.part_id = part_tmp;
+            value.partId = part_tmp;
         }
         return value;
     }

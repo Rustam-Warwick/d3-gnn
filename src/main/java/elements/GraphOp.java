@@ -1,6 +1,6 @@
 package elements;
 
-import iterations.MessageDirection;
+import iterations.MessageCommunication;
 
 /**
  * Main message object that gets passed around the system
@@ -14,11 +14,13 @@ public class GraphOp {
     /**
      * The part number where this record should be sent to
      */
-    public short part_id = -1;
+    public short partId = -1;
     /**
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
+    
+    public MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
@@ -45,13 +47,13 @@ public class GraphOp {
      * Constructor to be used in the system
      *
      * @param op
-     * @param part_id
+     * @param partId
      * @param element
      * @param ts
      */
-    public GraphOp(Op op, short part_id, GraphElement element,  long ts) {
+    public GraphOp(Op op, short partId, GraphElement element, long ts) {
         this.op = op;
-        this.part_id = part_id;
+        this.partId = partId;
         this.element = element;
         this.ts = ts;
     }
@@ -64,12 +66,12 @@ public class GraphOp {
         this.op = op;
     }
 
-    public short getPart_id() {
-        return part_id;
+    public short getPartId() {
+        return partId;
     }
 
-    public void setPart_id(short part_id) {
-        this.part_id = part_id;
+    public void setPartId(short partId) {
+        this.partId = partId;
     }
 
     public GraphElement getElement() {
@@ -88,19 +90,27 @@ public class GraphOp {
         this.ts = ts;
     }
 
+    public MessageCommunication getMessageCommunication() {
+        return messageCommunication;
+    }
+
+    public void setMessageCommunication(MessageCommunication messageCommunication) {
+        this.messageCommunication = messageCommunication;
+    }
+
     public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.part_id, this.element, this.ts);
+        return new GraphOp(this.op, this.partId, this.element, this.ts);
     }
 
     @Override
     public String toString() {
         return "GraphOp{" +
                 "op=" + op +
-                ", part_id=" + part_id +
+                ", part_id=" + partId +
                 ", element=" + element +
                 ", ts=" + ts +
                 '}';

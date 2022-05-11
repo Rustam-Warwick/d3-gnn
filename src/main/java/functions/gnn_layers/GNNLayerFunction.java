@@ -84,7 +84,7 @@ public interface GNNLayerFunction extends RichFunction {
      * @param outputTag OutputTag to broadcast to
      * @param <OUT> Type of the message to be broadcasted
      */
-     <OUT> void sideBroadcast(OUT op, OutputTag<OUT> outputTag);
+     <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag);
 
      // ----------------> Derived methods
 
