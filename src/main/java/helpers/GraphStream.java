@@ -8,7 +8,7 @@ import elements.*;
 import features.Set;
 import features.VTensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import functions.nn.JavaTensor;
+import ai.djl.ndarray.JavaTensor;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
 import operators.BaseWrapperOperator;
@@ -23,8 +23,8 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
-import serializers.ParameterSerializer;
-import serializers.TensorSerializer;
+import ai.djl.ndarray.ParameterSerializer;
+import ai.djl.ndarray.TensorSerializer;
 import storage.BaseStorage;
 
 import java.util.List;
@@ -44,7 +44,6 @@ public class GraphStream {
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.getConfig().setAutoWatermarkInterval(3000);
         this.env.getConfig().enableObjectReuse(); // Optimization
-        this.env.setMaxParallelism(128);
         configureSerializers();
     }
 

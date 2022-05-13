@@ -8,7 +8,7 @@ import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.Tensor;
-import functions.nn.JavaTensor;
+import ai.djl.ndarray.JavaTensor;
 import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;

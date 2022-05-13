@@ -1,8 +1,6 @@
 package operators;
 
-import com.codahale.metrics.MetricRegistryListener;
 import elements.GraphOp;
-import elements.Op;
 import functions.gnn_layers.GNNLayerFunction;
 import iterations.MessageCommunication;
 import org.apache.flink.iteration.IterationID;
@@ -28,13 +26,13 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
      */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if(element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST){
-            for(short part: thisParts){
+        if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+            for (short part : thisParts) {
                 element.getValue().setPartId(part);
                 setKeyContextElement(element);
                 getWrappedOperator().processElement(element);
             }
-        }else{
+        } else {
             getWrappedOperator().processElement(element);
         }
     }

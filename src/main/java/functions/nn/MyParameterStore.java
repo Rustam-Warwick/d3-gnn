@@ -91,8 +91,9 @@ public class MyParameterStore extends ParameterStore implements Serializable {
 
     /**
      * Load the model parameters to memory
-     * @implNote Stores the model parameters and gradients
+     *
      * @param model model to be loaded
+     * @implNote Stores the model parameters and gradients
      */
     public void loadModel(Model model) {
         model.getBlock().getParameters().forEach(item -> {

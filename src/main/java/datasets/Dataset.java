@@ -9,6 +9,8 @@ import org.apache.flink.util.OutputTag;
 
 public interface Dataset {
     OutputTag<GraphOp> TRAIN_TEST_DATA_OUTPUT = new OutputTag<>("trainData", TypeInformation.of(GraphOp.class));
+
     DataStream<GraphOp>[] build(StreamExecutionEnvironment env);
+
     ProcessFunction<GraphOp, GraphOp> trainTestSplitter();
 }

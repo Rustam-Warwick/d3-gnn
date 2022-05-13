@@ -20,11 +20,15 @@ public class MiniWatermarkValve {
      */
     private final InputChannelStatus[] channelStatuses;
 
-    /** The last watermark emitted from the valve. */
+    /**
+     * The last watermark emitted from the valve.
+     */
     private long lastOutputWatermark;
 
-    /** The last watermark status emitted from the valve. */
-    private WatermarkStatus lastOutputWatermarkStatus;
+    /**
+     * The last watermark status emitted from the valve.
+     */
+    private final WatermarkStatus lastOutputWatermarkStatus;
 
     /**
      * Returns a new {@code StatusWatermarkValve}.
@@ -50,9 +54,9 @@ public class MiniWatermarkValve {
      * Watermark, {@link PushingAsyncDataInput.DataOutput#emitWatermark(Watermark)} will be called to process the new
      * Watermark.
      *
-     * @param watermark the watermark to feed to the valve
+     * @param watermark    the watermark to feed to the valve
      * @param channelIndex the index of the channel that the fed watermark belongs to (index
-     *     starting from 0)
+     *                     starting from 0)
      */
     public Watermark inputWatermark(Watermark watermark, int channelIndex)
             throws Exception {
@@ -104,6 +108,15 @@ public class MiniWatermarkValve {
         return null;
     }
 
+    @VisibleForTesting
+    protected InputChannelStatus getInputChannelStatus(int channelIndex) {
+        Preconditions.checkArgument(
+                channelIndex >= 0 && channelIndex < channelStatuses.length,
+                "Invalid channel index. Number of input channels: " + channelStatuses.length);
+
+        return channelStatuses[channelIndex];
+    }
+
     /**
      * An {@code InputChannelStatus} keeps track of an input channel's last watermark, stream
      * status, and whether or not the channel's current watermark is aligned with the overall
@@ -134,15 +147,6 @@ public class MiniWatermarkValve {
             }
             return false;
         }
-    }
-
-    @VisibleForTesting
-    protected InputChannelStatus getInputChannelStatus(int channelIndex) {
-        Preconditions.checkArgument(
-                channelIndex >= 0 && channelIndex < channelStatuses.length,
-                "Invalid channel index. Number of input channels: " + channelStatuses.length);
-
-        return channelStatuses[channelIndex];
     }
 }
 

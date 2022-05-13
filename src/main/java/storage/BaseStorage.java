@@ -2,7 +2,7 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
-import functions.nn.TaskNDManager;
+import ai.djl.ndarray.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 /**
  * Base Class for all storage Engines
+ *
  * @implNote Subclassses extendind from this class should not care about foreign keys. All GraphElements should be stored rather independent from each other
  * @implNote This is done so that late events are handled correctly, so all the logic is withing the specific graph element
  * @implNote However, do check for redundancy is create methods.

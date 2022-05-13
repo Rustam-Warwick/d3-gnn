@@ -1,16 +1,16 @@
 package plugins.newblock.embedding_layer;
 
 import aggregators.MeanAggregator;
+import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.Tensor;
-import functions.nn.JavaTensor;
+import ai.djl.ndarray.JavaTensor;
 import functions.nn.MyParameterStore;
-import functions.nn.SerializableModel;
-import functions.nn.gnn.GNNBlock;
+import ai.djl.ndarray.SerializableModel;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
 
@@ -20,7 +20,7 @@ import java.util.Objects;
  * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding
  * Outputs -> New Feature to the next layer
  */
-public class GNNStreamingEmbeddingLayer extends Plugin {
+public class GNNEmbeddingLayer extends Plugin {
     // ---------------------- MODEL ---------------------
     public SerializableModel<GNNBlock> model;
     public transient Shape inputShape;
@@ -29,7 +29,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
     public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public boolean ACTIVE = true; // Is the plugin currently running
 
-    public GNNStreamingEmbeddingLayer(SerializableModel<GNNBlock> model, boolean externalFeatures) {
+    public GNNEmbeddingLayer(SerializableModel<GNNBlock> model, boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
         this.model = model;
@@ -71,8 +71,8 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
-            Feature feature = (Feature) element;
-            if ("feature".equals(feature.getName()) && ACTIVE) {
+            Feature<?, ?> feature = (Feature<?, ?>) element;
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 reduceOutEdges((Tensor) feature);
             }
         }
@@ -84,11 +84,11 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if ("feature".equals(feature.getName()) && ACTIVE) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 forward((Vertex) feature.getElement());
             }
-            if ("agg".equals(feature.getName()) && ACTIVE) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
                 forward((Vertex) feature.getElement());
             }
         }
@@ -96,6 +96,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Given newly created vertex init the aggregator and other values of it
+     *
      * @param element Vertex to be initialized
      */
     public void initVertex(Vertex element) {
@@ -119,7 +120,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (v!= null && updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
+        if (v != null && updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
@@ -137,7 +138,7 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        if(newFeature.getElement() == null) return; // Element might be null if not yet arrived
+        if (newFeature.getElement() == null) return; // Element might be null if not yet arrived
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDArray msgOld = null;
         NDArray msgNew = null;
@@ -162,10 +163,11 @@ public class GNNStreamingEmbeddingLayer extends Plugin {
 
     /**
      * Given vertex reduce all the out edges aggregator values
+     *
      * @param feature which belong to a feature
      */
     public void reduceOutEdges(Tensor feature) {
-        if(feature.getElement() == null) return;
+        if (feature.getElement() == null) return;
 
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) feature.getElement(), EdgeType.OUT);
         NDArray msg = null;

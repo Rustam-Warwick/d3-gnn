@@ -129,16 +129,15 @@ public class HDRF extends BasePartitioner {
     @Override
     public GraphOp map(GraphOp value) throws Exception {
         GraphElement elementToPartition = value.element;
-        if(elementToPartition.elementType()==ElementType.FEATURE){
-            Feature<?,?> feature = (Feature<?, ?>) elementToPartition;
-            if(feature.attachedTo.f0 == ElementType.VERTEX){
+        if (elementToPartition.elementType() == ElementType.FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) elementToPartition;
+            if (feature.attachedTo.f0 == ElementType.VERTEX) {
                 elementToPartition = new Vertex(feature.attachedTo.f1);
-            }
-            else{
+            } else {
                 String[] srcDestIds = feature.attachedTo.f1.split(":");
                 Vertex src = new Vertex(srcDestIds[0]);
                 Vertex dest = new Vertex(srcDestIds[1]);
-                elementToPartition = new Edge(src,dest);
+                elementToPartition = new Edge(src, dest);
             }
         }
 

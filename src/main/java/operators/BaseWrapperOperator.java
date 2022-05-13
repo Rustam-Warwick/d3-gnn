@@ -28,7 +28,6 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
-import org.apache.flink.streaming.runtime.watermarkstatus.StatusWatermarkValve;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
@@ -46,6 +45,7 @@ import java.util.concurrent.Executor;
 /**
  * Operator that Wraps around another operator and implements some common logic
  * This common logic is Edge-to-Edge broadcast, triple-all-reduce Watermarking strategy
+ *
  * @implNote This operator is also acting as HeadOperator for the feedback streams
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
@@ -69,16 +69,14 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
     protected final InternalOperatorMetricGroup metrics;
-
-    // -------- Additional outputs by me
-    protected Output[] internalOutputs;
-    protected BroadcastOutput[] internalBroadcastOutputs;
-    protected OutputTag[] internalOutputTags;
-
     // --------- Position and watermarking related stuff
     protected final short position;
     protected final short totalLayers;
     protected final short operatorIndex;
+    // -------- Additional outputs by me
+    protected Output[] internalOutputs;
+    protected BroadcastOutput[] internalBroadcastOutputs;
+    protected OutputTag[] internalOutputTags;
     protected List<Short> thisParts;
     private boolean watermarkInIteration = false;
     private Watermark waitingWatermark = null;
@@ -325,6 +323,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
      * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
      * Those stuff should be handled by the oeprator implementing this class
      * Also the timestamps are assigned by the GraphOp Timestamps
+     *
      * @param <T> TypeOf the proxu output
      */
     public static class ProxyOutput<T> implements Output<T> {
@@ -371,11 +370,12 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     public class Context {
         /**
          * Send watermark exactly to one output channel
+         *
          * @implNote if @param outputTag is null, will send it to forward channel
          */
         protected void emitWatermark(@Nullable OutputTag<?> outputTag, Watermark e) {
-            for(int i=0; i < internalOutputTags.length;i++){
-                if(Objects.equals(outputTag, internalOutputTags[i])){
+            for (int i = 0; i < internalOutputTags.length; i++) {
+                if (Objects.equals(outputTag, internalOutputTags[i])) {
                     internalOutputs[i].emitWatermark(e);
                 }
             }
@@ -392,12 +392,13 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
 
         /**
          * Broadcast element to one input channel
+         *
          * @param outputTag outputTag or null for broadcasting to forward operator
-         * @param el Element
+         * @param el        Element
          */
-        public <OUT> void broadcastElement(@Nullable OutputTag<OUT> outputTag, StreamRecord<OUT> el){
-            for(int i=0; i < internalOutputTags.length;i++){
-                if(Objects.equals(outputTag, internalOutputTags[i])){
+        public <OUT> void broadcastElement(@Nullable OutputTag<OUT> outputTag, StreamRecord<OUT> el) {
+            for (int i = 0; i < internalOutputTags.length; i++) {
+                if (Objects.equals(outputTag, internalOutputTags[i])) {
                     try {
                         internalBroadcastOutputs[i].broadcastEmit(el);
                     } catch (IOException e) {
@@ -408,49 +409,23 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         }
 
         /**
-         * BackWatermarks are special watermarks that traverse the stream in two directions
-         * They can only be emited from the last operator and they flow the ML Graph Backward then Forward
-         * P1 <- P2 <-P3*
-         * P1 -> P2 -> P3
-         * @param timestamp Timestamp of the watermark
-         * @implNote  Note that timestamp will be increasing as this watermark makes a complement path
-         */
-        public void startBackWatermark(long timestamp){
-            assert getPosition() == getNumLayers(); // can only start at the last layer
-            long newTimestamp = (timestamp - (timestamp % 4)); // Normalize to have remainder 0
-            broadcastElement(iterateOutputTag,new StreamRecord<>(new GraphOp(Op.BACK_WATERMARK, operatorIndex, null, newTimestamp), newTimestamp));
-        }
-
-        /**
          * Horizontal Position of this operator
+         *
          * @return horizontal position
          */
-        public short getPosition(){
+        public short getPosition() {
             return position;
         }
 
         /**
          * Number of operators chained together horizontally
+         *
          * @return layers number
          */
-        public short getNumLayers(){
+        public short getNumLayers() {
             return totalLayers;
         }
 
-        protected void emitWatermarkStatus(OutputTag<?> outputTag, Watermark e) {
-
-        }
-
-        protected void emitWatermarkStatus(Watermark e) {
-        }
-
-        protected void emitLatencyMarker(OutputTag<?> outputTag, LatencyMarker m) {
-
-        }
-
-        protected void emitLatencyMarker(LatencyMarker m) {
-
-        }
 
     }
 

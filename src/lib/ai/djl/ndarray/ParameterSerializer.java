@@ -1,7 +1,5 @@
-package serializers;
+package ai.djl.ndarray;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import com.esotericsoftware.kryo.Kryo;
@@ -32,7 +30,6 @@ public class ParameterSerializer extends Serializer<Parameter> {
             output.writeChar('N');
             return;
         }
-
         output.writeChar('P');
         output.writeString(object.getName());
         output.writeString(object.getId());

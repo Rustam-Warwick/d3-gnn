@@ -19,6 +19,7 @@ import java.util.Objects;
  */
 public interface GNNLayerFunction extends RichFunction {
     // ---------------> Externally set Features, Variables
+
     /**
      * @return Current Part that is being processed
      */
@@ -26,6 +27,7 @@ public interface GNNLayerFunction extends RichFunction {
 
     /**
      * Set the current part that is being processed
+     *
      * @param part Part
      */
     void setCurrentPart(short part);
@@ -64,6 +66,7 @@ public interface GNNLayerFunction extends RichFunction {
 
     /**
      * Send message. Should handle BACKWARD, FORWARD and ITERATE Messages separately
+     *
      * @param op GraphOp to be sent
      */
     void message(GraphOp op, MessageDirection direction);
@@ -76,17 +79,18 @@ public interface GNNLayerFunction extends RichFunction {
     /**
      * Side outputs apart from those iterate, forward, backward messages
      */
-     <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
+    <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
 
     /**
      * Broadcast message to a specific side output
-     * @param op Operation
+     *
+     * @param op        Operation
      * @param outputTag OutputTag to broadcast to
-     * @param <OUT> Type of the message to be broadcasted
+     * @param <OUT>     Type of the message to be broadcasted
      */
-     <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag);
+    <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag);
 
-     // ----------------> Derived methods
+    // ----------------> Derived methods
 
     /**
      * @return Is this the first GNN Layer
@@ -102,12 +106,14 @@ public interface GNNLayerFunction extends RichFunction {
         return getPosition() >= getNumLayers();
     }
 
-    default short getPosition(){
+    default short getPosition() {
         return getWrapperContext().getPosition();
     }
-    default short getNumLayers(){
+
+    default short getNumLayers() {
         return getWrapperContext().getNumLayers();
     }
+
     /**
      * @param value Process The Incoming Value
      */

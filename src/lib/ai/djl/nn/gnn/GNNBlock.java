@@ -1,4 +1,4 @@
-package functions.nn.gnn;
+package ai.djl.nn.gnn;
 
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;

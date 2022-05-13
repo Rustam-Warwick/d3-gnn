@@ -20,7 +20,6 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
-import helpers.MiniWatermarkValve;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
@@ -35,7 +34,6 @@ import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.watermarkstatus.StatusWatermarkValve;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
@@ -60,8 +58,7 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
 
-
-    public SimpleTailOperator(IterationID iterationId ){
+    public SimpleTailOperator(IterationID iterationId) {
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
 
@@ -135,13 +132,13 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-            short iterationNumber = (short) (mark.getTimestamp() % 4);
-            if (iterationNumber < 3) {
-                // Still not terminated need to iterate still
-                GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
-                channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
-            }
-            // Else Pass
+        short iterationNumber = (short) (mark.getTimestamp() % 4);
+        if (iterationNumber < 3) {
+            // Still not terminated need to iterate still
+            GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
+            channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
+        }
+        // Else Pass
     }
 
     @Override

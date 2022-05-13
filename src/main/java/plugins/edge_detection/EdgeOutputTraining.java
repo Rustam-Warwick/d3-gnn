@@ -58,7 +58,7 @@ public class EdgeOutputTraining extends Plugin {
             messageEdge.setTimestamp(Math.max(e.src.getFeature("feature").getTimestamp(), e.dest.getFeature("feature").getTimestamp()));
             messageEdge.setFeature("prediction", new Tensor(prediction));
             messageEdge.setFeature("label", e.getFeature("label").copy());
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge,  messageEdge.getTimestamp()), MessageDirection.FORWARD);
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageEdge.getPartId(), messageEdge, messageEdge.getTimestamp()), MessageDirection.FORWARD);
             e.delete();
         }
     }

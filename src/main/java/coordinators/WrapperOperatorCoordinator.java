@@ -4,8 +4,8 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 
 public class WrapperOperatorCoordinator implements OperatorCoordinator {
@@ -80,7 +80,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
             this.operatorId = operatorId;
             this.iterationId = iterationId;
             this.position = position;
-            this.totalLayers  = totalLayers;
+            this.totalLayers = totalLayers;
         }
 
         @Override

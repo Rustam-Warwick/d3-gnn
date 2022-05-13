@@ -4,21 +4,21 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Block;
-import elements.*;
-import features.Tensor;
+import elements.Plugin;
+import elements.Vertex;
 import functions.nn.MyParameterStore;
-import functions.nn.SerializableModel;
+import ai.djl.ndarray.SerializableModel;
 
 import java.util.Objects;
 
 /**
  * Simply stores and initializes the model, does not do any continuous inference
  */
-public class VertexClassificationLayer extends Plugin {
+public class VertexOutputLayer extends Plugin {
     public SerializableModel<Block> model;
     public transient MyParameterStore parameterStore;
 
-    public VertexClassificationLayer(SerializableModel<Block> model) {
+    public VertexOutputLayer(SerializableModel<Block> model) {
         super("inferencer");
         this.model = model;
     }

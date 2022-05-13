@@ -1,8 +1,6 @@
-package functions.nn;
+package ai.djl.ndarray;
 
 import ai.djl.MalformedModelException;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
 import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -17,13 +15,14 @@ import java.io.Serializable;
 /**
  * Wrapper around DJL Loss class
  */
-public class LossWrapper implements Serializable {
+public class SerializableLoss implements Serializable {
     public Loss internalLoss;
-    public LossWrapper(){
+
+    public SerializableLoss() {
         internalLoss = null;
     }
 
-    public LossWrapper(Loss internalLoss) {
+    public SerializableLoss(Loss internalLoss) {
         this.internalLoss = internalLoss;
     }
 
@@ -53,7 +52,7 @@ public class LossWrapper implements Serializable {
         Kryo a = new Kryo();
         ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
         Input input = new Input(ois);
-        LossWrapper tmp = a.readObject(input, LossWrapper.class);
+        SerializableLoss tmp = a.readObject(input, SerializableLoss.class);
         this.internalLoss = tmp.internalLoss;
     }
 }

@@ -1,55 +1,141 @@
 plugins {
+    id 'java'
     id 'application'
+    // shadow plugin to produce fat JARs
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+// artifact properties
+group = 'org.apache.flink.gnn'
+version = '0.1-SNAPSHOT'
+mainClassName = 'helpers.Main'
+description = """GNN Plugin for apache Flink"""
+
+ext {
+    javaVersion = '1.8'
+    flinkVersion = '1.15.0'
+    scalaBinaryVersion = '_2.12'
+    slf4jVersion = '1.7.32'
+    log4jVersion = '2.17.1'
 }
 
-group 'org.apache.flink.gnn'
-version '1.0-SNAPSHOT'
-application{
-    mainClass = "helpers.Main"
-}
+sourceCompatibility = "11"
+targetCompatibility = "11"
 
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+applicationDefaultJvmArgs = ["-Dlog4j.configurationFile=log4j2.properties"]
+
+// declare where to find the dependencies of your project
 repositories {
     mavenCentral()
+    maven {
+        url "https://repository.apache.org/content/repositories/snapshots"
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
 }
+// NOTE: We cannot use "compileOnly" or "shadow" configurations since then we could not run code
+// in the IDE or with "gradle run". We also cannot exclude transitive dependencies from the
+// shadowJar yet (see https://github.com/johnrengelman/shadow/issues/159).
+// -> Explicitly define the // libraries we want to be included in the "flinkShadowJar" configuration!
+
+configurations {
+    flinkShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
+    flinkShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    flinkShadowJar.exclude group: 'org.slf4j'
+    flinkShadowJar.exclude group: 'org.apache.logging.log4j'
+    // Dependencies that should be preloaded to the Flink Cluster before the start
+    flinkLibShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
+    flinkLibShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
+    flinkLibShadowJar.exclude group: 'org.slf4j'
+    flinkLibShadowJar.exclude group: 'org.apache.logging.log4j'
+}
+
+// declare the dependencies for your production and test code
 dependencies {
-    implementation 'org.jetbrains:annotations:20.1.0'
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    // --------------------------------------------------------------
+    // Compile-time dependencies that should NOT be part of the
+    // shadow (uber) jar and are provided in the lib folder of Flink
+    // --------------------------------------------------------------
+    implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
+    implementation "org.apache.flink:flink-clients:${flinkVersion}"
 
-    implementation([
-            'org.slf4j:slf4j-simple:1.7.26',
-            'org.apache.flink:flink-clients:1.15.0',
-//            'org.apache.flink:flink-table-planner_2.12:1.14.4',
-            'org.apache.flink:flink-streaming-java:1.15.0',
-            'org.apache.flink:flink-python_2.12:1.15.0',
-//            'org.apache.flink:flink-table-api-java:1.14.4',
-//            'org.apache.flink:flink-table-api-java-bridge_2.12:1.15.0',
-////            'org.apache.flink:flink-table-planner_2.12:1.14.4',
-//            'org.apache.flink:flink-table-common:1.14.4',
-//            'org.apache.flink:flink-statebackend-rocksdb_2.12:1.15.0',
-//            'org.apache.flink:flink-python_2.12:1.14.4',
-//            'org.apache.flink:statefun-flink-datastream:3.2.0',
 
-            'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
-            'ai.djl:api:0.16.0',
-            'ai.djl.pytorch:pytorch-engine:0.16.0',
-            'ai.djl.pytorch:pytorch-native-cpu:1.10.0',
-//            'ai.djl.mxnet:mxnet-engine:0.15.0',
-//            'ai.djl.mxnet:mxnet-native-auto:1.8.0',
-//            'ai.djl.mxnet:mxnet-native-auto:1.8.0'
-    ])
+    // --------------------------------------------------------------
+    // Dependencies that should be part of the shadow jar, e.g.
+    // --------------------------------------------------------------
+    flinkShadowJar("org.apache.flink:statefun-flink-core:3.2.0"){
+        // Need only the main classes from here
+        transitive(false)
+    }
+    flinkShadowJar('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
+        // Need only the main classes from here
+        transitive(false)
+    }
+
+
+    // Packages that should be part of library put into flink statically
+    flinkLibShadowJar 'ai.djl:api:0.16.0'
+    flinkLibShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
+    flinkLibShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
+
+
+
+    // Runtime only dependencies
+    runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+    runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 }
-jar{
 
+// make compileOnly dependencies available for tests:
+sourceSets {
+    lib{
+        java{
+            srcDirs = [files("src/lib")]
+        }
+        runtimeClasspath = configurations.flinkLibShadowJar + configurations.flinkShadowJar + configurations.runtimeClasspath
+        compileClasspath = configurations.flinkLibShadowJar + configurations.flinkShadowJar + configurations.runtimeClasspath
+    }
+
+    main.compileClasspath += (configurations.flinkShadowJar + configurations.flinkLibShadowJar + lib.output )
+    main.runtimeClasspath += (configurations.flinkShadowJar + configurations.flinkLibShadowJar + lib.output )
+
+    test.compileClasspath += (configurations.flinkShadowJar + configurations.flinkLibShadowJar + lib.output )
+    test.runtimeClasspath += (configurations.flinkShadowJar + configurations.flinkLibShadowJar + lib.output )
+
+    javadoc.classpath += (configurations.flinkShadowJar + configurations.flinkLibShadowJar + lib.output )
+
+
+}
+
+run.classpath = sourceSets.main.runtimeClasspath
+
+jar {
     manifest {
-        attributes (
-                'Automatic-Module-Name': 'org.apache.flink.gnn',
-                'Main-Class': "helpers.Main"
-        )
+        attributes 'Built-By': System.getProperty('user.name'),
+                'Build-Jdk': System.getProperty('java.version')
     }
+}
 
-    from {
-        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-    }
-    duplicatesStrategy("exclude")
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+task libShadowJar(type: ShadowJar){
+    // Other Shadow Task that prepares all the library dependencies
+    configurations = [project.configurations.flinkLibShadowJar]
+    from sourceSets.lib.output
+}
+
+libShadowJar.archiveBaseName.set("lib")
+
+task copyLibJar(type: Copy){
+
+    from 'build/libs/lib-0.1-SNAPSHOT.jar'
+    into '/Users/rustamwarwick/flink-1.15.0/lib'
+}
+
+
+shadowJar {
+    configurations = [project.configurations.flinkShadowJar]
+    exclude("libs")
 }

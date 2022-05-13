@@ -4,7 +4,6 @@ import elements.GraphOp;
 import iterations.MessageCommunication;
 import iterations.MessageDirection;
 import operators.BaseWrapperOperator;
-import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -12,8 +11,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
-
-import java.io.IOException;
 
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;

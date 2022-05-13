@@ -1,16 +1,16 @@
-package functions.nn;
+package ai.djl.ndarray;
 
 import ai.djl.Device;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.inference.Predictor;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
+import ai.djl.nn.SequentialBlock;
+import ai.djl.nn.core.Linear;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
@@ -20,10 +20,9 @@ import ai.djl.util.PairList;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.serializers.FieldSerializer;
+import com.esotericsoftware.kryo.serializers.JavaSerializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
-import serializers.NDSerializer;
-import serializers.ParameterSerializer;
-import serializers.TensorSerializer;
 
 import javax.annotation.Nonnull;
 import java.io.*;
@@ -58,6 +57,7 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     /**
      * Set the manager of this model + move all the parameters to this manager
+     *
      * @param manager NDManager
      */
     public void setManager(@Nonnull NDManager manager) {
@@ -191,7 +191,7 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     @Override
     public void close() {
-        getBlock().getParameters().forEach(item->{
+        getBlock().getParameters().forEach(item -> {
             item.getValue().close();
         });
     }
@@ -250,16 +250,24 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
     }
 
     /**
+     * Register all classes possible in DGL otherwise error is throws
+     */
+    private static void registerAllClasses(Kryo a){
+        a.setClassLoader(Thread.currentThread().getContextClassLoader());
+        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+        a.register(PtNDArray.class, new TensorSerializer());
+        a.register(JavaTensor.class, new TensorSerializer());
+        a.register(Parameter.class, new ParameterSerializer());
+    }
+
+    /**
      * Fallback to a Kryo Serializer
      * @param oos
      * @throws IOException
      */
     private void writeObject(ObjectOutputStream oos) throws IOException {
         Kryo a = new Kryo();
-        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-        a.register(PtNDArray.class, new TensorSerializer());
-        a.register(JavaTensor.class, new TensorSerializer());
-        a.register(Parameter.class, new ParameterSerializer());
+        registerAllClasses(a);
         Output output = new Output(oos);
         a.writeObject(output, this);
         output.flush();
@@ -277,13 +285,12 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
      */
     private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
         Kryo a = new Kryo();
+        registerAllClasses(a);
         ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-        a.register(PtNDArray.class, new TensorSerializer());
-        a.register(JavaTensor.class, new TensorSerializer());
-        a.register(Parameter.class, new ParameterSerializer());
         Input input = new Input(ois);
         SerializableModel<T> tmp = a.readObject(input, SerializableModel.class);
         this.block = tmp.block;
         this.modelName = tmp.modelName;
     }
+
 }

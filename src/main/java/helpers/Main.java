@@ -1,7 +1,9 @@
 package helpers;
 
+import ai.djl.Activations;
 import ai.djl.MalformedModelException;
 import ai.djl.ndarray.NDList;
+import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
@@ -11,22 +13,15 @@ import ai.djl.training.loss.Loss;
 import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
-import functions.nn.LossWrapper;
-import functions.nn.MyActivations;
-import functions.nn.SerializableModel;
-import functions.nn.gnn.SAGEConv;
-import org.apache.flink.api.common.functions.ReduceFunction;
+import ai.djl.ndarray.SerializableLoss;
+import ai.djl.ndarray.SerializableModel;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.windowing.AggregateApplyAllWindowFunction;
-import org.apache.flink.streaming.api.functions.windowing.ProcessAllWindowFunction;
-import org.apache.flink.streaming.api.windowing.windows.GlobalWindow;
-import org.apache.flink.util.Collector;
 import partitioner.HDRF;
-import plugins.newblock.embedding_layer.GNNStreamingEmbeddingLayer;
-import plugins.vertex_classification.VertexClassificationTester;
-import plugins.vertex_classification.VertexClassificationLayer;
+import plugins.newblock.embedding_layer.GNNEmbeddingLayer;
+import plugins.vertex_classification.VertexLossReporter;
+import plugins.vertex_classification.VertexOutputLayer;
 import storage.TupleStorage;
 
 import java.io.IOException;
@@ -46,12 +41,11 @@ public class Main {
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return MyActivations.softmax(ndArrays);
+                                return ndArrays;
                             }
                         })
-
         );
-        SerializableModel<SequentialBlock> model = new SerializableModel<>("gnn", sb);
+        SerializableModel<SequentialBlock> model = new SerializableModel<>("/ai/djl/gnn", sb);
         model.setManager(NDManager.newBaseManager());
 
         model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSage-CoraFull-2022-05-08"));
@@ -63,38 +57,28 @@ public class Main {
         SerializableModel<SequentialBlock> model = myPartitionedModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(1);
-        GraphStream gs = new GraphStream(env, (short)3);
+        env.setMaxParallelism(1);
+
+        // GraphStream
+        GraphStream gs = new GraphStream(env, (short) 3); // Number of GNN Layers
         Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<>("GNN-Layer-1",model.getBlock().getChildren().get(0).getValue()),true)),
+                        .withPlugin(new GNNEmbeddingLayer(new SerializableModel<>("GNN-Layer-1", model.getBlock().getChildren().get(0).getValue()), true)),
                 new TupleStorage()
-                        .withPlugin(new GNNStreamingEmbeddingLayer(new SerializableModel<>("GNN-Layer-1",model.getBlock().getChildren().get(1).getValue()),true))
+                        .withPlugin(new GNNEmbeddingLayer(new SerializableModel<>("GNN-Layer-1", model.getBlock().getChildren().get(1).getValue()), true))
         ));
 
         DataStream<GraphOp> trainFeatures = trainTestSplit.getSideOutput(Dataset.TRAIN_TEST_DATA_OUTPUT);
         SingleOutputStreamOperator<GraphOp> output = gs.gnnLayerNewIteration(
                 embeddings.union(trainFeatures),
                 new TupleStorage()
-                        .withPlugin(new VertexClassificationTester(new LossWrapper(Loss.softmaxCrossEntropyLoss())))
-                        .withPlugin(new VertexClassificationLayer(new SerializableModel<>("GNN-Output",model.getBlock().getChildren().get(2).getValue())))
-                );
-
-        output.getSideOutput(VertexClassificationTester.TEST_LOSS_OUTPUT)
-                .countWindowAll(100)
-                .process(new ProcessAllWindowFunction<Float, Object, GlobalWindow>() {
-                    @Override
-                    public void process(ProcessAllWindowFunction<Float, Object, GlobalWindow>.Context context, Iterable<Float> elements, Collector<Object> out) throws Exception {
-                        float sum = 0;
-                        for (Float element : elements) {
-                            sum += element;
-                        }
-                        System.out.format("Loss is %s ",sum / 100);
-                    }
-                });
+                        .withPlugin(new VertexLossReporter(new SerializableLoss(Loss.softmaxCrossEntropyLoss())))
+                        .withPlugin(new VertexOutputLayer(new SerializableModel<>("GNN-Output", model.getBlock().getChildren().get(2).getValue())))
+        );
 
 
 //        gs.gnnLayerNewIteration(embeddings, new TupleStorage().withPlugin(new VertexOutputInference(new SerializableModel<>("outputgnn", model.getBlock().getChildren().get(2).getValue()))));

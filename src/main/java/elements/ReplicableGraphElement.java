@@ -55,9 +55,9 @@ public class ReplicableGraphElement extends GraphElement {
             if (state() == ReplicaState.MASTER) {
                 // Add setFeature
                 this.setFeature("parts", new Set<Short>(new ArrayList<>(), true));
-            } else if(state() == ReplicaState.REPLICA) {
+            } else if (state() == ReplicaState.REPLICA) {
                 // Send Query
-                storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this,  getTimestamp()), MessageDirection.ITERATE);
+                storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this, getTimestamp()), MessageDirection.ITERATE);
             }
         }
         return is_created;
@@ -108,7 +108,6 @@ public class ReplicableGraphElement extends GraphElement {
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
-
 
     /**
      * master -> Send delete message to replica, actually delete the element from master immediately
@@ -176,7 +175,7 @@ public class ReplicableGraphElement extends GraphElement {
             Feature<?, ?> tmp = feature.copy();
             cpy.setFeature(feature.getName(), tmp);
         }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy,  getTimestamp()),MessageDirection.ITERATE));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, getTimestamp()), MessageDirection.ITERATE));
     }
 
     @Override

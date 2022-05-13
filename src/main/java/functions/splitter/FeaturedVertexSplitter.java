@@ -11,7 +11,7 @@ import org.apache.flink.util.OutputTag;
 
 public class FeaturedVertexSplitter extends ProcessFunction<GraphOp, GraphOp> {
     public final double p;
-    final OutputTag<GraphOp> trainOutput = new OutputTag<>("training", TypeInformation.of(GraphOp.class)) {
+    final OutputTag<GraphOp> trainOutput = new OutputTag<GraphOp>("training", TypeInformation.of(GraphOp.class)) {
     };
 
     public FeaturedVertexSplitter() {

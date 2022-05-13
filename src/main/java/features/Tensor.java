@@ -2,6 +2,8 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
+import elements.GraphElement;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions
@@ -53,8 +55,22 @@ public class Tensor extends Feature<NDArray, NDArray> {
     @Override
     public Boolean createElement() {
         Boolean isCreated = super.createElement();
-        if(isCreated) getValue().attach(storage.manager.getLifeCycleManager()); // Always attach to life cycle manager
+        if (isCreated) getValue().attach(storage.manager.getLifeCycleManager()); // Always attach to life cycle manager
         return isCreated;
+    }
+
+    /**
+     * Attach all Tensor to lifeCycleManager
+     *
+     * @param newElement newElement to update with
+     */
+    @Override
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+        Tuple2<Boolean, GraphElement> result = super.updateElement(newElement);
+        if (result.f0) {
+            getValue().attach(storage.manager.getLifeCycleManager());
+        }
+        return result;
     }
 
     @Override
