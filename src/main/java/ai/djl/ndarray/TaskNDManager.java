@@ -1,4 +1,5 @@
 package ai.djl.ndarray;
+
 /**
  * For Tasks that generate their own tensors this inteface should be used to manager the NDManagers,
  * detached tensors should only be of class @JavaTensor to support auto-closure

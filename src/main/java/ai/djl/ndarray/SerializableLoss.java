@@ -1,6 +1,8 @@
 package ai.djl.ndarray;
 
 import ai.djl.MalformedModelException;
+import ai.djl.nn.Parameter;
+import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -34,12 +36,24 @@ public class SerializableLoss implements Serializable {
         return internalLoss.getName();
     }
 
+
+    /**
+     * Register all classes possible in DGL otherwise error is throws
+     */
+    private static void registerAllClasses(Kryo a){
+        a.setClassLoader(Thread.currentThread().getContextClassLoader());
+        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+        a.register(PtNDArray.class, new TensorSerializer());
+        a.register(JavaTensor.class, new TensorSerializer());
+        a.register(Parameter.class, new ParameterSerializer());
+    }
+
     /**
      * Fallback to Kryo
      */
     private void writeObject(ObjectOutputStream oos) throws IOException {
         Kryo a = new Kryo();
-        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+        registerAllClasses(a);
         Output output = new Output(oos);
         a.writeObject(output, this);
         output.flush();
@@ -50,6 +64,7 @@ public class SerializableLoss implements Serializable {
      */
     private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
         Kryo a = new Kryo();
+        registerAllClasses(a);
         ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
         Input input = new Input(ois);
         SerializableLoss tmp = a.readObject(input, SerializableLoss.class);

@@ -9,8 +9,6 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
-import ai.djl.nn.SequentialBlock;
-import ai.djl.nn.core.Linear;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
@@ -20,8 +18,6 @@ import ai.djl.util.PairList;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import com.esotericsoftware.kryo.serializers.FieldSerializer;
-import com.esotericsoftware.kryo.serializers.JavaSerializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import javax.annotation.Nonnull;
@@ -286,7 +282,6 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
     private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
         Kryo a = new Kryo();
         registerAllClasses(a);
-        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
         Input input = new Input(ois);
         SerializableModel<T> tmp = a.readObject(input, SerializableModel.class);
         this.block = tmp.block;

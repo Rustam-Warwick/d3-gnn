@@ -1,6 +1,5 @@
 package helpers;
 
-import ai.djl.Activations;
 import ai.djl.MalformedModelException;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.SAGEConv;

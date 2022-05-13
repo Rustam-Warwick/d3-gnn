@@ -77,9 +77,9 @@ dependencies {
 
 
     // Packages that should be part of library put into flink statically
-    flinkLibShadowJar 'ai.djl:api:0.16.0'
-    flinkLibShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
-    flinkLibShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
+    flinkShadowJar 'ai.djl:api:0.16.0'
+    flinkShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
+    flinkShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
 
 
 
