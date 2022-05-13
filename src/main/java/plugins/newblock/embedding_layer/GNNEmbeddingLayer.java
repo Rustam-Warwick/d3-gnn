@@ -1,16 +1,12 @@
 package plugins.newblock.embedding_layer;
 
 import aggregators.MeanAggregator;
+import ai.djl.ndarray.*;
 import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import elements.*;
 import features.Tensor;
-import ai.djl.ndarray.JavaTensor;
 import functions.nn.MyParameterStore;
-import ai.djl.ndarray.SerializableModel;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
 

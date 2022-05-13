@@ -58,6 +58,7 @@ public class Main {
         env.setParallelism(1);
         env.setMaxParallelism(1);
 
+
         // GraphStream
         GraphStream gs = new GraphStream(env, (short) 3); // Number of GNN Layers
         Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
