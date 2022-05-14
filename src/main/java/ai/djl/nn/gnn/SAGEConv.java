@@ -11,8 +11,8 @@ import java.util.function.Function;
 
 public class SAGEConv extends GNNBlock {
 
-    public SAGEConv(int outFeatures) {
-        // Update Block
+    public SAGEConv(int outFeatures, boolean optBias) {
+        // Update Block expecs thisFeature, aggregator
         ParallelBlock updateBLock = new ParallelBlock(new Function<List<NDList>, NDList>() {
             @Override
             public NDList apply(List<NDList> item) {
@@ -28,7 +28,7 @@ public class SAGEConv extends GNNBlock {
                                 return new NDList(ndArrays.get(0));
                             }
                         }))
-                        .add(Linear.builder().setUnits(outFeatures).optBias(false).build())
+                        .add(Linear.builder().setUnits(outFeatures).optBias(optBias).build())
         );
         updateBLock.add(
                 new SequentialBlock()

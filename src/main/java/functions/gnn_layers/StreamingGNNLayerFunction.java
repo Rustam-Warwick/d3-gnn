@@ -48,11 +48,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     public void message(GraphOp op, MessageDirection direction) {
         try {
             if (direction == MessageDirection.BACKWARD) {
-                ctx.output(BaseWrapperOperator.backwardOutputTag, op);
+                ctx.output(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
             } else if (direction == MessageDirection.FORWARD) {
                 collector.collect(op);
             } else {
-                ctx.output(BaseWrapperOperator.iterateOutputTag, op);
+                ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -64,11 +64,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         op.setMessageCommunication(MessageCommunication.BROADCAST);
         try {
             if (direction == MessageDirection.BACKWARD) {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.backwardOutputTag, new StreamRecord<>(op, op.getTimestamp()));
+                getWrapperContext().broadcastElement(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, new StreamRecord<>(op, op.getTimestamp()));
             } else if (direction == MessageDirection.FORWARD) {
                 getWrapperContext().broadcastElement(null, new StreamRecord<>(op, op.getTimestamp()));
             } else {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.iterateOutputTag, new StreamRecord<>(op, op.getTimestamp()));
+                getWrapperContext().broadcastElement(BaseWrapperOperator.ITERATE_OUTPUT_TAG, new StreamRecord<>(op, op.getTimestamp()));
             }
         } catch (NullPointerException e) {
             e.printStackTrace();

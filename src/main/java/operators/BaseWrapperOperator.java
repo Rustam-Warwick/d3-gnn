@@ -52,8 +52,8 @@ import java.util.concurrent.Executor;
 abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp> {
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
-    public static OutputTag<GraphOp> iterateOutputTag = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
-    public static OutputTag<GraphOp> backwardOutputTag = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
 
     // ---- Configuration details
     protected final StreamOperatorParameters<GraphOp> parameters;
@@ -211,7 +211,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
         } else {
             Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4)); // Normalize to have remainder 0
             watermarkInIteration = true;
-            context.emitWatermark(BaseWrapperOperator.iterateOutputTag, iterationWatermark);
+            context.emitWatermark(BaseWrapperOperator.ITERATE_OUTPUT_TAG, iterationWatermark);
         }
     }
 
@@ -222,7 +222,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
             Watermark newWatermark = new Watermark(element.getTimestamp() + 1);
             if (iterationNumber < 2) {
                 // Still need to traverse the stream before updating the timer
-                context.emitWatermark(BaseWrapperOperator.iterateOutputTag, newWatermark);
+                context.emitWatermark(BaseWrapperOperator.ITERATE_OUTPUT_TAG, newWatermark);
             } else {
                 // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
                 processActualWatermark(newWatermark);
