@@ -1,9 +1,8 @@
 package datasets;
 
+import ai.djl.ndarray.TaskNDManager;
 import elements.*;
 import features.Tensor;
-import ai.djl.ndarray.JavaTensor;
-import ai.djl.ndarray.TaskNDManager;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -75,9 +74,13 @@ public class CoraFull implements Dataset {
                     float val = Float.valueOf(m.group(1));
                     arr[i] = val;
                 }
-                Tensor tensor = new Tensor(new JavaTensor(manager.getTempManager().create(arr)));
+
+                // Feature
+                Tensor tensor = new Tensor(manager.getTempManager().create(arr));
                 v.setFeature("feature", tensor);
-                Tensor label = new Tensor(new JavaTensor(manager.getTempManager().create(Integer.valueOf(vertexFeature[2]))));
+
+                // Label
+                Tensor label = new Tensor(manager.getTempManager().create(Integer.valueOf(vertexFeature[2])));
                 label.halo = true;
                 v.setFeature("label", label);
                 return new GraphOp(Op.COMMIT, v, 0);

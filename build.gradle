@@ -4,6 +4,7 @@ plugins {
     // shadow plugin to produce fat JARs
     id 'com.github.johnrengelman.shadow' version '7.1.2'
 }
+
 // artifact properties
 group = 'org.apache.flink.gnn'
 version = '0.1-SNAPSHOT'
@@ -51,8 +52,8 @@ configurations {
     flinkLibShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
     flinkLibShadowJar.exclude group: 'org.slf4j'
     flinkLibShadowJar.exclude group: 'org.apache.logging.log4j'
-}
 
+}
 // declare the dependencies for your production and test code
 dependencies {
     // --------------------------------------------------------------
@@ -75,12 +76,11 @@ dependencies {
         transitive(false)
     }
 
-
-    // Packages that should be part of library put into flink statically
     flinkShadowJar 'ai.djl:api:0.16.0'
     flinkShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
     flinkShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
 
+    // Packages that should be part of library put into flink statically
 
 
     // Runtime only dependencies

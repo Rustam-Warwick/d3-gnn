@@ -10,6 +10,8 @@ import ai.djl.nn.Block;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.serializers.ParameterSerializer;
+import ai.djl.serializers.TensorSerializer;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
 import ai.djl.translate.Translator;
@@ -85,6 +87,16 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
                 e.printStackTrace();
             }
         });
+    }
+
+    @Override
+    public void writeExternal(ObjectOutput out) throws IOException {
+
+    }
+
+    @Override
+    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+
     }
 
     @Override
@@ -258,8 +270,6 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     /**
      * Fallback to a Kryo Serializer
-     * @param oos
-     * @throws IOException
      */
     private void writeObject(ObjectOutputStream oos) throws IOException {
         Kryo a = new Kryo();
@@ -271,13 +281,6 @@ public class SerializableModel<T extends Block> implements Serializable, Model {
 
     /**
      * Fallback to a KryoSerializer
-     *
-     * @param ois
-     * @throws ClassNotFoundException
-     * @throws IOException
-     * @throws MalformedModelException
-     * @throws NoSuchFieldException
-     * @throws IllegalAccessException
      */
     private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException, MalformedModelException, NoSuchFieldException, IllegalAccessException {
         Kryo a = new Kryo();

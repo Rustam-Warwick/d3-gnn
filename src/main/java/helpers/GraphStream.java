@@ -4,11 +4,12 @@ import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.serializers.ParameterSerializer;
+import ai.djl.serializers.TensorSerializer;
 import elements.*;
 import features.Set;
 import features.VTensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import ai.djl.ndarray.JavaTensor;
 import functions.selectors.PartKeySelector;
 import iterations.Rmi;
 import operators.BaseWrapperOperator;
@@ -23,8 +24,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
-import ai.djl.ndarray.ParameterSerializer;
-import ai.djl.ndarray.TensorSerializer;
 import storage.BaseStorage;
 
 import java.util.List;
@@ -48,7 +47,6 @@ public class GraphStream {
     }
 
     private void configureSerializers() {
-        env.registerTypeWithKryoSerializer(JavaTensor.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
         env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
         env.registerType(GraphElement.class);
@@ -57,7 +55,6 @@ public class GraphStream {
         env.registerType(Edge.class);
         env.registerType(Feature.class);
         env.registerType(Set.class);
-        env.registerType(JavaTensor.class);
         env.registerType(VTensor.class);
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
@@ -93,14 +90,14 @@ public class GraphStream {
         KeyedStream<GraphOp, String> keyedLast = topologyUpdates
                 .keyBy(new PartKeySelector());
         SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(storageProcess), localIterationId, position_index, layers)).setParallelism(thisParallelism);
-        DataStream<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.iterateOutputTag).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
+        DataStream<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
 
         forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
 
         if (position_index > 1) {
             int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
-            DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.backwardOutputTag);
+            DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             DataStream<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }

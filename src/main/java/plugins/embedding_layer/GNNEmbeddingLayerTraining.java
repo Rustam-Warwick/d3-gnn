@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class GNNEmbeddingLayerTraining extends Plugin {
-    public transient GNNStreamingEmbeddingLayer inference;
+    public transient GNNEmbeddingLayer inference;
     public Long reInferenceWatermark = null; // Next watermark of iteration 1 should be re-Inference
     public Long sendAlignWatermark = null; // Should I send Align watermarks to the next layer on watermark
     public boolean alignWatermarks = false; // Should the master(0) align the watermarks of replicas ?
@@ -32,7 +32,7 @@ public class GNNEmbeddingLayerTraining extends Plugin {
     @Override
     public void open() {
         super.open();
-        inference = (GNNStreamingEmbeddingLayer) this.storage.getPlugin("inferencer");
+        inference = (GNNEmbeddingLayer) this.storage.getPlugin("inferencer");
     }
 
     /**

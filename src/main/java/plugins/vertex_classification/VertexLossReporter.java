@@ -2,10 +2,10 @@ package plugins.vertex_classification;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.SerializableLoss;
 import elements.GraphElement;
 import elements.Plugin;
 import elements.Vertex;
-import ai.djl.ndarray.SerializableLoss;
 import org.apache.flink.metrics.Gauge;
 
 /**
@@ -16,7 +16,7 @@ import org.apache.flink.metrics.Gauge;
  * testLabel -> Label to test by
  */
 public class VertexLossReporter extends Plugin {
-    public transient VertexOutputLayer inferencer;
+    public transient VertexOutputLayer inference;
     public SerializableLoss lossFunction;
 
     public VertexLossReporter(SerializableLoss lossFunction) {
@@ -29,28 +29,32 @@ public class VertexLossReporter extends Plugin {
         super.addElementCallback(element);
     }
 
+    public float getLossValue(){
+        float totalLoss = 0f;
+        int sum = 0;
+        for (Vertex v : storage.getVertices()) {
+            if (inference.outputReady(v) && v.getFeature("testLabel") != null) {
+                NDArray prediction = inference.output((NDArray) v.getFeature("feature").getValue(), false);
+                NDArray label = (NDArray) v.getFeature("testLabel").getValue();
+                NDArray loss = lossFunction.evaluate(new NDList(label.expandDims(0)), new NDList(prediction.expandDims(0)));
+                totalLoss += loss.getFloat();
+                sum++;
+            }
+        }
+
+        if (sum == 0) return 0f;
+        else{
+            float value = totalLoss / sum;
+            System.out.println(value);
+            return value;
+        }
+    }
+
     public Gauge<Integer> createGauge() {
         return new Gauge<Integer>() {
             @Override
             public Integer getValue() {
-                Float totalLoss = 0f;
-                int sum = 0;
-                for (Vertex v : storage.getVertices()) {
-                    if (inferencer.outputReady(v) && v.getFeature("testLabel") != null) {
-                        NDArray prediction = inferencer.output((NDArray) v.getFeature("feature").getValue(), false);
-                        NDArray label = (NDArray) v.getFeature("testLabel").getValue();
-                        NDArray loss = lossFunction.evaluate(new NDList(label.expandDims(0)), new NDList(prediction.expandDims(0)));
-                        totalLoss += loss.getFloat();
-                        sum++;
-                    }
-                }
-
-                if (sum == 0) return 0;
-                else{
-                    float value = totalLoss / sum;
-                    System.out.println(value);
-                    return (int)(value * 1000);
-                }
+                return (int) (getLossValue() * 100);
             }
         };
     }
@@ -58,7 +62,7 @@ public class VertexLossReporter extends Plugin {
     @Override
     public void open() {
         super.open();
-        inferencer = (VertexOutputLayer) storage.getPlugin("inferencer");
+        inference = (VertexOutputLayer) storage.getPlugin("inferencer");
         storage.layerFunction
                 .getRuntimeContext()
                 .getMetricGroup()
