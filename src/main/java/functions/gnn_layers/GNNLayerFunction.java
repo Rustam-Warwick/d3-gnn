@@ -153,7 +153,7 @@ public interface GNNLayerFunction extends RichFunction {
         } catch (Exception | Error e) {
             e.printStackTrace();
         } finally {
-            getStorage().manager.clean();
+
         }
     }
 

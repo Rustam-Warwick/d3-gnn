@@ -34,7 +34,7 @@ public class Main {
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
         sb.add(new SAGEConv(128,  true));
-        sb.add(new SAGEConv(128, true));
+        sb.add(new SAGEConv(64, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(64).optBias(true).build())
@@ -48,7 +48,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-14"));
+        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-14"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item->{
@@ -70,7 +70,7 @@ public class Main {
 
         // GraphStream
         GraphStream gs = new GraphStream(env, (short) 3); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
 
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());

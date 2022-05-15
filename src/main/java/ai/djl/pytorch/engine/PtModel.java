@@ -23,7 +23,7 @@ import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.TensorSerializer;
+import ai.djl.serializers.NDArraySerializer;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
 import ai.djl.training.initializer.Initializer;
@@ -33,6 +33,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.twitter.chill.java.ClosureSerializer;
+import helpers.GraphStream;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;
@@ -253,22 +254,10 @@ public class PtModel extends BaseModel{
         });
     }
 
-    /**
-     * Register all classes possible in DGL otherwise error is throws
-     */
-    private static void registerAllClasses(Kryo a){
-        a.setClassLoader(Thread.currentThread().getContextClassLoader());
-        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-        a.register(PtNDArray.class, new TensorSerializer());
-        a.register(Parameter.class, new ParameterSerializer());
-        a.register(SerializedLambda.class);
-        a.register(ClosureSerializer.Closure.class, new ClosureSerializer());
-    }
-
     @Override
     public void writeExternal(ObjectOutput out){
         Kryo a = new Kryo();
-        registerAllClasses(a);
+        GraphStream.configureSerializers(a);
         OutputStream tmp = new OutputStream(){
             @Override
             public void write(int b) throws IOException {
@@ -283,7 +272,7 @@ public class PtModel extends BaseModel{
     @Override
     public void readExternal(ObjectInput in){
         Kryo a = new Kryo();
-        registerAllClasses(a);
+        GraphStream.configureSerializers(a);
         InputStream tmp = new InputStream() {
             @Override
             public int read() throws IOException {

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GraphElement implements Serializable {
     public String id;
@@ -25,7 +26,7 @@ public class GraphElement implements Serializable {
         this.id = id;
         this.partId = -1;
         this.storage = null;
-        this.features = new ArrayList<>();
+        this.features = new CopyOnWriteArrayList<Feature<?,?>>();
     }
 
     /**

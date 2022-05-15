@@ -4,8 +4,11 @@ import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.pytorch.engine.PtNDManager;
+import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.TensorSerializer;
+import ai.djl.serializers.NDArraySerializer;
+import com.esotericsoftware.kryo.Kryo;
 import elements.*;
 import features.Set;
 import features.VTensor;
@@ -23,6 +26,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 import partitioner.BasePartitioner;
 import storage.BaseStorage;
 
@@ -42,12 +46,13 @@ public class GraphStream {
         this.layers = layers;
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.getConfig().setAutoWatermarkInterval(3000);
-        this.env.getConfig().enableObjectReuse(); // Optimization
-        configureSerializers();
+//        this.env.getConfig().enableObjectReuse(); // Optimization
+        configureSerializers(this.env);
     }
 
-    private void configureSerializers() {
-        env.registerTypeWithKryoSerializer(PtNDArray.class, TensorSerializer.class);
+    private static void configureSerializers(StreamExecutionEnvironment env) {
+        env.registerTypeWithKryoSerializer(PtNDArray.class, NDArraySerializer.class);
+        env.registerTypeWithKryoSerializer(PtNDManager.class, NDManagerSerializer.class);
         env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
@@ -60,6 +65,26 @@ public class GraphStream {
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
     }
+
+    public static void configureSerializers(Kryo kryo){
+        kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
+        ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+        kryo.register(PtNDArray.class, new NDArraySerializer());
+        kryo.register(PtNDManager.class, new NDManagerSerializer());
+        kryo.register(Parameter.class, new ParameterSerializer());
+        kryo.register(GraphElement.class);
+        kryo.register(ReplicableGraphElement.class);
+        kryo.register(Vertex.class);
+        kryo.register(Edge.class);
+        kryo.register(Feature.class);
+        kryo.register(Set.class);
+        kryo.register(VTensor.class);
+        kryo.register(BaseAggregator.class);
+        kryo.register(Rmi.class);
+        kryo.register(MeanAggregator.class);
+    }
+
+
 
     /**
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of subtasks

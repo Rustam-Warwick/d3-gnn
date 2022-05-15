@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ import java.util.concurrent.Executor;
  * @implNote This operator is also acting as HeadOperator for the feedback streams
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
-abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
+abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp> {
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
@@ -106,7 +107,6 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
                                 new ProxyOutput<>(output),
                                 parameters.getOperatorEventDispatcher())
                                 .f0;
-
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         assignThisKeys();
@@ -151,6 +151,7 @@ abstract public class BaseWrapperOperator<T extends StreamOperator<GraphOp>>
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
         wrappedOperator.initializeState(streamTaskStateManager);
+//        wrappedOperator.setCurrentKey(thisParts.get(0).toString());
     }
 
     @Override

@@ -1,6 +1,6 @@
 package datasets;
 
-import ai.djl.ndarray.TaskNDManager;
+import ai.djl.ndarray.BaseNDManager;
 import elements.*;
 import features.Tensor;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -49,23 +49,8 @@ public class CoraFull implements Dataset {
      */
     private MapFunction<String, GraphOp> vertexParser() {
         return new RichMapFunction<String, GraphOp>() {
-            private transient TaskNDManager manager;
-
-            @Override
-            public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                manager = new TaskNDManager();
-            }
-
-            @Override
-            public void close() throws Exception {
-                super.close();
-                manager.close();
-            }
-
             @Override
             public GraphOp map(String value) throws Exception {
-                manager.clean();
                 String[] vertexFeature = value.split(",*\",*");
                 Vertex v = new Vertex(vertexFeature[0]);
                 Matcher m = p.matcher(vertexFeature[1]);
@@ -76,11 +61,11 @@ public class CoraFull implements Dataset {
                 }
 
                 // Feature
-                Tensor tensor = new Tensor(manager.getTempManager().create(arr));
+                Tensor tensor = new Tensor(BaseNDManager.threadNDManager.get().create(arr));
                 v.setFeature("feature", tensor);
 
                 // Label
-                Tensor label = new Tensor(manager.getTempManager().create(Integer.valueOf(vertexFeature[2])));
+                Tensor label = new Tensor(BaseNDManager.threadNDManager.get().create(Integer.valueOf(vertexFeature[2])));
                 label.halo = true;
                 v.setFeature("label", label);
                 return new GraphOp(Op.COMMIT, v, 0);

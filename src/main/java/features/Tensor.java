@@ -49,30 +49,6 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return tmp;
     }
 
-    /**
-     * Additionally attach all Tensor to lifeCycleManager
-     */
-    @Override
-    public Boolean createElement() {
-        Boolean isCreated = super.createElement();
-        if (isCreated) getValue().attach(storage.manager.getLifeCycleManager()); // Always attach to life cycle manager
-        return isCreated;
-    }
-
-    /**
-     * Attach all Tensor to lifeCycleManager
-     *
-     * @param newElement newElement to update with
-     */
-    @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        Tuple2<Boolean, GraphElement> result = super.updateElement(newElement);
-        if (result.f0) {
-            getValue().attach(storage.manager.getLifeCycleManager());
-        }
-        return result;
-    }
-
     @Override
     public NDArray getValue() {
         return this.value;

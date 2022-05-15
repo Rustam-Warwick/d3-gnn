@@ -2,7 +2,6 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
-import ai.djl.ndarray.TaskNDManager;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -28,10 +27,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-    /**
-     * Helper manager for managing tensor memory
-     */
-    public transient TaskNDManager manager; // Task ND Manager LifeCycle and per iteration manager
 
     // -------- Abstract methods
 
@@ -83,14 +78,12 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public void open() throws Exception {
-        this.manager = new TaskNDManager();
         this.plugins.values().forEach(plugin -> plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
 
     public void close() throws Exception {
         this.plugins.values().forEach(Plugin::close);
-        this.manager.close();
     }
 
     public void onTimer(long timestamp) {

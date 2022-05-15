@@ -2,6 +2,7 @@ package plugins.embedding_layer;
 
 import aggregators.MeanAggregator;
 import ai.djl.Model;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
@@ -42,7 +43,7 @@ public class GNNEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
-        parameterStore = new MyParameterStore(storage.manager.getLifeCycleManager());
+        parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
         parameterStore.loadModel(model);
         inputShape = model.describeInput().get(0).getValue();
     }
@@ -104,11 +105,11 @@ public class GNNEmbeddingLayer extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = this.storage.manager.getLifeCycleManager().zeros(inputShape);
+            NDArray aggStart = BaseNDManager.threadNDManager.get().zeros(inputShape);
             element.setFeature("agg", new MeanAggregator(aggStart, true), storage.layerFunction.currentTimestamp());
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = this.storage.manager.getLifeCycleManager().randomNormal(inputShape); // Initialize to random value
+                NDArray embeddingRandom = BaseNDManager.threadNDManager.get().randomNormal(inputShape); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom), storage.layerFunction.currentTimestamp());
             }
@@ -201,17 +202,7 @@ public class GNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDArray update(NDArray feature, NDArray agg, boolean training) {
-        NDManager oldFeatureManager = feature.getManager();
-        NDManager oldAggManager = agg.getManager();
-        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
-        feature.attach(tmpManager);
-        agg.attach(tmpManager);
-        NDArray res = ((GNNBlock) model.getBlock()).getUpdateBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
-        res.attach(storage.manager.getTempManager());
-        feature.attach(oldFeatureManager);
-        agg.attach(oldAggManager);
-        tmpManager.close();
-        return res;
+        return ((GNNBlock) model.getBlock()).getUpdateBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
     }
 
     /**
@@ -222,14 +213,7 @@ public class GNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDArray message(NDArray feature, boolean training) {
-        NDManager oldManager = feature.getManager();
-        NDManager tmpManager = storage.manager.getTempManager().newSubManager();
-        feature.attach(tmpManager);
-        NDArray res = ((GNNBlock) model.getBlock()).getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
-        res.attach(storage.manager.getTempManager());
-        feature.attach(oldManager);
-        tmpManager.close();
-        return res;
+       return ((GNNBlock) model.getBlock()).getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
     }
 
     /**

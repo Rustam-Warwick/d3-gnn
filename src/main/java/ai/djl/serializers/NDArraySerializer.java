@@ -1,5 +1,6 @@
 package ai.djl.serializers;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import com.esotericsoftware.kryo.Kryo;
@@ -12,8 +13,7 @@ import java.io.IOException;
 /**
  * Kryo implementation of Tensor Serializer. Works with all Pt
  */
-public class TensorSerializer extends Serializer<NDArray> {
-    private final static NDManager manager = NDManager.newBaseManager();
+public class NDArraySerializer extends Serializer<NDArray> {
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -23,7 +23,10 @@ public class TensorSerializer extends Serializer<NDArray> {
     @Override
     public NDArray read(Kryo kryo, Input input, Class aClass) {
         try {
-            NDArray array = manager.decode(input);
+            if(!BaseNDManager.threadNDManager.get().isOpen()){
+                System.out.println();
+            }
+            NDArray array = BaseNDManager.threadNDManager.get().decode(input);
             return array;
         } catch (IOException e) {
             e.printStackTrace();

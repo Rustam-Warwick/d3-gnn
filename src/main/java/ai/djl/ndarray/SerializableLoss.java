@@ -3,11 +3,12 @@ package ai.djl.ndarray;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.TensorSerializer;
+import ai.djl.serializers.NDArraySerializer;
 import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import helpers.GraphStream;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;
@@ -35,20 +36,10 @@ public class SerializableLoss implements Externalizable {
     }
 
 
-    /**
-     * Register all classes possible in DGL otherwise error is throws
-     */
-    private static void registerAllClasses(Kryo a){
-        a.setClassLoader(Thread.currentThread().getContextClassLoader());
-        ((Kryo.DefaultInstantiatorStrategy) a.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-        a.register(PtNDArray.class, new TensorSerializer());
-        a.register(Parameter.class, new ParameterSerializer());
-    }
-
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         Kryo a = new Kryo();
-        registerAllClasses(a);
+        GraphStream.configureSerializers(a);
         OutputStream tmp = new OutputStream(){
             @Override
             public void write(int b) throws IOException {
@@ -63,7 +54,7 @@ public class SerializableLoss implements Externalizable {
     @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         Kryo a = new Kryo();
-        registerAllClasses(a);
+        GraphStream.configureSerializers(a);
         InputStream tmp = new InputStream() {
             @Override
             public int read() throws IOException {

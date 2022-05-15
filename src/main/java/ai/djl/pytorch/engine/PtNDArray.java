@@ -30,8 +30,10 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/** {@code PtNDArray} is the PyTorch implementation of {@link NDArray}. */
-
+/**
+ * {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
+ * Makes sure that the NDArray is not closed with the manager but instead is closed by the finalizer block
+ */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     private String name;
@@ -59,7 +61,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         super(handle);
         this.manager = manager;
         this.ptNDArrayEx = new PtNDArrayEx(this);
-        manager.attachInternal(getUid(), this);
+        if(!manager.isOpen()){
+            System.out.println("CLOSED");
+        }
+//        manager.attachInternal(getUid(), this);
     }
 
     /**

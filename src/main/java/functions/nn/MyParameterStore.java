@@ -42,7 +42,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.gradientArrays.forEach((id, value) -> {
             value.f0.attach(newManager);
         });
-        manager.close();
         this.manager = newManager;
     }
 
@@ -67,7 +66,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         newParams.forEach((key, item) -> {
             if (parameterArrays.containsKey(key)) {
                 NDArray currentParam = parameterArrays.get(key);
-                if (currentParam != item) currentParam.close();
             }
             item.attach(getManager());
             parameterArrays.put(key, item);
@@ -110,7 +108,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
     public void restoreModel(Model model) {
         model.getBlock().getParameters().forEach(item -> {
             NDArray thisArray = this.parameterArrays.get(item.getValue().getId());
-            item.getValue().close();
             item.getValue().setShape(null);
             item.getValue().setArray(thisArray);
         });
@@ -134,7 +131,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         NDArray finalResult = (thisTotal.add(remoteTotal)).div(sumTotal);
         finalResult.attach(getManager());
         gradientArrays.put(parameterId, new Tuple2<>(finalResult, sumTotal));
-        tmpManager.close();
     }
 
     /**
@@ -168,7 +164,6 @@ public class MyParameterStore extends ParameterStore implements Serializable {
         this.gradientArrays.forEach((key, item) -> {
             item.f0.setRequiresGradient(false);
             gradientArrays.put(key, new Tuple2<>(item.f0.zerosLike(), 0));
-            item.f0.close();
 
         });
     }

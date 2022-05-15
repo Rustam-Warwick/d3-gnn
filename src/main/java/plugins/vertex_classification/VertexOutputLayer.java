@@ -1,6 +1,7 @@
 package plugins.vertex_classification;
 
 import ai.djl.Model;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
@@ -25,7 +26,7 @@ public class VertexOutputLayer extends Plugin {
     @Override
     public void open() {
         super.add();
-        parameterStore = new MyParameterStore(storage.manager.getLifeCycleManager());
+        parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
         parameterStore.loadModel(this.model);
     }
 
@@ -40,11 +41,7 @@ public class VertexOutputLayer extends Plugin {
     }
 
     public NDArray output(NDArray feature, boolean training) {
-        NDManager oldManager = feature.getManager();
-        feature.attach(this.storage.manager.getTempManager());
-        NDArray res = this.model.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
-        feature.attach(oldManager);
-        return res;
+        return model.getBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
     }
 
 }
