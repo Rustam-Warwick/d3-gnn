@@ -27,7 +27,7 @@ import java.util.regex.Pattern;
 /**
  * A class contains encoding and decoding logic for NDArray.
  * Have re-defined it to have public static methods
- * */
+ */
 public final class NDSerializer {
 
     private static final int VERSION = 3;
@@ -40,7 +40,8 @@ public final class NDSerializer {
     private static final Pattern PATTERN =
             Pattern.compile("\\{'descr': '(.+)', 'fortran_order': False, 'shape': \\((.*)\\),");
 
-    private NDSerializer() {}
+    private NDSerializer() {
+    }
 
     /**
      * Encodes {@link NDArray} to byte array.
@@ -132,7 +133,7 @@ public final class NDSerializer {
      * Decodes {@link NDArray} through {@link DataInputStream}.
      *
      * @param manager the {@link NDManager} assigned to the {@link NDArray}
-     * @param is input stream data to load from
+     * @param is      input stream data to load from
      * @return {@link NDArray}
      * @throws IOException data is not readable
      */

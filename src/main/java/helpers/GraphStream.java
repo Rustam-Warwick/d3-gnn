@@ -5,9 +5,9 @@ import aggregators.MeanAggregator;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
+import ai.djl.serializers.NDArraySerializer;
 import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.NDArraySerializer;
 import com.esotericsoftware.kryo.Kryo;
 import elements.*;
 import features.Set;
@@ -66,7 +66,7 @@ public class GraphStream {
         env.registerType(MeanAggregator.class);
     }
 
-    public static void configureSerializers(Kryo kryo){
+    public static void configureSerializers(Kryo kryo) {
         kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
         ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
         kryo.register(PtNDArray.class, new NDArraySerializer());
@@ -83,7 +83,6 @@ public class GraphStream {
         kryo.register(Rmi.class);
         kryo.register(MeanAggregator.class);
     }
-
 
 
     /**
@@ -141,7 +140,7 @@ public class GraphStream {
      */
     public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
         DataStream<GraphOp> rawTopologicalUpdates = allUpdates.forward().map(item -> {
-            if (item.element != null) item.element.features.clear();
+            item.element.clearFeatures();
             return item;
         }).setParallelism(allUpdates.getParallelism()); // Chain + Clean all the non-topological features
         assert layers > 0;

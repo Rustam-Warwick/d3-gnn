@@ -19,16 +19,14 @@ public class MiniWatermarkValve {
      * fed into the valve.
      */
     private final InputChannelStatus[] channelStatuses;
-
-    /**
-     * The last watermark emitted from the valve.
-     */
-    private long lastOutputWatermark;
-
     /**
      * The last watermark status emitted from the valve.
      */
     private final WatermarkStatus lastOutputWatermarkStatus;
+    /**
+     * The last watermark emitted from the valve.
+     */
+    private long lastOutputWatermark;
 
     /**
      * Returns a new {@code StatusWatermarkValve}.

@@ -31,7 +31,8 @@ import ai.djl.nn.core.Prelu;
  */
 public final class Activation {
 
-    private Activation() {}
+    private Activation() {
+    }
 
     /**
      * Applies ReLU activation on the input {@link NDArray}.
@@ -96,7 +97,7 @@ public final class Activation {
     /**
      * Applies Softmax activation on the input
      */
-    public static NDList softmax(NDList input){
+    public static NDList softmax(NDList input) {
         NDArray in = input.singletonOrThrow();
         in = in.sub(in.max());
         NDArray numerator = in.exp();
@@ -183,7 +184,7 @@ public final class Activation {
      * <p>Leaky ReLU is defined by: \( y = x \gt 0 ? x : alpha * x \)
      *
      * @param arrays the input singleton {@link NDList}
-     * @param alpha the slope for the activation
+     * @param alpha  the slope for the activation
      * @return the singleton {@link NDList} after applying Leaky ReLU activation
      */
     public static NDList leakyRelu(NDList arrays, float alpha) {
@@ -209,7 +210,7 @@ public final class Activation {
      * <p>ELU is defined by: \( y = x \gt 0 ? x : alpha * (e^x - 1) \)
      *
      * @param arrays the input singleton {@link NDList}
-     * @param alpha the slope for the activation
+     * @param alpha  the slope for the activation
      * @return the singleton {@link NDList} after applying ELU activation
      */
     public static NDList elu(NDList arrays, float alpha) {
@@ -270,7 +271,7 @@ public final class Activation {
      * <p>Swish is defined as \(y = x * sigmoid(beta * x)\)
      *
      * @param array the input {@link NDArray}
-     * @param beta a hyper-parameter
+     * @param beta  a hyper-parameter
      * @return the {@link NDArray} after applying Swish activation
      */
     public static NDArray swish(NDArray array, float beta) {
@@ -283,7 +284,7 @@ public final class Activation {
      * <p>Swish is defined as \(y = x * sigmoid(beta * x)\)
      *
      * @param arrays the input singleton {@link NDList}
-     * @param beta a hyper-parameter
+     * @param beta   a hyper-parameter
      * @return the singleton {@link NDList} after applying Swish activation
      */
     public static NDList swish(NDList arrays, float beta) {
@@ -321,7 +322,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #relu(NDList) ReLU} activation
-     *     function
+     * function
      */
     public static Block reluBlock() {
         return new LambdaBlock(Activation::relu);
@@ -332,7 +333,7 @@ public final class Activation {
      * function in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #sigmoid(NDList) Sigmoid} activation
-     *     function
+     * function
      */
     public static Block sigmoidBlock() {
         return new LambdaBlock(Activation::sigmoid);
@@ -343,7 +344,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #tanh(NDList) Tanh} activation
-     *     function
+     * function
      */
     public static Block tanhBlock() {
         return new LambdaBlock(Activation::tanh);
@@ -354,7 +355,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #softPlus(NDList)} activation
-     *     function
+     * function
      */
     public static Block softPlusBlock() {
         return new LambdaBlock(Activation::softPlus);
@@ -365,7 +366,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #softSign(NDList)} activation
-     *     function
+     * function
      */
     public static Block softSignBlock() {
         return new LambdaBlock(Activation::softSign);
@@ -377,7 +378,7 @@ public final class Activation {
      *
      * @param alpha the slope for the activation
      * @return the {@link LambdaBlock} that applies the {@link #leakyRelu(NDList, float) LeakyReLU}
-     *     activation function
+     * activation function
      */
     public static Block leakyReluBlock(float alpha) {
         return new LambdaBlock(arrays -> Activation.leakyRelu(arrays, alpha));
@@ -389,7 +390,7 @@ public final class Activation {
      *
      * @param alpha the slope for the activation
      * @return the {@link LambdaBlock} that applies the {@link #elu(NDList, float) ELU} activation
-     *     function
+     * function
      */
     public static Block eluBlock(float alpha) {
         return new LambdaBlock(arrays -> Activation.elu(arrays, alpha));
@@ -400,7 +401,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #selu(NDList) SELU} activation
-     *     function
+     * function
      */
     public static Block seluBlock() {
         return new LambdaBlock(Activation::selu);
@@ -411,7 +412,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #gelu(NDList) GELU} activation
-     *     function
+     * function
      */
     public static Block geluBlock() {
         return new LambdaBlock(Activation::gelu);
@@ -423,7 +424,7 @@ public final class Activation {
      *
      * @param beta a hyper-parameter
      * @return the {@link LambdaBlock} that applies the {@link #swish(NDList, float) Swish}
-     *     activation function
+     * activation function
      */
     public static Block swishBlock(float beta) {
         return new LambdaBlock(arrays -> Activation.swish(arrays, beta));
@@ -434,7 +435,7 @@ public final class Activation {
      * in its forward function.
      *
      * @return the {@link LambdaBlock} that applies the {@link #mish(NDList) Mish} activation
-     *     function
+     * function
      */
     public static Block mishBlock() {
         return new LambdaBlock(Activation::mish);

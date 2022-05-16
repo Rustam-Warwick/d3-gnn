@@ -1,5 +1,6 @@
 package ai.djl.nn.gnn;
 
+import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.ParallelBlock;
@@ -13,14 +14,14 @@ public class SAGEConv extends GNNBlock {
 
     public SAGEConv(int outFeatures, boolean optBias) {
         // Update Block expecs thisFeature, aggregator
-        ParallelBlock updateBLock = new ParallelBlock(new Function<List<NDList>, NDList>() {
+        SequentialBlock updateBlock = new SequentialBlock();
+        ParallelBlock updateMidBLock = new ParallelBlock(new Function<List<NDList>, NDList>() {
             @Override
             public NDList apply(List<NDList> item) {
                 return new NDList(item.get(0).get(0).add(item.get(1).get(0)));
             }
         });
-
-        updateBLock.add(
+        updateMidBLock.add(
                 new SequentialBlock()
                         .add(new LambdaBlock(new Function<NDList, NDList>() {
                             @Override
@@ -30,7 +31,7 @@ public class SAGEConv extends GNNBlock {
                         }))
                         .add(Linear.builder().setUnits(outFeatures).optBias(optBias).build())
         );
-        updateBLock.add(
+        updateMidBLock.add(
                 new SequentialBlock()
                         .add(new LambdaBlock(new Function<NDList, NDList>() {
                             @Override
@@ -40,6 +41,14 @@ public class SAGEConv extends GNNBlock {
                         }))
                         .add(Linear.builder().setUnits(outFeatures).optBias(false).build())
         );
+        updateBlock.add(updateMidBLock);
+        updateBlock.add(new Function<NDList, NDList>() {
+            @Override
+            public NDList apply(NDList ndArrays) {
+                NDArray sum = ndArrays.get(0).add(ndArrays.get(1));
+                return new NDList(sum);
+            }
+        });
         // Message block is just a forward
         LambdaBlock messageBlock = new LambdaBlock(new Function<NDList, NDList>() {
             @Override
@@ -50,7 +59,7 @@ public class SAGEConv extends GNNBlock {
 
         setAgg(AggregatorVariant.MEAN);
         setMessageBlock(messageBlock);
-        setUpdateBlock(updateBLock);
+        setUpdateBlock(updateMidBLock);
     }
 
 }

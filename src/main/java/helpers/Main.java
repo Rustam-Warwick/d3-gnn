@@ -11,7 +11,7 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
-import ai.djl.training.loss.Loss;
+import ai.djl.training.loss.CrossEntropyLoss;
 import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
@@ -19,6 +19,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.GNNEmbeddingLayer;
 import plugins.vertex_classification.VertexLossReporter;
 import plugins.vertex_classification.VertexOutputLayer;
@@ -33,7 +34,7 @@ import java.util.function.Function;
 public class Main {
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new SAGEConv(128,  true));
+        sb.add(new SAGEConv(128, true));
         sb.add(new SAGEConv(64, true));
         sb.add(
                 new SequentialBlock()
@@ -48,10 +49,10 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-14"));
+        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
-        sb.getChildren().forEach(item->{
+        sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN");
             tmp.setBlock(item.getValue());
             models.add(tmp);
@@ -78,7 +79,8 @@ public class Main {
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true)),
+                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true))
+                        .withPlugin(new PrintVertexPlugin("16317")),
                 new TupleStorage()
                         .withPlugin(new GNNEmbeddingLayer(models.get(1), true))
         ));
@@ -87,9 +89,9 @@ public class Main {
         SingleOutputStreamOperator<GraphOp> output = gs.gnnLayerNewIteration(
                 embeddings.union(trainFeatures),
                 new TupleStorage()
-                        .withPlugin(new VertexLossReporter(new SerializableLoss(Loss.softmaxCrossEntropyLoss())))
+                        .withPlugin(new VertexLossReporter(new SerializableLoss(new CrossEntropyLoss("loss", true))))
                         .withPlugin(new VertexOutputLayer(models.get(2)))
-        );
+                        );
 
         env.execute();
     }

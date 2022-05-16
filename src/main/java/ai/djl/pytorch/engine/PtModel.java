@@ -22,8 +22,6 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.jni.JniUtils;
-import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.NDArraySerializer;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
 import ai.djl.training.initializer.Initializer;
@@ -32,12 +30,9 @@ import ai.djl.util.PairList;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import com.twitter.chill.java.ClosureSerializer;
 import helpers.GraphStream;
-import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;
-import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,14 +46,15 @@ import java.util.stream.Collectors;
  * <p>PtModel contains all the methods in Model to load and process a model. In addition, it
  * provides PyTorch Specific functionality
  */
-public class PtModel extends BaseModel{
-    public PtModel(){
+public class PtModel extends BaseModel {
+    public PtModel() {
         super("");
     }
+
     /**
      * Constructs a new Model on a given device.
      *
-     * @param name the model name
+     * @param name   the model name
      * @param device the device the model should be located on
      */
     PtModel(String name, Device device) {
@@ -68,7 +64,9 @@ public class PtModel extends BaseModel{
         dataType = DataType.FLOAT32;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void load(Path modelPath, String prefix, Map<String, ?> options)
             throws IOException, MalformedModelException {
@@ -120,7 +118,9 @@ public class PtModel extends BaseModel{
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void load(InputStream modelStream, Map<String, ?> options) throws IOException {
         boolean mapLocation = false;
@@ -168,7 +168,9 @@ public class PtModel extends BaseModel{
         return modelFile;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Trainer newTrainer(TrainingConfig trainingConfig) {
         PairList<Initializer, Predicate<Parameter>> initializer = trainingConfig.getInitializers();
@@ -185,7 +187,9 @@ public class PtModel extends BaseModel{
         return new Trainer(this, trainingConfig);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String[] getArtifactNames() {
         try {
@@ -231,10 +235,11 @@ public class PtModel extends BaseModel{
 
     /**
      * Load the model parameter from ndArray
+     *
      * @param modelPath the directory or file path of the model location
      */
     @Override
-    public void load(Path modelPath){
+    public void load(Path modelPath) {
         File folder = new File(String.valueOf(modelPath));
         FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
         List<File> numpyParameterFiles = new ArrayList<>();
@@ -255,10 +260,10 @@ public class PtModel extends BaseModel{
     }
 
     @Override
-    public void writeExternal(ObjectOutput out){
+    public void writeExternal(ObjectOutput out) {
         Kryo a = new Kryo();
         GraphStream.configureSerializers(a);
-        OutputStream tmp = new OutputStream(){
+        OutputStream tmp = new OutputStream() {
             @Override
             public void write(int b) throws IOException {
                 out.write(b);
@@ -270,7 +275,7 @@ public class PtModel extends BaseModel{
     }
 
     @Override
-    public void readExternal(ObjectInput in){
+    public void readExternal(ObjectInput in) {
         Kryo a = new Kryo();
         GraphStream.configureSerializers(a);
         InputStream tmp = new InputStream() {

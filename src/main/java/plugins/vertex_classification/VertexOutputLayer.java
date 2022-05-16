@@ -4,7 +4,6 @@ import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
 import elements.Plugin;
 import elements.Vertex;
 import functions.nn.MyParameterStore;

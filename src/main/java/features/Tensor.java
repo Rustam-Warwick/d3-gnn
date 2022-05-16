@@ -2,8 +2,6 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import elements.GraphElement;
-import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions

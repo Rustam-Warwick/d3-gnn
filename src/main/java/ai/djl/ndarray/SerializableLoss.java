@@ -1,15 +1,10 @@
 package ai.djl.ndarray;
 
-import ai.djl.nn.Parameter;
-import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.serializers.ParameterSerializer;
-import ai.djl.serializers.NDArraySerializer;
 import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import helpers.GraphStream;
-import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;
 
@@ -40,7 +35,7 @@ public class SerializableLoss implements Externalizable {
     public void writeExternal(ObjectOutput out) throws IOException {
         Kryo a = new Kryo();
         GraphStream.configureSerializers(a);
-        OutputStream tmp = new OutputStream(){
+        OutputStream tmp = new OutputStream() {
             @Override
             public void write(int b) throws IOException {
                 out.write(b);

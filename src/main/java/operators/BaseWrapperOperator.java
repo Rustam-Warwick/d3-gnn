@@ -6,12 +6,15 @@ import elements.Op;
 import helpers.MyOutputReflectionContext;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.broadcast.OutputReflectionContext;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.execution.Environment;
@@ -26,6 +29,7 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
@@ -33,15 +37,17 @@ import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+
+import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Operator that Wraps around another operator and implements some common logic
@@ -51,7 +57,7 @@ import java.util.concurrent.Executor;
  * @see OneInputUDFWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp> {
+        implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp>, BoundedOneInput {
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
@@ -150,7 +156,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
-        wrappedOperator.initializeState(streamTaskStateManager);
+        RecordingStreamTaskStateInitializer recordingStreamTaskStateInitializer =
+                new RecordingStreamTaskStateInitializer(streamTaskStateManager);
+        wrappedOperator.initializeState(recordingStreamTaskStateInitializer);
+        checkState(recordingStreamTaskStateInitializer.lastCreated != null);
 //        wrappedOperator.setCurrentKey(thisParts.get(0).toString());
     }
 
@@ -192,6 +201,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void setCurrentKey(Object key) {
         wrappedOperator.setCurrentKey(key);
+    }
+
+    @Override
+    public void endInput() throws Exception {
     }
 
     public T getWrappedOperator() {
@@ -362,6 +375,43 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         @Override
         public void close() {
             output.close();
+        }
+    }
+
+    private static class RecordingStreamTaskStateInitializer implements StreamTaskStateInitializer {
+
+        private final StreamTaskStateInitializer wrapped;
+
+        StreamOperatorStateContext lastCreated;
+
+        public RecordingStreamTaskStateInitializer(StreamTaskStateInitializer wrapped) {
+            this.wrapped = wrapped;
+        }
+
+        @Override
+        public StreamOperatorStateContext streamOperatorStateContext(
+                @Nonnull OperatorID operatorID,
+                @Nonnull String s,
+                @Nonnull ProcessingTimeService processingTimeService,
+                @Nonnull KeyContext keyContext,
+                @Nullable TypeSerializer<?> typeSerializer,
+                @Nonnull CloseableRegistry closeableRegistry,
+                @Nonnull MetricGroup metricGroup,
+                double v,
+                boolean b)
+                throws Exception {
+            lastCreated =
+                    wrapped.streamOperatorStateContext(
+                            operatorID,
+                            s,
+                            processingTimeService,
+                            keyContext,
+                            typeSerializer,
+                            closeableRegistry,
+                            metricGroup,
+                            v,
+                            b);
+            return lastCreated;
         }
     }
 

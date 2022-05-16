@@ -2,7 +2,6 @@ package ai.djl.serializers;
 
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -23,7 +22,7 @@ public class NDArraySerializer extends Serializer<NDArray> {
     @Override
     public NDArray read(Kryo kryo, Input input, Class aClass) {
         try {
-            if(!BaseNDManager.threadNDManager.get().isOpen()){
+            if (!BaseNDManager.threadNDManager.get().isOpen()) {
                 System.out.println();
             }
             NDArray array = BaseNDManager.threadNDManager.get().decode(input);

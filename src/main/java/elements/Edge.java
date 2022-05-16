@@ -67,4 +67,10 @@ public class Edge extends GraphElement {
         this.dest.setStorage(storage);
     }
 
+    @Override
+    public void clearFeatures() {
+        super.clearFeatures();
+        this.src.clearFeatures();
+        this.dest.clearFeatures();
+    }
 }

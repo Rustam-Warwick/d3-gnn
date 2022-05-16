@@ -57,5 +57,4 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
         getWrappedOperator().setKeyContextElement(record);
     }
 
-
 }

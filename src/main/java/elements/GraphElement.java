@@ -5,7 +5,6 @@ import storage.BaseStorage;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -26,7 +25,7 @@ public class GraphElement implements Serializable {
         this.id = id;
         this.partId = -1;
         this.storage = null;
-        this.features = new CopyOnWriteArrayList<Feature<?,?>>();
+        this.features = new CopyOnWriteArrayList<Feature<?, ?>>();
     }
 
     /**
@@ -354,6 +353,13 @@ public class GraphElement implements Serializable {
         if (Objects.nonNull(storage)) {
             storage.cacheFeaturesOf(this);
         }
+    }
+
+    /**
+     * Clear the cached features on this GraphElement
+     */
+    public void clearFeatures(){
+        features.clear();
     }
 
     /**

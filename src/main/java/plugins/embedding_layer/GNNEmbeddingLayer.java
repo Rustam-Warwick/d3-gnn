@@ -5,7 +5,6 @@ import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
@@ -78,6 +77,7 @@ public class GNNEmbeddingLayer extends Plugin {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 reduceOutEdges((Tensor) feature);
+                forward((Vertex) feature.getElement()); // Forward just in case
             }
         }
     }
@@ -124,7 +124,7 @@ public class GNNEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (v != null && updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
+        if (updateReady(v)) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
@@ -172,7 +172,6 @@ public class GNNEmbeddingLayer extends Plugin {
      */
     public void reduceOutEdges(Tensor feature) {
         if (feature.getElement() == null) return;
-
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) feature.getElement(), EdgeType.OUT);
         NDArray msg = null;
         for (Edge edge : outEdges) {
@@ -213,7 +212,7 @@ public class GNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDArray message(NDArray feature, boolean training) {
-       return ((GNNBlock) model.getBlock()).getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
+        return ((GNNBlock) model.getBlock()).getMessageBlock().forward(this.parameterStore, new NDList(feature), training).get(0);
     }
 
     /**
@@ -229,6 +228,6 @@ public class GNNEmbeddingLayer extends Plugin {
      * @return Is the Vertex ready to be updated
      */
     public boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && Objects.nonNull(vertex.getFeature("agg"));
+        return vertex != null && vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && Objects.nonNull(vertex.getFeature("agg"));
     }
 }
