@@ -60,16 +60,16 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-        this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
+        NDArray newValue = this.value.f0.mul(this.value.f1).add(newElement).div(this.value.f1 + count);
         int newCount = this.value.f1 + count;
-        this.value = new Tuple2<>(this.value.f0, newCount);
+        this.value = new Tuple2<>(newValue, newCount);
     }
 
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        newElement.subi(oldElement).divi(value.f1);
-        value.f0.addi(newElement);
+        NDArray newValue = value.f0.add(newElement.sub(oldElement).div(value.f1));
+        this.value = new Tuple2<>(newValue, value.f1);
     }
 
     @Override

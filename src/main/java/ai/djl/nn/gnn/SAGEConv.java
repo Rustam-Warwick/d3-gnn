@@ -2,6 +2,7 @@ package ai.djl.nn.gnn;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
+import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.ParallelBlock;
 import ai.djl.nn.SequentialBlock;
@@ -26,7 +27,7 @@ public class SAGEConv extends GNNBlock {
                         .add(new LambdaBlock(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return new NDList(ndArrays.get(0));
+                                return new NDList(ndArrays.get(1));
                             }
                         }))
                         .add(Linear.builder().setUnits(outFeatures).optBias(optBias).build())
@@ -36,7 +37,7 @@ public class SAGEConv extends GNNBlock {
                         .add(new LambdaBlock(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return new NDList(ndArrays.get(1));
+                                return new NDList(ndArrays.get(0));
                             }
                         }))
                         .add(Linear.builder().setUnits(outFeatures).optBias(false).build())
@@ -46,7 +47,7 @@ public class SAGEConv extends GNNBlock {
             @Override
             public NDList apply(NDList ndArrays) {
                 NDArray sum = ndArrays.get(0).add(ndArrays.get(1));
-                return new NDList(sum);
+                return new NDList(Activation.relu(sum));
             }
         });
         // Message block is just a forward

@@ -45,6 +45,7 @@ public class GNNEmbeddingLayer extends Plugin {
         parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
         parameterStore.loadModel(model);
         inputShape = model.describeInput().get(0).getValue();
+
     }
 
     @Override
