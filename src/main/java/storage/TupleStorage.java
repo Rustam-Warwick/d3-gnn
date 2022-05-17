@@ -217,7 +217,6 @@ public class TupleStorage extends BaseStorage {
         } catch (Exception e) {
             return null;
         }
-
     }
 
     @Override

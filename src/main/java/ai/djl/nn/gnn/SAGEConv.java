@@ -46,8 +46,7 @@ public class SAGEConv extends GNNBlock {
         updateBlock.add(new Function<NDList, NDList>() {
             @Override
             public NDList apply(NDList ndArrays) {
-                NDArray sum = ndArrays.get(0).add(ndArrays.get(1));
-                return new NDList(Activation.relu(sum));
+                return Activation.relu(ndArrays);
             }
         });
         // Message block is just a forward
@@ -60,7 +59,7 @@ public class SAGEConv extends GNNBlock {
 
         setAgg(AggregatorVariant.MEAN);
         setMessageBlock(messageBlock);
-        setUpdateBlock(updateMidBLock);
+        setUpdateBlock(updateBlock);
     }
 
 }

@@ -232,8 +232,8 @@ public class GraphElement implements Serializable {
      * @return timestamp
      */
     public long getTimestamp() {
-        if (ts == null && storage != null) return storage.layerFunction.currentTimestamp();
-        else if (ts == null) return Long.MIN_VALUE;
+//        if (ts == null && storage != null) return storage.layerFunction.currentTimestamp();
+        if (ts == null) return Long.MIN_VALUE;
         else return ts;
     }
 

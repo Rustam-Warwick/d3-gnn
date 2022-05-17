@@ -2,6 +2,8 @@ package elements;
 
 import storage.BaseStorage;
 
+import java.util.Objects;
+
 public class Edge extends GraphElement {
     public Vertex src;
     public Vertex dest;
@@ -40,6 +42,10 @@ public class Edge extends GraphElement {
         return tmp;
     }
 
+    /**
+     * Reverses this Edge.
+     * @return thsi edge
+     */
     public Edge reverse() {
         Vertex srcTemp = this.src;
         this.src = this.dest;

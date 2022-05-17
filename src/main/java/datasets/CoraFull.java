@@ -77,7 +77,7 @@ public class CoraFull implements Dataset {
             DataStream<GraphOp> joinedData = parsedEdges
                     .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString()))
                     .assignTimestampsAndWatermarks(WatermarkStrategy
-                            .<GraphOp>forBoundedOutOfOrderness(Duration.ofMillis(10))
+                            .<GraphOp>forBoundedOutOfOrderness(Duration.ofMillis(0))
                             .withTimestampAssigner((event, ts) -> event.getTimestamp()));
             return new DataStream[]{joinedData};
 

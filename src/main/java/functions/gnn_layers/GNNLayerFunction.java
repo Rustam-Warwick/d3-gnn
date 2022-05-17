@@ -115,6 +115,14 @@ public interface GNNLayerFunction extends RichFunction {
     }
 
     /**
+     * External Watermark triggered
+     * @param ts timestamp of the watermark
+     */
+    default void onWatermark(long ts){
+        getStorage().onWatermark(ts);
+    }
+
+    /**
      * @param value Process The Incoming Value
      */
     default void process(GraphOp value) {

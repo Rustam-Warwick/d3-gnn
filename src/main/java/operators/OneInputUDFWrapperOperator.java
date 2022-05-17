@@ -45,6 +45,10 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
         getWrappedOperator().processWatermark(mark);
+        for (short part : thisParts) {
+            setCurrentKey(String.valueOf(part));
+            getWrappedOperator().getUserFunction().onWatermark(mark.getTimestamp());
+        }
     }
 
     @Override

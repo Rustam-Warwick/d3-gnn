@@ -213,19 +213,24 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     // WATERMARKING
 
+    /**
+     * Actually process the watermark, for each received W this will be called 4 times at W+1, W+2, W+3.
+     * Representing the iterations of the Watermark in the stream
+     * @param mark Watermark
+     */
     public abstract void processActualWatermark(Watermark mark) throws Exception;
 
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
+         Watermark normalized = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4));
         if (watermarkInIteration) {
-            if (waitingWatermark == null) waitingWatermark = mark;
+            if (waitingWatermark == null) waitingWatermark = normalized;
             else {
-                waitingWatermark = new Watermark(Math.max(waitingWatermark.getTimestamp(), mark.getTimestamp()));
+                waitingWatermark = new Watermark(Math.max(waitingWatermark.getTimestamp(), normalized.getTimestamp()));
             }
         } else {
-            Watermark iterationWatermark = new Watermark(mark.getTimestamp() - (mark.getTimestamp() % 4)); // Normalize to have remainder 0
             watermarkInIteration = true;
-            context.emitWatermark(BaseWrapperOperator.ITERATE_OUTPUT_TAG, iterationWatermark);
+            context.emitWatermark(BaseWrapperOperator.ITERATE_OUTPUT_TAG, normalized);
         }
     }
 
@@ -234,13 +239,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         if (element.getValue().getOp() == Op.WATERMARK) {
             short iterationNumber = (short) (element.getTimestamp() % 4);
             Watermark newWatermark = new Watermark(element.getTimestamp() + 1);
+            processActualWatermark(newWatermark); // 1, 2, 3
             if (iterationNumber < 2) {
                 // Still need to traverse the stream before updating the timer
                 context.emitWatermark(BaseWrapperOperator.ITERATE_OUTPUT_TAG, newWatermark);
             } else {
                 // Watermark is ready to be consumed, before consuming do onWatermark on all the keyed elements
-                processActualWatermark(newWatermark);
-                context.emitWatermark(newWatermark);
+//                context.emitWatermark(newWatermark);
+                context.emitWatermark(null, newWatermark); // Only forward
                 watermarkInIteration = false;
                 if (waitingWatermark != null) {
                     processWatermark(waitingWatermark);

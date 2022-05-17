@@ -13,13 +13,16 @@ import functions.nn.MyParameterStore;
 import iterations.MessageDirection;
 import iterations.RemoteInvoke;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
- * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding
+ * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding on a periodical fashion
  * Outputs -> New Feature to the next layer
+ * @implNote Expects Edges to have timestamps
  */
-public class GNNEmbeddingLayer extends Plugin {
+public class GNNPeriodicalEmbeddingLayer extends Plugin {
     // ---------------------- MODEL ---------------------
 
     public Model model; // Model with block of GNNLayer
@@ -28,12 +31,12 @@ public class GNNEmbeddingLayer extends Plugin {
 
 
     // ---------------------- RUNTIME RELATED -------------------
-
     public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public boolean ACTIVE = true; // Is the plugin currently running
+    public long last_reduce = Long.MIN_VALUE;
+    public long last_update = Long.MIN_VALUE;
 
-
-    public GNNEmbeddingLayer(Model model, boolean externalFeatures) {
+    public GNNPeriodicalEmbeddingLayer(Model model, boolean externalFeatures) {
         super("inferencer");
         this.externalFeatures = externalFeatures;
         this.model = model;
@@ -59,29 +62,6 @@ public class GNNEmbeddingLayer extends Plugin {
         super.addElementCallback(element);
         if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
-        } else if (element.elementType() == ElementType.EDGE) {
-            Edge edge = (Edge) element;
-            if (ACTIVE && messageReady(edge)) {
-                NDArray msg = message((NDArray) edge.src.getFeature("feature").getValue(), false);
-                new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
-                        .withArgs(msg, 1)
-                        .withTimestamp(edge.getTimestamp())
-                        .buildAndRun(storage);
-            }
-        } else if (element.elementType() == ElementType.FEATURE) {
-            Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
-                reduceOutEdges((Tensor) feature);
-                forward((Vertex) feature.getElement()); // Forward just in case. Either this or next one will not be called
-            }
-            else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
-                forward((Vertex) feature.getElement()); // Forward just in case. Either this or next one will not be called
-            }
         }
     }
 
@@ -93,13 +73,69 @@ public class GNNEmbeddingLayer extends Plugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
-                forward((Vertex) feature.getElement());
-            }
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
-                forward((Vertex) feature.getElement());
             }
         }
     }
+    @Override
+    public void onWatermark(long timestamp) {
+        super.onWatermark(timestamp);
+        int version = (int) (timestamp % 4);
+        // Version 0 happens silently it represents the first watermark.
+        // Then the system sends replica sync messages which will be received before W-1 sent
+        // Then the replicas that have arrived at version 0 will have received their replication material before verison 2 triggered
+        if (version == 2) {
+            // ReduceIn all the new edges
+            for(Vertex v: storage.getVertices()){
+                reduceInEdges(v, timestamp);
+            }
+            if(replicaParts().isEmpty() || replicaParts().get(replicaParts().size()-1) == getPartId()) last_reduce = timestamp;
+        }
+        else if(version == 3){
+            // Reduced features are here simply run the forward function
+            for(Vertex v: storage.getVertices()){
+                if(updateReady(v) &&
+                        ((v.getFeature("agg").getTimestamp() > last_update && v.getFeature("agg").getTimestamp() <= timestamp) ||
+                                (v.getFeature("feature").getTimestamp() > last_update && v.getFeature("feature").getTimestamp() <= timestamp))
+                        ){
+                    forward(v);
+                }
+            }
+
+            if(replicaParts().isEmpty() || replicaParts().get(replicaParts().size()-1) == getPartId()) last_update = timestamp;
+
+        }
+    }
+
+    /**
+     * Reduce all the in-edges that came in last_WT<t<WT
+     * @param v vertex to reduce into
+     * @param timestamp max timestamp of edges to include
+     */
+    public void reduceInEdges(Vertex v, long timestamp){
+        Iterable<Edge> inEdges = storage.getIncidentEdges(v, EdgeType.IN);
+        List<NDArray> ndArrays = new ArrayList<>();
+        for(Edge e: inEdges){
+            if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && messageReady(e)){
+                NDArray tmp = message((NDArray) e.src.getFeature("feature").getValue(), false);
+                ndArrays.add(tmp);
+            }
+        }
+        if(ndArrays.size() > 0){
+            NDArray msg = MeanAggregator.bulkReduce(ndArrays.toArray(NDArray[]::new));
+            new RemoteInvoke()
+                    .toElement(v.decodeFeatureId("agg"), ElementType.FEATURE)
+                    .where(MessageDirection.ITERATE)
+                    .method("reduce")
+                    .hasUpdate()
+                    .addDestination(v.masterPart())
+                    .withTimestamp(timestamp)
+                    .withArgs(msg, ndArrays.size())
+                    .buildAndRun(storage);
+        }
+
+
+    }
+
 
     /**
      * Given newly created vertex init the aggregator and other values of it
@@ -132,7 +168,7 @@ public class GNNEmbeddingLayer extends Plugin {
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);
             Vertex messageVertex = v.copy();
-            long timestamp = v.getFeature("agg").getTimestamp();
+            long timestamp = Math.max(v.getFeature("agg").getTimestamp(), v.getFeature("feature").getTimestamp());
             messageVertex.setFeature("feature", new Tensor(update), timestamp);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, timestamp), MessageDirection.FORWARD);
         }
@@ -150,7 +186,7 @@ public class GNNEmbeddingLayer extends Plugin {
         NDArray msgOld = null;
         NDArray msgNew = null;
         for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
+            if (messageReady(edge) && edge.getTimestamp() <= last_reduce) {
                 if (Objects.isNull(msgOld)) {
                     msgOld = this.message(oldFeature.getValue(), false);
                     msgNew = this.message(newFeature.getValue(), false);
@@ -163,33 +199,6 @@ public class GNNEmbeddingLayer extends Plugin {
                         .withTimestamp(edge.getTimestamp())
                         .addDestination(edge.dest.masterPart())
                         .withArgs(msgNew, msgOld)
-                        .buildAndRun(storage);
-            }
-        }
-    }
-
-    /**
-     * Given vertex reduce all the out edges aggregator values
-     *
-     * @param feature which belong to a feature
-     */
-    public void reduceOutEdges(Tensor feature) {
-        if (feature.getElement() == null) return;
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) feature.getElement(), EdgeType.OUT);
-        NDArray msg = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
-                if (Objects.isNull(msg)) {
-                    msg = this.message(feature.getValue(), false);
-                }
-                new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
-                        .withTimestamp(edge.getTimestamp())
-                        .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
         }

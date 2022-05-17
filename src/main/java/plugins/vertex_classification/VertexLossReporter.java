@@ -1,6 +1,7 @@
 package plugins.vertex_classification;
 
 import aggregators.MeanAggregator;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
@@ -28,7 +29,8 @@ import java.util.Objects;
  */
 public class VertexLossReporter extends Plugin {
     public transient VertexOutputLayer inference;
-    public transient MeanAggregator lossAggregator; // Aggregate the loss function
+    public int totalCorrect = 0;
+    public int  totalTested = 0;
     public SerializableLoss lossFunction;
 
     public VertexLossReporter(SerializableLoss lossFunction) {
@@ -49,8 +51,12 @@ public class VertexLossReporter extends Plugin {
             if (("testLabel".equals(feature.getName()) || "feature".equals(feature.getName())) && feature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) feature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray loss = calculateLoss(inference.output((NDArray) parent.getFeature("feature").getValue(), false), (NDArray) parent.getFeature("testLabel").getValue());
-                    if(PtNDArray.isValid(loss)) lossAggregator.reduce(loss,1);
+                    NDArray maxArg = inference.output((NDArray) parent.getFeature("feature").getValue(), false).argMax();
+                    NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
+                    if(maxArg.eq(label).getBoolean()){
+                        totalCorrect++;
+                    }
+                    totalTested++;
                 }
             }
         }
@@ -65,15 +71,16 @@ public class VertexLossReporter extends Plugin {
             if ("feature".equals(newFeature.getName()) && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) newFeature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray oldLoss = calculateLoss(inference.output((NDArray) oldFeature.getValue(), false), (NDArray) parent.getFeature("testLabel").getValue());
-                    NDArray newLoss = calculateLoss(inference.output((NDArray) newFeature.getValue(), false), (NDArray) parent.getFeature("testLabel").getValue());
-                    if(PtNDArray.isValid(newLoss)){
-                        if(PtNDArray.isValid(oldLoss)){
-                            lossAggregator.replace(newLoss, oldLoss);
-                        }
-                        else{
-                            lossAggregator.reduce(newLoss,1);
-                        }
+                    NDArray maxArgNew = inference.output((NDArray) newFeature.getValue(), false).argMax();
+                    NDArray maxArgOld = inference.output((NDArray) oldFeature.getValue(), false).argMax();
+                    NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
+                    if(maxArgOld.eq(label).getBoolean() && !maxArgNew.eq(label).getBoolean()){
+                        // Old was correct now it is not correct
+                        totalCorrect--;
+                    }
+                    if(!maxArgOld.eq(label).getBoolean() && maxArgNew.eq(label).getBoolean()){
+                        // Old was wrong now it is correct
+                        totalCorrect++;
                     }
                 }
             }
@@ -88,7 +95,6 @@ public class VertexLossReporter extends Plugin {
     public void open() {
         super.open();
         inference = (VertexOutputLayer) storage.getPlugin("inferencer");
-        lossAggregator = new MeanAggregator(inference.model.getNDManager().zeros(new Shape(), DataType.FLOAT32), true);
         storage.layerFunction
                 .getRuntimeContext()
                 .getMetricGroup()
@@ -109,13 +115,13 @@ public class VertexLossReporter extends Plugin {
 
         @Override
         public Integer getValue() {
-            float loss = lossAggregator.getValue().getFloat();
+            float accuracy = (float) totalCorrect / totalTested;
             try {
-                Files.write(outputFile.toPath(), String.valueOf(loss).concat("\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+                Files.write(outputFile.toPath(), String.valueOf(accuracy).concat("\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
             } catch (IOException e) {
                 e.printStackTrace();
             }
-            return (int) (loss * 1000);
+            return (int) (accuracy * 1000);
         }
     }
 
