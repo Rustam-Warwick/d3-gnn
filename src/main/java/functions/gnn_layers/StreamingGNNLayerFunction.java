@@ -7,7 +7,6 @@ import operators.BaseWrapperOperator;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
@@ -64,11 +63,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         op.setMessageCommunication(MessageCommunication.BROADCAST);
         try {
             if (direction == MessageDirection.BACKWARD) {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, new StreamRecord<>(op, op.getTimestamp()));
+                getWrapperContext().broadcastElement(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
             } else if (direction == MessageDirection.FORWARD) {
-                getWrapperContext().broadcastElement(null, new StreamRecord<>(op, op.getTimestamp()));
+                getWrapperContext().broadcastElement(null, op);
             } else {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.ITERATE_OUTPUT_TAG, new StreamRecord<>(op, op.getTimestamp()));
+                getWrapperContext().broadcastElement(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -77,7 +76,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag) {
-        getWrapperContext().broadcastElement(outputTag, new StreamRecord<>(op, currentTimestamp()));
+        getWrapperContext().broadcastElement(outputTag, op);
     }
 
     @Override

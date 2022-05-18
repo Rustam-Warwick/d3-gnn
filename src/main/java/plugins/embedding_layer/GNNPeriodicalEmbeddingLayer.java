@@ -35,9 +35,9 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     // ---------------------- RUNTIME RELATED -------------------
     public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public boolean ACTIVE = true; // Is the plugin currently running
-    public long last_reduce = Long.MIN_VALUE; // Last reduce watermark
-    public int reduce_count = 0; // Count of broadcaster reduce messages
-    public long last_update = Long.MIN_VALUE; // Last update watermark
+    public long last_reduce = Long.MIN_VALUE; // Last reduce watermark all edges <= this value should be reduced
+    public int acknowledgedReduceCount = 0; // Count of broadcaster reduce messages
+    public long last_update = Long.MIN_VALUE; // Last update watermark. All features <= this value should be updated
 
 
     public GNNPeriodicalEmbeddingLayer(Model model, boolean externalFeatures) {
@@ -49,6 +49,7 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
+        storage.layerFunction.getTimerService().registerEventTimeTimer(2);
         parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
         parameterStore.loadModel(model);
         inputShape = model.describeInput().get(0).getValue();
@@ -78,6 +79,12 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
             if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
             }
+
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
+                if(feature.getTimestamp() < last_update){
+                    forward((Vertex) feature.getElement());
+                }
+            }
         }
     }
 
@@ -85,30 +92,33 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        if(storage.layerFunction.isFirst()){
-            for(Vertex v: storage.getVertices()){
-                reduceInEdges(v, timestamp);
-            }
-            if(state() == ReplicaState.MASTER){
-                // This is the last layer of this operator
-                last_reduce = timestamp;
-                Rmi broadCastMessage = new Rmi(getId(), "reduceStepIncrement",new Object[0], ElementType.PLUGIN, false,timestamp);
-                storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(),broadCastMessage, timestamp), MessageDirection.ITERATE);
-            }
+        for(Vertex v: storage.getVertices()){
+            reduceInEdges(v, timestamp);
+        }
+        if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
+            // This is the last part of this operator
+            last_reduce = timestamp;
+            Rmi broadCastMessage = new Rmi(getId(), "acknowledgeReduce",new Object[0], ElementType.PLUGIN, false, timestamp);
+            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(),broadCastMessage, timestamp), MessageDirection.ITERATE);
         }
 
     }
 
 
-
     @RemoteFunction
     public void acknowledgeReduce(){
         if(state() == ReplicaState.MASTER){
-            if(++reduce_count == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
-                reduce_count = 0;
-                for(Vertex v: storage.getVertices()){
-                    forward(v);
-                }
+            ++acknowledgedReduceCount;
+        }
+        if(acknowledgedReduceCount == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
+            for(Vertex v: storage.getVertices()){
+                if(updateReady(v) && (v.getFeature("feature").getTimestamp() > last_update || v.getFeature("agg").getTimestamp() > last_update))
+                forward(v);
+            }
+
+            if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
+                acknowledgedReduceCount = 0;
+                last_update = last_reduce;
             }
         }
     }
@@ -122,6 +132,9 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
         Iterable<Edge> inEdges = storage.getIncidentEdges(v, EdgeType.IN);
         List<NDArray> ndArrays = new ArrayList<>();
         for(Edge e: inEdges){
+            if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && !messageReady(e)){
+                System.out.println("salam");
+            }
             if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && messageReady(e)){
                 NDArray tmp = message((NDArray) e.src.getFeature("feature").getValue(), false);
                 ndArrays.add(tmp);
@@ -210,7 +223,6 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
             }
         }
     }
-
 
     // NEURAL NETWORK FUNCTIONS
     /**

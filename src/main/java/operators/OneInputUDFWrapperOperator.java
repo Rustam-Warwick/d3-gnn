@@ -28,9 +28,8 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
      */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        super.processElement(element);
         if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-            // Broadcast messages invoked in all of the parts
+            // Broadcast messages invoked in all the parts
             for (short part : thisParts) {
                 element.getValue().setPartId(part);
                 setKeyContextElement(element);
@@ -39,6 +38,7 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
         } else {
             getWrappedOperator().processElement(element);
         }
+        super.processElement(element);
     }
 
     @Override
@@ -48,13 +48,13 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
 
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
+        super.processActualWatermark(mark);
         StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, null, mark.getTimestamp()), mark.getTimestamp());
         for (short part : thisParts) {
             record.getValue().setPartId(part);
             setKeyContextElement(record);
             getWrappedOperator().processElement(record);
         }
-        super.processActualWatermark(mark);
     }
 
     @Override
@@ -69,6 +69,7 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
+        super.setKeyContextElement(record);
         getWrappedOperator().setKeyContextElement(record);
     }
 

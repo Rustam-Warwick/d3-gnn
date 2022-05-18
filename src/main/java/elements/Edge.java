@@ -2,8 +2,6 @@ package elements;
 
 import storage.BaseStorage;
 
-import java.util.Objects;
-
 public class Edge extends GraphElement {
     public Vertex src;
     public Vertex dest;
@@ -61,8 +59,21 @@ public class Edge extends GraphElement {
 
     @Override
     public Boolean create() {
-        this.src.create();
-        this.dest.create();
+        // Update or Create Vertices
+        Vertex localSrc = storage.getVertex(src.getId());
+        Vertex localDest = storage.getVertex(dest.getId());
+
+        if(localSrc == null){
+            this.src.create();
+        }else{
+            localSrc.update(src);
+        }
+
+        if(localDest == null){
+            this.dest.create();
+        }else{
+            localDest.update(dest);
+        }
         return super.create();
     }
 

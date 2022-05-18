@@ -72,10 +72,10 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000);
-            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser());
+            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000).setParallelism(1);
+            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
             DataStream<GraphOp> joinedData = parsedEdges
-                    .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString()))
+                    .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString())).setParallelism(1)
                     .assignTimestampsAndWatermarks(WatermarkStrategy
                             .<GraphOp>forBoundedOutOfOrderness(Duration.ofMillis(0))
                             .withTimestampAssigner((event, ts) -> event.getTimestamp()));

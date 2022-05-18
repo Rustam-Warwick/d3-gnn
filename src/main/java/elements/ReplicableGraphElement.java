@@ -104,7 +104,7 @@ public class ReplicableGraphElement extends GraphElement {
             if (tmp.f0) this.syncReplicas(replicaParts());
             return tmp;
         } else if (state() == ReplicaState.REPLICA) {
-            this.storage.layerFunction.message(new GraphOp(Op.COMMIT, this.masterPart(), newElement, getTimestamp()), MessageDirection.ITERATE);
+            // Replica update, simply ignore it. SHould be MASTER
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
