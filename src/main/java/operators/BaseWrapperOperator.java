@@ -62,7 +62,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
 
-    // ---- Configuration details
+    // TAKEN FROM FLINK ML
+
     protected final StreamOperatorParameters<GraphOp> parameters;
 
     protected final StreamConfig streamConfig;
@@ -76,19 +77,26 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
     protected final InternalOperatorMetricGroup metrics;
-    // --------- Position and watermarking related stuff
+
+
+    // OPERATOR POSITION RELATED
+
     protected final short position;
     protected final short totalLayers;
     protected final short operatorIndex;
-    // -------- Additional outputs by me
+
+
+    // MY ADDITIONS for Watermarking and broadcasting
+
     protected Output[] internalOutputs; // All of operator-to-operator outputs
     protected BroadcastOutput[] internalBroadcastOutputs; // All of operator-to-operator autputs
     protected OutputTag[] internalOutputTags; // All of the existing output tags
-    protected List<Short> thisParts;
-    protected PriorityQueue<Long> waitingSyncs;
-    protected int safeWatermarks;
-    protected Watermark watermarkIsProgress;
+    protected List<Short> thisParts; // Keys hashed to this operator, last one is the MASTER
+    protected PriorityQueue<Long> waitingSyncs; // Sync messages that need to resolved for watermark to proceed
+    protected int numOfSafeWatermarks; // Number of safe watermarks
+    protected List<Watermark> waitingWatermarks;
 
+    // CONSTRUCTOR
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
             StreamOperatorFactory<GraphOp> operatorFactory,
@@ -116,8 +124,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.waitingSyncs = new PriorityQueue<>(1000, Comparator.reverseOrder());
-        this.safeWatermarks = 0;
-        this.watermarkIsProgress = null;
+        this.numOfSafeWatermarks = 0;
+        this.waitingWatermarks = new ArrayList<>(10);
         assignThisKeys();
         try {
             // Creat individual outputs and the context
@@ -233,6 +241,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         getWrappedOperator().processWatermark(mark);
     }
 
+    /**
+     * for SYNC requests check if there is a waiting Sync message and acknowledge Watermarks if any are waiting
+     */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         if(element.getValue().getOp() == Op.SYNC){
@@ -245,29 +256,35 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * See if the watermark of this operator can be called safe
      */
     public void acknowledgeIfWatermarkIsReady(){
-        if(watermarkIsProgress != null && (this.waitingSyncs.peek() == null || this.waitingSyncs.peek() > watermarkIsProgress.getTimestamp())){
+        if(!waitingWatermarks.isEmpty() && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermarks.get(0).getTimestamp())){
             // Broadcast ack of watermark to all other operators including itself
-            context.broadcastElement(ITERATE_OUTPUT_TAG, new StreamRecord<>(new GraphOp(Op.WATERMARK,null,watermarkIsProgress.getTimestamp()), watermarkIsProgress.getTimestamp()));
+            context.broadcastElement(ITERATE_OUTPUT_TAG, new StreamRecord<>(new GraphOp(Op.WATERMARK,null, waitingWatermarks.get(0).getTimestamp()), waitingWatermarks.get(0).getTimestamp()));
         }
     }
 
+    /**
+     * Record the watermark and try to acknowledge it if possible
+     */
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
-        if(watermarkIsProgress != null) {
-            System.out.println("Watermarks are too fast for this operator, they may never get pushed to next operator");
+        if(!waitingWatermarks.isEmpty()) {
+            System.out.println("Watermarks are too fast for this operator, discarding watermark");
         }
-        watermarkIsProgress = mark;
-        safeWatermarks = 0;
+        waitingWatermarks.add(mark);
         acknowledgeIfWatermarkIsReady();
     }
 
+    /**
+     * Record acknowledges watermark or else just process it normally
+     */
     @Override
-    public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+    public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.WATERMARK) {
-            safeWatermarks++; // Ackowledges one more watermark
-            if(safeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()){
-                watermarkIsProgress = null;
-                processActualWatermark(new Watermark(element.getTimestamp()));
+            numOfSafeWatermarks++; // Ackowledges one more watermark
+            if(numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()){
+                numOfSafeWatermarks = 0;
+                processActualWatermark(waitingWatermarks.remove(0));
+
             }
         } else {
             setKeyContextElement(element);
@@ -283,6 +300,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
 
     // CONFIGURATION
+
     // Broadcast Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
     private InternalOperatorMetricGroup createOperatorMetricGroup(
             Environment environment, StreamConfig streamConfig) {
@@ -316,6 +334,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 thisKeys.add(i);
             }
         }
+        Collections.reverse(thisKeys);
         this.thisParts = thisKeys;
     }
 

@@ -1,6 +1,7 @@
 package operators;
 
 import elements.GraphOp;
+import elements.Op;
 import functions.gnn_layers.GNNLayerFunction;
 import elements.iterations.MessageCommunication;
 import org.apache.flink.iteration.IterationID;
@@ -47,11 +48,13 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
 
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
-        super.processActualWatermark(mark);
+        StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, null, mark.getTimestamp()), mark.getTimestamp());
         for (short part : thisParts) {
-            setCurrentKey(String.valueOf(part));
-            getWrappedOperator().getUserFunction().onWatermark(mark.getTimestamp());
+            record.getValue().setPartId(part);
+            setKeyContextElement(record);
+            getWrappedOperator().processElement(record);
         }
+        super.processActualWatermark(mark);
     }
 
     @Override

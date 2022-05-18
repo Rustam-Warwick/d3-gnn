@@ -8,6 +8,8 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
+import elements.iterations.RemoteFunction;
+import elements.iterations.Rmi;
 import features.Tensor;
 import functions.nn.MyParameterStore;
 import elements.iterations.MessageDirection;
@@ -33,8 +35,10 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     // ---------------------- RUNTIME RELATED -------------------
     public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public boolean ACTIVE = true; // Is the plugin currently running
-    public long last_reduce = Long.MIN_VALUE;
-    public long last_update = Long.MIN_VALUE;
+    public long last_reduce = Long.MIN_VALUE; // Last reduce watermark
+    public int reduce_count = 0; // Count of broadcaster reduce messages
+    public long last_update = Long.MIN_VALUE; // Last update watermark
+
 
     public GNNPeriodicalEmbeddingLayer(Model model, boolean externalFeatures) {
         super("inferencer");
@@ -76,33 +80,36 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
             }
         }
     }
+
+
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        int version = (int) (timestamp % 4);
-        // Version 0 happens silently it represents the first watermark.
-        // Then the system sends replica sync messages which will be received before W-1 sent
-        // Then the replicas that have arrived at version 0 will have received their replication material before verison 2 triggered
-        if (version == 2) {
-            // ReduceIn all the new edges
+        if(storage.layerFunction.isFirst()){
             for(Vertex v: storage.getVertices()){
                 reduceInEdges(v, timestamp);
             }
-            if(replicaParts().isEmpty() || replicaParts().get(replicaParts().size()-1) == getPartId()) last_reduce = timestamp;
+            if(state() == ReplicaState.MASTER){
+                // This is the last layer of this operator
+                last_reduce = timestamp;
+                Rmi broadCastMessage = new Rmi(getId(), "reduceStepIncrement",new Object[0], ElementType.PLUGIN, false,timestamp);
+                storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(),broadCastMessage, timestamp), MessageDirection.ITERATE);
+            }
         }
-        else if(version == 3){
-            // Reduced features are here simply run the forward function
-            for(Vertex v: storage.getVertices()){
-                if(updateReady(v) &&
-                        ((v.getFeature("agg").getTimestamp() > last_update && v.getFeature("agg").getTimestamp() <= timestamp) ||
-                                (v.getFeature("feature").getTimestamp() > last_update && v.getFeature("feature").getTimestamp() <= timestamp))
-                        ){
+
+    }
+
+
+
+    @RemoteFunction
+    public void acknowledgeReduce(){
+        if(state() == ReplicaState.MASTER){
+            if(++reduce_count == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
+                reduce_count = 0;
+                for(Vertex v: storage.getVertices()){
                     forward(v);
                 }
             }
-
-            if(replicaParts().isEmpty() || replicaParts().get(replicaParts().size()-1) == getPartId()) last_update = timestamp;
-
         }
     }
 
@@ -204,6 +211,8 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
         }
     }
 
+
+    // NEURAL NETWORK FUNCTIONS
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *

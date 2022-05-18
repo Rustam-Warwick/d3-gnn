@@ -115,14 +115,6 @@ public interface GNNLayerFunction extends RichFunction {
         return getWrapperContext().getNumLayers();
     }
 
-    /**
-     * External Watermark triggered
-     * @param ts timestamp of the watermark
-     */
-    default void onWatermark(long ts){
-        getStorage().onWatermark(ts);
-    }
-
     default void onOperatorEvent(OperatorEvent evnt){
         getStorage().onOperatorEvent(evnt);
     }

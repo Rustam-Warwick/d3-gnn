@@ -80,10 +80,12 @@ public class Main {
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true))
+                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(0), true))
+                        .withPlugin(new PrintVertexPlugin())
                 ,
                 new TupleStorage()
-                        .withPlugin(new GNNEmbeddingLayer(models.get(1), true))
+                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(1), true))
+                        .withPlugin(new PrintVertexPlugin())
 
 
         ));
