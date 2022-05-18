@@ -2,6 +2,7 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -60,7 +61,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract void cacheFeaturesOf(GraphElement e);
 
-    // ----- Plugin Implementation and some common methods
+    // ----- Plugin Implementation and some common methods & CAllbacks
 
     public Plugin getPlugin(String id) {
         return this.plugins.get(id);
@@ -86,14 +87,29 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         this.plugins.values().forEach(Plugin::close);
     }
 
+    /**
+     * OnTimer callback
+     */
     public void onTimer(long timestamp) {
         plugins.values().forEach(plugin -> plugin.onTimer(timestamp));
     }
 
+    /**
+     * Watermark callback
+     */
     public void onWatermark(long timestamp) {
         plugins.values().forEach(plugin -> plugin.onWatermark(timestamp));
     }
 
+    /**
+     * On OperatorEvent
+     */
+    public void onOperatorEvent(OperatorEvent evnt){
+        plugins.values().forEach(plugin->{plugin.onOperatorEvent(evnt);});
+    }
+
+
+    // Operator State Handler
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         // pass
@@ -104,6 +120,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         // pass
     }
 
+
+    // Helper methods for creating and getting GraphElements
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:

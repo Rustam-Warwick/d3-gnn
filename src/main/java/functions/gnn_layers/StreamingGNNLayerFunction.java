@@ -1,8 +1,8 @@
 package functions.gnn_layers;
 
 import elements.GraphOp;
-import iterations.MessageCommunication;
-import iterations.MessageDirection;
+import elements.iterations.MessageCommunication;
+import elements.iterations.MessageDirection;
 import operators.BaseWrapperOperator;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;

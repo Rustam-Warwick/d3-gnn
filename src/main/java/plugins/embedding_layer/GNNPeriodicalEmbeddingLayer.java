@@ -10,8 +10,8 @@ import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
 import features.Tensor;
 import functions.nn.MyParameterStore;
-import iterations.MessageDirection;
-import iterations.RemoteInvoke;
+import elements.iterations.MessageDirection;
+import elements.iterations.RemoteInvoke;
 
 import java.util.ArrayList;
 import java.util.List;

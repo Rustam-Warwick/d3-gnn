@@ -122,24 +122,24 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
         GraphOp cloned = record.getValue().copy();
-        channel.put(new StreamRecord<>(cloned, cloned.getTimestamp()));
+        channel.put(new StreamRecord<>(cloned, record.getTimestamp()));
     }
 
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
-        channel.put(new StreamRecord<>(record.getValue(), record.getValue().getTimestamp()));
+        channel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()));
     }
 
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-        short iterationNumber = (short) (mark.getTimestamp() % 4);
-        if (iterationNumber < 3) {
-            // Still not terminated need to iterate still
-            GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
-            channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
-        }
-        // Else Pass
-    }
+//    @Override
+//    public void processWatermark(Watermark mark) throws Exception {
+//        short iterationNumber = (short) (mark.getTimestamp() % 4);
+//        if (iterationNumber < 3) {
+//            // Still not terminated need to iterate still
+//            GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
+//            channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
+//        }
+//        // Else Pass
+//    }
 
     @Override
     public void close() throws Exception {

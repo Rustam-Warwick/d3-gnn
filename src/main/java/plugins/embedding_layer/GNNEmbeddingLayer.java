@@ -10,8 +10,8 @@ import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
 import features.Tensor;
 import functions.nn.MyParameterStore;
-import iterations.MessageDirection;
-import iterations.RemoteInvoke;
+import elements.iterations.MessageDirection;
+import elements.iterations.RemoteInvoke;
 
 import java.util.Objects;
 
@@ -127,7 +127,7 @@ public class GNNEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (updateReady(v)) {
+        if (updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(ft, agg, false);

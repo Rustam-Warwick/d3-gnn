@@ -1,9 +1,9 @@
 package elements;
 
 import features.Set;
-import iterations.MessageDirection;
-import iterations.RemoteFunction;
-import iterations.RemoteInvoke;
+import elements.iterations.MessageDirection;
+import elements.iterations.RemoteFunction;
+import elements.iterations.RemoteInvoke;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;

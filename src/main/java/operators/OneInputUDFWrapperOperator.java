@@ -2,8 +2,9 @@ package operators;
 
 import elements.GraphOp;
 import functions.gnn_layers.GNNLayerFunction;
-import iterations.MessageCommunication;
+import elements.iterations.MessageCommunication;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
@@ -26,7 +27,9 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
      */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
+        super.processElement(element);
         if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+            // Broadcast messages invoked in all of the parts
             for (short part : thisParts) {
                 element.getValue().setPartId(part);
                 setKeyContextElement(element);
@@ -44,11 +47,16 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
 
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
-        getWrappedOperator().processWatermark(mark);
+        super.processActualWatermark(mark);
         for (short part : thisParts) {
             setCurrentKey(String.valueOf(part));
             getWrappedOperator().getUserFunction().onWatermark(mark.getTimestamp());
         }
+    }
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        getWrappedOperator().getUserFunction().onOperatorEvent(evt);
     }
 
     @Override

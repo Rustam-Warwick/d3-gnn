@@ -1,7 +1,7 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
-import iterations.RemoteFunction;
+import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.Arrays;

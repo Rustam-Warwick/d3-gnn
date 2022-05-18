@@ -12,7 +12,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
  * Utility class that converts watermarks to iterative watermarks for
  * across replica synchronization.
  *
- * @implNote Only takes first 2 bits of timestamp for enconding iteration number. So no iterations of size > 4
+ * @implNote Only takes first 2 bits of timestamp for enconding iteration number. So no elements.iterations of size > 4
  * @implNote Iteration numbers go up, so 0..3
  * @implNote Using bitwise operators, in case the system does not use 2's complement
  */

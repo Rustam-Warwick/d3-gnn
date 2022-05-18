@@ -1,6 +1,6 @@
 package elements;
 
-import iterations.MessageDirection;
+import elements.iterations.MessageDirection;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import javax.annotation.Nullable;

@@ -3,10 +3,11 @@ package functions.gnn_layers;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.ReplicaState;
-import iterations.MessageDirection;
-import iterations.Rmi;
+import elements.iterations.MessageDirection;
+import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
@@ -120,6 +121,10 @@ public interface GNNLayerFunction extends RichFunction {
      */
     default void onWatermark(long ts){
         getStorage().onWatermark(ts);
+    }
+
+    default void onOperatorEvent(OperatorEvent evnt){
+        getStorage().onOperatorEvent(evnt);
     }
 
     /**

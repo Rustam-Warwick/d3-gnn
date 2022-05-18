@@ -1,7 +1,7 @@
 package features;
 
 import elements.Feature;
-import iterations.RemoteFunction;
+import elements.iterations.RemoteFunction;
 
 import java.util.List;
 

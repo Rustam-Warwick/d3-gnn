@@ -1,6 +1,6 @@
 package elements;
 
-import iterations.MessageCommunication;
+import elements.iterations.MessageCommunication;
 
 /**
  * Main message object that gets passed around the system

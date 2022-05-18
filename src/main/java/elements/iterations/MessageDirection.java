@@ -1,4 +1,4 @@
-package iterations;
+package elements.iterations;
 
 
 public enum MessageDirection {

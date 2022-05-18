@@ -1,7 +1,7 @@
 package plugins;
 
 import elements.*;
-import iterations.MessageDirection;
+import elements.iterations.MessageDirection;
 
 import java.util.List;
 

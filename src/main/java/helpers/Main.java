@@ -66,8 +66,8 @@ public class Main {
         ArrayList<Model> models = layeredModel();
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
-        env.setMaxParallelism(1);
+        env.setParallelism(2);
+        env.setMaxParallelism(10);
 
 
         // GraphStream
@@ -80,12 +80,10 @@ public class Main {
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(0), true))
-                        .withPlugin(new PrintVertexPlugin("1", "101"))
+                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true))
                 ,
                 new TupleStorage()
-                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(1), true))
-                        .withPlugin(new PrintVertexPlugin("1", "101"))
+                        .withPlugin(new GNNEmbeddingLayer(models.get(1), true))
 
 
         ));
@@ -96,7 +94,6 @@ public class Main {
                 new TupleStorage()
                         .withPlugin(new VertexLossReporter(new SerializableLoss(new CrossEntropyLoss("loss", true))))
                         .withPlugin(new VertexOutputLayer(models.get(2)))
-                        .withPlugin(new PrintVertexPlugin("1", "101"))
                         );
 
         env.execute();

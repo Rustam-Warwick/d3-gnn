@@ -1,6 +1,7 @@
 package elements;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
 import java.util.ArrayList;
@@ -112,6 +113,13 @@ public class Plugin extends ReplicableGraphElement {
      */
     public void onWatermark(long timestamp) {
         // pass
+    }
+
+    /**
+     * Callback when OperatorSends event to this plugin
+     */
+    public void onOperatorEvent(OperatorEvent evnt){
+
     }
 
     /**

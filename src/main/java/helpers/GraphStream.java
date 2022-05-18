@@ -14,7 +14,7 @@ import features.Set;
 import features.VTensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.selectors.PartKeySelector;
-import iterations.Rmi;
+import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
 import operators.SimpleTailOperator;
 import operators.WrapperOperatorFactory;
@@ -45,7 +45,7 @@ public class GraphStream {
         this.parallelism = (short) this.env.getParallelism();
         this.layers = layers;
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        this.env.getConfig().setAutoWatermarkInterval(3000);
+        this.env.getConfig().setAutoWatermarkInterval(5000);
 //        this.env.getConfig().enableObjectReuse(); // Optimization
         configureSerializers(this.env);
     }
