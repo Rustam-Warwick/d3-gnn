@@ -78,13 +78,27 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         return this;
     }
 
+    /**
+     * Operator opened
+     */
     public void open() throws Exception {
         this.plugins.values().forEach(plugin -> plugin.setStorage(this));
         this.plugins.values().forEach(Plugin::open);
     }
 
+    /**
+     * Operator Closed
+     */
     public void close() throws Exception {
         this.plugins.values().forEach(Plugin::close);
+    }
+
+    /**
+     * Callback by Operators when a batch of data is received
+     * Under streaming setting this is called on every element instead
+     */
+    public void batch(){
+        this.plugins.values().forEach(Plugin::batch);
     }
 
     /**
@@ -104,8 +118,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * On OperatorEvent
      */
-    public void onOperatorEvent(OperatorEvent evnt){
-        plugins.values().forEach(plugin->{plugin.onOperatorEvent(evnt);});
+    public void onOperatorEvent(OperatorEvent evnt) {
+        plugins.values().forEach(plugin -> {
+            plugin.onOperatorEvent(evnt);
+        });
     }
 
 

@@ -81,6 +81,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray, External
         dataRef = data;
     }
 
+    public static boolean isValid(NDArray arr) {
+        return !arr.isNaN().any().getBoolean() && !arr.isInfinite().any().getBoolean();
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -1784,9 +1788,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray, External
     public void close() {
     }
 
-    public static boolean isValid(NDArray arr){
-        return !arr.isNaN().any().getBoolean() && !arr.isInfinite().any().getBoolean();
-    }
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         NDSerializer.encode(this);

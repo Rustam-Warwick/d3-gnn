@@ -118,7 +118,7 @@ public class Plugin extends ReplicableGraphElement {
     /**
      * Callback when OperatorSends event to this plugin
      */
-    public void onOperatorEvent(OperatorEvent evnt){
+    public void onOperatorEvent(OperatorEvent evnt) {
 
     }
 
@@ -143,6 +143,14 @@ public class Plugin extends ReplicableGraphElement {
      */
     public void add() {
         // pass
+    }
+
+    /**
+     * Callback when a batch of data has been processed by this operators
+     * Use this to have some sort of batch logic for windowed operators
+     */
+    public void batch(){
+
     }
 
     /**

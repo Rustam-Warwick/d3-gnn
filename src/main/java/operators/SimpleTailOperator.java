@@ -19,7 +19,6 @@
 package operators;
 
 import elements.GraphOp;
-import elements.Op;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
@@ -28,7 +27,6 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.util.IOUtils;

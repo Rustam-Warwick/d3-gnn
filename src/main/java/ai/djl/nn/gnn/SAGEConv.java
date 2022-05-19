@@ -1,6 +1,5 @@
 package ai.djl.nn.gnn;
 
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;

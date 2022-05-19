@@ -358,7 +358,7 @@ public class GraphElement implements Serializable {
     /**
      * Clear the cached features on this GraphElement
      */
-    public void clearFeatures(){
+    public void clearFeatures() {
         features.clear();
     }
 

@@ -42,6 +42,7 @@ public class Edge extends GraphElement {
 
     /**
      * Reverses this Edge.
+     *
      * @return thsi edge
      */
     public Edge reverse() {
@@ -63,15 +64,15 @@ public class Edge extends GraphElement {
         Vertex localSrc = storage.getVertex(src.getId());
         Vertex localDest = storage.getVertex(dest.getId());
 
-        if(localSrc == null){
+        if (localSrc == null) {
             this.src.create();
-        }else{
+        } else {
             localSrc.update(src);
         }
 
-        if(localDest == null){
+        if (localDest == null) {
             this.dest.create();
-        }else{
+        } else {
             localDest.update(dest);
         }
         return super.create();

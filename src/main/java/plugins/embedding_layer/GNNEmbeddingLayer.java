@@ -8,10 +8,10 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
-import features.Tensor;
-import functions.nn.MyParameterStore;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
+import features.Tensor;
+import functions.nn.MyParameterStore;
 
 import java.util.Objects;
 
@@ -78,8 +78,7 @@ public class GNNEmbeddingLayer extends Plugin {
             if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 reduceOutEdges((Tensor) feature);
                 forward((Vertex) feature.getElement()); // Forward just in case. Either this or next one will not be called
-            }
-            else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
+            } else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
                 forward((Vertex) feature.getElement()); // Forward just in case. Either this or next one will not be called
             }
         }

@@ -6,11 +6,11 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
-import features.Tensor;
-import functions.nn.MyParameterStore;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
+import features.Tensor;
+import functions.nn.MyParameterStore;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;

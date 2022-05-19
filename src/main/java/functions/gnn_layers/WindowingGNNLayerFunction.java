@@ -4,25 +4,31 @@ import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import operators.BaseWrapperOperator;
+import org.apache.flink.api.common.functions.IterationRuntimeContext;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimerService;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.operators.windowing.functions.InternalWindowFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
-public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
+/**
+ * GNNLayerFunction for Window based operators
+ */
+public class WindowingGNNLayerFunction implements InternalWindowFunction<Iterable<GraphOp>, GraphOp, String, TimeWindow>, GNNLayerFunction {
     public BaseStorage storage;
     public transient short currentPart;
+    public RuntimeContext runtimeContext;
     public transient Collector<GraphOp> collector;
-    public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
+    public transient InternalWindowContext ctx;
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
 
-    public StreamingGNNLayerFunction(BaseStorage storage) {
+    public WindowingGNNLayerFunction(BaseStorage storage) {
         this.storage = storage;
         storage.layerFunction = this;
     }
-
     @Override
     public short getCurrentPart() {
         return currentPart;
@@ -34,13 +40,33 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
+    public BaseStorage getStorage() {
+        return storage;
+    }
+
+    @Override
+    public void setStorage(BaseStorage storage) {
+        this.storage = storage;
+    }
+
+    @Override
     public BaseWrapperOperator<?>.Context getWrapperContext() {
         return baseWrapperContext;
     }
 
     @Override
     public void setWrapperContext(BaseWrapperOperator<?>.Context context) {
-        this.baseWrapperContext = context;
+        baseWrapperContext = context;
+    }
+
+    @Override
+    public TimerService getTimerService() {
+        return null;
+    }
+
+    @Override
+    public long currentTimestamp() {
+        return 0;
     }
 
     @Override
@@ -85,49 +111,41 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public BaseStorage getStorage() {
-        return storage;
-    }
-
-    @Override
-    public void setStorage(BaseStorage storage) {
-        this.storage = storage;
-    }
-
-    @Override
-    public long currentTimestamp() {
-        return ctx.timestamp() == null ? 0 : ctx.timestamp();
-    }
-
-    @Override
     public void open(Configuration parameters) throws Exception {
-        super.open(parameters);
-        getStorage().open();
+        storage.open();
     }
 
     @Override
     public void close() throws Exception {
-        super.close();
-        getStorage().close();
+        storage.close();
     }
 
     @Override
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
-        super.onTimer(timestamp, ctx, out);
-        getStorage().onTimer(timestamp);
+    public RuntimeContext getRuntimeContext() {
+        return runtimeContext;
     }
 
     @Override
-    public TimerService getTimerService() {
-        return ctx.timerService();
+    public IterationRuntimeContext getIterationRuntimeContext() {
+        return null;
     }
 
     @Override
-    public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        setCurrentPart(Short.parseShort(ctx.getCurrentKey()));
-        if (this.collector == null) this.collector = out;
-        if (this.ctx == null) this.ctx = ctx;
-        process(value);
-        storage.batch();
+    public void process(String s, TimeWindow window, InternalWindowContext context, Iterable<GraphOp> input, Collector<GraphOp> out) throws Exception {
+        this.ctx = context;
+        this.collector = out;
+        setCurrentPart(Short.parseShort(s));
+        input.forEach(this::process);
+        getStorage().batch();
     }
+
+    @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        runtimeContext = t;
+    }
+
+    @Override
+    public void clear(TimeWindow window, InternalWindowContext context) throws Exception {
+    }
+
 }

@@ -8,12 +8,12 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.*;
+import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
+import elements.iterations.RemoteInvoke;
 import elements.iterations.Rmi;
 import features.Tensor;
 import functions.nn.MyParameterStore;
-import elements.iterations.MessageDirection;
-import elements.iterations.RemoteInvoke;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +22,7 @@ import java.util.Objects;
 /**
  * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding on a periodical fashion
  * Outputs -> New Feature to the next layer
+ *
  * @implNote Expects Edges to have timestamps
  */
 public class GNNPeriodicalEmbeddingLayer extends Plugin {
@@ -84,33 +85,33 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     @Override
     public void onWatermark(long timestamp) {
         super.onWatermark(timestamp);
-        for(Vertex v: storage.getVertices()){
+        for (Vertex v : storage.getVertices()) {
             reduceInEdges(v, timestamp);
         }
-        if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
+        if (replicaParts().isEmpty() || getPartId() == replicaParts().get(replicaParts().size() - 1)) {
             // This is the last part of this operator
             last_reduce = timestamp;
-            Rmi broadCastMessage = new Rmi(getId(), "acknowledgeReduce",new Object[0], ElementType.PLUGIN, false, timestamp);
-            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(),broadCastMessage, timestamp), MessageDirection.ITERATE);
+            Rmi broadCastMessage = new Rmi(getId(), "acknowledgeReduce", new Object[0], ElementType.PLUGIN, false, timestamp);
+            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(), broadCastMessage, timestamp), MessageDirection.ITERATE);
         }
     }
 
     @RemoteFunction
-    public void acknowledgeReduce(){
-        if(state() == ReplicaState.MASTER){
+    public void acknowledgeReduce() {
+        if (state() == ReplicaState.MASTER) {
             ++acknowledgedReduceCount;
         }
-        if(acknowledgedReduceCount == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
-            for(Vertex v: storage.getVertices()){
-                if(updateReady(v)){
+        if (acknowledgedReduceCount == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
+            for (Vertex v : storage.getVertices()) {
+                if (updateReady(v)) {
                     long nextFeatureTimestamp = Math.max(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp());
-                    if(nextFeatureTimestamp > last_update){
+                    if (nextFeatureTimestamp > last_update) {
                         forward(v);
                     }
                 }
             }
 
-            if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
+            if (replicaParts().isEmpty() || getPartId() == replicaParts().get(replicaParts().size() - 1)) {
                 acknowledgedReduceCount = 0;
                 last_update = last_reduce;
             }
@@ -119,21 +120,22 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
 
     /**
      * Reduce all the in-edges that came in last_WT<t<=WT
-     * @param v vertex to reduce into
+     *
+     * @param v         vertex to reduce into
      * @param timestamp max timestamp of edges to include
      */
-    public void reduceInEdges(Vertex v, long timestamp){
+    public void reduceInEdges(Vertex v, long timestamp) {
         Iterable<Edge> inEdges = storage.getIncidentEdges(v, EdgeType.IN);
         List<NDArray> ndArrays = new ArrayList<>();
         long maxTimestamp = Long.MIN_VALUE;
-        for(Edge e: inEdges){
-            if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && messageReady(e)){
+        for (Edge e : inEdges) {
+            if (e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && messageReady(e)) {
                 NDArray tmp = message((NDArray) e.src.getFeature("feature").getValue(), false);
                 ndArrays.add(tmp);
                 maxTimestamp = Math.max(Math.max(e.getTimestamp(), e.src.getFeature("feature").getTimestamp()), maxTimestamp);
             }
         }
-        if(ndArrays.size() > 0){
+        if (ndArrays.size() > 0) {
             NDArray msg = MeanAggregator.bulkReduce(ndArrays.toArray(NDArray[]::new));
             new RemoteInvoke()
                     .toElement(v.decodeFeatureId("agg"), ElementType.FEATURE)
@@ -215,8 +217,8 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     }
 
 
-
     // NEURAL NETWORK FUNCTIONS
+
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *

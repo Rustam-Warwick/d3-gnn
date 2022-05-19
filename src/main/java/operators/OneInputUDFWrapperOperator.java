@@ -2,8 +2,8 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
-import functions.gnn_layers.GNNLayerFunction;
 import elements.iterations.MessageCommunication;
+import functions.gnn_layers.GNNLayerFunction;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;

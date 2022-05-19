@@ -1,15 +1,9 @@
 package plugins.vertex_classification;
 
-import aggregators.MeanAggregator;
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
-import ai.djl.ndarray.types.DataType;
-import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.PtNDArray;
 import elements.*;
-import functions.nn.MyParameterStore;
 import org.apache.flink.metrics.Gauge;
 
 import java.io.File;
@@ -30,7 +24,7 @@ import java.util.Objects;
 public class VertexLossReporter extends Plugin {
     public transient VertexOutputLayer inference;
     public int totalCorrect = 0;
-    public int  totalTested = 0;
+    public int totalTested = 0;
     public SerializableLoss lossFunction;
 
     public VertexLossReporter(SerializableLoss lossFunction) {
@@ -53,7 +47,7 @@ public class VertexLossReporter extends Plugin {
                 if (trainLossReady(parent)) {
                     NDArray maxArg = inference.output((NDArray) parent.getFeature("feature").getValue(), false).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
-                    if(maxArg.eq(label).getBoolean()){
+                    if (maxArg.eq(label).getBoolean()) {
                         totalCorrect++;
                     }
                     totalTested++;
@@ -74,11 +68,11 @@ public class VertexLossReporter extends Plugin {
                     NDArray maxArgNew = inference.output((NDArray) newFeature.getValue(), false).argMax();
                     NDArray maxArgOld = inference.output((NDArray) oldFeature.getValue(), false).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
-                    if(maxArgOld.eq(label).getBoolean() && !maxArgNew.eq(label).getBoolean()){
+                    if (maxArgOld.eq(label).getBoolean() && !maxArgNew.eq(label).getBoolean()) {
                         // Old was correct now it is not correct
                         totalCorrect--;
                     }
-                    if(!maxArgOld.eq(label).getBoolean() && maxArgNew.eq(label).getBoolean()){
+                    if (!maxArgOld.eq(label).getBoolean() && maxArgNew.eq(label).getBoolean()) {
                         // Old was wrong now it is correct
                         totalCorrect++;
                     }

@@ -25,7 +25,6 @@ import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
-import org.apache.flink.shaded.guava30.com.google.common.graph.Graph;
 import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
@@ -45,7 +44,10 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.PriorityQueue;
 import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkState;
@@ -239,17 +241,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
-
-
-
     // WATERMARKING & PROCESSING LOGIC
 
     /**
      * Actually process the watermark, for each received W this will be called 4 times at W+1, W+2, W+3.
      * Representing the elements.iterations of the Watermark in the stream
+     *
      * @param mark Watermark
      */
-    public void processActualWatermark(Watermark mark) throws Exception{
+    public void processActualWatermark(Watermark mark) throws Exception {
         getWrappedOperator().processWatermark(mark);
     }
 
@@ -258,8 +258,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if(element.getValue().getOp() == Op.SYNC){
-            this.waitingSyncs.removeIf(item->item == element.getTimestamp());
+        if (element.getValue().getOp() == Op.SYNC) {
+            this.waitingSyncs.removeIf(item -> item == element.getTimestamp());
             acknowledgeIfWatermarkIsReady();
         }
     }
@@ -268,13 +268,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * See if the watermark of this operator can be called safe. In other words if all SYNC messages were received
      */
     public void acknowledgeIfWatermarkIsReady() throws Exception {
-        if(currentWatermarkInIteration==null && waitingWatermark!=null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())){
+        if (currentWatermarkInIteration == null && waitingWatermark != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())) {
             // Broadcast ack of watermark to all other operators including itself
             currentWatermarkInIteration = waitingWatermark;
             waitingWatermark = null;
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK,(short) 0, null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, (short) 0, null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
             setKeyContextElement(record);
-            context.broadcastElement(ITERATE_OUTPUT_TAG,record.getValue());
+            context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
         }
     }
 
@@ -293,19 +293,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.WATERMARK) {
-            if(++numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()){
+            if (++numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                 numOfSafeWatermarks = 0;
-                if(element.getValue().getPartId() == 0){
+                if (element.getValue().getPartId() == 0) {
                     // This means that Master -> Replica SYNC were finished all elements are in place, call actual watermark
                     // However, do one more all-reduce before emitting the watermark. We give slack of one-hop operations
                     System.out.format("First Watermark %s\n", context.getPosition());
                     processActualWatermark(currentWatermarkInIteration);
                     element.getValue().setPartId((short) 1);
                     context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
-                }
-                else{
+                } else {
                     // Now the watermark can be finally emitted
-                    if(currentWatermarkInIteration.getTimestamp() == Long.MAX_VALUE) {
+                    if (currentWatermarkInIteration.getTimestamp() == Long.MAX_VALUE) {
                         readyToGracefullyFinish = true;
                         // This watermark was just a notice about the end of input, do not emit it
                         // Next layers will receive finalization blocks anyways
@@ -324,23 +323,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     /**
      * Blocking the finalization procedure untill all iteration requests have been processed
+     *
      * @implNote See {@link this.processFeedback} to see when graceFullFinish is executed
      */
     @Override
     public void endInput() throws Exception {
         System.out.format("Entered Endblock %s\n", context.getPosition());
-        while(!readyToGracefullyFinish){
+        while (!readyToGracefullyFinish) {
             // Normal data processing stops here, just consume the iteration mailbox
             mailboxExecutor.tryYield();
             Thread.sleep(200);
         }
         System.out.format("Excaped Endblock %s\n", context.getPosition());
     }
-
-
-
-
-
 
 
     // CONFIGURATION
@@ -428,58 +423,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         createInternalBroadcastOutput.setAccessible(false);
     }
 
-    /**
-     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
-     * Those stuff should be handled by the oeprator implementing this class
-     * Also the timestamps are assigned by the GraphOp Timestamps
-     */
-    public class ProxyOutput implements Output<StreamRecord<GraphOp>> {
-        Output<StreamRecord<GraphOp>> output;
-
-        ProxyOutput(Output<StreamRecord<GraphOp>> output) {
-            this.output = output;
-        }
-
-        @Override
-        public void emitWatermark(Watermark mark) {
-            // Pass because watermarks should be emitted by the wrapper operators
-//            output.emitWatermark(mark);
-        }
-
-        @Override
-        public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
-            output.emitWatermarkStatus(watermarkStatus);
-        }
-
-        @Override
-        public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
-            if(outputTag == ITERATE_OUTPUT_TAG && record.getValue() instanceof GraphOp){
-                GraphOp el = (GraphOp) record.getValue();
-                if(el.getOp() == Op.SYNC && el.element.state() == ReplicaState.REPLICA){
-                    // Replica wants to sync with master
-                    waitingSyncs.add(record.getTimestamp());
-                }
-            }
-            output.collect(outputTag, record);
-        }
-
-        @Override
-        public void emitLatencyMarker(LatencyMarker latencyMarker) {
-            output.emitLatencyMarker(latencyMarker);
-        }
-
-        @Override
-        public void collect(StreamRecord<GraphOp> record) {
-            output.collect(record);
-        }
-
-        @Override
-        public void close() {
-            output.close();
-        }
-    }
-
-
     private static class RecordingStreamTaskStateInitializer implements StreamTaskStateInitializer {
 
         private final StreamTaskStateInitializer wrapped;
@@ -518,10 +461,62 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
+     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
+     * Those stuff should be handled by the oeprator implementing this class
+     * Also the timestamps are assigned by the GraphOp Timestamps
+     */
+    public class ProxyOutput implements Output<StreamRecord<GraphOp>> {
+        Output<StreamRecord<GraphOp>> output;
+
+        ProxyOutput(Output<StreamRecord<GraphOp>> output) {
+            this.output = output;
+        }
+
+        @Override
+        public void emitWatermark(Watermark mark) {
+            // Pass because watermarks should be emitted by the wrapper operators
+//            output.emitWatermark(mark);
+        }
+
+        @Override
+        public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
+            output.emitWatermarkStatus(watermarkStatus);
+        }
+
+        @Override
+        public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
+            if (outputTag == ITERATE_OUTPUT_TAG && record.getValue() instanceof GraphOp) {
+                GraphOp el = (GraphOp) record.getValue();
+                if (el.getOp() == Op.SYNC && el.element.state() == ReplicaState.REPLICA) {
+                    // Replica wants to sync with master
+                    waitingSyncs.add(record.getTimestamp());
+                }
+            }
+            output.collect(outputTag, record);
+        }
+
+        @Override
+        public void emitLatencyMarker(LatencyMarker latencyMarker) {
+            output.emitLatencyMarker(latencyMarker);
+        }
+
+        @Override
+        public void collect(StreamRecord<GraphOp> record) {
+            output.collect(record);
+        }
+
+        @Override
+        public void close() {
+            output.close();
+        }
+    }
+
+    /**
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
         StreamRecord<GraphOp> element = null;
+
         /**
          * Send watermark exactly to one output channel
          *

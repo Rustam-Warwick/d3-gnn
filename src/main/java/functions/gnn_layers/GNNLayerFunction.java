@@ -115,7 +115,7 @@ public interface GNNLayerFunction extends RichFunction {
         return getWrapperContext().getNumLayers();
     }
 
-    default void onOperatorEvent(OperatorEvent evnt){
+    default void onOperatorEvent(OperatorEvent evnt) {
         getStorage().onOperatorEvent(evnt);
     }
 

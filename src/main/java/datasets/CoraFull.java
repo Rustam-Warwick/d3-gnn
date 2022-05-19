@@ -12,17 +12,14 @@ import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
 
 import java.io.FileInputStream;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -46,7 +43,7 @@ public class CoraFull implements Dataset {
             public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
                 Edge e = (Edge) value.element;
-                if(e.src.getFeature("label")!=null){
+                if (e.src.getFeature("label") != null) {
                     Feature<?, ?> label = e.src.getFeature("label"); // Get label
                     e.src.features.removeIf(item -> "label".equals(item.getName()));
                     label.setId("testLabel");
@@ -54,7 +51,7 @@ public class CoraFull implements Dataset {
                     copyGraphOp.setElement(label);
                     ctx.output(TRAIN_TEST_DATA_OUTPUT, copyGraphOp);
                 }
-                if(e.dest.getFeature("label")!=null){
+                if (e.dest.getFeature("label") != null) {
                     Feature<?, ?> label = e.dest.getFeature("label"); // Get label
                     e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
                     label.setId("testLabel"); // Change name
@@ -93,10 +90,10 @@ public class CoraFull implements Dataset {
         }
     }
 
-    protected static class PunctuatedWatermarks implements WatermarkGenerator<GraphOp>{
+    protected static class PunctuatedWatermarks implements WatermarkGenerator<GraphOp> {
         @Override
         public void onEvent(GraphOp event, long eventTimestamp, WatermarkOutput output) {
-            if(eventTimestamp % 2000 == 0) output.emitWatermark(new Watermark(eventTimestamp - 40));
+            if (eventTimestamp % 2000 == 0) output.emitWatermark(new Watermark(eventTimestamp - 40));
         }
 
         @Override
@@ -105,7 +102,7 @@ public class CoraFull implements Dataset {
         }
     }
 
-    protected static class EdgeParser implements MapFunction<String, GraphOp>{
+    protected static class EdgeParser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] edges = value.split(",");
@@ -136,7 +133,7 @@ public class CoraFull implements Dataset {
             super.open(parameters);
             FileInputStream vertexFeaturesIn = new FileInputStream(vertexFeaturesFile);
             FileInputStream vertexLabelsIn = new FileInputStream(vertexLabelsFile);
-            this.vertexFeatures =  NDSerializer.decodeNumpy(BaseNDManager.threadNDManager.get(), vertexFeaturesIn);
+            this.vertexFeatures = NDSerializer.decodeNumpy(BaseNDManager.threadNDManager.get(), vertexFeaturesIn);
             this.vertexLabels = NDSerializer.decodeNumpy(BaseNDManager.threadNDManager.get(), vertexLabelsIn);
             this.seenVertices = new ArrayList<>();
             this.timestamp = 0;

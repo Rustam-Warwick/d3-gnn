@@ -10,16 +10,16 @@ import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
 import com.esotericsoftware.kryo.Kryo;
 import elements.*;
+import elements.iterations.Rmi;
 import features.Set;
 import features.VTensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.gnn_layers.WindowingGNNLayerFunction;
 import functions.selectors.PartKeySelector;
-import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
 import operators.SimpleTailOperator;
 import operators.WrapperOperatorFactory;
-import org.apache.flink.api.common.ExecutionMode;
-import org.apache.flink.api.common.RuntimeExecutionMode;
+import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -28,11 +28,17 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.WindowAssigner;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
+import org.apache.flink.streaming.runtime.operators.windowing.WindowOperator;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 import partitioner.BasePartitioner;
 import storage.BaseStorage;
 
 import java.util.List;
+import java.util.function.BiFunction;
 
 public class GraphStream {
     public short parallelism; // Default parallelism
@@ -108,7 +114,7 @@ public class GraphStream {
      * @param storage         Storage of choice with attached plugins
      * @return output stream dependent on the plugin
      */
-    public SingleOutputStreamOperator<GraphOp> gnnLayerNewIteration(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
+    public SingleOutputStreamOperator<GraphOp> streamingGNNLayer(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
         StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage);
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
@@ -133,6 +139,55 @@ public class GraphStream {
         return forward;
     }
 
+    /**
+     * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
+     *
+     * @param topologyUpdates non-keyed input graphop to this layer, can be a union of several streams as well
+     * @param storage         Storage of choice with attached plugins
+     * @return output stream dependent on the plugin
+     */
+    public SingleOutputStreamOperator<GraphOp> windowingGNNLayer(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
+        int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
+        IterationID localIterationId = new IterationID();
+
+        // Create a window Operator
+        KeyedStream<GraphOp, String> keyedLast = topologyUpdates
+                .keyBy(new PartKeySelector());
+        ListStateDescriptor<GraphOp> stateDesc =
+                new ListStateDescriptor<>(
+                        "window-contents", TypeInformation.of(GraphOp.class).createSerializer(env.getConfig()));
+        WindowAssigner<Object, TimeWindow> assigner = TumblingEventTimeWindows.of(Time.seconds(10));
+        WindowOperator<String, GraphOp, Iterable<GraphOp>, GraphOp, TimeWindow> s = new WindowOperator<String, GraphOp, Iterable<GraphOp>, GraphOp, TimeWindow>(
+                assigner,
+                assigner.getWindowSerializer(env.getConfig()),
+                keyedLast.getKeySelector(),
+                keyedLast.getKeyType().createSerializer(env.getConfig()),
+                stateDesc,
+                new WindowingGNNLayerFunction(storage),
+                assigner.getDefaultTrigger(env),
+                Long.MAX_VALUE,
+                null);
+
+        // Wrap the operator
+
+        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform("Gnn Operator", TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(s, localIterationId, position_index, layers)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()).transform("IterationTail", TypeInformation.of(Void.class), new SimpleTailOperator(localIterationId)).setParallelism(thisParallelism);
+
+        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+
+        if (position_index > 1) {
+            int previousParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 2, this.layers)));
+            DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            SingleOutputStreamOperator<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("BackwardTail", TypeInformation.of(Void.class), new SimpleTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+        }
+        this.position_index++;
+        this.lastIterationID = localIterationId;
+        return forward;
+
+    }
+
 
     /**
      * Start of the GNN Chain
@@ -141,7 +196,7 @@ public class GraphStream {
      * @param storages   List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
-    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(BiFunction<DataStream<GraphOp>, BaseStorage, SingleOutputStreamOperator<GraphOp>> fn,DataStream<GraphOp> allUpdates, List<BaseStorage> storages) {
         DataStream<GraphOp> rawTopologicalUpdates = allUpdates.forward().map(item -> {
             item.element.clearFeatures();
             return item;
@@ -150,9 +205,9 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp> lastLayerInputs = null;
         for (BaseStorage storage : storages) {
             if (lastLayerInputs == null) {
-                lastLayerInputs = gnnLayerNewIteration(allUpdates, storage);
+                lastLayerInputs = fn.apply(allUpdates, storage);
             } else {
-                lastLayerInputs = gnnLayerNewIteration(rawTopologicalUpdates.union(lastLayerInputs), storage);
+                lastLayerInputs = fn.apply(rawTopologicalUpdates.union(lastLayerInputs), storage);
             }
         }
         return lastLayerInputs;

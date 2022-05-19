@@ -498,8 +498,8 @@ public abstract class BaseNDManager implements NDManager {
 
     protected static final class TempResource {
 
-        private NDResource resource;
-        private NDManager manager;
+        private final NDResource resource;
+        private final NDManager manager;
         private boolean detached;
 
         public TempResource(NDResource resource, NDManager manager) {
