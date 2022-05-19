@@ -49,7 +49,6 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
-        storage.layerFunction.getTimerService().registerEventTimeTimer(2);
         parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
         parameterStore.loadModel(model);
         inputShape = model.describeInput().get(0).getValue();
@@ -79,15 +78,8 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
             if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && ACTIVE) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
             }
-
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName()) && ACTIVE) {
-                if(feature.getTimestamp() < last_update){
-                    forward((Vertex) feature.getElement());
-                }
-            }
         }
     }
-
 
     @Override
     public void onWatermark(long timestamp) {
@@ -101,9 +93,7 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
             Rmi broadCastMessage = new Rmi(getId(), "acknowledgeReduce",new Object[0], ElementType.PLUGIN, false, timestamp);
             storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, getPartId(),broadCastMessage, timestamp), MessageDirection.ITERATE);
         }
-
     }
-
 
     @RemoteFunction
     public void acknowledgeReduce(){
@@ -112,8 +102,12 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
         }
         if(acknowledgedReduceCount == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
             for(Vertex v: storage.getVertices()){
-                if(updateReady(v) && (v.getFeature("feature").getTimestamp() > last_update || v.getFeature("agg").getTimestamp() > last_update))
-                forward(v);
+                if(updateReady(v)){
+                    long nextFeatureTimestamp = Math.max(v.getFeature("feature").getTimestamp(), v.getFeature("agg").getTimestamp());
+                    if(nextFeatureTimestamp > last_update){
+                        forward(v);
+                    }
+                }
             }
 
             if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
@@ -124,20 +118,19 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
     }
 
     /**
-     * Reduce all the in-edges that came in last_WT<t<WT
+     * Reduce all the in-edges that came in last_WT<t<=WT
      * @param v vertex to reduce into
      * @param timestamp max timestamp of edges to include
      */
     public void reduceInEdges(Vertex v, long timestamp){
         Iterable<Edge> inEdges = storage.getIncidentEdges(v, EdgeType.IN);
         List<NDArray> ndArrays = new ArrayList<>();
+        long maxTimestamp = Long.MIN_VALUE;
         for(Edge e: inEdges){
-            if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && !messageReady(e)){
-                System.out.println("salam");
-            }
             if(e.getTimestamp() > last_reduce && e.getTimestamp() <= timestamp && messageReady(e)){
                 NDArray tmp = message((NDArray) e.src.getFeature("feature").getValue(), false);
                 ndArrays.add(tmp);
+                maxTimestamp = Math.max(Math.max(e.getTimestamp(), e.src.getFeature("feature").getTimestamp()), maxTimestamp);
             }
         }
         if(ndArrays.size() > 0){
@@ -148,14 +141,41 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
                     .method("reduce")
                     .hasUpdate()
                     .addDestination(v.masterPart())
-                    .withTimestamp(timestamp)
+                    .withTimestamp(maxTimestamp)
                     .withArgs(msg, ndArrays.size())
                     .buildAndRun(storage);
         }
-
-
     }
 
+    /**
+     * Given oldFeature value and new Feature value update the Out Edged aggregators
+     *
+     * @param newFeature Updaated new Feature
+     * @param oldFeature Updated old Feature
+     */
+    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
+        if (newFeature.getElement() == null) return; // Element might be null if not yet arrived
+        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        NDArray msgOld = null;
+        NDArray msgNew = null;
+        for (Edge edge : outEdges) {
+            if (messageReady(edge) && edge.getTimestamp() <= last_reduce) {
+                if (Objects.isNull(msgOld)) {
+                    msgOld = this.message(oldFeature.getValue(), false);
+                    msgNew = this.message(newFeature.getValue(), false);
+                }
+                new RemoteInvoke()
+                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .where(MessageDirection.ITERATE)
+                        .method("replace")
+                        .hasUpdate()
+                        .withTimestamp(newFeature.getTimestamp())
+                        .addDestination(edge.dest.masterPart())
+                        .withArgs(msgNew, msgOld)
+                        .buildAndRun(storage);
+            }
+        }
+    }
 
     /**
      * Given newly created vertex init the aggregator and other values of it
@@ -194,35 +214,7 @@ public class GNNPeriodicalEmbeddingLayer extends Plugin {
         }
     }
 
-    /**
-     * Given oldFeature value and new Feature value update the Out Edged aggregators
-     *
-     * @param newFeature Updaated new Feature
-     * @param oldFeature Updated old Feature
-     */
-    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        if (newFeature.getElement() == null) return; // Element might be null if not yet arrived
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDArray msgOld = null;
-        NDArray msgNew = null;
-        for (Edge edge : outEdges) {
-            if (messageReady(edge) && edge.getTimestamp() <= last_reduce) {
-                if (Objects.isNull(msgOld)) {
-                    msgOld = this.message(oldFeature.getValue(), false);
-                    msgNew = this.message(newFeature.getValue(), false);
-                }
-                new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("replace")
-                        .hasUpdate()
-                        .withTimestamp(edge.getTimestamp())
-                        .addDestination(edge.dest.masterPart())
-                        .withArgs(msgNew, msgOld)
-                        .buildAndRun(storage);
-            }
-        }
-    }
+
 
     // NEURAL NETWORK FUNCTIONS
     /**

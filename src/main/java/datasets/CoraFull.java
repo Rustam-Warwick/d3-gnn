@@ -5,6 +5,10 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
+import org.apache.flink.api.common.ExecutionMode;
+import org.apache.flink.api.common.eventtime.Watermark;
+import org.apache.flink.api.common.eventtime.WatermarkGenerator;
+import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
@@ -72,18 +76,32 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000).setParallelism(1);
+            env.getConfig().setExecutionMode(ExecutionMode.BATCH);
+//            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000).setParallelism(1);
+            DataStream<String> edges = env.readTextFile(edgesFile.toString());
             DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
             DataStream<GraphOp> joinedData = parsedEdges
                     .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString())).setParallelism(1)
                     .assignTimestampsAndWatermarks(WatermarkStrategy
-                            .<GraphOp>forBoundedOutOfOrderness(Duration.ofMillis(0))
+                            .forGenerator(ctx -> new PunctuatedWatermarks())
                             .withTimestampAssigner((event, ts) -> event.getTimestamp()));
             return new DataStream[]{joinedData};
 
 
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    protected static class PunctuatedWatermarks implements WatermarkGenerator<GraphOp>{
+        @Override
+        public void onEvent(GraphOp event, long eventTimestamp, WatermarkOutput output) {
+            if(eventTimestamp % 2000 == 0) output.emitWatermark(new Watermark(eventTimestamp - 40));
+        }
+
+        @Override
+        public void onPeriodicEmit(WatermarkOutput output) {
+
         }
     }
 

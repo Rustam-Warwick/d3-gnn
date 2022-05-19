@@ -20,6 +20,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.debugging.PrintVertexPlugin;
+import plugins.embedding_layer.GNNEmbeddingLayer;
 import plugins.embedding_layer.GNNPeriodicalEmbeddingLayer;
 import plugins.vertex_classification.VertexLossReporter;
 import plugins.vertex_classification.VertexOutputLayer;
@@ -49,7 +50,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -71,7 +72,7 @@ public class Main {
 
         // GraphStream
         GraphStream gs = new GraphStream(env, (short) 3); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
 
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
@@ -79,12 +80,10 @@ public class Main {
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter()).setParallelism(1);
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(0), true))
-                        .withPlugin(new PrintVertexPlugin("1227", "4021", "4056", "4057"))
+                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true))
                 ,
                 new TupleStorage()
-                        .withPlugin(new GNNPeriodicalEmbeddingLayer(models.get(1), true))
-                        .withPlugin(new PrintVertexPlugin("1227", "4021", "4056", "4057"))
+                        .withPlugin(new GNNEmbeddingLayer(models.get(1), true))
 
 
         ));
@@ -95,7 +94,7 @@ public class Main {
                 new TupleStorage()
                         .withPlugin(new VertexLossReporter(new SerializableLoss(new CrossEntropyLoss("loss", true))))
                         .withPlugin(new VertexOutputLayer(models.get(2)))
-                        .withPlugin(new PrintVertexPlugin("1227", "4021", "4056", "4057"))
+                        .withPlugin(new PrintVertexPlugin("193"))
                         );
 
         env.execute();

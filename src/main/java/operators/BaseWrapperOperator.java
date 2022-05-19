@@ -25,6 +25,7 @@ import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
+import org.apache.flink.shaded.guava30.com.google.common.graph.Graph;
 import org.apache.flink.statefun.flink.core.feedback.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
@@ -92,10 +93,16 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected BroadcastOutput[] internalBroadcastOutputs; // All of operator-to-operator autputs
     protected OutputTag[] internalOutputTags; // All of the existing output tags
     protected List<Short> thisParts; // Keys hashed to this operator, last one is the MASTER
+
+    // WATERMARKING
     protected PriorityQueue<Long> waitingSyncs; // Sync messages that need to resolved for watermark to proceed
     protected int numOfSafeWatermarks; // Number of safe watermarks
-    protected List<Watermark> waitingWatermarks;
+    protected Watermark waitingWatermark;
     protected Watermark currentWatermarkInIteration;
+
+    // FINALIZATION
+    protected boolean readyToGracefullyFinish;
+    protected int numberOfFinishMessages;
 
     // CONSTRUCTOR
     public BaseWrapperOperator(
@@ -126,8 +133,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.waitingSyncs = new PriorityQueue<>(1000);
         this.numOfSafeWatermarks = 0;
-        this.waitingWatermarks = new ArrayList<>(10);
+        this.waitingWatermark = null;
         this.currentWatermarkInIteration = null;
+        this.readyToGracefullyFinish = false;
+        this.numberOfFinishMessages = 0;
         assignThisKeys();
         try {
             // Creat individual outputs and the context
@@ -219,9 +228,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         wrappedOperator.setCurrentKey(key);
     }
 
-    @Override
-    public void endInput() throws Exception {
-    }
 
     public T getWrappedOperator() {
         return wrappedOperator;
@@ -231,6 +237,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
         context.element = record;
     }
+
+
+
+
 
     // WATERMARKING & PROCESSING LOGIC
 
@@ -255,14 +265,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
-     * See if the watermark of this operator can be called safe
+     * See if the watermark of this operator can be called safe. In other words if all SYNC messages were received
      */
     public void acknowledgeIfWatermarkIsReady() throws Exception {
-        if(currentWatermarkInIteration==null && !waitingWatermarks.isEmpty() && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermarks.get(0).getTimestamp())){
+        if(currentWatermarkInIteration==null && waitingWatermark!=null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())){
             // Broadcast ack of watermark to all other operators including itself
-            currentWatermarkInIteration = waitingWatermarks.remove(0);
-            processActualWatermark(currentWatermarkInIteration); // SYNCs are in place notify the operators
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK,thisParts.get(0), null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
+            currentWatermarkInIteration = waitingWatermark;
+            waitingWatermark = null;
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK,(short) 0, null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
             setKeyContextElement(record);
             context.broadcastElement(ITERATE_OUTPUT_TAG,record.getValue());
         }
@@ -273,7 +283,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
-        waitingWatermarks.add(mark);
+        waitingWatermark = mark; // Assuming that watermarks are always increasing -> Can safely do this
         acknowledgeIfWatermarkIsReady();
     }
 
@@ -284,12 +294,26 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.WATERMARK) {
             if(++numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()){
-                // Actually send the watermark to the next layer operator
-                System.out.println("ACK WATERMARK RECEIVED");
-                context.emitWatermark(currentWatermarkInIteration);
                 numOfSafeWatermarks = 0;
-                currentWatermarkInIteration = null;
-                acknowledgeIfWatermarkIsReady(); // If there are waiting watermarks
+                if(element.getValue().getPartId() == 0){
+                    // This means that Master -> Replica SYNC were finished all elements are in place, call actual watermark
+                    // However, do one more all-reduce before emitting the watermark. We give slack of one-hop operations
+                    System.out.format("First Watermark %s\n", context.getPosition());
+                    processActualWatermark(currentWatermarkInIteration);
+                    element.getValue().setPartId((short) 1);
+                    context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
+                }
+                else{
+                    // Now the watermark can be finally emitted
+                    if(currentWatermarkInIteration.getTimestamp() == Long.MAX_VALUE) {
+                        readyToGracefullyFinish = true;
+                        // This watermark was just a notice about the end of input, do not emit it
+                        // Next layers will receive finalization blocks anyways
+                    }
+                    context.emitWatermark(currentWatermarkInIteration);
+                    currentWatermarkInIteration = null;
+                    acknowledgeIfWatermarkIsReady();
+                }
 
             }
         } else {
@@ -298,6 +322,20 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         }
     }
 
+    /**
+     * Blocking the finalization procedure untill all iteration requests have been processed
+     * @implNote See {@link this.processFeedback} to see when graceFullFinish is executed
+     */
+    @Override
+    public void endInput() throws Exception {
+        System.out.format("Entered Endblock %s\n", context.getPosition());
+        while(!readyToGracefullyFinish){
+            // Normal data processing stops here, just consume the iteration mailbox
+            mailboxExecutor.tryYield();
+            Thread.sleep(200);
+        }
+        System.out.format("Excaped Endblock %s\n", context.getPosition());
+    }
 
 
 

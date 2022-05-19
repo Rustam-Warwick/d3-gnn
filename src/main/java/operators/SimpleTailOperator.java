@@ -27,10 +27,7 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackChannelBroker;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
@@ -44,7 +41,7 @@ import java.util.function.Consumer;
  * It also handles the checkpointing of the data @todo enable checkpointing
  */
 public class SimpleTailOperator extends AbstractStreamOperator<Void>
-        implements OneInputStreamOperator<GraphOp, Void> {
+        implements OneInputStreamOperator<GraphOp, Void>, BoundedOneInput {
     /**
      * Iteration id is a unique identifier of a particular iteration
      * Since multiple iteration sinks can be added to the same iteration head
@@ -92,6 +89,10 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
         recordConsumer.accept(streamRecord);
     }
 
+    @Override
+    public void endInput() throws Exception {
+
+    }
 //    @Override
 //    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
 //        super.prepareSnapshotPreBarrier(checkpointId);
