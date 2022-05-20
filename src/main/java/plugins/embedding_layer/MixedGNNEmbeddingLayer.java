@@ -246,6 +246,7 @@ public class MixedGNNEmbeddingLayer extends Plugin {
 
         });
     }
+
     public void onBatchFinished() {
         super.onBatchFinished();
         reduceAllEdges();
