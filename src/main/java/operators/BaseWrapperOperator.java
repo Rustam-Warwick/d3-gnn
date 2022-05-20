@@ -249,15 +249,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      *
      * @param mark Watermark
      */
-    public void processActualWatermark(Watermark mark) throws Exception {
-        getWrappedOperator().processWatermark(mark);
-    }
+    public abstract void processActualWatermark(Watermark mark) throws Exception;
+    public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
+
+
+
 
     /**
      * for SYNC requests check if there is a waiting Sync message and acknowledge Watermarks if any are waiting
      */
     @Override
-    public void processElement(StreamRecord<GraphOp> element) throws Exception {
+    public final void processElement(StreamRecord<GraphOp> element) throws Exception {
+        processActualElement(element);
         if (element.getValue().getOp() == Op.SYNC) {
             this.waitingSyncs.removeIf(item -> item == element.getTimestamp());
             acknowledgeIfWatermarkIsReady();
@@ -330,13 +333,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public void endInput() throws Exception {
         System.out.format("Entered Endblock %s\n", context.getPosition());
         while (!readyToGracefullyFinish) {
-            // Normal data processing stops here, just consume the iteration mailbox
+            // Normal data processing stops here, just consume the iteration mailbox untill the Long.MAXVALUE watermark is received
             mailboxExecutor.tryYield();
             Thread.sleep(200);
         }
         System.out.format("Excaped Endblock %s\n", context.getPosition());
     }
-
 
     // CONFIGURATION
 

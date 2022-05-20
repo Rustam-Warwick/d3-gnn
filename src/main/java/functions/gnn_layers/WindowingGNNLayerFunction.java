@@ -136,7 +136,7 @@ public class WindowingGNNLayerFunction implements InternalWindowFunction<Iterabl
         this.collector = out;
         setCurrentPart(Short.parseShort(s));
         input.forEach(this::process);
-        getStorage().batch();
+        getStorage().onBatchFinished();
     }
 
     @Override

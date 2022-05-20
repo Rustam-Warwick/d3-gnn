@@ -128,6 +128,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         if (this.collector == null) this.collector = out;
         if (this.ctx == null) this.ctx = ctx;
         process(value);
-        storage.batch();
+        storage.onBatchFinished();
     }
 }

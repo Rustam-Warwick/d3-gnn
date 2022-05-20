@@ -149,7 +149,7 @@ public class Plugin extends ReplicableGraphElement {
      * Callback when a batch of data has been processed by this operators
      * Use this to have some sort of batch logic for windowed operators
      */
-    public void batch(){
+    public void onBatchFinished(){
 
     }
 

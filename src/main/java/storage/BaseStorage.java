@@ -97,8 +97,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Callback by Operators when a batch of data is received
      * Under streaming setting this is called on every element instead
      */
-    public void batch(){
-        this.plugins.values().forEach(Plugin::batch);
+    public void onBatchFinished(){
+        this.plugins.values().forEach(Plugin::onBatchFinished);
     }
 
     /**

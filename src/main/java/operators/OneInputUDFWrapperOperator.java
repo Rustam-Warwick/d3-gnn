@@ -27,7 +27,7 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
      * Broadcast elements should go to all parts
      */
     @Override
-    public void processElement(StreamRecord<GraphOp> element) throws Exception {
+    public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
             // Broadcast messages invoked in all the parts
             for (short part : thisParts) {
@@ -38,23 +38,24 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
         } else {
             getWrappedOperator().processElement(element);
         }
-        super.processElement(element);
     }
 
-    @Override
-    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        getWrappedOperator().processWatermarkStatus(watermarkStatus);
-    }
 
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
-        super.processActualWatermark(mark);
+        getWrappedOperator().processWatermark(mark);
         StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, null, mark.getTimestamp()), mark.getTimestamp());
         for (short part : thisParts) {
             record.getValue().setPartId(part);
             setKeyContextElement(record);
             getWrappedOperator().processElement(record);
         }
+    }
+
+
+    @Override
+    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
+        getWrappedOperator().processWatermarkStatus(watermarkStatus);
     }
 
     @Override
