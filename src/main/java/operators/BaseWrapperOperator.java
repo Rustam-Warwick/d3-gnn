@@ -271,7 +271,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * See if the watermark of this operator can be called safe. In other words if all SYNC messages were received
      */
     public void acknowledgeIfWatermarkIsReady() throws Exception {
-        if (currentWatermarkInIteration == null && waitingWatermark != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())) {
+        if (!readyToGracefullyFinish && currentWatermarkInIteration == null && waitingWatermark != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())) {
             // Broadcast ack of watermark to all other operators including itself
             currentWatermarkInIteration = waitingWatermark;
             waitingWatermark = null;
@@ -301,12 +301,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 if (element.getValue().getPartId() == 0) {
                     // This means that Master -> Replica SYNC were finished all elements are in place, call actual watermark
                     // However, do one more all-reduce before emitting the watermark. We give slack of one-hop operations
-                    System.out.format("First Watermark %s\n", context.getPosition());
-                    processActualWatermark(currentWatermarkInIteration);
+                    processActualWatermark(new Watermark(currentWatermarkInIteration.getTimestamp() - 1));
                     element.getValue().setPartId((short) 1);
                     context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
                 } else {
                     // Now the watermark can be finally emitted
+                    processActualWatermark(currentWatermarkInIteration);
                     if (currentWatermarkInIteration.getTimestamp() == Long.MAX_VALUE) {
                         readyToGracefullyFinish = true;
                         // This watermark was just a notice about the end of input, do not emit it
@@ -331,7 +331,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void endInput() throws Exception {
-        System.out.format("Entered Endblock %s\n", context.getPosition());
         while (!readyToGracefullyFinish) {
             // Normal data processing stops here, just consume the iteration mailbox untill the Long.MAXVALUE watermark is received
             mailboxExecutor.tryYield();

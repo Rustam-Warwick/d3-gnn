@@ -1,6 +1,7 @@
 package functions.gnn_layers;
 
 import elements.GraphOp;
+import elements.Op;
 import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import operators.BaseWrapperOperator;
@@ -12,16 +13,16 @@ import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
 /**
- * GNNLayerFunction that assumes batch is ready per each process element
+ * GNNLayerFunction that assumes batch is ready when the watermark arrives
  */
-public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
+public class OnWatermarkGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;
     public transient short currentPart;
     public transient Collector<GraphOp> collector;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
 
-    public StreamingGNNLayerFunction(BaseStorage storage) {
+    public OnWatermarkGNNLayerFunction(BaseStorage storage) {
         this.storage = storage;
         storage.layerFunction = this;
     }
@@ -131,6 +132,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         if (this.collector == null) this.collector = out;
         if (this.ctx == null) this.ctx = ctx;
         process(value);
-        storage.onBatchFinished();
+        if(value.getOp() == Op.WATERMARK)storage.onBatchFinished();
     }
 }

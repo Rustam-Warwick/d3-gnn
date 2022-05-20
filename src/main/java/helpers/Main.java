@@ -20,7 +20,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.debugging.PrintVertexPlugin;
-import plugins.embedding_layer.GNNEmbeddingLayer;
+import plugins.embedding_layer.MixedGNNEmbeddingLayer;
 import plugins.vertex_classification.VertexLossReporter;
 import plugins.vertex_classification.VertexOutputLayer;
 import storage.TupleStorage;
@@ -49,7 +49,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -65,25 +65,23 @@ public class Main {
         ArrayList<Model> models = layeredModel();
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(1);
-        env.setMaxParallelism(1);
-
+        env.setParallelism(2);
+        env.setMaxParallelism(10);
 
         // GraphStream
         GraphStream gs = new GraphStream(env, (short) 3); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
 
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
 
         SingleOutputStreamOperator<GraphOp> trainTestSplit = partitioned.process(dataset.trainTestSplitter()).setParallelism(1);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(gs::windowingGNNLayer,trainTestSplit, List.of(
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(gs::streamingGNNLayer, trainTestSplit, List.of(
                 new TupleStorage()
-                        .withPlugin(new GNNEmbeddingLayer(models.get(0), true))
+                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(0), true))
                 ,
                 new TupleStorage()
-                        .withPlugin(new GNNEmbeddingLayer(models.get(1), true))
-
+                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1), true))
 
         ));
 

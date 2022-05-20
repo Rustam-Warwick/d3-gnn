@@ -40,7 +40,6 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
         }
     }
 
-
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
         getWrappedOperator().processWatermark(mark);
@@ -51,7 +50,6 @@ public class OneInputUDFWrapperOperator<T extends AbstractUdfStreamOperator<Grap
             getWrappedOperator().processElement(record);
         }
     }
-
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {

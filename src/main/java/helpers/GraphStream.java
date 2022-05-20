@@ -13,7 +13,7 @@ import elements.*;
 import elements.iterations.Rmi;
 import features.Set;
 import features.VTensor;
-import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.gnn_layers.OnWatermarkGNNLayerFunction;
 import functions.gnn_layers.WindowingGNNLayerFunction;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
@@ -54,7 +54,7 @@ public class GraphStream {
         this.layers = layers;
 //        this.env.setStateBackend(new EmbeddedRocksDBStateBackend());
         this.env.getConfig().setAutoWatermarkInterval(5000);
-//        this.env.getConfig().enableObjectReuse(); // Optimization
+        this.env.getConfig().enableObjectReuse(); // Optimization
         configureSerializers(this.env);
     }
 
@@ -92,7 +92,6 @@ public class GraphStream {
         kryo.register(MeanAggregator.class);
     }
 
-
     /**
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of subtasks
      *
@@ -115,7 +114,7 @@ public class GraphStream {
      * @return output stream dependent on the plugin
      */
     public SingleOutputStreamOperator<GraphOp> streamingGNNLayer(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
-        StreamingGNNLayerFunction storageProcess = new StreamingGNNLayerFunction(storage);
+        OnWatermarkGNNLayerFunction storageProcess = new OnWatermarkGNNLayerFunction(storage);
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
 
@@ -146,6 +145,7 @@ public class GraphStream {
      * @param storage         Storage of choice with attached plugins
      * @return output stream dependent on the plugin
      */
+    @Deprecated
     public SingleOutputStreamOperator<GraphOp> windowingGNNLayer(DataStream<GraphOp> topologyUpdates, BaseStorage storage) {
         int thisParallelism = (int) (parallelism * Math.pow(this.lambda, Math.min(this.position_index - 1, this.layers - 1)));
         IterationID localIterationId = new IterationID();
@@ -156,7 +156,7 @@ public class GraphStream {
         ListStateDescriptor<GraphOp> stateDesc =
                 new ListStateDescriptor<>(
                         "window-contents", TypeInformation.of(GraphOp.class).createSerializer(env.getConfig()));
-        WindowAssigner<Object, TimeWindow> assigner = TumblingEventTimeWindows.of(Time.seconds(10));
+        WindowAssigner<Object, TimeWindow> assigner = TumblingEventTimeWindows.of(Time.seconds(2));
         WindowOperator<String, GraphOp, Iterable<GraphOp>, GraphOp, TimeWindow> s = new WindowOperator<String, GraphOp, Iterable<GraphOp>, GraphOp, TimeWindow>(
                 assigner,
                 assigner.getWindowSerializer(env.getConfig()),
@@ -187,7 +187,6 @@ public class GraphStream {
         return forward;
 
     }
-
 
     /**
      * Start of the GNN Chain
