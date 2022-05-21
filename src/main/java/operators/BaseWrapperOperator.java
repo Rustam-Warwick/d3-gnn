@@ -22,6 +22,8 @@ import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -57,7 +59,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * This common logic is Edge-to-Edge broadcast, triple-all-reduce Watermarking strategy
  *
  * @implNote This operator is also acting as HeadOperator for the feedback streams
- * @see OneInputUDFWrapperOperator manages wrapping around single operators
+ * @see UdfWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler {
@@ -80,6 +82,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final MailboxExecutor mailboxExecutor;
     protected final Context context;
     protected final InternalOperatorMetricGroup metrics;
+    protected final OperatorEventGateway operatorEventGateway;
 
 
     // OPERATOR POSITION RELATED
@@ -98,13 +101,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     // WATERMARKING
     protected PriorityQueue<Long> waitingSyncs; // Sync messages that need to resolved for watermark to proceed
-    protected int numOfSafeWatermarks; // Number of safe watermarks
-    protected Watermark waitingWatermark;
-    protected Watermark currentWatermarkInIteration;
+    protected int numOfSafeWatermarks; // Number of safe watermarks reduced from other operators
+    protected short watermarkIterationCount; // How many times watermark should be iterated here
+    protected Watermark waitingWatermark; // Watermark that is waiting because there is another one in the stream
+    protected Watermark currentWatermarkInIteration; // Current watermark that is iterating
 
     // FINALIZATION
-    protected boolean readyToGracefullyFinish;
-    protected int numberOfFinishMessages;
+    protected boolean readyToGracefullyFinish; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
+
 
     // CONSTRUCTOR
     public BaseWrapperOperator(
@@ -138,7 +142,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.waitingWatermark = null;
         this.currentWatermarkInIteration = null;
         this.readyToGracefullyFinish = false;
-        this.numberOfFinishMessages = 0;
+        this.watermarkIterationCount = 2;
+        this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         assignThisKeys();
         try {
             // Creat individual outputs and the context
@@ -250,9 +255,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * @param mark Watermark
      */
     public abstract void processActualWatermark(Watermark mark) throws Exception;
+
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
-
-
 
 
     /**
@@ -275,9 +279,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             // Broadcast ack of watermark to all other operators including itself
             currentWatermarkInIteration = waitingWatermark;
             waitingWatermark = null;
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, (short) 0, null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
-            setKeyContextElement(record);
-            context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, (short) 1, null, currentWatermarkInIteration.getTimestamp()), currentWatermarkInIteration.getTimestamp());
+            if(watermarkIterationCount == 0)processFeedback(record);
+            else {
+                setKeyContextElement(record);
+                context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
+            }
         }
     }
 
@@ -296,13 +303,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.WATERMARK) {
-            if (++numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
+            if (watermarkIterationCount == 0 || ++numOfSafeWatermarks == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                 numOfSafeWatermarks = 0;
-                if (element.getValue().getPartId() == 0) {
+                if (element.getValue().getPartId() < watermarkIterationCount ) {
                     // This means that Master -> Replica SYNC were finished all elements are in place, call actual watermark
                     // However, do one more all-reduce before emitting the watermark. We give slack of one-hop operations
-                    processActualWatermark(new Watermark(currentWatermarkInIteration.getTimestamp() - 1));
-                    element.getValue().setPartId((short) 1);
+                    processActualWatermark(new Watermark(currentWatermarkInIteration.getTimestamp() - element.getValue().getPartId()));
+                    element.getValue().setPartId((short) (1 + element.getValue().getPartId()));
                     context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
                 } else {
                     // Now the watermark can be finally emitted
@@ -316,7 +323,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                     currentWatermarkInIteration = null;
                     acknowledgeIfWatermarkIsReady();
                 }
-
             }
         } else {
             setKeyContextElement(element);
@@ -557,6 +563,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                     }
                 }
             }
+        }
+
+        public void sendOperatorEvent(OperatorEvent e) {
+            operatorEventGateway.sendEventToCoordinator(e);
         }
 
         /**

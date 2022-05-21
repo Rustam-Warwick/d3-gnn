@@ -1,10 +1,13 @@
 package operators;
 
 import elements.GraphOp;
+import operators.coordinators.WrapperOperatorCoordinator;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.streaming.api.operators.*;
 
-public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp> {
+public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp>, CoordinatedOperatorFactory<GraphOp> {
     protected StreamOperator<GraphOp> innerOperator;
     protected IterationID iterationId;
     protected short position;
@@ -27,7 +30,8 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            return (T) new OneInputUDFWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+            if(position == 0 ) return (T) new ChainHeadUdfOperator(parameters,factory,iterationId,position,totalLayers);
+            else return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
         }
 
         return null;
@@ -38,7 +42,18 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
         if (innerOperator.getClass().isAssignableFrom(KeyedProcessOperator.class)) {
             return KeyedProcessOperator.class;
         }
+        if(innerOperator.getClass().isAssignableFrom(StreamFlatMap.class)){
+            return StreamFlatMap.class;
+        }
+        if(innerOperator.getClass().isAssignableFrom(StreamMap.class)){
+            return StreamMap.class;
+        }
+
         return null;
     }
 
+    @Override
+    public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
+        return new WrapperOperatorCoordinator.HeadOperatorCoordinatorProvider(operatorID, position);
+    }
 }

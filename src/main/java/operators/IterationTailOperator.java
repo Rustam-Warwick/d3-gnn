@@ -38,7 +38,7 @@ import java.util.function.Consumer;
  * Feedback operator send data to the Head Operator through a FeedbackChannel Broker
  * It also handles the checkpointing of the data @todo enable checkpointing
  */
-public class SimpleTailOperator extends AbstractStreamOperator<Void>
+public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void>, BoundedOneInput {
     /**
      * Iteration id is a unique identifier of a particular iteration
@@ -53,7 +53,7 @@ public class SimpleTailOperator extends AbstractStreamOperator<Void>
     private transient FeedbackChannel<StreamRecord<GraphOp>> channel;
 
 
-    public SimpleTailOperator(IterationID iterationId) {
+    public IterationTailOperator(IterationID iterationId) {
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
 

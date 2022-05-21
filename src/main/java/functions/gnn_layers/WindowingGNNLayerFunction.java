@@ -29,6 +29,7 @@ public class WindowingGNNLayerFunction implements InternalWindowFunction<Iterabl
         this.storage = storage;
         storage.layerFunction = this;
     }
+
     @Override
     public short getCurrentPart() {
         return currentPart;
@@ -126,6 +127,11 @@ public class WindowingGNNLayerFunction implements InternalWindowFunction<Iterabl
     }
 
     @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        runtimeContext = t;
+    }
+
+    @Override
     public IterationRuntimeContext getIterationRuntimeContext() {
         return null;
     }
@@ -137,11 +143,6 @@ public class WindowingGNNLayerFunction implements InternalWindowFunction<Iterabl
         setCurrentPart(Short.parseShort(s));
         input.forEach(this::process);
         getStorage().onBatchFinished();
-    }
-
-    @Override
-    public void setRuntimeContext(RuntimeContext t) {
-        runtimeContext = t;
     }
 
     @Override

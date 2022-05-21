@@ -15,7 +15,7 @@ import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.io.FileInputStream;
@@ -25,10 +25,10 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class CoraFull implements Dataset {
-    private static final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
-    protected Path edgesFile;
-    protected Path vertexFeatures;
-    protected Path vertexLabels;
+    private static transient final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
+    protected transient Path edgesFile;
+    protected transient Path vertexFeatures;
+    protected transient Path vertexLabels;
 
     public CoraFull(Path datasetPath) {
         vertexFeatures = Path.of(datasetPath.toString(), "vertex_features.npy");
@@ -37,11 +37,12 @@ public class CoraFull implements Dataset {
     }
 
     @Override
-    public ProcessFunction<GraphOp, GraphOp> trainTestSplitter() {
-        return new ProcessFunction<GraphOp, GraphOp>() {
+    public KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter() {
+
+        return new KeyedProcessFunction<String, GraphOp, GraphOp>(){
             @Override
-            public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-                assert value.element.elementType() == ElementType.EDGE;
+            public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+            assert value.element.elementType() == ElementType.EDGE;
                 Edge e = (Edge) value.element;
                 if (e.src.getFeature("label") != null) {
                     Feature<?, ?> label = e.src.getFeature("label"); // Get label
@@ -49,7 +50,7 @@ public class CoraFull implements Dataset {
                     label.setId("testLabel");
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
-                    ctx.output(TRAIN_TEST_DATA_OUTPUT, copyGraphOp);
+                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
                 }
                 if (e.dest.getFeature("label") != null) {
                     Feature<?, ?> label = e.dest.getFeature("label"); // Get label
@@ -57,8 +58,11 @@ public class CoraFull implements Dataset {
                     label.setId("testLabel"); // Change name
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
-                    ctx.output(TRAIN_TEST_DATA_OUTPUT, copyGraphOp); // Push to Side-Output
+                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
                 }
+                GraphOp copy = value.copy();
+                copy.setElement(value.element.copy());
+                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT,copy);
                 out.collect(value);
             }
         };
@@ -83,8 +87,6 @@ public class CoraFull implements Dataset {
                             .forGenerator(ctx -> new PunctuatedWatermarks())
                             .withTimestampAssigner((event, ts) -> event.getTimestamp()));
             return new DataStream[]{joinedData};
-
-
         } catch (Exception e) {
             return null;
         }
