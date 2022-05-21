@@ -129,17 +129,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         channel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()));
     }
 
-//    @Override
-//    public void processWatermark(Watermark mark) throws Exception {
-//        short iterationNumber = (short) (mark.getTimestamp() % 4);
-//        if (iterationNumber < 3) {
-//            // Still not terminated need to iterate still
-//            GraphOp watermark = new GraphOp(Op.WATERMARK, null, mark.getTimestamp());
-//            channel.put(new StreamRecord<>(watermark, mark.getTimestamp()));
-//        }
-//        // Else Pass
-//    }
-
     @Override
     public void close() throws Exception {
         IOUtils.closeQuietly(channel);

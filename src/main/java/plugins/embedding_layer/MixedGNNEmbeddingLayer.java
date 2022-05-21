@@ -31,7 +31,6 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     public transient MyParameterStore parameterStore;
 
     // ---------------------- RUNTIME RELATED -------------------
-
     public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
     public HashMap<Short, HashMap<String, Edge>> REDUCE_EDGES;
     public HashMap<Short, HashMap<String, Edge>> UPDATE_EDGES;
@@ -61,7 +60,6 @@ public class MixedGNNEmbeddingLayer extends Plugin {
             UPDATE_EDGES.put(partId, new HashMap<>());
             PENDING_VERTICES.put(partId, new HashMap<>());
         });
-
     }
 
     @Override
@@ -165,16 +163,23 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (updateReady(v) && (storage.layerFunction.isFirst() || v.getFeature("feature").getTimestamp() == v.getFeature("agg").getTimestamp())) {
+        if (updateReady(v)) {
             NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-            NDArray update = this.update(ft, agg, false);
+            NDArray update = this.update(new NDList(ft,agg),false).get(0);
             Vertex messageVertex = v.copy();
             long timestamp = v.getFeature("agg").getTimestamp();
             messageVertex.setFeature("feature", new Tensor(update), timestamp);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, timestamp), MessageDirection.FORWARD);
         }
     }
+
+    // TRAINING RELATED
+
+
+
+
+
 
     /**
      * For all reducable edges reduce them
@@ -267,13 +272,12 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *
-     * @param feature  Source Feature
-     * @param agg      Aggregator Feature
+     * @param feature  Source Feature list
      * @param training training enabled
      * @return Next layer feature
      */
-    public NDArray update(NDArray feature, NDArray agg, boolean training) {
-        return ((GNNBlock) model.getBlock()).getUpdateBlock().forward(this.parameterStore, new NDList(feature, agg), training).get(0);
+    public NDList update(NDList feature,boolean training) {
+        return ((GNNBlock) model.getBlock()).getUpdateBlock().forward(this.parameterStore, feature, training);
     }
 
     /**

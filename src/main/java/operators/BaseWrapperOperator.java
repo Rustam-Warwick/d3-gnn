@@ -59,22 +59,20 @@ import static org.apache.flink.util.Preconditions.checkState;
  * This common logic is Edge-to-Edge broadcast, triple-all-reduce Watermarking strategy
  *
  * @implNote This operator is also acting as HeadOperator for the feedback streams
- * @see UdfWrapperOperator manages wrapping around single operators
+ * @see ChainUdfOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler {
     private static final Logger LOG = LoggerFactory.getLogger(org.apache.flink.iteration.operator.AbstractWrapperOperator.class);
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
 
     // TAKEN FROM FLINK ML
 
     protected final StreamOperatorParameters<GraphOp> parameters;
-
     protected final StreamConfig streamConfig;
-
     protected final StreamTask<?, ?> containingTask;
-
     protected final Output<StreamRecord<GraphOp>> output; // General Output for all other connected components
     protected final StreamOperatorFactory<GraphOp> operatorFactory;
     protected final T wrappedOperator;
@@ -107,8 +105,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected Watermark currentWatermarkInIteration; // Current watermark that is iterating
 
     // FINALIZATION
-    protected boolean readyToGracefullyFinish; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
+    protected boolean finalWatermarkReceived; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
 
+    // TRAINING
+    protected boolean IS_TRAINING;
 
     // CONSTRUCTOR
     public BaseWrapperOperator(
@@ -118,6 +118,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             short position,
             short totalLayers) {
         this.position = position;
+        this.IS_TRAINING = false;
         this.totalLayers = totalLayers;
         this.parameters = Objects.requireNonNull(parameters);
         this.streamConfig = Objects.requireNonNull(parameters.getStreamConfig());
@@ -141,10 +142,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.numOfSafeWatermarks = 0;
         this.waitingWatermark = null;
         this.currentWatermarkInIteration = null;
-        this.readyToGracefullyFinish = false;
+        this.finalWatermarkReceived = false;
         this.watermarkIterationCount = 2;
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        assignThisKeys();
+        parameters
+                .getOperatorEventDispatcher()
+                .registerEventHandler(
+                        getOperatorID(), this);
+        assignKeys();
         try {
             // Creat individual outputs and the context
             this.createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
@@ -256,8 +261,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     public abstract void processActualWatermark(Watermark mark) throws Exception;
 
+    /**
+     * Actually process the element
+     */
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
-
 
     /**
      * for SYNC requests check if there is a waiting Sync message and acknowledge Watermarks if any are waiting
@@ -275,7 +282,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * See if the watermark of this operator can be called safe. In other words if all SYNC messages were received
      */
     public void acknowledgeIfWatermarkIsReady() throws Exception {
-        if (!readyToGracefullyFinish && currentWatermarkInIteration == null && waitingWatermark != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())) {
+        if (!finalWatermarkReceived && currentWatermarkInIteration == null && waitingWatermark != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > waitingWatermark.getTimestamp())) {
             // Broadcast ack of watermark to all other operators including itself
             currentWatermarkInIteration = waitingWatermark;
             waitingWatermark = null;
@@ -315,9 +322,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                     // Now the watermark can be finally emitted
                     processActualWatermark(currentWatermarkInIteration);
                     if (currentWatermarkInIteration.getTimestamp() == Long.MAX_VALUE) {
-                        readyToGracefullyFinish = true;
-                        // This watermark was just a notice about the end of input, do not emit it
-                        // Next layers will receive finalization blocks anyways
+                        finalWatermarkReceived = true;
                     }
                     context.emitWatermark(currentWatermarkInIteration);
                     currentWatermarkInIteration = null;
@@ -337,13 +342,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void endInput() throws Exception {
-        while (!readyToGracefullyFinish) {
-            // Normal data processing stops here, just consume the iteration mailbox untill the Long.MAXVALUE watermark is received
+        while (!finalWatermarkReceived) {
+            // Normal data processing stops here, just consume the iteration mailbox until the Long.MAXVALUE watermark is received
             mailboxExecutor.tryYield();
             Thread.sleep(200);
         }
-        System.out.format("Excaped Endblock %s\n", context.getPosition());
     }
+
+
+
+
+
+
+
 
     // CONFIGURATION
 
@@ -369,7 +380,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     /**
      * Calculate and assign all the parts mapped to this physical operator
      */
-    private void assignThisKeys() {
+    private void assignKeys() {
         List<Short> thisKeys = new ArrayList<>();
         int index = operatorIndex;
         int maxParallelism = containingTask.getEnvironment().getTaskInfo().getMaxNumberOfParallelSubtasks();
@@ -468,9 +479,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
-     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and higher-level logic
-     * Those stuff should be handled by the oeprator implementing this class
-     * Also the timestamps are assigned by the GraphOp Timestamps
+     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and lower-level logic
+     * Those stuff should be handled by the operator implementing this class
      */
     public class ProxyOutput implements Output<StreamRecord<GraphOp>> {
         Output<StreamRecord<GraphOp>> output;
@@ -566,6 +576,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         }
 
         public void sendOperatorEvent(OperatorEvent e) {
+
             operatorEventGateway.sendEventToCoordinator(e);
         }
 
@@ -586,7 +597,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         public short getNumLayers() {
             return totalLayers;
         }
-
 
     }
 

@@ -91,13 +91,21 @@ public interface GNNLayerFunction extends RichFunction {
      */
     <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag);
 
+    /**
+     * Send some event to the operator coordinator
+     * @param operatorEvent OperatorEvent
+     */
+    default void sendOperatorEvent(OperatorEvent operatorEvent){
+        getWrapperContext().sendOperatorEvent(operatorEvent);
+    }
+
     // ----------------> Derived methods
 
     /**
      * @return Is this the first GNN Layer
      */
     default boolean isFirst() {
-        return getPosition() == 1;
+        return getPosition() <= 1;
     }
 
     /**

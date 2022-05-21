@@ -5,7 +5,6 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.ExecutionMode;
 import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
@@ -22,10 +21,12 @@ import java.io.FileInputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 public class CoraFull implements Dataset {
     private static transient final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
+    private final float trainSplitProbability = 0.5f;
     protected transient Path edgesFile;
     protected transient Path vertexFeatures;
     protected transient Path vertexLabels;
@@ -47,7 +48,15 @@ public class CoraFull implements Dataset {
                 if (e.src.getFeature("label") != null) {
                     Feature<?, ?> label = e.src.getFeature("label"); // Get label
                     e.src.features.removeIf(item -> "label".equals(item.getName()));
-                    label.setId("testLabel");
+
+                    float p = ThreadLocalRandom.current().nextFloat();
+                    if(p < trainSplitProbability){
+                        label.setId("trainLabel");
+                    }
+                    else{
+                        label.setId("testLabel");
+                    }
+
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
                     ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
@@ -55,7 +64,13 @@ public class CoraFull implements Dataset {
                 if (e.dest.getFeature("label") != null) {
                     Feature<?, ?> label = e.dest.getFeature("label"); // Get label
                     e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
-                    label.setId("testLabel"); // Change name
+                    float p = ThreadLocalRandom.current().nextFloat();
+                    if(p < trainSplitProbability){
+                        label.setId("trainLabel");
+                    }
+                    else{
+                        label.setId("testLabel");
+                    }
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
                     ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
@@ -77,7 +92,6 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-            env.getConfig().setExecutionMode(ExecutionMode.BATCH);
 //            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000).setParallelism(1);
             DataStream<String> edges = env.readTextFile(edgesFile.toString());
             DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);

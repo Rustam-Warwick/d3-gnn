@@ -31,7 +31,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
             if(position == 0 ) return (T) new ChainHeadUdfOperator(parameters,factory,iterationId,position,totalLayers);
-            else return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+            else return (T) new ChainUdfOperator(parameters, factory, iterationId, position, totalLayers);
         }
 
         return null;
@@ -39,21 +39,12 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
 
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
-        if (innerOperator.getClass().isAssignableFrom(KeyedProcessOperator.class)) {
-            return KeyedProcessOperator.class;
-        }
-        if(innerOperator.getClass().isAssignableFrom(StreamFlatMap.class)){
-            return StreamFlatMap.class;
-        }
-        if(innerOperator.getClass().isAssignableFrom(StreamMap.class)){
-            return StreamMap.class;
-        }
-
-        return null;
+       return BaseWrapperOperator.class;
     }
 
     @Override
     public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
-        return new WrapperOperatorCoordinator.HeadOperatorCoordinatorProvider(operatorID, position);
+        return new WrapperOperatorCoordinator.HeadOperatorCoordinatorProvider(operatorID, position, totalLayers);
     }
+
 }
