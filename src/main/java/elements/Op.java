@@ -7,5 +7,6 @@ public enum Op {
     SYNC,
     RMI,
     WATERMARK, // Normal Watermarks flowing forward
+    TRAIN_WATERMARK,
     FINISH_EXECUTION // Finish the operator execution
 }

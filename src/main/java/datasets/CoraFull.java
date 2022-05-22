@@ -123,7 +123,7 @@ public class CoraFull implements Dataset {
         public GraphOp map(String value) throws Exception {
             String[] edges = value.split(",");
             Edge e = new Edge(new Vertex(edges[0]), new Vertex(edges[1]));
-            return new GraphOp(Op.COMMIT, e, 0);
+            return new GraphOp(Op.COMMIT, e, null);
         }
     }
 

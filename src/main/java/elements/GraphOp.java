@@ -14,7 +14,7 @@ public class GraphOp {
     /**
      * The part number where this record should be sent to
      */
-    public short partId = -1;
+    public Short partId = null;
     /**
      * The GraphElement on which the Op is being acted upon
      */
@@ -27,7 +27,7 @@ public class GraphOp {
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
      */
-    public long ts;
+    public Long ts;
 
     public GraphOp() {
         this.op = Op.COMMIT;
@@ -39,7 +39,7 @@ public class GraphOp {
      * @param op      Op
      * @param element GraphElement
      */
-    public GraphOp(Op op, GraphElement element, long ts) {
+    public GraphOp(Op op, GraphElement element, Long ts) {
         this.op = op;
         this.element = element;
         this.ts = ts;
@@ -48,7 +48,7 @@ public class GraphOp {
     /**
      * Constructor to be used in the system
      */
-    public GraphOp(Op op, short partId, GraphElement element, long ts) {
+    public GraphOp(Op op, short partId, GraphElement element, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;

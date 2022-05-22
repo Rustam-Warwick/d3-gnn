@@ -16,7 +16,6 @@ import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
-import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -32,7 +31,7 @@ import java.util.Collections;
 
 /**
  * Head Operator that receives all external inputs to the graph. Handles buffering while training and splitting messages
- * @param <T>
+ * @param <T> Internal operator
  */
 public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
@@ -54,7 +53,7 @@ public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ?
 
     public ChainHeadUdfOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
         super(parameters, operatorFactory, iterationID, position, totalLayers);
-        this.watermarkIterationCount = 0; // No watermark iteration at all needed for this operator
+        this.ITERATION_COUNT = 0; // No watermark iteration at all needed for this operator
         this.bufferMailboxExecutor = parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
         try {
             basePath =
@@ -161,21 +160,17 @@ public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ?
         getWrappedOperator().processWatermark(mark);
     }
 
-    @Override
-    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        getWrappedOperator().processWatermarkStatus(watermarkStatus);
-    }
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         if(evt instanceof StartTraining){
             IS_TRAINING = true;
+            try {
+                processWatermarkStatus(WatermarkStatus.IDLE);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
-    }
-
-    @Override
-    public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        getWrappedOperator().processLatencyMarker(latencyMarker);
     }
 
     @Override
