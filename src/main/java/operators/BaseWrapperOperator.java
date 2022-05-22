@@ -100,6 +100,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     // WATERMARKING
     protected PriorityQueue<Long> waitingSyncs; // Sync messages that need to resolved for watermark to proceed
     protected Tuple4<Integer, Watermark, Watermark, Watermark> WATERMARKS; // (#iteration, currentWatermark, waitingWatermark, maxWatermark)
+    protected Tuple4<Integer, WatermarkStatus, WatermarkStatus, WatermarkStatus> WATERMARK_STATUSES; // (#iteration, currentWatermark, waitingWatermark, maxWatermark)
     // FINALIZATION
     protected boolean finalWatermarkReceived; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
 
@@ -136,6 +137,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.waitingSyncs = new PriorityQueue<>(1000);
         this.WATERMARKS = new Tuple4<>(0, null, null, new Watermark(Long.MIN_VALUE));
+        this.WATERMARK_STATUSES = new Tuple4<>(0, null, null, WatermarkStatus.ACTIVE);
         this.ITERATION_COUNT = 2;
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters
@@ -265,6 +267,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
 
     /**
+     * Actually Process the watermark status after the iteration resolution is done
+     * @param status Watermark Status
+     */
+    public abstract void processActualWatermarkStatus(WatermarkStatus status) throws Exception;
+
+
+
+    /**
      * for SYNC requests check if there is a waiting Sync message and acknowledge Watermarks if any are waiting
      */
     @Override
@@ -292,16 +302,26 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             }
         }
     }
+
+    public void acknowledgeIfWatermarkStatusReady() throws Exception {
+        if(WATERMARK_STATUSES.f1 == null && WATERMARK_STATUSES.f2 !=null){
+            WATERMARK_STATUSES.f1 = WATERMARK_STATUSES.f2;
+            WATERMARK_STATUSES.f2 = null;
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, (short) 1, null, null));
+        }
+    }
+
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        wrappedOperator.processWatermarkStatus(watermarkStatus);
+        WATERMARK_STATUSES.f2 = watermarkStatus;
+
     }
     /**
      * Record the watermark and try to acknowledge it if possible
      */
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
-        WATERMARKS.f3 = mark;
+        WATERMARKS.f2 = mark;
         acknowledgeIfWatermarkIsReady();
     }
 
