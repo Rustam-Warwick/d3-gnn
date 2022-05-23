@@ -49,7 +49,7 @@ public class GraphStream {
     }
 
     public GraphStream(StreamExecutionEnvironment env) {
-        this(env, 1);
+        this(env, 1.5);
     }
 
     private static void configureSerializers(StreamExecutionEnvironment env) {

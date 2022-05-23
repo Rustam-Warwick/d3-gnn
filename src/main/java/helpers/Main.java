@@ -3,6 +3,7 @@ package helpers;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
@@ -10,14 +11,16 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.training.loss.CrossEntropyLoss;
 import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
-import functions.gnn_layers.OnWatermarkGNNLayerFunction;
+import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.embedding_layer.MixedGNNEmbeddingLayer;
+import plugins.embedding_layer.MixedGNNEmbeddingLayerTraining;
 import plugins.vertex_classification.VertexOutputLayer;
 import plugins.vertex_classification.VertexTrainingLayer;
 import storage.TupleStorage;
@@ -63,7 +66,7 @@ public class Main {
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
-        env.setMaxParallelism(10);
+        env.setMaxParallelism(30);
 
         // GraphStream
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
@@ -72,18 +75,21 @@ public class Main {
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(
                 dataset.trainTestSplitter(),
-                new OnWatermarkGNNLayerFunction(new TupleStorage()
+                new StreamingGNNLayerFunction(new TupleStorage()
                         .withPlugin(new MixedGNNEmbeddingLayer(models.get(0), true))
                 )
                 ,
-                new OnWatermarkGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1), true))),
+                new StreamingGNNLayerFunction(new TupleStorage()
+                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1), true))
+                        .withPlugin(new MixedGNNEmbeddingLayerTraining())
 
-                new OnWatermarkGNNLayerFunction(
+                ),
+
+                new StreamingGNNLayerFunction(
                         new TupleStorage()
 //                                .withPlugin(new VertexLossReporter(new SerializableLoss(new CrossEntropyLoss("loss", true))))
                                 .withPlugin(new VertexOutputLayer(models.get(2)))
-                                .withPlugin(new VertexTrainingLayer())
+                                .withPlugin(new VertexTrainingLayer(new SerializableLoss(new CrossEntropyLoss("loss", true))))
                 )
 
         ));

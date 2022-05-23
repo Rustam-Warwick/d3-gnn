@@ -17,7 +17,7 @@ public class Rmi extends GraphElement {
         super();
     }
 
-    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate, long ts) {
+    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate, Long ts) {
         super(id);
         this.args = args;
         this.methodName = methodName;

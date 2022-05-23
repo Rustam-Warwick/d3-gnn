@@ -45,7 +45,7 @@ public class VertexLossReporter extends Plugin {
             if (("testLabel".equals(feature.getName()) || "feature".equals(feature.getName())) && feature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) feature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray maxArg = inference.output((NDArray) parent.getFeature("feature").getValue(), false).argMax();
+                    NDArray maxArg = inference.output(new NDList((NDArray) parent.getFeature("feature").getValue()), false).get(0).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
                     if (maxArg.eq(label).getBoolean()) {
                         totalCorrect++;
@@ -65,8 +65,8 @@ public class VertexLossReporter extends Plugin {
             if ("feature".equals(newFeature.getName()) && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) newFeature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray maxArgNew = inference.output((NDArray) newFeature.getValue(), false).argMax();
-                    NDArray maxArgOld = inference.output((NDArray) oldFeature.getValue(), false).argMax();
+                    NDArray maxArgNew = inference.output(new NDList((NDArray) newFeature.getValue()), false).get(0).argMax();
+                    NDArray maxArgOld = inference.output(new NDList((NDArray) oldFeature.getValue()), false).get(0).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
                     if (maxArgOld.eq(label).getBoolean() && !maxArgNew.eq(label).getBoolean()) {
                         // Old was correct now it is not correct

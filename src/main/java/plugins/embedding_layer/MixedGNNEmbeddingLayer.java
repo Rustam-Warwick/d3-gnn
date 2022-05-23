@@ -114,12 +114,12 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = BaseNDManager.threadNDManager.get().zeros(inputShape);
-            element.setFeature("agg", new MeanAggregator(aggStart, true), storage.layerFunction.currentTimestamp());
+            element.setFeature("agg", new MeanAggregator(aggStart, true));
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = BaseNDManager.threadNDManager.get().randomNormal(inputShape); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("feature", new Tensor(embeddingRandom), storage.layerFunction.currentTimestamp());
+                element.setFeature("feature", new Tensor(embeddingRandom));
             }
         }
     }
@@ -168,9 +168,9 @@ public class MixedGNNEmbeddingLayer extends Plugin {
             NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
             NDArray update = this.update(new NDList(ft,agg),false).get(0);
             Vertex messageVertex = v.copy();
-            long timestamp = v.getFeature("agg").getTimestamp();
+            Long timestamp = v.getFeature("agg").getTimestamp();
             messageVertex.setFeature("feature", new Tensor(update), timestamp);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex, timestamp), MessageDirection.FORWARD);
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
         }
     }
 
@@ -259,8 +259,8 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         });
     }
 
-    public void onBatchFinished() {
-        super.onBatchFinished();
+    public void onWatermark(long timestamp) {
+        super.onWatermark(timestamp);
         reduceAllEdges();
         updateAllEdges();
         forwardAllVertices();

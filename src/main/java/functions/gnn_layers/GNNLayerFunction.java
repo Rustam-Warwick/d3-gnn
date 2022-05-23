@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
+import javax.annotation.Nullable;
 import java.util.Objects;
 
 /**
@@ -20,18 +21,6 @@ import java.util.Objects;
  */
 public interface GNNLayerFunction extends RichFunction {
     // ---------------> Externally set Features, Variables
-
-    /**
-     * @return Current Part that is being processed
-     */
-    short getCurrentPart();
-
-    /**
-     * Set the current part that is being processed
-     *
-     * @param part Part
-     */
-    void setCurrentPart(short part);
 
     /**
      * @return Attached storage engine
@@ -61,7 +50,7 @@ public interface GNNLayerFunction extends RichFunction {
     /**
      * Get the current timestamp that being processed
      */
-    long currentTimestamp();
+    Long currentTimestamp();
 
     // ----------------> Communication primitives
 
@@ -95,11 +84,18 @@ public interface GNNLayerFunction extends RichFunction {
      * Send some event to the operator coordinator
      * @param operatorEvent OperatorEvent
      */
-    default void sendOperatorEvent(OperatorEvent operatorEvent){
+    default void operatorEventMessage(OperatorEvent operatorEvent){
         getWrapperContext().sendOperatorEvent(operatorEvent);
     }
 
     // ----------------> Derived methods
+
+    /**
+     * Get the current part of this operator
+     */
+    default Short getCurrentPart(){
+        return getWrapperContext().currentPart();
+    }
 
     /**
      * @return Is this the first GNN Layer
@@ -123,9 +119,13 @@ public interface GNNLayerFunction extends RichFunction {
         return getWrapperContext().getNumLayers();
     }
 
-    default void onOperatorEvent(OperatorEvent evnt) {
-        getStorage().onOperatorEvent(evnt);
+    default int getNumberOfOutChannels(@Nullable OutputTag<?> tag){return getWrapperContext().getNumberOfOutChannels(tag);}
+
+    default void onOperatorEvent(OperatorEvent event) {
+        getStorage().onOperatorEvent(event);
     }
+
+    default void onWatermark(long mark){getStorage().onWatermark(mark);}
 
     /**
      * @param value Process The Incoming Value
@@ -162,6 +162,8 @@ public interface GNNLayerFunction extends RichFunction {
                     break;
                 case WATERMARK:
                     getStorage().onWatermark(value.getTimestamp());
+                case OPERATOR_EVENT:
+                    getStorage().onOperatorEvent(value.getOperatorEvent());
             }
         } catch (Exception | Error e) {
             e.printStackTrace();

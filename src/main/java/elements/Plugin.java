@@ -93,6 +93,8 @@ public class Plugin extends ReplicableGraphElement {
         // pass
     }
 
+    // CALLBACKS
+
     /**
      * Callback when the timer fires
      *
@@ -145,13 +147,7 @@ public class Plugin extends ReplicableGraphElement {
         // pass
     }
 
-    /**
-     * Callback when a batch of data has been processed by this operators
-     * Use this to have some sort of batch logic for windowed operators
-     */
-    public void onBatchFinished() {
-
-    }
+    // HELPER METHOD
 
     /**
      * Populates the replicaParts, Master parts and thisReplicaParts for Plugins

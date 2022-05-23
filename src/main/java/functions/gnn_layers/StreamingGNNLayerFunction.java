@@ -27,16 +27,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public short getCurrentPart() {
-        return currentPart;
-    }
-
-    @Override
-    public void setCurrentPart(short part) {
-        this.currentPart = part;
-    }
-
-    @Override
     public BaseWrapperOperator<?>.Context getWrapperContext() {
         return baseWrapperContext;
     }
@@ -98,8 +88,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public long currentTimestamp() {
-        return ctx.timestamp() == null ? 0 : ctx.timestamp();
+    public Long currentTimestamp() {
+        return ctx.timestamp();
     }
 
     @Override
@@ -127,10 +117,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-        setCurrentPart(Short.parseShort(ctx.getCurrentKey()));
         if (this.collector == null) this.collector = out;
         if (this.ctx == null) this.ctx = ctx;
         process(value);
-        storage.onBatchFinished();
     }
 }

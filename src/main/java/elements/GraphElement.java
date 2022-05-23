@@ -231,10 +231,8 @@ public class GraphElement implements Serializable {
      *
      * @return timestamp
      */
-    public long getTimestamp() {
-//        if (ts == null && storage != null) return storage.layerFunction.currentTimestamp();
-        if (ts == null) return Long.MIN_VALUE;
-        else return ts;
+    public Long getTimestamp() {
+        return ts;
     }
 
     /**
@@ -242,7 +240,7 @@ public class GraphElement implements Serializable {
      *
      * @param ts timestamp to be added
      */
-    public void setTimestamp(long ts) {
+    public void setTimestamp(Long ts) {
         this.ts = ts;
     }
 
@@ -341,7 +339,7 @@ public class GraphElement implements Serializable {
      * @param feature   Feature object
      * @param timestamp Timestamp
      */
-    public void setFeature(String name, Feature<?, ?> feature, long timestamp) {
+    public void setFeature(String name, Feature<?, ?> feature, Long timestamp) {
         feature.setTimestamp(timestamp);
         setFeature(name, feature);
     }

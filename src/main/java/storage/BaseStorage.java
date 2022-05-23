@@ -94,14 +94,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     /**
-     * Callback by Operators when a batch of data is received
-     * Under streaming setting this is called on every element instead
-     */
-    public void onBatchFinished() {
-        this.plugins.values().forEach(Plugin::onBatchFinished);
-    }
-
-    /**
      * OnTimer callback
      */
     public void onTimer(long timestamp) {
@@ -118,9 +110,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * On OperatorEvent
      */
-    public void onOperatorEvent(OperatorEvent evnt) {
+    public void onOperatorEvent(OperatorEvent event) {
         plugins.values().forEach(plugin -> {
-            plugin.onOperatorEvent(evnt);
+            plugin.onOperatorEvent(event);
         });
     }
 

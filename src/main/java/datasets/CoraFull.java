@@ -137,7 +137,7 @@ public class CoraFull implements Dataset {
         public transient NDArray vertexLabels;
 
         public List<String> seenVertices;
-        public int timestamp;
+        public long timestamp;
 
         public JoinEdgeAndFeatures(String vertexFeaturesFile, String vertexLabelsFile) {
             this.vertexFeaturesFile = vertexFeaturesFile;

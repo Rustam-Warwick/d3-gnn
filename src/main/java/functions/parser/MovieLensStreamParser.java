@@ -30,7 +30,7 @@ public class MovieLensStreamParser extends RichFlatMapFunction<String, GraphOp> 
         try {
             Integer.valueOf(res[0]);
             Integer.valueOf(res[1]);
-            int timestamp = Integer.parseInt(res[3]);
+            long timestamp = Integer.parseInt(res[3]);
             Vertex src = new Vertex(res[0]);
             src.setTimestamp(timestamp);
             Vertex dest = new Vertex(res[1]);

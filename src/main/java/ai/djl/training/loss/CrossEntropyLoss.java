@@ -31,9 +31,6 @@ public class CrossEntropyLoss extends Loss {
             lab = lab.reshape(pred.getShape());
             loss = pred.mul(lab).neg().sum(new int[]{-1}, true);
         }
-//        if (weight != 1) {
-//            loss = loss.mul(weight);
-//        }
 
         return loss.mean().neg();
     }

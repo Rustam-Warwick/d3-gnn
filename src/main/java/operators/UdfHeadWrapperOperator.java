@@ -33,14 +33,13 @@ import java.util.Collections;
  * Head Operator that receives all external inputs to the graph. Handles buffering while training and splitting messages
  * @param <T> Internal operator
  */
-public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
+public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     private final MailboxExecutor bufferMailboxExecutor;
 
     private Path basePath;
 
     private FileSystem fileSystem;
-
 
     private TypeSerializer<StreamElement> typeSerializer;
 
@@ -51,7 +50,8 @@ public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ?
     @Nullable
     private DataCacheReader<StreamElement> currentDataCacheReader;
 
-    public ChainHeadUdfOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
+
+    public UdfHeadWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
         super(parameters, operatorFactory, iterationID, position, totalLayers);
         this.ITERATION_COUNT = 0; // No watermark iteration at all needed for this operator
         this.bufferMailboxExecutor = parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
@@ -134,12 +134,9 @@ public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ?
         }
     }
 
-    /**
-     * Broadcast elements should go to all parts
-     */
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if(IS_TRAINING){
+        if(WATERMARK_STATUSES.f3 == WatermarkStatus.IDLE){
             dataCacheWriter.addRecord(element);
         } else {
             if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
@@ -160,13 +157,17 @@ public class ChainHeadUdfOperator<T extends AbstractUdfStreamOperator<GraphOp, ?
         getWrappedOperator().processWatermark(mark);
     }
 
+    @Override
+    public void processActualWatermarkStatus(WatermarkStatus status) throws Exception {
+        getWrappedOperator().processWatermarkStatus(status);
+    }
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         if(evt instanceof StartTraining){
-            IS_TRAINING = true;
             try {
-                processWatermarkStatus(WatermarkStatus.IDLE);
+                processWatermark(new Watermark(WATERMARKS.f3.getTimestamp() + 1)); // Add 1 to the timestamp and process that watermark so that everything is processed
+                processWatermarkStatus(WatermarkStatus.IDLE); // Mark the subsequent watermarks as idle
             } catch (Exception e) {
                 e.printStackTrace();
             }

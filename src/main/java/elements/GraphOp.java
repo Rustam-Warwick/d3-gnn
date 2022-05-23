@@ -1,6 +1,7 @@
 package elements;
 
 import elements.iterations.MessageCommunication;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 /**
  * Main message object that gets passed around the system
@@ -19,6 +20,12 @@ public class GraphOp {
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
+
+    /**
+     * Operator Event for the plugins communicated through this channel
+     */
+    public OperatorEvent operatorEvent = null;
+
     /**
      * Type of communication message Part-to-Part or Broadcast
      */
@@ -27,32 +34,30 @@ public class GraphOp {
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
      */
-    public Long ts;
+    public Long ts = null;
 
     public GraphOp() {
         this.op = Op.COMMIT;
     }
 
-    /**
-     * Constructed used initially
-     *
-     * @param op      Op
-     * @param element GraphElement
-     */
-    public GraphOp(Op op, GraphElement element, Long ts) {
-        this.op = op;
-        this.element = element;
-        this.ts = ts;
+    public GraphOp(Op op, GraphElement element){
+        this(op, element,null);
     }
-
-    /**
-     * Constructor to be used in the system
-     */
-    public GraphOp(Op op, short partId, GraphElement element, Long ts) {
+    public GraphOp(Op op, GraphElement element, Long ts) {
+        this(op, null, element, ts);
+    }
+    public GraphOp(Op op, Short partId, GraphElement element){
+        this(op, partId, element, null);
+    }
+    public GraphOp(Op op, Short partId, GraphElement element, Long ts) {
+        this(op, partId, element, ts, MessageCommunication.P2P);
+    }
+    public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
         this.op = op;
         this.partId = partId;
         this.element = element;
         this.ts = ts;
+        this.messageCommunication = communication;
     }
 
     public Op getOp() {
@@ -63,11 +68,11 @@ public class GraphOp {
         this.op = op;
     }
 
-    public short getPartId() {
+    public Short getPartId() {
         return partId;
     }
 
-    public void setPartId(short partId) {
+    public void setPartId(Short partId) {
         this.partId = partId;
     }
 
@@ -79,11 +84,11 @@ public class GraphOp {
         this.element = element;
     }
 
-    public long getTimestamp() {
+    public Long getTimestamp() {
         return ts;
     }
 
-    public void setTimestamp(long ts) {
+    public void setTimestamp(Long ts) {
         this.ts = ts;
     }
 
@@ -95,6 +100,13 @@ public class GraphOp {
         this.messageCommunication = messageCommunication;
     }
 
+    public OperatorEvent getOperatorEvent() {
+        return operatorEvent;
+    }
+
+    public void setOperatorEvent(OperatorEvent operatorEvent) {
+        this.operatorEvent = operatorEvent;
+    }
     public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }

@@ -62,7 +62,7 @@ public class RemoteInvoke {
         return this;
     }
 
-    public RemoteInvoke withTimestamp(long ts) {
+    public RemoteInvoke withTimestamp(Long ts) {
         this.ts = ts;
         return this;
     }
@@ -78,15 +78,14 @@ public class RemoteInvoke {
         }
         Rmi message = new Rmi(elementId, methodName, args, elementType, hasUpdate, ts);
         return destinations.stream().map(item -> (
-                new GraphOp(Op.RMI, item, message, ts)
+                new GraphOp(Op.RMI, item, message)
         )).collect(Collectors.toList());
     }
 
     public void buildAndRun(BaseStorage storage) {
-        if (ts == null) ts = storage.layerFunction.currentTimestamp();
         List<GraphOp> graphOps = build();
         for (GraphOp a : graphOps) {
-            if (a.partId == storage.layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
+            if (a.partId.equals(storage.layerFunction.getCurrentPart()) && messageDirection == MessageDirection.ITERATE) {
                 Rmi.execute(storage.getElement(elementId, elementType), (Rmi) a.element);
             } else {
                 storage.layerFunction.message(a, messageDirection);
