@@ -72,7 +72,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public BaseStorage withPlugin(Plugin plugin) {
-        this.plugins.put(plugin.getId(), plugin);
+        plugins.put(plugin.getId(), plugin);
         plugin.storage = this;
         plugin.add();
         return this;
@@ -121,6 +121,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         // pass
+
     }
 
     @Override

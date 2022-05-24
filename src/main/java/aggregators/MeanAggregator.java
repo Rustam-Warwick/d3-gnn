@@ -73,8 +73,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public NDArray grad() {
-        return getValue().getGradient().div(this.value.f1);
+    public NDArray grad(NDArray aggGradient, NDArray messages) {
+        return aggGradient.div(value.f1).expandDims(0).repeat(0, messages.getShape().get(0)); // (batch_size, gradient)
     }
 
     @Override

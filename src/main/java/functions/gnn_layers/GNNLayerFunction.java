@@ -168,7 +168,7 @@ public interface GNNLayerFunction extends RichFunction {
         } catch (Exception | Error e) {
             e.printStackTrace();
         } finally {
-
+            getStorage().getPlugins().forEach(item->item.features.clear()); // Clear the features
         }
     }
 

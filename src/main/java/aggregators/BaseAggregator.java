@@ -31,7 +31,13 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     @RemoteFunction
     public abstract void replace(NDArray newElement, NDArray oldElement);
 
-    public abstract NDArray grad();
+    /**
+     *
+     * @param aggGradient dLoss/dAgg
+     * @param message Edge message to this aggregator. (Batch_size, message_size)
+     * @return dLoss/dmessages
+     */
+    public abstract NDArray grad(NDArray aggGradient, NDArray message);
 
     public abstract boolean isReady(int modelVersion);
 

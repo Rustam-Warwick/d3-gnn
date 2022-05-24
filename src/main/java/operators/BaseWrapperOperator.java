@@ -113,18 +113,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected OutputTag[] internalOutputTags; // All the existing output tags. In other words connected to this operator
 
-    protected int[] numOutChannels;
+    protected int[] numOutChannels; // number of output channels per each operator
 
-    protected List<Short> thisParts; // Keys hashed to this operator, last one is the MASTER
+    protected List<Short> thisParts; // Keys hashed to this operator, first one is the MASTER
 
 
     // WATERMARKING
 
     protected PriorityQueue<Long> waitingSyncs; // Sync messages that need to resolved for watermark to proceed
 
-    protected Tuple4<Integer, Watermark, Watermark, Watermark> WATERMARKS; // (#iteration, currentWatermark, waitingWatermark, maxWatermark)
+    protected Tuple4<Integer, Watermark, Watermark, Watermark> WATERMARKS; // (#messages_received, currentWatermark, waitingWatermark, maxWatermark)
 
-    protected Tuple4<Integer, WatermarkStatus, WatermarkStatus, WatermarkStatus> WATERMARK_STATUSES; // (#iteration, currentWatermark, waitingWatermark, maxWatermark)
+    protected Tuple4<Integer, WatermarkStatus, WatermarkStatus, WatermarkStatus> WATERMARK_STATUSES; // (#messages_received, currentWatermarkStatus, waitingWatermarkStatus, maxWatermark)
 
 
     // FINALIZATION
@@ -379,9 +379,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 WATERMARKS.f0 = 0; // Number of acknowledges is zero again
                 if(WATERMARK_STATUSES.f3==WatermarkStatus.IDLE){
                     // Do not continue processing watermark if it is suddenly IDLE
-                    throw new RuntimeException("This watermark should'nt has come");
-//                    if(WATERMARKS.f2 == null)WATERMARKS.f2 = WATERMARKS.f1;
-//                    WATERMARKS.f1 = null;
+                    System.out.println("This watermark should'nt has come");
+                    if(WATERMARKS.f2 == null)WATERMARKS.f2 = WATERMARKS.f1;
+                    WATERMARKS.f1 = null;
                 }else {
                     if (element.getValue().getPartId() > 0) {
                         // Still needs to iterate in the stream
@@ -624,7 +624,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
-        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null, null));
+        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null, null), Long.MIN_VALUE);
 
         /**
          * Send watermark exactly to one output channel

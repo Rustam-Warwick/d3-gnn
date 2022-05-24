@@ -12,7 +12,6 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
-import functions.nn.MyParameterStore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -175,9 +174,6 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     }
 
     // TRAINING RELATED
-
-
-
 
 
 

@@ -9,6 +9,7 @@ import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.translate.StackBatchifier;
 import elements.*;
+import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import elements.iterations.Rmi;
@@ -26,6 +27,8 @@ import java.util.List;
 public class VertexTrainingLayer extends Plugin {
     public transient VertexOutputLayer outputLayer;
 
+    public transient StackBatchifier batchifier;
+
     public int BATCH_COUNT = 0;
 
     public final int MAX_BATCH_COUNT;
@@ -34,7 +37,6 @@ public class VertexTrainingLayer extends Plugin {
 
     public final SerializableLoss loss;
 
-
     public VertexTrainingLayer(SerializableLoss loss, int MAX_BATCH_COUNT) {
         super("trainer");
         this.MAX_BATCH_COUNT = MAX_BATCH_COUNT;
@@ -42,9 +44,14 @@ public class VertexTrainingLayer extends Plugin {
     }
 
     public VertexTrainingLayer(SerializableLoss loss) {
-       this(loss,1024);
+       this(loss,200);
     }
 
+    // Main Logic
+
+    /**
+     * Add value to the batch. If filled send event to the coordinator
+     */
     public void incrementBatchCount(){
         BATCH_COUNT++;
         if(BATCH_COUNT % ACTUAL_BATCH_COUNT == 0){
@@ -57,60 +64,80 @@ public class VertexTrainingLayer extends Plugin {
         super.addElementCallback(element);
         if(element.elementType() == ElementType.FEATURE){
             Feature<?,?> feature = (Feature<?, ?>) element;
-            if(feature.attachedTo.f0==ElementType.VERTEX && "trainLabel".equals(feature.getName()) && feature.getElement() != null){
-                if(isTrainReady((Vertex) feature.getElement()))incrementBatchCount();
-            }
-            if(feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName()) && feature.getElement()!=null){
-                if(isTrainReady((Vertex) feature.getElement()))incrementBatchCount();
+            if(feature.attachedTo.f0==ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null){
+                if(isTrainReady((Vertex) feature.getElement())){
+                    incrementBatchCount();
+                    Feature<List<String>, List<String>> data = (Feature<List<String>, List<String>>) getFeature("trainVertices");
+                    if(data == null){
+                        List<String> tmp = new ArrayList<>();
+                        tmp.add(feature.getElement().getId());
+                        setFeature("trainVertices", new Feature<>(tmp, true, getPartId()));
+                    }
+                    else{
+                        data.getValue().add(feature.getElement().getId());
+                        storage.updateFeature(data);
+                    }
+                }
             }
         }
     }
 
+    /**
+     * Both feature and label are here
+     * @param v Vertex to check for
+     */
     public boolean isTrainReady(Vertex v){
         return v.getFeature("trainLabel") != null && v.getFeature("feature")!=null;
     }
 
+    /**
+     * For all the trainVertices compute the backward pass and send it to the previous layer
+     * After sending it, send an acknowledgement to all of the previous operators tob= notify the continuation
+     */
     public void startTraining(){
-        List<NDList> inputs = new ArrayList<>();
-        List<NDList> labels = new ArrayList<>();
-        List<String> vertices = new ArrayList<>();
-        StackBatchifier b = new StackBatchifier();
-        for(Vertex v: storage.getVertices()){
-            if(isTrainReady(v)){
-                vertices.add(v.getId());
+        Feature<List<String>, List<String>> trainVertices = (Feature<List<String>, List<String>>) getFeature("trainVertices");
+        if(trainVertices != null && !trainVertices.getValue().isEmpty()){
+            // 1. Compute the gradients per each vertex output feature
+            List<NDList> inputs = new ArrayList<>();
+            List<NDList> labels = new ArrayList<>();
+            for(String vId: trainVertices.getValue()){
+                Vertex v = storage.getVertex(vId);
+                ((NDArray) v.getFeature("feature").getValue()).setRequiresGradient(true);
                 inputs.add(new NDList((NDArray) v.getFeature("feature").getValue()));
                 labels.add(new NDList((NDArray) v.getFeature("trainLabel").getValue()));
             }
+            NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
+            NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
+            NDList predictions = outputLayer.output(batchedInputs, true);
+            NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
+            JniUtils.backward((PtNDArray) meanLoss, (PtNDArray)BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
+
+            // 2. Prepare the HashMap for Each Vertex and send to previous layer
+            HashMap<String, NDArray> backwardGrads = new HashMap<>();
+            for(int i=0; i < trainVertices.getValue().size(); i++){
+                backwardGrads.put(trainVertices.getValue().get(i), inputs.get(i).get(0).getGradient());
+            }
+            new RemoteInvoke()
+                    .addDestination(getPartId()) // Only masters will be here anyway
+                    .noUpdate()
+                    .method("collect")
+                    .toElement(getId(), elementType())
+                    .where(MessageDirection.BACKWARD)
+                    .withArgs(backwardGrads)
+                    .buildAndRun(storage);
+
+            //3. Clean the trainVertices data and clean the inputs
+            inputs.forEach(item->item.get(0).setRequiresGradient(false));
+            trainVertices.getValue().clear();
+            storage.updateFeature(trainVertices);
         }
-        inputs.forEach(item->item.get(0).setRequiresGradient(true));
-        NDList batchedInputs = b.batchify(inputs.toArray(NDList[]::new));
-        NDList batchedLabels = b.batchify(labels.toArray(NDList[]::new));
-        NDList predictions = outputLayer.output(batchedInputs, true);
-        NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-        JniUtils.backward((PtNDArray) meanLoss, (PtNDArray)BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
-
-        HashMap<String, NDArray> gradients  = new HashMap<>();
-        for(int i=0; i < vertices.size(); i++){
-            gradients.put(vertices.get(i), inputs.get(i).get(0).getGradient());
-        }
-
-        new RemoteInvoke()
-                .addDestination(getPartId())
-                .noUpdate()
-                .method("collect")
-                .toElement(getId(), elementType())
-                .where(MessageDirection.BACKWARD)
-                .withArgs(gradients)
-                .buildAndRun(storage);
-
-        if(replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1)){
+        if(isLastReplica()){
+            // This is the last call of plugin from this operator so send ack message to previous operator
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{},elementType(), false, null);
-            storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, synchronize), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
         }
-
 
     }
-
 
     @Override
     public void onOperatorEvent(OperatorEvent event) {
@@ -125,6 +152,7 @@ public class VertexTrainingLayer extends Plugin {
         super.open();
         outputLayer = (VertexOutputLayer) storage.getPlugin("inferencer");
         ACTUAL_BATCH_COUNT = MAX_BATCH_COUNT / storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
+        batchifier = new StackBatchifier();
     }
 
     @Override

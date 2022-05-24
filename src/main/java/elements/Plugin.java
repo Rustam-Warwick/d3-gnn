@@ -4,14 +4,16 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement {
-    public transient List<Short> thisReplicaKeys; // Keys(Parts) hashed to this parallel operator
+    public transient List<Short> thisReplicaKeys; // Keys(Parts) hashed to this parallel operator Except from master
     public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
 
     public Plugin() {
@@ -55,6 +57,10 @@ public class Plugin extends ReplicableGraphElement {
      */
     public List<Short> othersMasterParts() {
         return othersMasterParts;
+    }
+
+    public boolean isLastReplica(){
+        return replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1);
     }
 
     /**
@@ -146,7 +152,6 @@ public class Plugin extends ReplicableGraphElement {
     public void add() {
         // pass
     }
-
     // HELPER METHOD
 
     /**
@@ -167,10 +172,9 @@ public class Plugin extends ReplicableGraphElement {
                 } else if (!seen[operatorIndex]) {
                     otherMasterKeys.add(i);
                 }
-
                 seen[operatorIndex] = true;
             }
-            master = thisReplicaKeys.remove(0);
+            this.master = thisReplicaKeys.remove(0);
             this.thisReplicaKeys = thisReplicaKeys;
             this.othersMasterParts = otherMasterKeys;
         } catch (Exception e) {
