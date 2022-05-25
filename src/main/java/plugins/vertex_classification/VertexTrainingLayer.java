@@ -43,7 +43,7 @@ public class VertexTrainingLayer extends Plugin {
     }
 
     public VertexTrainingLayer(String modelName, SerializableLoss loss) {
-        this(modelName, loss, 500);
+        this(modelName, loss, 1024);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class VertexTrainingLayer extends Plugin {
             NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
             NDList predictions = outputLayer.output(batchedInputs, true);
-            NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
+            NDArray meanLoss = loss.evaluate(batchedLabels, predictions).neg();
             JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
 
             // 2. Prepare the HashMap for Each Vertex and send to previous layer
@@ -152,6 +152,7 @@ public class VertexTrainingLayer extends Plugin {
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
         if (event instanceof StartTraining) {
+            if(isLastReplica()) System.out.format("Start training %s\n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask());
             startTraining();
         }
     }

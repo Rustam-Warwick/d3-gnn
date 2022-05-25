@@ -91,14 +91,19 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void endInput() throws Exception {
 
     }
-//    @Override
-//    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+    @Override
+    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
 //        super.prepareSnapshotPreBarrier(checkpointId);
 //        GraphOp checkpointBarrier = new GraphOp();
 //        checkpointBarrier.checkpointBarrier = checkpointId;
 //        channel.put(new StreamRecord<>(checkpointBarrier));
-//    }
+    }
 
+    @Override
+    public void notifyCheckpointComplete(long checkpointId) throws Exception {
+        super.notifyCheckpointComplete(checkpointId);
+        System.out.println("CHECKPOINT COMPLETE");
+    }
 //    @Override
 //    public void notifyCheckpointAborted(long checkpointId) throws Exception {
 //        super.notifyCheckpointAborted(checkpointId);

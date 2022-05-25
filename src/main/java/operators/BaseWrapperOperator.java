@@ -199,7 +199,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public OperatorSnapshotFutures snapshotState(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) throws Exception {
         OperatorSnapshotFutures innerFutures = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
         return innerFutures;
-
     }
 
     @Override

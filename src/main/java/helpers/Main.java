@@ -17,7 +17,9 @@ import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.environment.ExecutionCheckpointingOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.embedding_layer.MixedGNNEmbeddingLayer;
@@ -29,6 +31,7 @@ import storage.TupleStorage;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -51,7 +54,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
+//        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -66,35 +69,45 @@ public class Main {
     public static void main(String[] args) throws Exception {
         ArrayList<Model> models = layeredModel();
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration config = new Configuration();
+        config.set(ExecutionCheckpointingOptions.ENABLE_CHECKPOINTS_AFTER_TASKS_FINISH, true);
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(config);
+        env.enableCheckpointing(1000);
+        env.getCheckpointConfig().setMaxConcurrentCheckpoints(1);
+        env.getCheckpointConfig().enableUnalignedCheckpoints();
+        env.getConfig().setAutoWatermarkInterval(10000);
+        env.getCheckpointConfig().setCheckpointStorage("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints");
         env.setParallelism(2);
         env.setMaxParallelism(30);
 
-        // GraphStream
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
-        DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
-        DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(
-                dataset.trainTestSplitter(),
-                new StreamingGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new ParameterStore(models.get(0)))
-                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(0).getName(), true))
-                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
-                ),
-                new StreamingGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new ParameterStore(models.get(1)))
-                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1).getName(), true))
-                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
-                ),
-                new StreamingGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new ParameterStore(models.get(2)))
-                        .withPlugin(new VertexOutputLayer(models.get(2).getName()))
-                        .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(new CrossEntropyLoss("loss", true))))
-                        .withPlugin(new VertexLossReporter(models.get(2).getName()))
-                )
-        ));
-
+        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+        dataset.build(env)[0].print();
         env.execute();
+        // GraphStream
+//        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+//        DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
+//        DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
+//        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(
+//                dataset.trainTestSplitter(),
+//                new StreamingGNNLayerFunction(new TupleStorage()
+//                        .withPlugin(new ParameterStore(models.get(0)))
+//                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(0).getName(), true))
+////                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
+//                ),
+//                new StreamingGNNLayerFunction(new TupleStorage()
+//                        .withPlugin(new ParameterStore(models.get(1)))
+//                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1).getName(), true))
+////                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
+//                ),
+//                new StreamingGNNLayerFunction(new TupleStorage()
+//                        .withPlugin(new ParameterStore(models.get(2)))
+//                        .withPlugin(new VertexOutputLayer(models.get(2).getName()))
+////                        .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(new CrossEntropyLoss("loss", true))))
+//                        .withPlugin(new VertexLossReporter(models.get(2).getName()))
+//                )
+//        ));
+//
+//        env.execute("gnn");
     }
 }

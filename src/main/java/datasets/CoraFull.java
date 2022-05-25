@@ -11,10 +11,12 @@ import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
 
 import java.io.FileInputStream;
@@ -26,7 +28,7 @@ import java.util.regex.Pattern;
 
 public class CoraFull implements Dataset {
     private static transient final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
-    private final float trainSplitProbability = 0.5f;
+    private final float trainSplitProbability = 0.4f;
     protected transient Path edgesFile;
     protected transient Path vertexFeatures;
     protected transient Path vertexLabels;
@@ -90,7 +92,6 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-//            DataStream<String> edges = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgesFile.toString())), edgesFile.toString(), FileProcessingMode.PROCESS_CONTINUOUSLY, 10000).setParallelism(1);
             DataStream<String> edges = env.readTextFile(edgesFile.toString());
             DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
             DataStream<GraphOp> joinedData = parsedEdges
