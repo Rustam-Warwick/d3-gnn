@@ -49,7 +49,7 @@ public class VertexTrainingLayer extends Plugin {
     }
 
     public VertexTrainingLayer(String modelName, SerializableLoss loss) {
-       this(modelName, loss,200);
+       this(modelName, loss,500);
     }
 
     @Override
@@ -60,7 +60,6 @@ public class VertexTrainingLayer extends Plugin {
         batchifier = new StackBatchifier();
     }
     // INITIALIZATION DONE!!!
-
 
     /**
      * Add value to the batch. If filled send event to the coordinator
@@ -80,15 +79,15 @@ public class VertexTrainingLayer extends Plugin {
             if(feature.attachedTo.f0==ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null){
                 if(isTrainReady((Vertex) feature.getElement())){
                     incrementBatchCount();
-                    Feature<List<String>, List<String>> data = (Feature<List<String>, List<String>>) getFeature("trainVertices");
-                    if(data == null){
+                    Feature<List<String>, List<String>> trainVertices = (Feature<List<String>, List<String>>) getFeature("trainVertices");
+                    if(trainVertices == null){
                         List<String> tmp = new ArrayList<>();
                         tmp.add(feature.getElement().getId());
                         setFeature("trainVertices", new Feature<>(tmp, true, getPartId()));
                     }
                     else{
-                        data.getValue().add(feature.getElement().getId());
-                        storage.updateFeature(data);
+                        trainVertices.getValue().add(feature.getElement().getId());
+                        storage.updateFeature(trainVertices);
                     }
                 }
             }
@@ -118,6 +117,7 @@ public class VertexTrainingLayer extends Plugin {
                 ((NDArray) v.getFeature("feature").getValue()).setRequiresGradient(true);
                 inputs.add(new NDList((NDArray) v.getFeature("feature").getValue()));
                 labels.add(new NDList((NDArray) v.getFeature("trainLabel").getValue()));
+                v.getFeature("trainLabel").delete(); // Delete so it does not retrigger it
             }
             NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
@@ -149,6 +149,7 @@ public class VertexTrainingLayer extends Plugin {
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{},elementType(), false, null);
             storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             outputLayer.modelServer.sync();
+
         }
     }
 
@@ -156,6 +157,9 @@ public class VertexTrainingLayer extends Plugin {
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
         if(event instanceof StartTraining){
+            if(isLastReplica()){
+                System.out.format("Start training index %s\n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask());
+            }
             startTraining();
         }
     }

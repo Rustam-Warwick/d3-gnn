@@ -1,5 +1,6 @@
 package plugins.embedding_layer;
 
+import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
@@ -16,10 +17,8 @@ import operators.coordinators.events.ActionTaken;
 import operators.coordinators.events.ElementsSynced;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * For each Edge, Vertex, Feature addition preforms 1 layer of GNN Embedding
@@ -27,19 +26,15 @@ import java.util.Objects;
  */
 public class MixedGNNEmbeddingLayer extends Plugin {
 
-    public transient ParameterStore modelServer;
+    public transient ParameterStore modelServer; // ParameterServer Plugin
 
-    public final String modelName;
+    public final String modelName; // Model name to identify the ParameterStore
 
     public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
 
-    public transient Batchifier batchifier;
+    public transient Batchifier batchifier; // If we process data as batches
 
-    public HashMap<Short, HashMap<String, Edge>> REDUCE_EDGES;
-
-    public HashMap<Short, HashMap<String, Edge>> UPDATE_EDGES;
-
-    public HashMap<Short, HashMap<String, Vertex>> PENDING_VERTICES;
+    public boolean RE_INFERRING; // If this layers need to re-infer
 
     public MixedGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
         super(String.format("%s-inferencer", modelName));
@@ -52,21 +47,39 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         super.open();
         modelServer = (ParameterStore) storage.getPlugin(String.format("%s-server", modelName));
         batchifier = new StackBatchifier();
-        REDUCE_EDGES = new HashMap<>();
-        UPDATE_EDGES = new HashMap<>();
-        PENDING_VERTICES = new HashMap<>();
-        REDUCE_EDGES.put(masterPart(), new HashMap<>());
-        UPDATE_EDGES.put(masterPart(), new HashMap<>());
-        PENDING_VERTICES.put(masterPart(), new HashMap<>());
-        replicaParts().forEach(partId -> {
-            REDUCE_EDGES.put(partId, new HashMap<>());
-            UPDATE_EDGES.put(partId, new HashMap<>());
-            PENDING_VERTICES.put(partId, new HashMap<>());
-        });
     }
 
     // INITIALIZATION DONE!!!
 
+    // Get Features of this plugin that store updates
+    public Feature<HashSet<String>, HashSet<String>> getPendingVertices(){
+        Feature<HashSet<String>,HashSet<String>> pendingVertices = (Feature<HashSet<String>, HashSet<String>>) getFeature("pendingVertices");
+        if(pendingVertices == null){
+            pendingVertices = new Feature<HashSet<String>, HashSet<String>>(new HashSet<String>(), true, (short) 0);
+            setFeature("pendingVertices", pendingVertices);
+        }
+        return pendingVertices;
+    }
+
+    public Feature<HashSet<Edge>, HashSet<Edge>> getReduceEdges(){
+        Feature<HashSet<Edge>,HashSet<Edge>> reduceEdges = (Feature<HashSet<Edge>, HashSet<Edge>>) getFeature("reduceEdges");
+        if(reduceEdges == null){
+            reduceEdges = new Feature<HashSet<Edge>, HashSet<Edge>>(new HashSet<Edge>(), true, (short) 0);
+            setFeature("reduceEdges", reduceEdges);
+        }
+        return reduceEdges;
+    }
+
+    public Feature<HashSet<Edge>, HashSet<Edge>> getUpdateEdges() {
+        Feature<HashSet<Edge>, HashSet<Edge>> updateEdges = (Feature<HashSet<Edge>, HashSet<Edge>>) getFeature("updateEdges");
+        if (updateEdges == null) {
+            updateEdges = new Feature<HashSet<Edge>, HashSet<Edge>>(new HashSet<Edge>(), true, (short) 0);
+            setFeature("updateEdges", updateEdges);
+        }
+        return updateEdges;
+    }
+
+    // Populate the 3 data strcutures before watermark arrives
 
     @Override
     @SuppressWarnings("all")
@@ -77,15 +90,19 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
             if (messageReady(edge)) {
-                REDUCE_EDGES.get(getPartId()).putIfAbsent(edge.getId(), edge.copy()); // Features will be here
+                Feature<HashSet<Edge>, HashSet<Edge>> reduceEdges = getReduceEdges();
+                reduceEdges.getValue().add(edge.copy());
+                storage.updateFeature(reduceEdges);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
-                collectReduceEdges((Vertex) feature.getElement());
-                PENDING_VERTICES.get(getPartId()).putIfAbsent(feature.getElement().getId(), ((Vertex) feature.getElement()).copy());
-            } else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
-                PENDING_VERTICES.get(getPartId()).putIfAbsent(feature.getElement().getId(), ((Vertex) feature.getElement()).copy());
+            if (feature.attachedTo.f0 == ElementType.VERTEX && ("agg".equals(feature.getName()) || "feature".equals(feature.getName()))) {
+                if("feature".equals(feature.getName())) collectReduceEdges((Vertex) feature.getElement());
+                if(feature.getElement() != null && updateReady((Vertex) feature.getElement())){
+                    Feature<HashSet<String>, HashSet<String>> pendingVertices = getPendingVertices();
+                    pendingVertices.getValue().add(feature.getElement().getId());
+                    storage.updateFeature(pendingVertices);
+                }
             }
         }
     }
@@ -96,12 +113,13 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
-                collectUpdateEdges((Vertex) feature.getElement(), (Tensor) oldFeature);
-                PENDING_VERTICES.get(getPartId()).putIfAbsent(feature.getElement().getId(), ((Vertex) feature.getElement()).copy());
-            }
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
-                PENDING_VERTICES.get(getPartId()).putIfAbsent(feature.getElement().getId(), ((Vertex) feature.getElement()).copy());
+            if (feature.attachedTo.f0 == ElementType.VERTEX && ("agg".equals(feature.getName()) || "feature".equals(feature.getName()))) {
+                if("feature".equals(feature.getName())) collectUpdateEdges((Vertex) feature.getElement(), (Tensor) oldFeature);
+                if(feature.getElement() != null && updateReady((Vertex) feature.getElement())){
+                    Feature<HashSet<String>, HashSet<String>> pendingVertices = getPendingVertices();
+                    pendingVertices.getValue().add(feature.getElement().getId());
+                    storage.updateFeature(pendingVertices);
+                }
             }
         }
     }
@@ -132,13 +150,18 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     public void collectUpdateEdges(Vertex v, Tensor oldFeature) {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
+        Feature<HashSet<Edge>, HashSet<Edge>> reduceEdges = getReduceEdges();
+        Feature<HashSet<Edge>, HashSet<Edge>> updateEdges = getUpdateEdges();
+        boolean is_updated = false;
         for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
+            if (messageReady(edge) && !reduceEdges.getValue().contains(edge)) {
+                is_updated = true;
                 Edge tmpCopy = edge.copy();
                 tmpCopy.src.setFeature("oldFeature", oldFeature.copy());
-                UPDATE_EDGES.get(getPartId()).putIfAbsent(tmpCopy.getId(), tmpCopy);
+                updateEdges.getValue().add(tmpCopy);
             }
         }
+        if(is_updated) storage.updateFeature(updateEdges);
     }
 
     /**
@@ -148,12 +171,19 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     public void collectReduceEdges(Vertex vertex) {
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(vertex, EdgeType.OUT);
+        Feature<HashSet<Edge>, HashSet<Edge>> reduceEdges = getReduceEdges();
+        boolean is_updated = false;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
-                REDUCE_EDGES.get(getPartId()).putIfAbsent(edge.getId(), edge.copy());
+                is_updated = true;
+                reduceEdges.getValue().add(edge.copy());
+
             }
         }
+        if(is_updated) storage.updateFeature(reduceEdges);
     }
+
+    // Methods for doing the REDUCE, UPDATE, FORWARD functions
 
     /**
      * Push the embedding of this vertex to the next layer
@@ -163,36 +193,35 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        if (updateReady(v)) {
-            NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
-            NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-            NDArray update = this.update(new NDList(ft,agg),false).get(0);
-            Vertex messageVertex = v.copy();
-            Long timestamp = v.getFeature("agg").getTimestamp();
-            messageVertex.setFeature("feature", new Tensor(update), timestamp);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
-        }
+        NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+        NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
+        NDArray update = UPDATE(new NDList(ft,agg),false).get(0);
+        Vertex messageVertex = v.copy();
+        Long timestamp = v.getFeature("agg").getTimestamp();
+        messageVertex.setFeature("feature", new Tensor(update), timestamp);
+        storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
     }
 
     /**
      * For all reducable edges reduce them
      */
-    public void reduceAllEdges() {
+    public void reduceCollectedEdges() {
         // 1. Collect all Source node Features
-        HashMap<String, NDList> sourceVertices = new HashMap<>();
-        REDUCE_EDGES.get(getPartId()).values().forEach(edge -> {
+        LinkedHashMap<String, NDList> sourceVertices = new LinkedHashMap<>();
+        Feature<HashSet<Edge>, HashSet<Edge>> reduceEdges = getReduceEdges();
+        reduceEdges.getValue().forEach(edge -> {
             edge.setStorage(this.storage);
             sourceVertices.putIfAbsent(edge.src.getId(), new NDList((NDArray) edge.src.getFeature("feature").getValue()));
         });
         if (sourceVertices.isEmpty()) return;
         NDList inputs = batchifier.batchify(sourceVertices.values().toArray(new NDList[0]));
-        NDList[] messages = batchifier.unbatchify(this.message(inputs, false));
+        NDList[] messages = batchifier.unbatchify(MESSAGE(inputs, false));
         int i = 0;
         for (String key : sourceVertices.keySet()) {
             sourceVertices.put(key, messages[i++]); // Put the updates to the same sourceVertex
         }
         // 2. Send the messages
-        REDUCE_EDGES.get(getPartId()).values().forEach(edge -> {
+        reduceEdges.getValue().forEach(edge -> {
             new RemoteInvoke()
                     .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
@@ -203,13 +232,18 @@ public class MixedGNNEmbeddingLayer extends Plugin {
                     .withArgs(sourceVertices.get(edge.src.getId()).get(0), 1)
                     .buildAndRun(storage);
         });
+        reduceEdges.getValue().clear();
+        storage.updateFeature(reduceEdges);
     }
 
-    public void updateAllEdges() {
-        HashMap<String, NDList> newSourceVertices = new HashMap<>();
-        HashMap<String, NDList> oldSourceVertices = new HashMap<>();
-        UPDATE_EDGES.get(getPartId()).values().forEach(edge -> {
-            if (REDUCE_EDGES.get(getPartId()).containsKey(edge.getId())) return;
+    /**
+     * For all update edges update them
+     */
+    public void updateCollectedEdges() {
+        HashMap<String, NDList> newSourceVertices = new LinkedHashMap<>();
+        HashMap<String, NDList> oldSourceVertices = new LinkedHashMap<>();
+        Feature<HashSet<Edge>, HashSet<Edge>> updateEdges = getUpdateEdges();
+        updateEdges.getValue().forEach(edge -> {
             edge.setStorage(this.storage);
             newSourceVertices.putIfAbsent(edge.src.getId(), new NDList((NDArray) edge.src.getFeature("feature").getValue()));
             oldSourceVertices.putIfAbsent(edge.src.getId(), new NDList((NDArray) edge.src.getFeature("oldFeature").getValue()));
@@ -219,14 +253,13 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         allFeatures.addAll(newSourceVertices.values());
         allFeatures.addAll(oldSourceVertices.values());
         NDList inputs = batchifier.batchify(allFeatures.toArray(new NDList[0]));
-        NDList[] messages = batchifier.unbatchify(message(inputs, false));
+        NDList[] messages = batchifier.unbatchify(MESSAGE(inputs, false));
         int i = 0;
         for (String key : newSourceVertices.keySet()) {
             oldSourceVertices.put(key, messages[i + oldSourceVertices.size()]);
             newSourceVertices.put(key, messages[i++]); // Put the updates to the same sourceVertex
         }
-        UPDATE_EDGES.get(getPartId()).values().forEach(edge -> {
-            if (REDUCE_EDGES.get(getPartId()).containsKey(edge.getId())) return;
+        updateEdges.getValue().forEach(edge -> {
             new RemoteInvoke()
                     .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
@@ -237,32 +270,111 @@ public class MixedGNNEmbeddingLayer extends Plugin {
                     .withArgs(newSourceVertices.get(edge.src.getId()).get(0), oldSourceVertices.get(edge.src.getId()).get(0))
                     .buildAndRun(storage);
         });
+        updateEdges.getValue().clear();
+        storage.updateFeature(updateEdges);
 
     }
 
-    public void forwardAllVertices() {
-        PENDING_VERTICES.get(getPartId()).values().forEach(vertex -> {
-            vertex.setStorage(this.storage);
-            if (updateReady(vertex)) {
-                forward(vertex);
-            }
+    public void forwardCollectedVertices() {
+        Feature<HashSet<String>, HashSet<String>> pendingVertices = getPendingVertices();
+        pendingVertices.getValue().forEach(vertexId -> {
+            Vertex vertex = storage.getVertex(vertexId);
+            forward(vertex);
         });
+        pendingVertices.getValue().clear();
+        storage.updateFeature(pendingVertices);
+    }
+
+    // Reinference Related
+
+    public void reInferenceFirstPartStart(){
+        // 1. Clear the stored stuff so far since we don't need them anymore
+        Feature<HashSet<Edge>, HashSet<Edge>> reduceEdges = getReduceEdges();
+        reduceEdges.getValue().clear();
+        storage.updateFeature(reduceEdges);
+        Feature<HashSet<Edge>, HashSet<Edge>> updateEdges = getUpdateEdges();
+        updateEdges.getValue().clear();
+        storage.updateFeature(updateEdges);
+        Feature<HashSet<String>, HashSet<String>> pendingFeatures = getPendingVertices();
+        pendingFeatures.getValue().clear();
+        storage.updateFeature(pendingFeatures);
+
+        // 2. Clear Aggregators + InReduce all the existing edges
+        HashMap<Vertex, List<String>> inEdges = new HashMap<>();
+        LinkedHashMap<String, NDList> featureMap = new LinkedHashMap<>();
+        for(Vertex v: storage.getVertices()){
+            // 1. Clear the aggregators
+            if(v.getFeature("agg")!=null){
+                ((BaseAggregator<?>) v.getFeature("agg")).reset();
+                v.getFeature("agg").update(v.getFeature("agg"));
+            }
+
+            Iterable<Edge> localInEdges = storage.getIncidentEdges(v,EdgeType.IN);
+            List<String> tmp = new ArrayList<>();
+            for (Edge localInEdge : localInEdges) {
+                if(featureMap.containsKey(localInEdge.src.getId()) || messageReady(localInEdge)){
+                    tmp.add(localInEdge.src.getId());
+                    featureMap.putIfAbsent(localInEdge.src.getId(), new NDList((NDArray) localInEdge.src.getFeature("feature").getValue()));
+                }
+            }
+            if(!tmp.isEmpty())inEdges.put(v, tmp);
+        }
+        NDList inputs = batchifier.batchify(featureMap.values().toArray(new NDList[0]));
+        NDList[] messages = batchifier.unbatchify(MESSAGE(inputs, false));
+        int i = 0;
+        for (String key : featureMap.keySet()) {
+            featureMap.put(key, messages[i++]); // Put the updates to the same sourceVertex
+        }
+
+        for(Map.Entry<Vertex, List<String>> v: inEdges.entrySet()){
+            List<NDArray> inFeatures = v.getValue().stream().map(item->featureMap.get(item).get(0)).collect(Collectors.toList());
+            NDArray message = MeanAggregator.bulkReduce(inFeatures.toArray(new NDArray[0]));
+            new RemoteInvoke()
+                    .toElement(v.getKey().decodeFeatureId("agg"), ElementType.FEATURE)
+                    .where(MessageDirection.ITERATE)
+                    .method("reduce")
+                    .hasUpdate()
+                    .addDestination(v.getKey().masterPart())
+                    .withArgs(message, inFeatures.size())
+                    .buildAndRun(storage);
+        }
+
+    }
+
+    public void reInferenceSecondPartStart(){
+        Feature<HashSet<String>, HashSet<String>> pendingFeatures = getPendingVertices();
+        pendingFeatures.getValue().clear();
+        storage.updateFeature(pendingFeatures);
+
+        for(Vertex v: storage.getVertices()){
+            if(updateReady(v)){
+                forward(v);
+            }
+        }
+        if(isLastReplica()) RE_INFERRING = false;
     }
 
     @Override
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
         if(event instanceof ElementsSynced){
-            reduceAllEdges();
-            updateAllEdges();
-            REDUCE_EDGES.get(getPartId()).clear();
-            UPDATE_EDGES.get(getPartId()).clear();
+            if(RE_INFERRING){
+                reInferenceFirstPartStart();
+            }else{
+                reduceCollectedEdges();
+                updateCollectedEdges();
+            }
         }else if(event instanceof ActionTaken){
-            forwardAllVertices();
-            PENDING_VERTICES.get(getPartId()).clear();
+            if(RE_INFERRING){
+                reInferenceSecondPartStart();
+            }else{
+                forwardCollectedVertices();
+            }
         }
     }
 
+
+    // HELPER METHODS for doing the UPDATE and MESSAGE functions, interacting with the model server
 
 
     /**
@@ -272,7 +384,7 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      * @param training training enabled
      * @return Next layer feature
      */
-    public NDList update(NDList feature,boolean training) {
+    public NDList UPDATE(NDList feature, boolean training) {
         return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer, feature, training);
     }
 
@@ -283,7 +395,7 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      * @param training Should we construct the training graph
      * @return Message Tensor to be send to the aggregator
      */
-    public NDList message(NDList features, boolean training) {
+    public NDList MESSAGE(NDList features, boolean training) {
         return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer, features, training);
     }
 

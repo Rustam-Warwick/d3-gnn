@@ -138,7 +138,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             StreamOperatorFactory<GraphOp> operatorFactory,
             IterationID iterationID,
             short position,
-            short totalLayers) {
+            short totalLayers,
+            short iterationCount) {
         this.position = position;
         this.totalLayers = totalLayers;
         this.parameters = Objects.requireNonNull(parameters);
@@ -162,7 +163,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.waitingSyncs = new PriorityQueue<>(1000);
         this.WATERMARKS = new Tuple4<>(0, null, null, new Watermark(Long.MIN_VALUE));
         this.WATERMARK_STATUSES = new Tuple4<>(0, null, null, WatermarkStatus.ACTIVE);
-        this.ITERATION_COUNT = 2;
+        this.ITERATION_COUNT = iterationCount;
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters
                 .getOperatorEventDispatcher()
@@ -328,7 +329,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             // Broadcast ack of watermark to all other operators including itself
             WATERMARKS.f1 = WATERMARKS.f2;
             WATERMARKS.f2 = null;
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, ITERATION_COUNT,  null,null, MessageCommunication.BROADCAST) );
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, ITERATION_COUNT,  null,null, MessageCommunication.BROADCAST), WATERMARKS.f1.getTimestamp());
             if(ITERATION_COUNT == 0) processFeedback(record);
             else {
                 context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
@@ -344,7 +345,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             // Wait till everything is synced
             WATERMARK_STATUSES.f1 = WATERMARK_STATUSES.f2;
             WATERMARK_STATUSES.f2 = null;
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK_STATUS, ITERATION_COUNT, null));
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK_STATUS, ITERATION_COUNT, null), WATERMARKS.f3.getTimestamp());
             if(ITERATION_COUNT == 0) processFeedback(record);
             else{
                 context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
@@ -374,10 +375,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        setKeyContextElement(element);
         if (element.getValue().getOp() == Op.WATERMARK) {
             if (ITERATION_COUNT == 0 || ++WATERMARKS.f0 == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                 WATERMARKS.f0 = 0; // Number of acknowledges is zero again
-                if(WATERMARK_STATUSES.f3==WatermarkStatus.IDLE){
+                if(WATERMARK_STATUSES.f3 == WatermarkStatus.IDLE){
                     // Do not continue processing watermark if it is suddenly IDLE
                     System.out.println("This watermark should'nt has come");
                     if(WATERMARKS.f2 == null)WATERMARKS.f2 = WATERMARKS.f1;
@@ -403,6 +405,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if(ITERATION_COUNT == 0 || ++WATERMARK_STATUSES.f0 == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()){
                 WATERMARK_STATUSES.f0 = 0;
                 if(element.getValue().getPartId() > 0){
+                    processActualWatermarkStatus(WATERMARK_STATUSES.f1);
                     element.getValue().setPartId((short) (element.getValue().getPartId() - 1));
                     context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
                 }else{
@@ -415,7 +418,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             }
         }
         else {
-            setKeyContextElement(element);
             processElement(element);
         }
     }
@@ -433,7 +435,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             Thread.sleep(200);
         }
     }
-
 
 
 
@@ -477,6 +478,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 thisKeys.add(i);
             }
         }
+        if(thisKeys.isEmpty()) throw new IllegalStateException("Make sure Partitioner keys are large enough to fill physical partitioning");
         this.thisParts = thisKeys;
     }
 

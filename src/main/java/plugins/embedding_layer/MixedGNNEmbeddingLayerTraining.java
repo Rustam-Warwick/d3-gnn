@@ -99,7 +99,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
                 vertices.add(v);
             }
             NDList batchedInputs = batchifier.batchify(inputs.toArray(new NDList[0]));
-            NDList batchedPredictions = embeddingLayer.update(batchedInputs,true);
+            NDList batchedPredictions = embeddingLayer.UPDATE(batchedInputs,true);
             NDList batchedGradients = batchifier.batchify(gradients.toArray(new NDList[0]));
             JniUtils.backward((PtNDArray) batchedPredictions.get(0), (PtNDArray) batchedGradients.get(0), false, false);
 
@@ -183,7 +183,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
             // 1.2. Get all the messages for all in-vertices of the aggregators
             List<NDList> srcFeatures = srcVertices.stream().map(item->new NDList((NDArray) item.getFeature("feature").getValue())).collect(Collectors.toList());
             NDList batchedSrcFeatures = batchifier.batchify(srcFeatures.toArray(new NDList[0]));
-            NDList batchedSrcMessages = embeddingLayer.message(batchedSrcFeatures, true);
+            NDList batchedSrcMessages = embeddingLayer.MESSAGE(batchedSrcFeatures, true);
             NDList[] srcMessages = batchifier.unbatchify(batchedSrcMessages);
 
             for(int i=0; i< srcMessages.length; i++){
@@ -242,6 +242,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
                 storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             }
             embeddingLayer.modelServer.sync();
+            embeddingLayer.RE_INFERRING = true;
         }
 
     }

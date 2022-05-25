@@ -39,7 +39,5 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
      */
     public abstract NDArray grad(NDArray aggGradient, NDArray message);
 
-    public abstract boolean isReady(int modelVersion);
-
     public abstract void reset();
 }

@@ -20,6 +20,7 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.MixedGNNEmbeddingLayer;
 import plugins.embedding_layer.MixedGNNEmbeddingLayerTraining;
 import plugins.vertex_classification.VertexOutputLayer;
@@ -50,7 +51,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -71,7 +72,7 @@ public class Main {
 
         // GraphStream
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(
@@ -90,6 +91,7 @@ public class Main {
                         .withPlugin(new ParameterStore(models.get(2)))
                         .withPlugin(new VertexOutputLayer(models.get(2).getName()))
                         .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(new CrossEntropyLoss("loss", true))))
+//                        .withPlugin(new PrintVertexPlugin("193"))
                 )
         ));
 

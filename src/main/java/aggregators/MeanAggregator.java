@@ -83,13 +83,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public boolean isReady(int modelVersion) {
-        new Exception("No Use").printStackTrace();
-        return false;
-    }
-
-    @Override
     public void reset() {
-        value = new Tuple2<>(value.f0, 0);
+        value = new Tuple2<>(value.f0.zerosLike(), 0);
     }
 }

@@ -3,6 +3,7 @@ package operators;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.coordinators.events.StartTraining;
+import operators.coordinators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -52,7 +53,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
 
     public UdfHeadWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
-        super(parameters, operatorFactory, iterationID, position, totalLayers);
+        super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 0);
         this.ITERATION_COUNT = 0; // No watermark iteration at all needed for this operator
         this.bufferMailboxExecutor = parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
         try {
@@ -166,9 +167,15 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
     public void handleOperatorEvent(OperatorEvent evt) {
         if(evt instanceof StartTraining){
             try {
-                processWatermark(new Watermark(WATERMARKS.f3.getTimestamp() + 1)); // Add 1 to the timestamp and process that watermark so that everything is processed
                 processWatermarkStatus(WatermarkStatus.IDLE); // Mark the subsequent watermarks as idle
             } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        else if(evt instanceof StopTraining){
+            try{
+                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
+            }catch (Exception e){
                 e.printStackTrace();
             }
         }

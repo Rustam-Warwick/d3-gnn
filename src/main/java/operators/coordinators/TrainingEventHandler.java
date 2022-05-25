@@ -1,18 +1,19 @@
 package operators.coordinators;
 
-import operators.coordinators.events.ModelUpdated;
 import operators.coordinators.events.StartTraining;
+import operators.coordinators.events.StopTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;
+import java.lang.reflect.Array;
 import java.util.List;
 
 public class TrainingEventHandler implements WrapperOperatorEventHandler {
     private transient WrapperOperatorCoordinator mainCoordinator;
-    private int trainingMessageReceived;
-
+    private static int trainingMessagesReceived = 0 ; // Message received to start training
+    private static int modelUpdatedMessagesReceived = 0; // Message received to notify about model update. shared by all parallel handlers
     public TrainingEventHandler(){
-        trainingMessageReceived = 0;
+
     }
 
     @Override
@@ -40,24 +41,33 @@ public class TrainingEventHandler implements WrapperOperatorEventHandler {
         if(event instanceof StartTraining) {
             if (getCoordinator().position == getCoordinator().layers) {
                 // This is the last layer
-                trainingMessageReceived++;
-                if (trainingMessageReceived == getCoordinator().context.currentParallelism()) {
+                trainingMessagesReceived++;
+                if (trainingMessagesReceived == getCoordinator().context.currentParallelism()) {
                     SubtaskGateway[] layerZeroGateways = WrapperOperatorCoordinator.subtaskGateways.get((short) 0);
                     for (SubtaskGateway e : layerZeroGateways) {
-                        e.sendEvent(event); // Send start training event
+                        e.sendEvent(event); // Send start training event to the 0 operator
                     }
                 }
             }
         }
 
-        if(event instanceof ModelUpdated){
-            System.out.println("Model Updated");
+        if(event instanceof StopTraining){
+            int totalOperatorExceptZero = WrapperOperatorCoordinator.subtaskGateways.values().stream().map(Array::getLength).reduce(Integer::sum).get() - WrapperOperatorCoordinator.subtaskGateways.get((short) 0).length;
+            if(totalOperatorExceptZero == ++modelUpdatedMessagesReceived){
+                // Ready to retrain
+                SubtaskGateway[] layerZeroGateways = WrapperOperatorCoordinator.subtaskGateways.get((short) 0);
+                for (SubtaskGateway e : layerZeroGateways) {
+                    e.sendEvent(new StopTraining()); // Send start training event to the 0 operator
+                }
+                trainingMessagesReceived = 0;
+                modelUpdatedMessagesReceived = 0;
+            }
         }
     }
 
     @Override
     public List<Class<? extends OperatorEvent>> getEventClasses() {
-        return List.of(StartTraining.class, ModelUpdated.class);
+        return List.of(StartTraining.class, StopTraining.class);
     }
 
 

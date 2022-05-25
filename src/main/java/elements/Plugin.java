@@ -5,6 +5,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -159,6 +160,7 @@ public class Plugin extends ReplicableGraphElement {
                 }
                 seen[operatorIndex] = true;
             }
+
             this.master = thisReplicaKeys.remove(0);
             this.thisReplicaKeys = thisReplicaKeys;
             this.othersMasterParts = otherMasterKeys;
