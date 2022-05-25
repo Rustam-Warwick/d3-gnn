@@ -28,7 +28,7 @@ public class MyOutputReflectionContext extends OutputReflectionContext {
         }
     }
 
-    public int getNumChannels(Object output){
+    public int getNumChannels(Object output) {
         return ReflectionUtils.<Integer>getFieldValue(ReflectionUtils.<RecordWriter>getFieldValue(output, recordWriterField), recordWriterNumChannelsField);
     }
 

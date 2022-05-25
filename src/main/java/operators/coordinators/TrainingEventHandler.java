@@ -9,10 +9,11 @@ import java.lang.reflect.Array;
 import java.util.List;
 
 public class TrainingEventHandler implements WrapperOperatorEventHandler {
-    private transient WrapperOperatorCoordinator mainCoordinator;
-    private static int trainingMessagesReceived = 0 ; // Message received to start training
+    private static int trainingMessagesReceived = 0; // Message received to start training
     private static int modelUpdatedMessagesReceived = 0; // Message received to notify about model update. shared by all parallel handlers
-    public TrainingEventHandler(){
+    private transient WrapperOperatorCoordinator mainCoordinator;
+
+    public TrainingEventHandler() {
 
     }
 
@@ -38,7 +39,7 @@ public class TrainingEventHandler implements WrapperOperatorEventHandler {
 
     @Override
     public void handleEventFromOperator(int subtask, OperatorEvent event) throws Exception {
-        if(event instanceof StartTraining) {
+        if (event instanceof StartTraining) {
             if (getCoordinator().position == getCoordinator().layers) {
                 // This is the last layer
                 trainingMessagesReceived++;
@@ -51,9 +52,9 @@ public class TrainingEventHandler implements WrapperOperatorEventHandler {
             }
         }
 
-        if(event instanceof StopTraining){
+        if (event instanceof StopTraining) {
             int totalOperatorExceptZero = WrapperOperatorCoordinator.subtaskGateways.values().stream().map(Array::getLength).reduce(Integer::sum).get() - WrapperOperatorCoordinator.subtaskGateways.get((short) 0).length;
-            if(totalOperatorExceptZero == ++modelUpdatedMessagesReceived){
+            if (totalOperatorExceptZero == ++modelUpdatedMessagesReceived) {
                 // Ready to retrain
                 SubtaskGateway[] layerZeroGateways = WrapperOperatorCoordinator.subtaskGateways.get((short) 0);
                 for (SubtaskGateway e : layerZeroGateways) {

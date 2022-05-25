@@ -40,18 +40,22 @@ public class GraphOp {
         this.op = Op.COMMIT;
     }
 
-    public GraphOp(Op op, GraphElement element){
-        this(op, element,null);
+    public GraphOp(Op op, GraphElement element) {
+        this(op, element, null);
     }
+
     public GraphOp(Op op, GraphElement element, Long ts) {
         this(op, null, element, ts);
     }
-    public GraphOp(Op op, Short partId, GraphElement element){
+
+    public GraphOp(Op op, Short partId, GraphElement element) {
         this(op, partId, element, null);
     }
+
     public GraphOp(Op op, Short partId, GraphElement element, Long ts) {
         this(op, partId, element, ts, MessageCommunication.P2P);
     }
+
     public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
         this.op = op;
         this.partId = partId;
@@ -107,6 +111,7 @@ public class GraphOp {
     public void setOperatorEvent(OperatorEvent operatorEvent) {
         this.operatorEvent = operatorEvent;
     }
+
     public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }

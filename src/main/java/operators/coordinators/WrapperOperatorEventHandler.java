@@ -12,21 +12,24 @@ import java.util.concurrent.CompletableFuture;
  */
 public interface WrapperOperatorEventHandler extends OperatorCoordinator {
     WrapperOperatorCoordinator getCoordinator();
+
     void setCoordinator(WrapperOperatorCoordinator coordinator);
+
     List<Class<? extends OperatorEvent>> getEventClasses();
 
     @Override
-    default void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) throws Exception{
+    default void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) throws Exception {
 
-    };
-
-    @Override
-    default void notifyCheckpointComplete(long checkpointId){
-
-    };
+    }
 
     @Override
-    default void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData) throws Exception{
+    default void notifyCheckpointComplete(long checkpointId) {
 
-    };
+    }
+
+    @Override
+    default void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData) throws Exception {
+
+    }
+
 }

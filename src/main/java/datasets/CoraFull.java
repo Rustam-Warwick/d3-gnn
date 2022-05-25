@@ -40,20 +40,19 @@ public class CoraFull implements Dataset {
     @Override
     public KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter() {
 
-        return new KeyedProcessFunction<String, GraphOp, GraphOp>(){
+        return new KeyedProcessFunction<String, GraphOp, GraphOp>() {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            assert value.element.elementType() == ElementType.EDGE;
+                assert value.element.elementType() == ElementType.EDGE;
                 Edge e = (Edge) value.element;
                 if (e.src.getFeature("label") != null) {
                     Feature<?, ?> label = e.src.getFeature("label"); // Get label
                     e.src.features.removeIf(item -> "label".equals(item.getName()));
 
                     float p = ThreadLocalRandom.current().nextFloat();
-                    if(p < trainSplitProbability){
+                    if (p < trainSplitProbability) {
                         label.setId("trainLabel");
-                    }
-                    else{
+                    } else {
                         label.setId("testLabel");
                     }
 
@@ -65,10 +64,9 @@ public class CoraFull implements Dataset {
                     Feature<?, ?> label = e.dest.getFeature("label"); // Get label
                     e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
                     float p = ThreadLocalRandom.current().nextFloat();
-                    if(p < trainSplitProbability){
+                    if (p < trainSplitProbability) {
                         label.setId("trainLabel");
-                    }
-                    else{
+                    } else {
                         label.setId("testLabel");
                     }
                     GraphOp copyGraphOp = value.copy();
@@ -77,7 +75,7 @@ public class CoraFull implements Dataset {
                 }
                 GraphOp copy = value.copy();
                 copy.setElement(value.element.copy());
-                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT,copy);
+                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
                 out.collect(value);
             }
         };

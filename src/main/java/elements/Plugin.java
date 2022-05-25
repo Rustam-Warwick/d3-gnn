@@ -5,7 +5,6 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -58,8 +57,8 @@ public class Plugin extends ReplicableGraphElement {
         return othersMasterParts;
     }
 
-    public boolean isLastReplica(){
-        return replicaParts().isEmpty() || getPartId()==replicaParts().get(replicaParts().size() - 1);
+    public boolean isLastReplica() {
+        return replicaParts().isEmpty() || getPartId() == replicaParts().get(replicaParts().size() - 1);
     }
 
     /**
@@ -140,6 +139,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     // HELPER METHOD
+
     /**
      * Populates the replicaParts, Master parts and thisReplicaParts for Plugins
      */

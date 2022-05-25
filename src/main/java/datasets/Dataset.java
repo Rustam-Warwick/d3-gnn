@@ -20,6 +20,7 @@ public interface Dataset extends Serializable {
 
     /**
      * Split the label into testLabel and trainLabel
+     *
      * @return normal stream, but the label stream should be splitted into {@link{Dataset.TRAIN_TEST_DATA_OUTPUT}
      */
     KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter();

@@ -82,9 +82,10 @@ public interface GNNLayerFunction extends RichFunction {
 
     /**
      * Send some event to the operator coordinator
+     *
      * @param operatorEvent OperatorEvent
      */
-    default void operatorEventMessage(OperatorEvent operatorEvent){
+    default void operatorEventMessage(OperatorEvent operatorEvent) {
         getWrapperContext().sendOperatorEvent(operatorEvent);
     }
 
@@ -93,7 +94,7 @@ public interface GNNLayerFunction extends RichFunction {
     /**
      * Get the current part of this operator
      */
-    default Short getCurrentPart(){
+    default Short getCurrentPart() {
         return getWrapperContext().currentPart();
     }
 
@@ -119,7 +120,9 @@ public interface GNNLayerFunction extends RichFunction {
         return getWrapperContext().getNumLayers();
     }
 
-    default int getNumberOfOutChannels(@Nullable OutputTag<?> tag){return getWrapperContext().getNumberOfOutChannels(tag);}
+    default int getNumberOfOutChannels(@Nullable OutputTag<?> tag) {
+        return getWrapperContext().getNumberOfOutChannels(tag);
+    }
 
     /**
      * @param value Process The Incoming Value
@@ -161,7 +164,7 @@ public interface GNNLayerFunction extends RichFunction {
             System.out.println(value);
             e.printStackTrace();
         } finally {
-            getStorage().getPlugins().forEach(item->item.features.clear()); // Clear the features since it may come later
+            getStorage().getPlugins().forEach(item -> item.features.clear()); // Clear the features since it may come later
         }
     }
 

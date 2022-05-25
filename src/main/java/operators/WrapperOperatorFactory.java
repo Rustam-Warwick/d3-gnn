@@ -30,7 +30,8 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            if(position == 0 ) return (T) new UdfHeadWrapperOperator(parameters,factory,iterationId,position,totalLayers);
+            if (position == 0)
+                return (T) new UdfHeadWrapperOperator(parameters, factory, iterationId, position, totalLayers);
             else return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
         }
 
@@ -39,7 +40,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
 
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
-       return BaseWrapperOperator.class;
+        return BaseWrapperOperator.class;
     }
 
     @Override

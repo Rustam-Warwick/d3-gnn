@@ -34,14 +34,14 @@ import java.util.List;
 
 public class GraphStream {
     public final short parallelism; // Default parallelism
+    public final double lambda; // GNN operator explosion coefficient. 1 means no explosion
+    public final StreamExecutionEnvironment env; // Stream environment
     public short layers;// Number of GNN Layers in the pipeline
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
     public IterationID fullLoopIterationId; // Iteration Id of 0 layer
     public short position_index; // Counter of the Current GNN layer being
-    public final double lambda; // GNN operator explosion coefficient. 1 means no explosion
-    public final StreamExecutionEnvironment env; // Stream environment
 
-    public GraphStream(StreamExecutionEnvironment env, double explosionFactor){
+    public GraphStream(StreamExecutionEnvironment env, double explosionFactor) {
         this.env = env;
         this.parallelism = (short) this.env.getParallelism();
         this.lambda = explosionFactor;
@@ -49,7 +49,7 @@ public class GraphStream {
     }
 
     public GraphStream(StreamExecutionEnvironment env) {
-        this(env, 1.5);
+        this(env, 1);
     }
 
     private static void configureSerializers(StreamExecutionEnvironment env) {
@@ -103,7 +103,7 @@ public class GraphStream {
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
      *
-     * @param inputData non-keyed input graphop to this layer, can be a union of several streams as well
+     * @param inputData       non-keyed input graphop to this layer, can be a union of several streams as well
      * @param processFunction ProcessFunction for this operator at this layer
      * @return output stream dependent on the plugin
      */
@@ -113,17 +113,17 @@ public class GraphStream {
 
         KeyedStream<GraphOp, String> keyedLast = inputData
                 .keyBy(new PartKeySelector());
-        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform(String.format("GNN Operator - %s",position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism);
 
         forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
 
-        if(position_index == 0){
+        if (position_index == 0) {
             fullLoopIterationId = localIterationId;
         }
 
-        if(position_index > 0){
+        if (position_index > 0) {
             // Add iteration
-            SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()).transform(String.format("IterationTail - %s",position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism);
+            SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()).transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism);
             iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         }
 
@@ -135,7 +135,7 @@ public class GraphStream {
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
         }
-        if(position_index == layers){
+        if (position_index == layers) {
             // This is the last one
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(parallelism);
@@ -150,8 +150,8 @@ public class GraphStream {
     /**
      * Start of the GNN Chain
      *
-     * @param allUpdates External System updates
-     * @param processFunctions   List of Storages with corresponding plugins
+     * @param allUpdates       External System updates
+     * @param processFunctions List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
     public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<KeyedProcessFunction<String, GraphOp, GraphOp>> processFunctions) {
@@ -163,20 +163,17 @@ public class GraphStream {
         DataStream<GraphOp> trainTestSplit = null;
         DataStream<GraphOp> previousLayerUpdates = null;
         for (KeyedProcessFunction processFn : processFunctions) {
-            if(position_index == 0){
+            if (position_index == 0) {
                 SingleOutputStreamOperator<GraphOp> tmp = streamingGNNLayer(allUpdates, processFn);
                 topologyUpdates = tmp.getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
                 trainTestSplit = tmp.getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);
                 normalUpdates = tmp;
-            }
-            else if(position_index == 1){
+            } else if (position_index == 1) {
                 previousLayerUpdates = streamingGNNLayer(normalUpdates, processFn);
-            }
-            else if(position_index < layers){
+            } else if (position_index < layers) {
                 // Still mid layer
                 previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(topologyUpdates), processFn);
-            }
-            else{
+            } else {
                 previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit), processFn);
             }
 

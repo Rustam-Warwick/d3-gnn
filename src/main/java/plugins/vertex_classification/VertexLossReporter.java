@@ -2,7 +2,6 @@ package plugins.vertex_classification;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.SerializableLoss;
 import elements.*;
 import org.apache.flink.metrics.Gauge;
 
@@ -22,19 +21,24 @@ import java.util.Objects;
  * testLabel -> Label to test by
  */
 public class VertexLossReporter extends Plugin {
-    public transient VertexOutputLayer inference;
+    protected final String modelName;
+    public transient VertexOutputLayer output;
     public int totalCorrect = 0;
     public int totalTested = 0;
-    public SerializableLoss lossFunction;
 
-    public VertexLossReporter(SerializableLoss lossFunction) {
-        super("tester");
-        this.lossFunction = lossFunction;
+    public VertexLossReporter(String modelName) {
+        super(String.format("%s-loss", modelName));
+        this.modelName = modelName;
     }
 
-    public NDArray calculateLoss(NDArray prediction, NDArray label) {
-        NDArray loss = lossFunction.evaluate(new NDList(label.expandDims(0)), new NDList(prediction.expandDims(0)));
-        return loss;
+    @Override
+    public void open() {
+        super.open();
+        output = (VertexOutputLayer) storage.getPlugin(String.format("%s-inferencer", modelName));
+        storage.layerFunction
+                .getRuntimeContext()
+                .getMetricGroup()
+                .gauge("loss", new MyGauge());
     }
 
     @Override
@@ -45,7 +49,7 @@ public class VertexLossReporter extends Plugin {
             if (("testLabel".equals(feature.getName()) || "feature".equals(feature.getName())) && feature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) feature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray maxArg = inference.output(new NDList((NDArray) parent.getFeature("feature").getValue()), false).get(0).argMax();
+                    NDArray maxArg = output.output(new NDList((NDArray) parent.getFeature("feature").getValue()), false).get(0).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
                     if (maxArg.eq(label).getBoolean()) {
                         totalCorrect++;
@@ -65,8 +69,8 @@ public class VertexLossReporter extends Plugin {
             if ("feature".equals(newFeature.getName()) && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex parent = (Vertex) newFeature.getElement();
                 if (trainLossReady(parent)) {
-                    NDArray maxArgNew = inference.output(new NDList((NDArray) newFeature.getValue()), false).get(0).argMax();
-                    NDArray maxArgOld = inference.output(new NDList((NDArray) oldFeature.getValue()), false).get(0).argMax();
+                    NDArray maxArgNew = output.output(new NDList((NDArray) newFeature.getValue()), false).get(0).argMax();
+                    NDArray maxArgOld = output.output(new NDList((NDArray) oldFeature.getValue()), false).get(0).argMax();
                     NDArray label = (NDArray) parent.getFeature("testLabel").getValue();
                     if (maxArgOld.eq(label).getBoolean() && !maxArgNew.eq(label).getBoolean()) {
                         // Old was correct now it is not correct
@@ -85,15 +89,6 @@ public class VertexLossReporter extends Plugin {
         return Objects.nonNull(v) && Objects.nonNull(v.getFeature("feature")) && Objects.nonNull(v.getFeature("testLabel"));
     }
 
-    @Override
-    public void open() {
-        super.open();
-        inference = (VertexOutputLayer) storage.getPlugin("inferencer");
-        storage.layerFunction
-                .getRuntimeContext()
-                .getMetricGroup()
-                .gauge("loss", new MyGauge());
-    }
 
     class MyGauge implements Gauge<Integer> {
         private final transient File outputFile;

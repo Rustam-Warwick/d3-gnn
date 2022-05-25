@@ -26,30 +26,24 @@ import java.util.List;
  */
 public class VertexTrainingLayer extends Plugin {
 
-    public transient VertexOutputLayer outputLayer;
-
     public final String modelName;
-
-    public transient StackBatchifier batchifier;
-
-    public int BATCH_COUNT = 0;
-
     public final int MAX_BATCH_COUNT;
-
-    public int ACTUAL_BATCH_COUNT;
-
     public final SerializableLoss loss;
+    public transient VertexOutputLayer outputLayer;
+    public transient StackBatchifier batchifier;
+    public int BATCH_COUNT = 0;
+    public int ACTUAL_BATCH_COUNT;
 
 
     public VertexTrainingLayer(String modelName, SerializableLoss loss, int MAX_BATCH_COUNT) {
-        super(String.format("%s-trainer",modelName));
+        super(String.format("%s-trainer", modelName));
         this.MAX_BATCH_COUNT = MAX_BATCH_COUNT;
         this.loss = loss;
         this.modelName = modelName;
     }
 
     public VertexTrainingLayer(String modelName, SerializableLoss loss) {
-       this(modelName, loss,500);
+        this(modelName, loss, 500);
     }
 
     @Override
@@ -64,28 +58,28 @@ public class VertexTrainingLayer extends Plugin {
     /**
      * Add value to the batch. If filled send event to the coordinator
      */
-    public void incrementBatchCount(){
+    public void incrementBatchCount() {
         BATCH_COUNT++;
-        if(BATCH_COUNT % ACTUAL_BATCH_COUNT == 0){
+        if (BATCH_COUNT % ACTUAL_BATCH_COUNT == 0) {
             storage.layerFunction.operatorEventMessage(new StartTraining());
+            BATCH_COUNT = 0;
         }
     }
 
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if(element.elementType() == ElementType.FEATURE){
-            Feature<?,?> feature = (Feature<?, ?>) element;
-            if(feature.attachedTo.f0==ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null){
-                if(isTrainReady((Vertex) feature.getElement())){
+        if (element.elementType() == ElementType.FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) element;
+            if (feature.attachedTo.f0 == ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null) {
+                if (isTrainReady((Vertex) feature.getElement())) {
                     incrementBatchCount();
                     Feature<List<String>, List<String>> trainVertices = (Feature<List<String>, List<String>>) getFeature("trainVertices");
-                    if(trainVertices == null){
+                    if (trainVertices == null) {
                         List<String> tmp = new ArrayList<>();
                         tmp.add(feature.getElement().getId());
                         setFeature("trainVertices", new Feature<>(tmp, true, getPartId()));
-                    }
-                    else{
+                    } else {
                         trainVertices.getValue().add(feature.getElement().getId());
                         storage.updateFeature(trainVertices);
                     }
@@ -96,23 +90,24 @@ public class VertexTrainingLayer extends Plugin {
 
     /**
      * Both feature and label are here
+     *
      * @param v Vertex to check for
      */
-    public boolean isTrainReady(Vertex v){
-        return v.getFeature("trainLabel") != null && v.getFeature("feature")!=null;
+    public boolean isTrainReady(Vertex v) {
+        return v.getFeature("trainLabel") != null && v.getFeature("feature") != null;
     }
 
     /**
      * For all the trainVertices compute the backward pass and send it to the previous layer
      * After sending it, send an acknowledgement to all of the previous operators tob= notify the continuation
      */
-    public void startTraining(){
+    public void startTraining() {
         Feature<List<String>, List<String>> trainVertices = (Feature<List<String>, List<String>>) getFeature("trainVertices");
-        if(trainVertices != null && !trainVertices.getValue().isEmpty()){
+        if (trainVertices != null && !trainVertices.getValue().isEmpty()) {
             // 1. Compute the gradients per each vertex output feature
             List<NDList> inputs = new ArrayList<>();
             List<NDList> labels = new ArrayList<>();
-            for(String vId: trainVertices.getValue()){
+            for (String vId : trainVertices.getValue()) {
                 Vertex v = storage.getVertex(vId);
                 ((NDArray) v.getFeature("feature").getValue()).setRequiresGradient(true);
                 inputs.add(new NDList((NDArray) v.getFeature("feature").getValue()));
@@ -123,11 +118,11 @@ public class VertexTrainingLayer extends Plugin {
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
             NDList predictions = outputLayer.output(batchedInputs, true);
             NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-            JniUtils.backward((PtNDArray) meanLoss, (PtNDArray)BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
+            JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
 
             // 2. Prepare the HashMap for Each Vertex and send to previous layer
             HashMap<String, NDArray> backwardGrads = new HashMap<>();
-            for(int i=0; i < trainVertices.getValue().size(); i++){
+            for (int i = 0; i < trainVertices.getValue().size(); i++) {
                 backwardGrads.put(trainVertices.getValue().get(i), inputs.get(i).get(0).getGradient());
             }
             new RemoteInvoke()
@@ -140,13 +135,13 @@ public class VertexTrainingLayer extends Plugin {
                     .buildAndRun(storage);
 
             //3. Clean the trainVertices data and clean the inputs
-            inputs.forEach(item->item.get(0).setRequiresGradient(false));
+            inputs.forEach(item -> item.get(0).setRequiresGradient(false));
             trainVertices.getValue().clear();
             storage.updateFeature(trainVertices);
         }
-        if(isLastReplica()){
+        if (isLastReplica()) {
             // This is the last call of plugin from this operator so send ack message to previous operator
-            Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{},elementType(), false, null);
+            Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
             storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             outputLayer.modelServer.sync();
 
@@ -156,10 +151,7 @@ public class VertexTrainingLayer extends Plugin {
     @Override
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
-        if(event instanceof StartTraining){
-            if(isLastReplica()){
-                System.out.format("Start training index %s\n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask());
-            }
+        if (event instanceof StartTraining) {
             startTraining();
         }
     }

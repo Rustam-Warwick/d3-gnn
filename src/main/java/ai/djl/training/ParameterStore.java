@@ -38,25 +38,24 @@ import java.util.Objects;
  * If you want to have multiple Model in the same operator you need to define several ParameterStores for each of them
  */
 public class ParameterStore extends Plugin {
+    public boolean IS_DIRTY = false;
     protected Model model;
-
     protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected
-
     protected HashMap<String, NDArray> collectedGradients; // HashMap of the collected gradients so far
 
     protected Optimizer optimizer; // Optimizer
 
     private transient PairList<String, Shape> inputShape; // Input Shape of the model
 
-    public ParameterStore(Model m){
-        super(String.format("%s-server",m.getName()));
+    public ParameterStore(Model m) {
+        super(String.format("%s-server", m.getName()));
         this.model = m;
     }
 
     public void open() {
         super.open();
         inputShape = model.describeInput();
-        optimizer =  Adam.builder().build();
+        optimizer = Adam.builder().build();
     }
 
     // INITIALIZATION DONE!!!
@@ -65,9 +64,10 @@ public class ParameterStore extends Plugin {
         return model;
     }
 
-    public PairList<String, Shape> getInputShape(){
+    public PairList<String, Shape> getInputShape() {
         return inputShape;
-    };
+    }
+
 
     public void setParameterServer(ParameterServer parameterServer, Device[] devices) {
         // NONE. Just need to have this because DJL might need it at some point
@@ -75,7 +75,7 @@ public class ParameterStore extends Plugin {
 
     public void updateAllParameters() {
         HashMap<String, NDArray> parameters = new HashMap<>();
-        model.getBlock().getParameters().forEach(parameter->{
+        model.getBlock().getParameters().forEach(parameter -> {
             optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
             parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
         });
@@ -88,24 +88,26 @@ public class ParameterStore extends Plugin {
                 .withArgs(parameters)
                 .addDestinations(othersMasterParts())
                 .buildAndRun(storage);
+        IS_DIRTY = true;
         storage.layerFunction.operatorEventMessage(new StopTraining());
     }
 
     @RemoteFunction
-    public void updateReplicaParameters(HashMap<String, NDArray> masterParameters){
-        model.getBlock().getParameters().forEach(parameter->{
+    public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
+        model.getBlock().getParameters().forEach(parameter -> {
             parameter.getValue().close();
             parameter.getValue().setShape(null);
             parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
         });
+        IS_DIRTY = true;
         storage.layerFunction.operatorEventMessage(new StopTraining());
     }
 
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        if(Objects.nonNull(parameter)){
+        if (Objects.nonNull(parameter)) {
             parameter.getArray().setRequiresGradient(training);
             return parameter.getArray();
-        }else{
+        } else {
             return null;
         }
     }
@@ -116,19 +118,20 @@ public class ParameterStore extends Plugin {
 
     /**
      * Collect the partial Gradients from replicas,
-     * @implNote Note that this is only called in the master(0 part) of this operator
+     *
      * @param gradients Partial Gradients from various operators
+     * @implNote Note that this is only called in the master(0 part) of this operator
      */
     @RemoteFunction
-    public void collect(HashMap<String, NDArray> gradients){
-        if(Objects.isNull(collectedGradients)){
+    public void collect(HashMap<String, NDArray> gradients) {
+        if (Objects.isNull(collectedGradients)) {
             collectedGradients = gradients;
-        }else{
-            gradients.forEach((key, gradient)->{
-                collectedGradients.compute(key,(a, value)->value.addi(gradient));
+        } else {
+            gradients.forEach((key, gradient) -> {
+                collectedGradients.compute(key, (a, value) -> value.addi(gradient));
             });
         }
-        if(++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()){
+        if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
             collectedGradients = null;
@@ -137,14 +140,15 @@ public class ParameterStore extends Plugin {
 
     /**
      * Sync gradients from all the parallel operators.
+     *
      * @implNote Calling Sync for all of the parallel subtasks will result in training and syncing of the underlying model
      */
     public void sync() {
         HashMap<String, NDArray> thisGradients = new HashMap<>();
-        model.getBlock().getParameters().forEach((parameter)->{
-            if(parameter.getValue().getArray().hasGradient()){
+        model.getBlock().getParameters().forEach((parameter) -> {
+            if (parameter.getValue().getArray().hasGradient()) {
                 thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
-            }else{
+            } else {
                 thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().zerosLike());
             }
         });

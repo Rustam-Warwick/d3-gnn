@@ -9,10 +9,11 @@ import elements.Plugin;
  */
 public class VertexOutputLayer extends Plugin {
 
-    public transient ParameterStore modelServer;
     public final String modelName;
+    public transient ParameterStore modelServer;
+
     public VertexOutputLayer(String modelName) {
-        super(String.format("%s-inferencer",modelName));
+        super(String.format("%s-inferencer", modelName));
         this.modelName = modelName;
     }
 

@@ -32,9 +32,8 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public abstract void replace(NDArray newElement, NDArray oldElement);
 
     /**
-     *
      * @param aggGradient dLoss/dAgg
-     * @param message Edge message to this aggregator. (Batch_size, message_size)
+     * @param message     Edge message to this aggregator. (Batch_size, message_size)
      * @return dLoss/dmessages
      */
     public abstract NDArray grad(NDArray aggGradient, NDArray message);
