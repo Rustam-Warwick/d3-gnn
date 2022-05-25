@@ -101,13 +101,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     /**
-     * Watermark callback
-     */
-    public void onWatermark(long timestamp) {
-        plugins.values().forEach(plugin -> plugin.onWatermark(timestamp));
-    }
-
-    /**
      * On OperatorEvent
      */
     public void onOperatorEvent(OperatorEvent event) {

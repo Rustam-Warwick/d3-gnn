@@ -121,12 +121,6 @@ public interface GNNLayerFunction extends RichFunction {
 
     default int getNumberOfOutChannels(@Nullable OutputTag<?> tag){return getWrapperContext().getNumberOfOutChannels(tag);}
 
-    default void onOperatorEvent(OperatorEvent event) {
-        getStorage().onOperatorEvent(event);
-    }
-
-    default void onWatermark(long mark){getStorage().onWatermark(mark);}
-
     /**
      * @param value Process The Incoming Value
      */
@@ -160,15 +154,14 @@ public interface GNNLayerFunction extends RichFunction {
                     GraphElement rpcElement = this.getStorage().getElement(value.element.getId(), value.element.elementType());
                     Rmi.execute(rpcElement, (Rmi) value.element);
                     break;
-                case WATERMARK:
-                    getStorage().onWatermark(value.getTimestamp());
                 case OPERATOR_EVENT:
                     getStorage().onOperatorEvent(value.getOperatorEvent());
             }
         } catch (Exception | Error e) {
+            System.out.println(value);
             e.printStackTrace();
         } finally {
-            getStorage().getPlugins().forEach(item->item.features.clear()); // Clear the features
+            getStorage().getPlugins().forEach(item->item.features.clear()); // Clear the features since it may come later
         }
     }
 

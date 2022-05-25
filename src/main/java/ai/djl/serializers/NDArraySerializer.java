@@ -23,7 +23,7 @@ public class NDArraySerializer extends Serializer<NDArray> {
     public NDArray read(Kryo kryo, Input input, Class aClass) {
         try {
             if (!BaseNDManager.threadNDManager.get().isOpen()) {
-                System.out.println();
+                throw new RuntimeException("NDManager error ");
             }
             NDArray array = BaseNDManager.threadNDManager.get().decode(input);
             return array;

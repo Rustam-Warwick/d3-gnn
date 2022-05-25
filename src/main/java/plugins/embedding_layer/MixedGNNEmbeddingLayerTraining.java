@@ -30,15 +30,26 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
 
     public int iterationSyncMessages; // #Messages sent from this layer for synchronization
 
-    public MixedGNNEmbeddingLayerTraining() {
-        super("trainer");
+    public final String modelName;
+
+    public MixedGNNEmbeddingLayerTraining(String modelName) {
+        super(String.format("%s-trainer", modelName));
+        this.modelName = modelName;
     }
 
+    @Override
+    public void open() {
+        super.open();
+        embeddingLayer = (MixedGNNEmbeddingLayer) this.storage.getPlugin(String.format("%s-inferencer", modelName));
+        numOutputChannels = storage.layerFunction.getNumberOfOutChannels(null); // Number of expect sync messages from the next layer operator
+        batchifier = new StackBatchifier();
+    }
+    // INITIALIZATION DONE
 
     /**
-     * Collect vertex -> dLoss/doutput, where vertices are masters in this part
-     * @param gradients Gradients for VJP backward iteration
-     */
+         * Collect vertex -> dLoss/doutput, where vertices are masters in this part
+         * @param gradients Gradients for VJP backward iteration
+         */
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients){
         Feature<?,?> feature = getFeature("collectedGradients");
@@ -225,12 +236,12 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
             collectedAggregators.getValue().clear();
             storage.updateFeature(collectedAggregators);
         }
-
-        if(isLastReplica() && !storage.layerFunction.isFirst()){
-            Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{},elementType(), false, null);
-            storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
-        }else if(isLastReplica() && storage.layerFunction.isFirst()){
-            System.out.println("FIRST LAYER TRAINING FINISHED");
+        if(isLastReplica()){
+            if(!storage.layerFunction.isFirst()) {
+                Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
+                storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            }
+            embeddingLayer.modelServer.sync();
         }
 
     }
@@ -257,11 +268,5 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
         }
     }
 
-    @Override
-    public void open() {
-        super.open();
-        embeddingLayer = (MixedGNNEmbeddingLayer) this.storage.getPlugin("inferencer");
-        numOutputChannels = storage.layerFunction.getNumberOfOutChannels(null); // Number of expect sync messages from the next layer operator
-        batchifier = new StackBatchifier();
-    }
+
 }

@@ -4,10 +4,8 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
@@ -111,22 +109,9 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     /**
-     * Callback when the system receives a proper watermark. Aligned with all the replica events
-     * Will be called one-by-one for each part that is in this operator
-     * Order will be exactly as [masterPart(), ...replicaParts()]
-     * Watermarks are encoded as such:
-     * (wt % 4) is the watermark iteration number. Only iteration 3 watermarks are actually committed and pushed to the next layer
-     *
-     * @param timestamp timestamp of the watermark
-     */
-    public void onWatermark(long timestamp) {
-        // pass
-    }
-
-    /**
      * Callback when OperatorSends event to this plugin
      */
-    public void onOperatorEvent(OperatorEvent evnt) {
+    public void onOperatorEvent(OperatorEvent event) {
 
     }
 
@@ -152,8 +137,8 @@ public class Plugin extends ReplicableGraphElement {
     public void add() {
         // pass
     }
-    // HELPER METHOD
 
+    // HELPER METHOD
     /**
      * Populates the replicaParts, Master parts and thisReplicaParts for Plugins
      */

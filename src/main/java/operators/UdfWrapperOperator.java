@@ -4,6 +4,8 @@ import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
 import functions.gnn_layers.GNNLayerFunction;
+import operators.coordinators.events.ActionTaken;
+import operators.coordinators.events.ElementsSynced;
 import operators.coordinators.events.StartTraining;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -42,11 +44,12 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
 
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
-        if(WATERMARKS.f1.getTimestamp() - mark.getTimestamp() <= 1){
-            // SYNC is complete so send watermark messages
-            getWrappedOperator().processWatermark(mark);
-            StreamRecord<GraphOp> tmp = new StreamRecord<>(new GraphOp(Op.WATERMARK,null,null, mark.getTimestamp(), MessageCommunication.BROADCAST), mark.getTimestamp());
-            processActualElement(tmp);
+        getWrappedOperator().processWatermark(mark);
+        long difference = WATERMARKS.f1.getTimestamp() - mark.getTimestamp();
+        if(difference == 1){
+            handleOperatorEvent(new ElementsSynced());
+        }else if(difference==0){
+            handleOperatorEvent(new ActionTaken());
         }
     }
 

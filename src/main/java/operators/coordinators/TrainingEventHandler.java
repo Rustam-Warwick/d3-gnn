@@ -1,16 +1,17 @@
 package operators.coordinators;
 
+import operators.coordinators.events.ModelUpdated;
 import operators.coordinators.events.StartTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;
 import java.util.List;
 
-public class StartTrainingEventHandler implements WrapperOperatorEventHandler {
+public class TrainingEventHandler implements WrapperOperatorEventHandler {
     private transient WrapperOperatorCoordinator mainCoordinator;
     private int trainingMessageReceived;
 
-    public StartTrainingEventHandler(){
+    public TrainingEventHandler(){
         trainingMessageReceived = 0;
     }
 
@@ -36,21 +37,27 @@ public class StartTrainingEventHandler implements WrapperOperatorEventHandler {
 
     @Override
     public void handleEventFromOperator(int subtask, OperatorEvent event) throws Exception {
-        if(getCoordinator().position == getCoordinator().layers){
-            // This is the last layer
-            trainingMessageReceived++;
-            if(trainingMessageReceived == getCoordinator().context.currentParallelism()){
-                SubtaskGateway[] layerZeroGateways = WrapperOperatorCoordinator.subtaskGateways.get((short) 0);
-                for(SubtaskGateway e: layerZeroGateways){
-                    e.sendEvent(event); // Send start training event
+        if(event instanceof StartTraining) {
+            if (getCoordinator().position == getCoordinator().layers) {
+                // This is the last layer
+                trainingMessageReceived++;
+                if (trainingMessageReceived == getCoordinator().context.currentParallelism()) {
+                    SubtaskGateway[] layerZeroGateways = WrapperOperatorCoordinator.subtaskGateways.get((short) 0);
+                    for (SubtaskGateway e : layerZeroGateways) {
+                        e.sendEvent(event); // Send start training event
+                    }
                 }
             }
+        }
+
+        if(event instanceof ModelUpdated){
+            System.out.println("Model Updated");
         }
     }
 
     @Override
     public List<Class<? extends OperatorEvent>> getEventClasses() {
-        return List.of(StartTraining.class);
+        return List.of(StartTraining.class, ModelUpdated.class);
     }
 
 

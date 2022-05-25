@@ -25,7 +25,10 @@ import java.util.List;
  * Simply stores and initializes the model, does not do any continuous inference
  */
 public class VertexTrainingLayer extends Plugin {
+
     public transient VertexOutputLayer outputLayer;
+
+    public final String modelName;
 
     public transient StackBatchifier batchifier;
 
@@ -37,17 +40,27 @@ public class VertexTrainingLayer extends Plugin {
 
     public final SerializableLoss loss;
 
-    public VertexTrainingLayer(SerializableLoss loss, int MAX_BATCH_COUNT) {
-        super("trainer");
+
+    public VertexTrainingLayer(String modelName, SerializableLoss loss, int MAX_BATCH_COUNT) {
+        super(String.format("%s-trainer",modelName));
         this.MAX_BATCH_COUNT = MAX_BATCH_COUNT;
         this.loss = loss;
+        this.modelName = modelName;
     }
 
-    public VertexTrainingLayer(SerializableLoss loss) {
-       this(loss,200);
+    public VertexTrainingLayer(String modelName, SerializableLoss loss) {
+       this(modelName, loss,200);
     }
 
-    // Main Logic
+    @Override
+    public void open() {
+        super.open();
+        outputLayer = (VertexOutputLayer) storage.getPlugin(String.format("%s-inferencer", modelName));
+        ACTUAL_BATCH_COUNT = MAX_BATCH_COUNT / storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
+        batchifier = new StackBatchifier();
+    }
+    // INITIALIZATION DONE!!!
+
 
     /**
      * Add value to the batch. If filled send event to the coordinator
@@ -135,8 +148,8 @@ public class VertexTrainingLayer extends Plugin {
             // This is the last call of plugin from this operator so send ack message to previous operator
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{},elementType(), false, null);
             storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            outputLayer.modelServer.sync();
         }
-
     }
 
     @Override
@@ -146,19 +159,5 @@ public class VertexTrainingLayer extends Plugin {
             startTraining();
         }
     }
-
-    @Override
-    public void open() {
-        super.open();
-        outputLayer = (VertexOutputLayer) storage.getPlugin("inferencer");
-        ACTUAL_BATCH_COUNT = MAX_BATCH_COUNT / storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
-        batchifier = new StackBatchifier();
-    }
-
-    @Override
-    public void close() {
-        super.close();
-    }
-
 
 }

@@ -1,37 +1,29 @@
 package plugins.vertex_classification;
 
-import ai.djl.Model;
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
+import ai.djl.training.ParameterStore;
 import elements.Plugin;
-import functions.nn.MyParameterStore;
 
 /**
  * Simply stores and initializes the model, does not do any continuous inference
  */
 public class VertexOutputLayer extends Plugin {
-    public Model model;
-    public transient MyParameterStore parameterStore;
 
-    public VertexOutputLayer(Model model) {
-        super("inferencer");
-        this.model = model;
+    public transient ParameterStore modelServer;
+    public final String modelName;
+    public VertexOutputLayer(String modelName) {
+        super(String.format("%s-inferencer",modelName));
+        this.modelName = modelName;
     }
 
     @Override
     public void open() {
         super.add();
-        parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
-        parameterStore.loadModel(this.model);
+        this.modelServer = (ParameterStore) storage.getPlugin(String.format("%s-server", modelName));
     }
 
-    @Override
-    public void close() {
-        super.close();
-        model.close();
-    }
     public NDList output(NDList feature, boolean training) {
-        return model.getBlock().forward(this.parameterStore, new NDList(feature), training);
+        return modelServer.getModel().getBlock().forward(modelServer, new NDList(feature), training);
     }
 
 }

@@ -11,6 +11,7 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.training.ParameterStore;
 import ai.djl.training.loss.CrossEntropyLoss;
 import datasets.CoraFull;
 import datasets.Dataset;
@@ -49,11 +50,11 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
-            PtModel tmp = (PtModel) Model.newInstance("GNN");
+            PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
             tmp.setBlock(item.getValue());
             models.add(tmp);
         });
@@ -70,28 +71,26 @@ public class Main {
 
         // GraphStream
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(0), true))
-                        .withPlugin(new MixedGNNEmbeddingLayerTraining())
-                )
-                ,
-                new StreamingGNNLayerFunction(new TupleStorage()
-                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1), true))
-                        .withPlugin(new MixedGNNEmbeddingLayerTraining())
-
+                        .withPlugin(new ParameterStore(models.get(0)))
+                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(0).getName(), true))
+                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
                 ),
-
-                new StreamingGNNLayerFunction(
-                        new TupleStorage()
-                                .withPlugin(new VertexOutputLayer(models.get(2)))
-                                .withPlugin(new VertexTrainingLayer(new SerializableLoss(new CrossEntropyLoss("loss", true))))
+                new StreamingGNNLayerFunction(new TupleStorage()
+                        .withPlugin(new ParameterStore(models.get(1)))
+                        .withPlugin(new MixedGNNEmbeddingLayer(models.get(1).getName(), true))
+                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
+                ),
+                new StreamingGNNLayerFunction(new TupleStorage()
+                        .withPlugin(new ParameterStore(models.get(2)))
+                        .withPlugin(new VertexOutputLayer(models.get(2).getName()))
+                        .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(new CrossEntropyLoss("loss", true))))
                 )
-
         ));
 
         env.execute();

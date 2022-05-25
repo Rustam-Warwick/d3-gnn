@@ -144,7 +144,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
         @Override
         public OperatorCoordinator create(Context context) {
             WrapperOperatorCoordinator tmp = new WrapperOperatorCoordinator(context, position, layers);
-            tmp.subscribe(new StartTrainingEventHandler());
+            tmp.subscribe(new TrainingEventHandler());
             return tmp;
         }
     }

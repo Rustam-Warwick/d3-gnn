@@ -1,17 +1,20 @@
 package plugins.embedding_layer;
 
 import aggregators.MeanAggregator;
-import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.GNNBlock;
+import ai.djl.training.ParameterStore;
+import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
+import operators.coordinators.events.ActionTaken;
+import operators.coordinators.events.ElementsSynced;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,31 +26,32 @@ import java.util.Objects;
  * Outputs -> New Feature to the next layer
  */
 public class MixedGNNEmbeddingLayer extends Plugin {
-    // ---------------------- MODEL ---------------------
 
-    public Model model; // Model with block of GNNLayer
-    public transient Shape inputShape; // InputShape for this model
-    public transient MyParameterStore parameterStore;
+    public transient ParameterStore modelServer;
 
-    // ---------------------- RUNTIME RELATED -------------------
-    public boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
+    public final String modelName;
+
+    public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
+
+    public transient Batchifier batchifier;
+
     public HashMap<Short, HashMap<String, Edge>> REDUCE_EDGES;
+
     public HashMap<Short, HashMap<String, Edge>> UPDATE_EDGES;
+
     public HashMap<Short, HashMap<String, Vertex>> PENDING_VERTICES;
 
-    public MixedGNNEmbeddingLayer(Model model, boolean externalFeatures) {
-        super("inferencer");
+    public MixedGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
+        super(String.format("%s-inferencer", modelName));
         this.externalFeatures = externalFeatures;
-        this.model = model;
+        this.modelName = modelName;
     }
 
     @Override
     public void open() {
         super.open();
-        parameterStore = new MyParameterStore(BaseNDManager.threadNDManager.get());
-        parameterStore.loadModel(model);
-        inputShape = model.describeInput().get(0).getValue();
-        // Prepare batch data structures
+        modelServer = (ParameterStore) storage.getPlugin(String.format("%s-server", modelName));
+        batchifier = new StackBatchifier();
         REDUCE_EDGES = new HashMap<>();
         UPDATE_EDGES = new HashMap<>();
         PENDING_VERTICES = new HashMap<>();
@@ -61,11 +65,8 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         });
     }
 
-    @Override
-    public void close() {
-        super.close();
-        model.close();
-    }
+    // INITIALIZATION DONE!!!
+
 
     @Override
     @SuppressWarnings("all")
@@ -112,11 +113,11 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = BaseNDManager.threadNDManager.get().zeros(inputShape);
+            NDArray aggStart = BaseNDManager.threadNDManager.get().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true));
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = BaseNDManager.threadNDManager.get().randomNormal(inputShape); // Initialize to random value
+                NDArray embeddingRandom = BaseNDManager.threadNDManager.get().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom));
             }
@@ -173,17 +174,12 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         }
     }
 
-    // TRAINING RELATED
-
-
-
     /**
      * For all reducable edges reduce them
      */
     public void reduceAllEdges() {
         // 1. Collect all Source node Features
         HashMap<String, NDList> sourceVertices = new HashMap<>();
-        StackBatchifier batchifier = new StackBatchifier();
         REDUCE_EDGES.get(getPartId()).values().forEach(edge -> {
             edge.setStorage(this.storage);
             sourceVertices.putIfAbsent(edge.src.getId(), new NDList((NDArray) edge.src.getFeature("feature").getValue()));
@@ -212,7 +208,6 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     public void updateAllEdges() {
         HashMap<String, NDList> newSourceVertices = new HashMap<>();
         HashMap<String, NDList> oldSourceVertices = new HashMap<>();
-        StackBatchifier batchifier = new StackBatchifier();
         UPDATE_EDGES.get(getPartId()).values().forEach(edge -> {
             if (REDUCE_EDGES.get(getPartId()).containsKey(edge.getId())) return;
             edge.setStorage(this.storage);
@@ -251,19 +246,24 @@ public class MixedGNNEmbeddingLayer extends Plugin {
             if (updateReady(vertex)) {
                 forward(vertex);
             }
-
         });
     }
 
-    public void onWatermark(long timestamp) {
-        super.onWatermark(timestamp);
-        reduceAllEdges();
-        updateAllEdges();
-        forwardAllVertices();
-        REDUCE_EDGES.get(getPartId()).clear();
-        UPDATE_EDGES.get(getPartId()).clear();
-        PENDING_VERTICES.get(getPartId()).clear();
+    @Override
+    public void onOperatorEvent(OperatorEvent event) {
+        super.onOperatorEvent(event);
+        if(event instanceof ElementsSynced){
+            reduceAllEdges();
+            updateAllEdges();
+            REDUCE_EDGES.get(getPartId()).clear();
+            UPDATE_EDGES.get(getPartId()).clear();
+        }else if(event instanceof ActionTaken){
+            forwardAllVertices();
+            PENDING_VERTICES.get(getPartId()).clear();
+        }
     }
+
+
 
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
@@ -273,7 +273,7 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDList update(NDList feature,boolean training) {
-        return ((GNNBlock) model.getBlock()).getUpdateBlock().forward(this.parameterStore, feature, training);
+        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer, feature, training);
     }
 
     /**
@@ -284,7 +284,7 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDList message(NDList features, boolean training) {
-        return ((GNNBlock) model.getBlock()).getMessageBlock().forward(this.parameterStore, features, training);
+        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer, features, training);
     }
 
     /**
@@ -302,4 +302,5 @@ public class MixedGNNEmbeddingLayer extends Plugin {
     public boolean updateReady(Vertex vertex) {
         return vertex != null && vertex.state() == ReplicaState.MASTER && Objects.nonNull(vertex.getFeature("feature")) && Objects.nonNull(vertex.getFeature("agg"));
     }
+
 }
