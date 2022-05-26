@@ -23,6 +23,7 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -40,12 +41,16 @@ public class GraphStream {
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
     public IterationID fullLoopIterationId; // Iteration Id of 0 layer
     public short position_index; // Counter of the Current GNN layer being
+    private final boolean isLocal;
 
     public GraphStream(StreamExecutionEnvironment env, double explosionFactor) {
         this.env = env;
         this.parallelism = (short) this.env.getParallelism();
         this.lambda = explosionFactor;
         configureSerializers(this.env);
+        if(env instanceof LocalStreamEnvironment){
+            isLocal = true;
+        }else isLocal = true;
     }
 
     public GraphStream(StreamExecutionEnvironment env) {
@@ -116,6 +121,7 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp> forward = keyedLast.transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism);
 
         forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        if(!isLocal) forward.slotSharingGroup("gnn-" + position_index);
 
         if (position_index == 0) {
             fullLoopIterationId = localIterationId;
@@ -125,6 +131,7 @@ public class GraphStream {
             // Add iteration
             SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()).transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism);
             iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            if(!isLocal) iterationHandler.slotSharingGroup("gnn-" + position_index);
         }
 
 
@@ -134,12 +141,14 @@ public class GraphStream {
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            if(!isLocal)backwardIteration.slotSharingGroup("gnn-" + (position_index - 1));
         }
         if (position_index == layers) {
             // This is the last one
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.keyBy(new PartKeySelector()).transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(parallelism);
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-0");
+            if(!isLocal) backwardIteration.slotSharingGroup("gnn-0");
 
         }
         this.position_index++;

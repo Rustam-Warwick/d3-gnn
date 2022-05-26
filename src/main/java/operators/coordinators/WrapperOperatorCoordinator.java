@@ -63,16 +63,19 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
     @Override
     public void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> resultFuture) throws Exception {
+        resultFuture.complete(new byte[0]);
         // To be implemented
     }
 
     @Override
     public void notifyCheckpointComplete(long checkpointId) {
+        System.out.println("notifyCheckpointComplete");
         // To be implemented
     }
 
     @Override
     public void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData) throws Exception {
+        System.out.println("resetToCheckpoint");
         // To be implemented
     }
 

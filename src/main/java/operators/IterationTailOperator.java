@@ -56,13 +56,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public IterationTailOperator(IterationID iterationId) {
         this.iterationId = Objects.requireNonNull(iterationId);
         this.chainingStrategy = ChainingStrategy.ALWAYS;
-
     }
 
-    @Override
-    public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
-        super.setup(containingTask, config, output);
-    }
 
     @Override
     public void open() throws Exception {
@@ -122,6 +117,18 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 //            checkpoints.abort(checkpointId);
 //        }
 //    }
+
+
+    private void registerFeedbackWriter(){
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        int attemptNum = getRuntimeContext().getAttemptNumber();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.channel = broker.getChannel(key);
+    }
 
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
