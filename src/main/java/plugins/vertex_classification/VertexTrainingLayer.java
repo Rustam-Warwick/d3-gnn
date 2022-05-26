@@ -62,7 +62,6 @@ public class VertexTrainingLayer extends Plugin {
         BATCH_COUNT++;
         if (BATCH_COUNT % ACTUAL_BATCH_COUNT == 0) {
             storage.layerFunction.operatorEventMessage(new StartTraining());
-            BATCH_COUNT = 0;
         }
     }
 
@@ -141,6 +140,7 @@ public class VertexTrainingLayer extends Plugin {
         }
         if (isLastReplica()) {
             // This is the last call of plugin from this operator so send ack message to previous operator
+            BATCH_COUNT = 0;
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
             storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             outputLayer.modelServer.sync();

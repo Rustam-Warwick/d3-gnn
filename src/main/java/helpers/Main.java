@@ -3,7 +3,6 @@ package helpers;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
@@ -12,27 +11,21 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.training.ParameterStore;
-import ai.djl.training.loss.CrossEntropyLoss;
 import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.environment.ExecutionCheckpointingOptions;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import partitioner.HDRF;
 import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.MixedGNNEmbeddingLayer;
-import plugins.embedding_layer.MixedGNNEmbeddingLayerTraining;
 import plugins.vertex_classification.VertexLossReporter;
 import plugins.vertex_classification.VertexOutputLayer;
-import plugins.vertex_classification.VertexTrainingLayer;
 import storage.TupleStorage;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -55,7 +48,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -76,12 +69,12 @@ public class Main {
         env.getCheckpointConfig().setMinPauseBetweenCheckpoints(30000);
         env.getCheckpointConfig().enableUnalignedCheckpoints();
         env.getConfig().setAutoWatermarkInterval(10000);
-        env.getCheckpointConfig().setCheckpointStorage("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints");
+        env.getCheckpointConfig().setCheckpointStorage("file:///home/rustambaku13/Documents/Warwick/flink-streaming-gnn/checkpoints");
         env.setParallelism(2);
         env.setMaxParallelism(30);
 
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(

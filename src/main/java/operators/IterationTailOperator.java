@@ -25,10 +25,11 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackChannel;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackChannelBroker;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
-import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
@@ -70,7 +71,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         this.channel = broker.getChannel(key);
-        getContainingTask().getConfiguration().getNumberOfNetworkInputs();
         this.recordConsumer =
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
