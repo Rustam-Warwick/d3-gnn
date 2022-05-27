@@ -5,8 +5,9 @@ import elements.GraphOp;
 import elements.Op;
 import elements.ReplicaState;
 import elements.iterations.MessageCommunication;
-import helpers.ExternalOperatorSnapshotFutures;
 import helpers.MyOutputReflectionContext;
+import operators.iterations.FeedbackChannel;
+import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -32,7 +33,9 @@ import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
-import org.apache.flink.statefun.flink.core.feedback.*;
+import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
+import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
+import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -42,6 +45,7 @@ import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
+import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,13 +69,22 @@ import static org.apache.flink.util.Preconditions.checkState;
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
+
+    // STATIC PROPS
+
     protected static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
+
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+
     public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
+
+
+    //OPERATOR PROPS
+
     protected final StreamOperatorParameters<GraphOp> parameters;
 
-    // ------- TAKEN FROM FLINK ML
     protected final StreamConfig streamConfig;
 
     protected final StreamTask<?, ?> containingTask;
@@ -94,18 +107,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short position; // Horizontal position
 
+    protected final short operatorIndex; // Vertical position
+
     protected final short totalLayers; // Total horizontal layers
+
+    protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
-
-    // ------ OPERATOR POSITION RELATED
-
-    protected final short operatorIndex; // Vertical position
-    protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
+    protected transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
 
 
-    // -------- Watermarking, Broadcasting, Partitioning CheckPoiting
+    // -------- Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
 
     protected Output[] internalOutputs; // All of operator-to-operator outputs
 
@@ -123,8 +136,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected Tuple4<Integer, WatermarkStatus, WatermarkStatus, WatermarkStatus> WATERMARK_STATUSES; // (#messages_received, currentWatermarkStatus, waitingWatermarkStatus, maxWatermark)
 
-    protected transient final HashMap<Long, ExternalOperatorSnapshotFutures> pendingSnapshotFutures;
-
     // Finalization
     protected boolean finalWatermarkReceived; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
 
@@ -137,7 +148,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             short totalLayers,
             short iterationCount) {
         this.position = position;
-        this.pendingSnapshotFutures = new HashMap<>();
         this.totalLayers = totalLayers;
         this.ITERATION_COUNT = iterationCount;
         this.parameters = Objects.requireNonNull(parameters);
@@ -177,9 +187,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
-    // GENERAL WRAPPER STUFF
 
 
+    /**
+     * GENERAL WRAPPER FUNCTIONS
+     */
+
+    /**
+     *
+     */
     @Override
     public void open() throws Exception {
         registerFeedbackConsumer(
@@ -196,41 +212,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void close() throws Exception {
+        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.close();
-    }
-
-    @Override
-    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-        wrappedOperator.prepareSnapshotPreBarrier(checkpointId);
-    }
-
-    @Override
-    public void initializeState(StateInitializationContext context) throws Exception {
-        // Pass
-    }
-
-    @Override
-    public void snapshotState(StateSnapshotContext context) throws Exception {
-        // Pass
-    }
-
-    @Override
-    public final OperatorSnapshotFutures snapshotState(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) throws Exception {
-        ExternalOperatorSnapshotFutures tmp = new ExternalOperatorSnapshotFutures(checkpointId, timestamp, checkpointOptions, storageLocation);
-        pendingSnapshotFutures.put(checkpointId, tmp);
-        return tmp;
-//        OperatorSnapshotFutures innerFutures = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
-//        return innerFutures;
-    }
-
-    @Override
-    public final void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
-        RecordingStreamTaskStateInitializer recordingStreamTaskStateInitializer =
-                new RecordingStreamTaskStateInitializer(streamTaskStateManager);
-        wrappedOperator.initializeState(recordingStreamTaskStateInitializer);
-        checkState(recordingStreamTaskStateInitializer.lastCreated != null);
-        stateHandler = new StreamOperatorStateHandler(recordingStreamTaskStateInitializer.lastCreated, containingTask.getExecutionConfig(), containingTask.getCancelables());
-        stateHandler.initializeOperatorState(this);
     }
 
     @Override
@@ -254,16 +237,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     @Override
-    public void notifyCheckpointComplete(long checkpointId) throws Exception {
-        wrappedOperator.notifyCheckpointComplete(checkpointId);
-    }
-
-    @Override
-    public void notifyCheckpointAborted(long checkpointId) throws Exception {
-        wrappedOperator.notifyCheckpointAborted(checkpointId);
-    }
-
-    @Override
     public Object getCurrentKey() {
         return wrappedOperator.getCurrentKey();
     }
@@ -273,11 +246,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         wrappedOperator.setCurrentKey(key);
     }
 
-
     public T getWrappedOperator() {
         return wrappedOperator;
     }
 
+    /**
+     * Subclasses should implement the wrapper logic
+     */
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
         context.element = record;
@@ -290,7 +265,66 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
 
     /**
-     * Abstract function for Watermark
+     * SNAPSHOTTING AND CHECKPOINTING
+     */
+
+    /**
+     * This callback is called first before having a checkpoint
+     * Stops the consumer from reading the feedback streams
+     */
+    @Override
+    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+        feedbackChannel.consumerDeactivate(); // Do not read from feedback channel until feedback operators turn it on again
+        wrappedOperator.prepareSnapshotPreBarrier(checkpointId);
+    }
+
+    /**
+     * Initializing the state of this wrapper only not the underlying operator
+     */
+    @Override
+    public void initializeState(StateInitializationContext context) throws Exception {
+        // Pass
+    }
+
+    /**
+     * Snapshotting the state of this wrapper only not the underlying operator
+     */
+    @Override
+    public void snapshotState(StateSnapshotContext context) throws Exception {
+        // Pass
+    }
+
+    @Override
+    public final OperatorSnapshotFutures snapshotState(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) throws Exception {
+        return wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
+//        OperatorSnapshotFutures innerFutures = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
+//        return innerFutures;
+    }
+
+    @Override
+    public final void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+        RecordingStreamTaskStateInitializer recordingStreamTaskStateInitializer =
+                new RecordingStreamTaskStateInitializer(streamTaskStateManager);
+        wrappedOperator.initializeState(recordingStreamTaskStateInitializer);
+        checkState(recordingStreamTaskStateInitializer.lastCreated != null);
+        stateHandler = new StreamOperatorStateHandler(recordingStreamTaskStateInitializer.lastCreated, containingTask.getExecutionConfig(), containingTask.getCancelables());
+        stateHandler.initializeOperatorState(this);
+    }
+
+    @Override
+    public void notifyCheckpointComplete(long checkpointId) throws Exception {
+        wrappedOperator.notifyCheckpointComplete(checkpointId);
+    }
+
+    @Override
+    public void notifyCheckpointAborted(long checkpointId) throws Exception {
+        wrappedOperator.notifyCheckpointAborted(checkpointId);
+    }
+
+
+
+    /**
+     * WATERMARK ABSTRACT FUNCTIONS
      */
 
     /**
@@ -316,7 +350,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
 
     /**
-     * Watermark Logic and stuff
+     * WATERMARKING PROCESSING ENDING THE STREAM LOGIC
      */
 
     /**
@@ -447,8 +481,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
+
     /**
-     * BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
+     * SETUP OF: BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
      */
 
     /**
@@ -498,8 +533,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, 0);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        FeedbackChannel<StreamRecord<GraphOp>> channel = broker.getChannel(key);
-        OperatorUtils.registerFeedbackConsumer(channel, this, mailboxExecutor);
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 
     /**
