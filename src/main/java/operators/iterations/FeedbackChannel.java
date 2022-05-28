@@ -16,9 +16,11 @@
  * limitations under the License.
  */
 package operators.iterations;
+
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
+import org.apache.flink.statefun.flink.core.logger.FeedbackLogger;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 
@@ -27,7 +29,6 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Multi producer, single consumer channel. */
@@ -43,11 +44,6 @@ public final class FeedbackChannel<T> implements Closeable {
 
   /** A single registered consumer */
   private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>();
-
-  /**
-   * Is consumer ready to accept messages
-   */
-  private final AtomicBoolean consumerActive = new AtomicBoolean(true);
 
   FeedbackChannel(SubtaskFeedbackKey<T> key) {
     this.key = Objects.requireNonNull(key);
@@ -92,7 +88,7 @@ public final class FeedbackChannel<T> implements Closeable {
   public void registerConsumer(final FeedbackConsumer<T> consumer, Executor executor) {
     Preconditions.checkNotNull(consumer);
 
-    ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues, consumerActive);
+    ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues);
 
     if (!this.consumerRef.compareAndSet(null, consumerTask)) {
       throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
@@ -102,32 +98,40 @@ public final class FeedbackChannel<T> implements Closeable {
   }
 
   /**
-   * Meant to be called by the consumer on snapshotting
+   * Registers snapshot in all queues
    */
-  public void consumerDeactivate(){
-    queues.values().forEach(item->item.setIsActive(false));
-    consumerActive.set(false);
+  public void addSnapshotToAllQueues(long snapshotId){
+    queues.values().forEach(item->item.addSnapshot(snapshotId));
   }
 
   /**
-   * Consumer stopped being inactive
+   * Adds snapshot to a specific queue
    */
-  public void consumerActivate(){
-    consumerActive.set(true);
+  public void addSnapshotToQueue(long snapshotId, OperatorID operatorID){
+    queues.get(operatorID).addSnapshot(snapshotId);
   }
 
   /**
-   * Meant to be called by the producers on snapshotting
-
+   * Finished snapshots from all queues
    */
-  public void producerActivate(OperatorID publisherId){
-    queues.get(publisherId).setIsActive(true);
+  public void finalizeSnapshotFromAllQueues(long snapshotId){
+    queues.values().forEach(item->item.snapshotFinalize(snapshotId));
   }
 
-  public void producerDeactivate(OperatorID publishedId){
-    queues.get(publishedId).setIsActive(false);
+  /**
+   * Finish snapshot from a particular queue
+   */
+  public void finalizeSnapshotFromQueue(long snapshotId, OperatorID operatorID){
+    queues.get(operatorID).snapshotFinalize(snapshotId);
   }
 
+  /**
+   * Synchronously log the state of the queue to the passed logger,
+   * Done on snapshotting on iteration sink
+   */
+  public void dumpQueueToLogger(FeedbackLogger<T> logger, OperatorID operatorID) throws Exception {
+    queues.get(operatorID).queue.logQueue(logger);
+  }
 
   /** Closes this channel. */
   @Override
@@ -143,12 +147,10 @@ public final class FeedbackChannel<T> implements Closeable {
     private final Executor executor;
     private final FeedbackConsumer<T> consumer;
     private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues;
-    private final AtomicBoolean consumerActive;
-    ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues, AtomicBoolean consumerActive) {
+    ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues) {
       this.executor = Objects.requireNonNull(executor);
       this.consumer = Objects.requireNonNull(consumer);
       this.queues = Objects.requireNonNull(queues);
-      this.consumerActive = consumerActive;
     }
 
     void scheduleDrainAll() {
@@ -158,7 +160,7 @@ public final class FeedbackChannel<T> implements Closeable {
     @Override
     public void run() {
       for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
-        if(!value.getIsActive() || !consumerActive.getPlain())continue; // Do not process deactivate ones
+        if(value.hasPendingSnapshots())continue; // Do not emit if valve has pending snapshots
         final Deque<T> buffer = value.drainAll();
         try {
           T element;

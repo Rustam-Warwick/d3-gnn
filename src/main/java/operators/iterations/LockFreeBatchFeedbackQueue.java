@@ -18,31 +18,43 @@
 package operators.iterations;
 
 import org.apache.flink.statefun.flink.core.queue.Locks;
-import org.apache.flink.statefun.flink.core.queue.MpscQueue;
 
 import java.util.Deque;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * One implementation of FeedbackQueue
+ * Has logic of maintin currently active snapshots
  * @param <ElementT> Element that should be sent using this queue
  */
 public final class LockFreeBatchFeedbackQueue<ElementT> {
   private static final int INITIAL_BUFFER_SIZE = 32 * 1024; // 32k
-  private final AtomicBoolean isActive = new AtomicBoolean(true);
-  private final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
+  protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
+  private final ConcurrentHashMap<Long, Short> pendingSnapshots = new ConcurrentHashMap<>();
 
   public boolean addAndCheckIfWasEmpty(ElementT element) {
     final int size = queue.add(element);
     return size == 1;
   }
 
-  public void setIsActive(boolean isActive) {
-    this.isActive.set(isActive);
+  public synchronized void addSnapshot(long snapshotId){
+    if(!pendingSnapshots.containsKey(snapshotId)){
+      pendingSnapshots.put(snapshotId, (short) 2);
+    }
   }
 
-  public boolean getIsActive() {
-    return isActive.getPlain();
+  public synchronized void snapshotFinalize(long snapshotId){
+    if(pendingSnapshots.containsKey(snapshotId)) {
+      pendingSnapshots.compute(snapshotId, (key, value) -> (short) (value - 1));
+      if (pendingSnapshots.get(snapshotId) == 0) {
+        pendingSnapshots.remove(snapshotId);
+      }
+    }
+  }
+
+
+  public boolean hasPendingSnapshots(){
+    return !pendingSnapshots.isEmpty();
   }
 
   public Deque<ElementT> drainAll() {

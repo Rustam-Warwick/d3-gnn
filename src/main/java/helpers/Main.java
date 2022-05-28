@@ -48,7 +48,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
+        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -69,12 +69,12 @@ public class Main {
         env.getCheckpointConfig().setMinPauseBetweenCheckpoints(30000);
         env.getCheckpointConfig().enableUnalignedCheckpoints();
         env.getConfig().setAutoWatermarkInterval(10000);
-        env.getCheckpointConfig().setCheckpointStorage("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints");
+        env.getCheckpointConfig().setCheckpointStorage("file:///home/rustambaku13/Documents/Warwick/flink-streaming-gnn/checkpoints");
         env.setParallelism(2);
         env.setMaxParallelism(30);
 
         GraphStream gs = new GraphStream(env); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/datasets/cora"));
+        Dataset dataset = new CoraFull(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/datasets/cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, List.of(

@@ -274,7 +274,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-        feedbackChannel.consumerDeactivate(); // Do not read from feedback channel until feedback operators turn it on again
+        feedbackChannel.addSnapshotToAllQueues(checkpointId);
         wrappedOperator.prepareSnapshotPreBarrier(checkpointId);
     }
 
@@ -296,9 +296,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public final OperatorSnapshotFutures snapshotState(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) throws Exception {
-        return wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
-//        OperatorSnapshotFutures innerFutures = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
-//        return innerFutures;
+        OperatorSnapshotFutures res = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
+        feedbackChannel.finalizeSnapshotFromAllQueues(checkpointId);
+        return res;
     }
 
     @Override
@@ -318,6 +318,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void notifyCheckpointAborted(long checkpointId) throws Exception {
+        feedbackChannel.finalizeSnapshotFromAllQueues(checkpointId); // Might be the case that snapshot was registered so need to clear it on finish
         wrappedOperator.notifyCheckpointAborted(checkpointId);
     }
 
@@ -390,7 +391,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             // Wait till everything is synced
             WATERMARK_STATUSES.f1 = WATERMARK_STATUSES.f2;
             WATERMARK_STATUSES.f2 = null;
-            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK_STATUS, ITERATION_COUNT, null), WATERMARKS.f3.getTimestamp());
+            StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK_STATUS, ITERATION_COUNT, null, null, MessageCommunication.BROADCAST), WATERMARKS.f3.getTimestamp());
             if (ITERATION_COUNT == 0) processFeedback(record);
             else {
                 context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
@@ -714,7 +715,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 }
             }
         }
-
 
         /**
          * Send event to operator

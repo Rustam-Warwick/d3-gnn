@@ -19,26 +19,27 @@
 package operators;
 
 import elements.GraphOp;
+import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
+import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.iteration.IterationID;
-import org.apache.flink.iteration.checkpoint.Checkpoints;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
+import org.apache.flink.statefun.flink.core.logger.FeedbackLogger;
 import org.apache.flink.statefun.flink.core.logger.Loggers;
-import org.apache.flink.statefun.flink.core.logger.UnboundedFeedbackLoggerFactory;
-import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
@@ -53,15 +54,15 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
-    protected transient KeySelector<?, ?> stateKeySelector; // Exists in AbstractStreamOperator but is private so re-define here
-
-    private transient Checkpoints<StreamRecord<GraphOp>> checkpoints;
+    protected transient KeySelector<GraphOp, ?> stateKeySelector; // Exists in AbstractStreamOperator but is private so re-define here
 
     private OperatorID operatorID; // Unique Operator Id
 
     private transient Consumer<StreamRecord<GraphOp>> recordConsumer; // Depending on the Object Reuse enabled or not
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
+
+    private transient TypeSerializer<StreamElement> recordSerializer; // StreamElement serializer
 
 
     public IterationTailOperator(IterationID iterationId) {
@@ -72,17 +73,9 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void open() throws Exception {
         super.open();
-//        UnboundedFeedbackLoggerFactory<StreamRecord<GraphOp>> feedbackLoggerFactory =
-//                (UnboundedFeedbackLoggerFactory<StreamRecord<GraphOp>>)
-//                        Loggers.unboundedSpillableLoggerFactory(
-//                                getContainingTask().getEnvironment().getIOManager(),
-//                                getRuntimeContext().getMaxNumberOfParallelSubtasks(),
-//                                totalMemoryUsedForFeedbackCheckpointing,
-//                                elementSerializer,
-//                                keySelector);
-
-//        this.checkpoints = new org.apache.flink.statefun.flink.core.feedback.Checkpoints<>(feedbackLoggerFactory::create);
         operatorID = getOperatorID();
+        stateKeySelector = getContainingTask().getConfiguration().getStatePartitioner(0 , getUserCodeClassloader());
+        recordSerializer = new StreamElementSerializer<StreamRecord<GraphOp>>(getContainingTask().getConfiguration().getTypeSerializerOut(getClass().getClassLoader()));
         registerFeedbackWriter();
         this.recordConsumer =
                 getExecutionConfig().isObjectReuseEnabled()
@@ -90,11 +83,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                         : this::processIfObjectReuseNotEnabled;
     }
 
-    @Override
-    public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
-        super.setup(containingTask, config, output);
-        this.stateKeySelector = config.getStatePartitioner(0, getUserCodeClassloader());
-    }
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
@@ -107,27 +95,29 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     }
 
     @Override
+    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+        feedbackChannel.addSnapshotToQueue(checkpointId, operatorID);
+        super.prepareSnapshotPreBarrier(checkpointId);
+    }
+
+    @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
+        FeedbackLogger<StreamRecord<GraphOp>> logger = getLogger();
+        try(logger){
+            logger.startLogging(context.getRawKeyedOperatorStateOutput());
+            feedbackChannel.dumpQueueToLogger(logger, operatorID);
+            logger.commit();
+        }catch (Exception e){
+            e.printStackTrace();
+        } finally{
+            feedbackChannel.finalizeSnapshotFromQueue(context.getCheckpointId(), operatorID);
+        }
         super.snapshotState(context);
     }
 
     @Override
-    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-//        super.prepareSnapshotPreBarrier(checkpointId);
-//        GraphOp checkpointBarrier = new GraphOp();
-//        checkpointBarrier.checkpointBarrier = checkpointId;
-//        channel.put(new StreamRecord<>(checkpointBarrier));
-    }
-
-    @Override
-    public void notifyCheckpointComplete(long checkpointId) throws Exception {
-        feedbackChannel.producerActivate(operatorID);
-        super.notifyCheckpointComplete(checkpointId);
-    }
-
-    @Override
     public void notifyCheckpointAborted(long checkpointId) throws Exception {
-        feedbackChannel.producerActivate(operatorID);
+        feedbackChannel.finalizeSnapshotFromQueue(checkpointId, operatorID);
         super.notifyCheckpointAborted(checkpointId);
     }
 
@@ -158,5 +148,28 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void close() throws Exception {
         IOUtils.closeQuietly(feedbackChannel);
         super.close();
+    }
+
+    // SOME HELPER METHODS
+    public Object streamElementKeySelector(Object o){
+        try {
+            StreamRecord<GraphOp> record = ((StreamRecord<GraphOp>)o);
+            if(record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST){
+                System.out.println(record.getValue());
+            }
+            return stateKeySelector.getKey(record.getValue());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return -1;
+        }
+    }
+
+    public FeedbackLogger<StreamRecord<GraphOp>> getLogger(){
+        return (FeedbackLogger<StreamRecord<GraphOp>>) Loggers.unboundedSpillableLoggerFactory(
+                getContainingTask().getEnvironment().getIOManager(),
+                getRuntimeContext().getMaxNumberOfParallelSubtasks(),
+                MemorySize.ofMebiBytes(100).getBytes(), // Max memory size until starting to spill to the disc
+                recordSerializer,
+                this::streamElementKeySelector).create();
     }
 }
