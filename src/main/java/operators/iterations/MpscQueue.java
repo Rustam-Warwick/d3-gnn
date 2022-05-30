@@ -17,8 +17,8 @@
  */
 package operators.iterations;
 
+import operators.logger.FeedbackLogger;
 import org.apache.flink.annotation.Internal;
-import org.apache.flink.statefun.flink.core.logger.FeedbackLogger;
 import org.apache.flink.statefun.flink.core.queue.Lock;
 
 import java.util.ArrayDeque;

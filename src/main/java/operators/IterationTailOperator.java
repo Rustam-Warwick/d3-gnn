@@ -19,20 +19,18 @@
 package operators;
 
 import elements.GraphOp;
-import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
+import operators.logger.FeedbackLogger;
+import operators.logger.IterationQueueCheckpointLogger;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.functions.KeySelector;
-import org.apache.flink.configuration.MemorySize;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
-import org.apache.flink.statefun.flink.core.logger.FeedbackLogger;
-import org.apache.flink.statefun.flink.core.logger.Loggers;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
@@ -74,7 +72,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void open() throws Exception {
         super.open();
         operatorID = getOperatorID();
-        stateKeySelector = getContainingTask().getConfiguration().getStatePartitioner(0 , getUserCodeClassloader());
+        stateKeySelector = getContainingTask().getConfiguration().getStatePartitioner(0, getUserCodeClassloader());
         recordSerializer = new StreamElementSerializer<StreamRecord<GraphOp>>(getContainingTask().getConfiguration().getTypeSerializerOut(getClass().getClassLoader()));
         registerFeedbackWriter();
         this.recordConsumer =
@@ -102,14 +100,19 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
-        FeedbackLogger<StreamRecord<GraphOp>> logger = getLogger();
-        try(logger){
-            logger.startLogging(context.getRawKeyedOperatorStateOutput());
+        FeedbackLogger<StreamRecord<GraphOp>> logger =
+                new IterationQueueCheckpointLogger(
+                        context,
+                        recordSerializer,
+                        new StreamRecordKeySelector<>(),
+                        getRuntimeContext().getMaxNumberOfParallelSubtasks(),
+                        getContainingTask().getEnvironment().getIOManager());
+        try (logger) {
             feedbackChannel.dumpQueueToLogger(logger, operatorID);
             logger.commit();
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
-        } finally{
+        } finally {
             feedbackChannel.finalizeSnapshotFromQueue(context.getCheckpointId(), operatorID);
         }
         super.snapshotState(context);
@@ -121,7 +124,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         super.notifyCheckpointAborted(checkpointId);
     }
 
-    private void registerFeedbackWriter(){
+    private void registerFeedbackWriter() {
         int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
         int attemptNum = getRuntimeContext().getAttemptNumber();
         FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
@@ -150,26 +153,10 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         super.close();
     }
 
-    // SOME HELPER METHODS
-    public Object streamElementKeySelector(Object o){
-        try {
-            StreamRecord<GraphOp> record = ((StreamRecord<GraphOp>)o);
-            if(record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST){
-                System.out.println(record.getValue());
-            }
-            return stateKeySelector.getKey(record.getValue());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return -1;
+    private class StreamRecordKeySelector<KEY> implements KeySelector<StreamRecord<GraphOp>, KEY>{
+        @Override
+        public KEY getKey(StreamRecord<GraphOp> value) throws Exception {
+            return (KEY) IterationTailOperator.this.stateKeySelector.getKey(value.getValue());
         }
-    }
-
-    public FeedbackLogger<StreamRecord<GraphOp>> getLogger(){
-        return (FeedbackLogger<StreamRecord<GraphOp>>) Loggers.unboundedSpillableLoggerFactory(
-                getContainingTask().getEnvironment().getIOManager(),
-                getRuntimeContext().getMaxNumberOfParallelSubtasks(),
-                MemorySize.ofMebiBytes(100).getBytes(), // Max memory size until starting to spill to the disc
-                recordSerializer,
-                this::streamElementKeySelector).create();
     }
 }

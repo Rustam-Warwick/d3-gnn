@@ -17,10 +17,10 @@
  */
 package operators.iterations;
 
+import operators.logger.FeedbackLogger;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
-import org.apache.flink.statefun.flink.core.logger.FeedbackLogger;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 
@@ -49,9 +49,6 @@ public final class FeedbackChannel<T> implements Closeable {
     this.key = Objects.requireNonNull(key);
     this.queues = new ConcurrentHashMap<>();
   }
-
-
-  // METHODS
 
   /** Adds a feedback result to this channel. */
   public void put(T value, OperatorID publisherId) {

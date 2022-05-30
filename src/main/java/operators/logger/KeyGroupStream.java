@@ -25,13 +25,14 @@ import org.apache.flink.core.memory.MemorySegment;
 import org.apache.flink.runtime.io.disk.SpillingBuffer;
 import org.apache.flink.runtime.io.disk.iomanager.IOManager;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.Objects;
 
-final class KeyGroupStream<T> {
-  private final TypeSerializer<T> serializer;
+final class KeyGroupStream<T extends StreamElement> {
+  private final TypeSerializer<StreamElement> serializer;
   private final SpillingBuffer target;
   private final MemorySegmentPool memoryPool;
   private final DataOutputSerializer output = new DataOutputSerializer(256);
@@ -40,7 +41,7 @@ final class KeyGroupStream<T> {
   private int elementCount;
 
   KeyGroupStream(
-      TypeSerializer<T> serializer, IOManager ioManager, MemorySegmentPool memorySegmentPool) {
+      TypeSerializer<StreamElement> serializer, IOManager ioManager, MemorySegmentPool memorySegmentPool) {
     this.serializer = Objects.requireNonNull(serializer);
     this.memoryPool = Objects.requireNonNull(memorySegmentPool);
 

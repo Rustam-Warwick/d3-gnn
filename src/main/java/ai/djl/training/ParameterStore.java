@@ -139,9 +139,9 @@ public class ParameterStore extends Plugin {
     }
 
     /**
-     * Sync gradients from all the parallel operators.
-     *
+     * Sync gradients from all the parallel operators to the master operator.
      * @implNote Calling Sync for all of the parallel subtasks will result in training and syncing of the underlying model
+     * @implNote calling the @link{collect} method from here
      */
     public void sync() {
         HashMap<String, NDArray> thisGradients = new HashMap<>();
