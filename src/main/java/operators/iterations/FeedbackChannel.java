@@ -31,146 +31,170 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
-/** Multi producer, single consumer channel. */
+/**
+ * Multi producer, single consumer channel.
+ */
 public final class FeedbackChannel<T> implements Closeable {
 
-  /** The key that used to identify this channel. */
-  private final SubtaskFeedbackKey<T> key;
+    /**
+     * Map from the iteration sink operators to their respective queues
+     */
+    public final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Producers in this channel
+    /**
+     * The key that used to identify this channel.
+     */
+    private final SubtaskFeedbackKey<T> key;
+    /**
+     * A single registered consumer
+     */
+    private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>();
 
-  /**
-   * Map from the iteration sink operators to their respective queues
-   */
-  public final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Producers in this channel
-
-  /** A single registered consumer */
-  private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>();
-
-  FeedbackChannel(SubtaskFeedbackKey<T> key) {
-    this.key = Objects.requireNonNull(key);
-    this.queues = new ConcurrentHashMap<>();
-  }
-
-  /** Adds a feedback result to this channel. */
-  public void put(T value, OperatorID publisherId) {
-    if (!queues.get(publisherId).addAndCheckIfWasEmpty(value)) {
-      // successfully added @value into the queue, but the queue wasn't (atomically) drained yet,
-      // so there is nothing more to do.
-      return;
-    }
-    @SuppressWarnings("resource")
-    final ConsumerTask<T> consumer = consumerRef.get();
-    if(Objects.nonNull(consumer)){
-      consumer.scheduleDrainAll();
-    }
-  }
-
-  /**
-   * Registers one publisher with the given operatorId to this Channel
-   * @param publisherId OperatorId of the published operator
-   */
-  public void registerPublisher(OperatorID publisherId){
-    Preconditions.checkNotNull(publisherId);
-    if(queues.containsKey(publisherId)){
-      throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
-    }
-    queues.putIfAbsent(publisherId, new LockFreeBatchFeedbackQueue<>());
-  }
-
-  /**
-   * Register a feedback iteration consumer
-   *
-   * @param consumer the feedback events consumer.
-   * @param executor the executor to schedule feedback consumption on.
-   */
-  public void registerConsumer(final FeedbackConsumer<T> consumer, Executor executor) {
-    Preconditions.checkNotNull(consumer);
-
-    ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues);
-
-    if (!this.consumerRef.compareAndSet(null, consumerTask)) {
-      throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
+    FeedbackChannel(SubtaskFeedbackKey<T> key) {
+        this.key = Objects.requireNonNull(key);
+        this.queues = new ConcurrentHashMap<>();
     }
 
-    consumerTask.scheduleDrainAll();
-  }
-
-  /**
-   * Registers snapshot in all queues
-   */
-  public void addSnapshotToAllQueues(long snapshotId){
-    queues.values().forEach(item->item.addSnapshot(snapshotId));
-  }
-
-  /**
-   * Adds snapshot to a specific queue
-   */
-  public void addSnapshotToQueue(long snapshotId, OperatorID operatorID){
-    queues.get(operatorID).addSnapshot(snapshotId);
-  }
-
-  /**
-   * Finished snapshots from all queues
-   */
-  public void finalizeSnapshotFromAllQueues(long snapshotId){
-    queues.values().forEach(item->item.snapshotFinalize(snapshotId));
-  }
-
-  /**
-   * Finish snapshot from a particular queue
-   */
-  public void finalizeSnapshotFromQueue(long snapshotId, OperatorID operatorID){
-    queues.get(operatorID).snapshotFinalize(snapshotId);
-  }
-
-  /**
-   * Synchronously log the state of the queue to the passed logger,
-   * Done on snapshotting on iteration sink
-   */
-  public void dumpQueueToLogger(FeedbackLogger<T> logger, OperatorID operatorID) throws Exception {
-    queues.get(operatorID).queue.logQueue(logger);
-  }
-
-  /** Closes this channel. */
-  @Override
-  public void close() {
-    ConsumerTask<T> consumer = consumerRef.getAndSet(null);
-    IOUtils.closeQuietly(consumer);
-    // remove this channel.
-    FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-    broker.removeChannel(key);
-  }
-
-  private static final class ConsumerTask<T> implements Runnable, Closeable {
-    private final Executor executor;
-    private final FeedbackConsumer<T> consumer;
-    private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues;
-    ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues) {
-      this.executor = Objects.requireNonNull(executor);
-      this.consumer = Objects.requireNonNull(consumer);
-      this.queues = Objects.requireNonNull(queues);
-    }
-
-    void scheduleDrainAll() {
-      executor.execute(this);
-    }
-
-    @Override
-    public void run() {
-      for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
-        if(value.hasPendingSnapshots())continue; // Do not emit if valve has pending snapshots
-        final Deque<T> buffer = value.drainAll();
-        try {
-          T element;
-          while ((element = buffer.pollFirst()) != null) {
-            consumer.processFeedback(element);
-          }
-        } catch (Exception e) {
-          throw new RuntimeException(e);
+    /**
+     * Adds a feedback result to this channel.
+     */
+    public void put(T value, OperatorID publisherId) {
+        queues.get(publisherId).addAndCheckIfWasEmpty(value);
+        @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
+        if (Objects.nonNull(consumer)) {
+            consumer.scheduleDrainAll();
         }
-      }
     }
 
+    /**
+     * Registers one publisher with the given operatorId to this Channel
+     *
+     * @param publisherId OperatorId of the published operator
+     */
+    public void registerPublisher(OperatorID publisherId) {
+        Preconditions.checkNotNull(publisherId);
+        if (queues.containsKey(publisherId)) {
+            throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
+        }
+        queues.putIfAbsent(publisherId, new LockFreeBatchFeedbackQueue<>());
+    }
+
+    /**
+     * Register a feedback iteration consumer
+     *
+     * @param consumer the feedback events consumer.
+     * @param executor the executor to schedule feedback consumption on.
+     */
+    public void registerConsumer(final FeedbackConsumer<T> consumer, Executor executor) {
+        Preconditions.checkNotNull(consumer);
+
+        ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues);
+
+        if (!this.consumerRef.compareAndSet(null, consumerTask)) {
+            throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
+        }
+
+        consumerTask.scheduleDrainAll();
+    }
+
+    /**
+     * Registers snapshot in all queues
+     */
+    public void addSnapshotToAllQueues(long snapshotId) {
+        queues.forEach((key, item) -> {
+            System.out.format("Queue Locked for operator %s \n ", key);
+            item.addSnapshot(snapshotId);});
+    }
+
+    /**
+     * Adds snapshot to a specific queue
+     */
+    public void addSnapshotToQueue(long snapshotId, OperatorID operatorID) {
+        queues.get(operatorID).addSnapshot(snapshotId);
+    }
+
+    /**
+     * Finished snapshots from all queues
+     */
+    public void finalizeSnapshotFromAllQueues(long snapshotId) {
+        queues.forEach((key,item) -> {
+            System.out.format("Queue unlocked by consumer \n");
+            item.snapshotFinalize(snapshotId);
+        });
+    }
+
+    /**
+     * Finish snapshot from a particular queue
+     */
+    public void finalizeSnapshotFromQueue(long snapshotId, OperatorID operatorID) {
+        System.out.format("Queue Unlocked by published %s\n", operatorID);
+        queues.get(operatorID).snapshotFinalize(snapshotId);
+    }
+
+    public void finishChanel(OperatorID operatorID){
+        queues.get(operatorID).setChannelFinished(true);
+    }
+
+    public boolean getChannelFinished(OperatorID operatorID){
+        return queues.get(operatorID).getChannelFinished();
+    }
+
+    /**
+     * Synchronously log the state of the queue to the passed logger,
+     * Done on snapshotting on iteration sink
+     */
+    public void dumpQueueToLogger(FeedbackLogger<T> logger, OperatorID operatorID) throws Exception {
+        queues.get(operatorID).queue.logQueue(logger);
+    }
+
+    /**
+     * Closes this channel.
+     */
     @Override
-    public void close() {}
-  }
+    public void close() {
+        ConsumerTask<T> consumer = consumerRef.getAndSet(null);
+        IOUtils.closeQuietly(consumer);
+        // remove this channel.
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        broker.removeChannel(key);
+    }
+
+    private static final class ConsumerTask<T> implements Runnable, Closeable {
+        private final Executor executor;
+        private final FeedbackConsumer<T> consumer;
+        private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues;
+
+        ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues) {
+            this.executor = Objects.requireNonNull(executor);
+            this.consumer = Objects.requireNonNull(consumer);
+            this.queues = Objects.requireNonNull(queues);
+        }
+
+        void scheduleDrainAll() {
+            executor.execute(this);
+        }
+
+        @Override
+        public void run() {
+            for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
+                if (value.hasPendingSnapshots()) {
+                    System.out.println("Snapshot is bing done");
+                    continue;
+                }
+                final Deque<T> buffer = value.drainAll();
+                try {
+                    T element;
+                    while ((element = buffer.pollFirst()) != null) {
+                        consumer.processFeedback(element);
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+        }
+
+        @Override
+        public void close() {
+        }
+    }
 }

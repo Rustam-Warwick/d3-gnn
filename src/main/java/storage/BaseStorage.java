@@ -2,10 +2,14 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.apache.flink.util.CollectionUtil;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -28,6 +32,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
+    private transient ListState<Plugin> pluginListState;
 
     // -------- Abstract methods
 
@@ -114,12 +119,24 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         // pass
-
     }
 
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
         // pass
+        ListStateDescriptor<Plugin> descriptor =
+                new ListStateDescriptor<>(
+                        "plugins",
+                        TypeInformation.of(Plugin.class));
+        pluginListState = context.getOperatorStateStore().getUnionListState(descriptor);
+        if (context.isRestored()) {
+            for (Plugin plugin : pluginListState.get()) {
+                withPlugin(plugin);
+            }
+        } else {
+            pluginListState.addAll(CollectionUtil.iterableToList(plugins.values()));
+        }
+
     }
 
 

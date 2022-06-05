@@ -32,72 +32,66 @@ import java.io.IOException;
 import java.util.Objects;
 
 final class KeyGroupStream<T extends StreamElement> {
-  private final TypeSerializer<StreamElement> serializer;
-  private final SpillingBuffer target;
-  private final MemorySegmentPool memoryPool;
-  private final DataOutputSerializer output = new DataOutputSerializer(256);
+    private final TypeSerializer<StreamElement> serializer;
+    private final SpillingBuffer target;
+    private final MemorySegmentPool memoryPool;
+    private final DataOutputSerializer output = new DataOutputSerializer(256);
 
-  private long totalSize;
-  private int elementCount;
+    private long totalSize;
+    private int elementCount;
 
-  KeyGroupStream(
-      TypeSerializer<StreamElement> serializer, IOManager ioManager, MemorySegmentPool memorySegmentPool) {
-    this.serializer = Objects.requireNonNull(serializer);
-    this.memoryPool = Objects.requireNonNull(memorySegmentPool);
-
-    // SpillingBuffer requires at least 1 memory segment to be present at construction, otherwise it
-    // fails
-    // so we
-    memorySegmentPool.ensureAtLeastOneSegmentPresent();
-    this.target =
-        new SpillingBuffer(ioManager, memorySegmentPool, memorySegmentPool.getSegmentSize());
-  }
-
-  static <T> void readFrom(
-      DataInputView source, TypeSerializer<T> serializer, FeedbackConsumer<T> consumer)
-      throws Exception {
-    final int elementCount = source.readInt();
-
-    for (int i = 0; i < elementCount; i++) {
-      T envelope = serializer.deserialize(source);
-      consumer.processFeedback(envelope);
+    KeyGroupStream(
+            TypeSerializer<StreamElement> serializer, IOManager ioManager, MemorySegmentPool memorySegmentPool) {
+        this.serializer = Objects.requireNonNull(serializer);
+        this.memoryPool = Objects.requireNonNull(memorySegmentPool);
+        memorySegmentPool.ensureAtLeastOneSegmentPresent();
+        this.target =
+                new SpillingBuffer(ioManager, memorySegmentPool, memorySegmentPool.getSegmentSize());
     }
-  }
 
-  private static void copy(@Nonnull DataInputView source, @Nonnull DataOutputView target, long size)
-      throws IOException {
+    static <T> void readFrom(
+            DataInputView source, TypeSerializer<T> serializer, FeedbackConsumer<T> consumer)
+            throws Exception {
+        final int elementCount = source.readInt();
 
-    while (size > 0) {
-      final int len = (int) Math.min(4 * 1024, size); // read no more then 4k bytes at a time
-      target.write(source, len);
-      size -= len;
+        for (int i = 0; i < elementCount; i++) {
+            T envelope = serializer.deserialize(source);
+            consumer.processFeedback(envelope);
+        }
     }
-  }
 
-  void append(T envelope) {
-    elementCount++;
-    try {
-      output.clear();
-      serializer.serialize(envelope, output);
-      totalSize += output.length();
+    private static void copy(@Nonnull DataInputView source, @Nonnull DataOutputView target, long size)
+            throws IOException {
 
-      target.write(output.getSharedBuffer(), 0, output.length());
-    } catch (IOException e) {
-      throw new IllegalStateException(e);
+        while (size > 0) {
+            final int len = (int) Math.min(4 * 1024, size); // read no more then 4k bytes at a time
+            target.write(source, len);
+            size -= len;
+        }
     }
-  }
 
-  void writeTo(DataOutputView target) throws IOException {
-    target.writeInt(elementCount);
-
-    copy(this.target.flip(), target, totalSize);
-
-    for (MemorySegment segment : this.target.close()) {
-      memoryPool.release(segment);
+    public static void writeEmptyTo(DataOutputView target) throws IOException {
+        target.writeInt(0);
     }
-  }
 
-  public static void writeEmptyTo(DataOutputView target) throws IOException {
-    target.writeInt(0);
-  }
+    void append(T envelope) {
+        elementCount++;
+        try {
+            output.clear();
+            serializer.serialize(envelope, output);
+            totalSize += output.length();
+
+            target.write(output.getSharedBuffer(), 0, output.length());
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    void writeTo(DataOutputView target) throws IOException {
+        target.writeInt(elementCount);
+        copy(this.target.flip(), target, totalSize);
+        for (MemorySegment segment : this.target.close()) {
+            memoryPool.release(segment);
+        }
+    }
 }

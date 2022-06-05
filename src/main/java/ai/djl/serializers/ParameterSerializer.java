@@ -1,5 +1,6 @@
 package ai.djl.serializers;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
@@ -13,7 +14,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 
 public class ParameterSerializer extends Serializer<Parameter> {
-    private static final NDManager manager = NDManager.newBaseManager();
     private static Field idField;
 
     static {
@@ -50,7 +50,7 @@ public class ParameterSerializer extends Serializer<Parameter> {
         try {
             String name = input.readString();
             String id = input.readString();
-            NDArray array = manager.decode(input);
+            NDArray array = BaseNDManager.threadNDManager.get().decode(input);
             Shape shape = array.getShape();
             Parameter a = Parameter.builder().setName(name).optArray(array).optShape(shape).setType(Parameter.Type.OTHER).build();
             idField.set(a, id);

@@ -25,9 +25,9 @@ dependencies {
 //            'org.apache.flink:flink-table-api-java-bridge_2.12:1.15.0',
 //            'org.apache.flink:flink-statebackend-rocksdb_2.12:1.15.0',
             'org.apache.flink:flink-ml-iteration_2.12:2.0.0',
-            'ai.ai.djl:api:0.16.0',
-            'ai.ai.djl.pytorch:pytorch-engine:0.16.0',
-            'ai.ai.djl.pytorch:pytorch-native-cpu:1.10.0',
+            'ai.ai.ai.ai.ai.ai.ai.djl:api:0.16.0',
+            'ai.ai.ai.ai.ai.ai.ai.djl.pytorch:pytorch-engine:0.16.0',
+            'ai.ai.ai.ai.ai.ai.ai.djl.pytorch:pytorch-native-cpu:1.10.0',
 
     ])
 

@@ -18,6 +18,7 @@ import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
+import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
@@ -30,7 +31,6 @@ import ai.djl.util.PairList;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import helpers.GraphStream;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -262,7 +262,7 @@ public class PtModel extends BaseModel {
     @Override
     public void writeExternal(ObjectOutput out) {
         Kryo a = new Kryo();
-        GraphStream.configureSerializers(a);
+        SerializableLoss.configureSerializers(a);
         OutputStream tmp = new OutputStream() {
             @Override
             public void write(int b) throws IOException {
@@ -277,7 +277,7 @@ public class PtModel extends BaseModel {
     @Override
     public void readExternal(ObjectInput in) {
         Kryo a = new Kryo();
-        GraphStream.configureSerializers(a);
+        SerializableLoss.configureSerializers(a);
         InputStream tmp = new InputStream() {
             @Override
             public int read() throws IOException {

@@ -16,7 +16,6 @@ import storage.BaseStorage;
  */
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;
-    public transient short currentPart;
     public transient Collector<GraphOp> collector;
     public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
@@ -56,11 +55,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
         op.setMessageCommunication(MessageCommunication.BROADCAST);
         try {
             if (direction == MessageDirection.BACKWARD) {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
+                ctx.output(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
             } else if (direction == MessageDirection.FORWARD) {
-                getWrapperContext().broadcastElement(null, op);
+                collector.collect(op);
             } else {
-                getWrapperContext().broadcastElement(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
+                ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -69,7 +68,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
 
     @Override
     public <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag) {
-        getWrapperContext().broadcastElement(outputTag, op);
+        System.out.println("FAKE");
     }
 
     @Override

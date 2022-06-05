@@ -10,6 +10,7 @@ public class PendingWrapperFuture<T> implements RunnableFuture<T> {
     @Nullable
     private RunnableFuture<T> internalFuture;
     private boolean hasBeenCancelled;
+
     protected PendingWrapperFuture() {
         this.internalFuture = null;
         this.hasBeenCancelled = false;
@@ -18,7 +19,7 @@ public class PendingWrapperFuture<T> implements RunnableFuture<T> {
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
         hasBeenCancelled = true;
-        if(internalFuture !=null)return internalFuture.cancel(mayInterruptIfRunning);
+        if (internalFuture != null) return internalFuture.cancel(mayInterruptIfRunning);
         else return false;
     }
 
@@ -35,7 +36,7 @@ public class PendingWrapperFuture<T> implements RunnableFuture<T> {
 
     @Override
     public T get() throws ExecutionException, InterruptedException {
-        return internalFuture == null?null: internalFuture.get();
+        return internalFuture == null ? null : internalFuture.get();
     }
 
     @Override
@@ -45,7 +46,7 @@ public class PendingWrapperFuture<T> implements RunnableFuture<T> {
 
     @Override
     public void run() {
-        if(internalFuture == null) throw new RuntimeException("Not Done Yet");
+        if (internalFuture == null) throw new RuntimeException("Not Done Yet");
         else internalFuture.run();
     }
 
@@ -56,6 +57,6 @@ public class PendingWrapperFuture<T> implements RunnableFuture<T> {
 
     public void setInternalFuture(@Nullable RunnableFuture<T> internalFuture) {
         this.internalFuture = internalFuture;
-        if(hasBeenCancelled)internalFuture.cancel(true);
+        if (hasBeenCancelled) internalFuture.cancel(true);
     }
 }

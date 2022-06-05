@@ -18,30 +18,28 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class FeedbackChannelBroker {
 
-  private static final FeedbackChannelBroker INSTANCE = new FeedbackChannelBroker();
+    private static final FeedbackChannelBroker INSTANCE = new FeedbackChannelBroker();
 
-  private final ConcurrentHashMap<SubtaskFeedbackKey<?>, FeedbackChannel<?>> channels =
-      new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<SubtaskFeedbackKey<?>, FeedbackChannel<?>> channels =
+            new ConcurrentHashMap<>();
 
-  public static FeedbackChannelBroker get() {
-    return INSTANCE;
-  }
+    public static FeedbackChannelBroker get() {
+        return INSTANCE;
+    }
 
-  @SuppressWarnings({"unchecked"})
-  public <V> FeedbackChannel<V> getChannel(SubtaskFeedbackKey<V> key) {
-    Objects.requireNonNull(key);
+    private static <V> FeedbackChannel<V> newChannel(SubtaskFeedbackKey<V> key) {
+        return new FeedbackChannel<>(key);
+    }
 
-    FeedbackChannel<?> channel = channels.computeIfAbsent(key, FeedbackChannelBroker::newChannel);
+    @SuppressWarnings({"unchecked"})
+    public <V> FeedbackChannel<V> getChannel(SubtaskFeedbackKey<V> key) {
+        Objects.requireNonNull(key);
+        FeedbackChannel<?> channel = channels.computeIfAbsent(key, FeedbackChannelBroker::newChannel);
+        return (FeedbackChannel<V>) channel;
+    }
 
-    return (FeedbackChannel<V>) channel;
-  }
-
-  @SuppressWarnings("resource")
-  void removeChannel(SubtaskFeedbackKey<?> key) {
-    channels.remove(key);
-  }
-
-  private static <V> FeedbackChannel<V> newChannel(SubtaskFeedbackKey<V> key) {
-    return new FeedbackChannel<>(key);
-  }
+    @SuppressWarnings("resource")
+    void removeChannel(SubtaskFeedbackKey<?> key) {
+        channels.remove(key);
+    }
 }

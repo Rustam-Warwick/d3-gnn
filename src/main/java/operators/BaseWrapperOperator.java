@@ -6,9 +6,6 @@ import elements.Op;
 import elements.ReplicaState;
 import elements.iterations.MessageCommunication;
 import helpers.MyOutputReflectionContext;
-import operators.iterations.FeedbackChannel;
-import operators.iterations.FeedbackChannelBroker;
-import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple4;
@@ -17,7 +14,6 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.broadcast.OutputReflectionContext;
-import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -33,9 +29,6 @@ import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
-import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
-import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
-import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -43,20 +36,19 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
-import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.*;
-import java.util.concurrent.Executor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.PriorityQueue;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -68,7 +60,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @see UdfWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, FeedbackConsumer<StreamRecord<GraphOp>>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
+        implements StreamOperator<GraphOp>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
 
     // STATIC PROPS
 
@@ -95,10 +87,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final T wrappedOperator;
 
-    protected final IterationID iterationId;
-
-    protected final MailboxExecutor mailboxExecutor;
-
     protected final Context context;
 
     protected final InternalOperatorMetricGroup metrics;
@@ -114,8 +102,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
-
-    protected transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
 
 
     // -------- Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
@@ -136,9 +122,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected Tuple4<Integer, WatermarkStatus, WatermarkStatus, WatermarkStatus> WATERMARK_STATUSES; // (#messages_received, currentWatermarkStatus, waitingWatermarkStatus, maxWatermark)
 
-    // Finalization
-    protected boolean finalWatermarkReceived; // If this operator is ready to finish. Means that no more element will arrive neither from input stream nor from feedback
-
     // CONSTRUCTOR
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
@@ -155,8 +138,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.containingTask = Objects.requireNonNull(parameters.getContainingTask());
         this.output = Objects.requireNonNull(parameters.getOutput());
         this.operatorFactory = Objects.requireNonNull(operatorFactory);
-        this.iterationId = Objects.requireNonNull(iterationID);
-        this.mailboxExecutor = parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
         this.wrappedOperator =
                 (T)
                         StreamOperatorFactoryUtil.createOperator(
@@ -187,8 +168,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
-
-
     /**
      * GENERAL WRAPPER FUNCTIONS
      */
@@ -198,10 +177,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void open() throws Exception {
-        registerFeedbackConsumer(
-                (Runnable runnable) -> {
-                    mailboxExecutor.execute(runnable::run, "Head feedback");
-                });
         wrappedOperator.open();
     }
 
@@ -212,7 +187,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void close() throws Exception {
-        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.close();
     }
 
@@ -274,7 +248,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-        feedbackChannel.addSnapshotToAllQueues(checkpointId);
         wrappedOperator.prepareSnapshotPreBarrier(checkpointId);
     }
 
@@ -296,9 +269,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public final OperatorSnapshotFutures snapshotState(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) throws Exception {
-        OperatorSnapshotFutures res = wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
-        feedbackChannel.finalizeSnapshotFromAllQueues(checkpointId);
-        return res;
+        return wrappedOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
     }
 
     @Override
@@ -318,10 +289,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void notifyCheckpointAborted(long checkpointId) throws Exception {
-        feedbackChannel.finalizeSnapshotFromAllQueues(checkpointId); // Might be the case that snapshot was registered so need to clear it on finish
         wrappedOperator.notifyCheckpointAborted(checkpointId);
     }
-
 
 
     /**
@@ -349,36 +318,25 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public abstract void processActualWatermarkStatus(WatermarkStatus status) throws Exception;
 
 
-
     /**
      * WATERMARKING PROCESSING ENDING THE STREAM LOGIC
      */
 
     /**
-     * for SYNC requests check if there is a waiting Sync message and acknowledge Watermarks if any are waiting
-     */
-    @Override
-    public final void processElement(StreamRecord<GraphOp> element) throws Exception {
-        processActualElement(element);
-        if (element.getValue().getOp() == Op.SYNC) {
-            this.waitingSyncs.removeIf(item -> item == element.getTimestamp());
-            acknowledgeIfWatermarkIsReady();
-            acknowledgeIfWatermarkStatusReady();
-        }
-    }
-
-    /**
      * See if the watermark of this operator can be called safe. In other words if all SYNC messages were received
      */
     public void acknowledgeIfWatermarkIsReady() throws Exception {
-        if (WATERMARK_STATUSES.f3 == WatermarkStatus.ACTIVE && WATERMARKS.f3.getTimestamp() != Long.MAX_VALUE && WATERMARKS.f1 == null && WATERMARKS.f2 != null && (waitingSyncs.peek() == null || waitingSyncs.peek() > WATERMARKS.f2.getTimestamp())) {
+        if (WATERMARK_STATUSES.f3 == WatermarkStatus.ACTIVE && WATERMARKS.f1 == null && WATERMARKS.f2 != null && WATERMARKS.f2.getTimestamp() > WATERMARKS.f3.getTimestamp() && (waitingSyncs.peek() == null || waitingSyncs.peek() > WATERMARKS.f2.getTimestamp())) {
             // Broadcast ack of watermark to all other operators including itself
             WATERMARKS.f1 = WATERMARKS.f2;
             WATERMARKS.f2 = null;
             StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, ITERATION_COUNT, null, null, MessageCommunication.BROADCAST), WATERMARKS.f1.getTimestamp());
-            if (ITERATION_COUNT == 0) processFeedback(record);
+            if (ITERATION_COUNT == 0){
+                setKeyContextElement(record);
+                processElement(record);
+            }
             else {
-                context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
+                output.collect(ITERATE_OUTPUT_TAG, record);
             }
         }
     }
@@ -387,14 +345,17 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Iterate watermark status if it is necessary
      */
     public void acknowledgeIfWatermarkStatusReady() throws Exception {
-        if (WATERMARK_STATUSES.f1 == null && WATERMARK_STATUSES.f2 != null && WATERMARK_STATUSES.f2.status!=WATERMARK_STATUSES.f3.status && waitingSyncs.isEmpty()) {
+        if (WATERMARK_STATUSES.f1 == null && WATERMARK_STATUSES.f2 != null && WATERMARK_STATUSES.f2.status != WATERMARK_STATUSES.f3.status && waitingSyncs.isEmpty()) {
             // Wait till everything is synced
             WATERMARK_STATUSES.f1 = WATERMARK_STATUSES.f2;
             WATERMARK_STATUSES.f2 = null;
             StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK_STATUS, ITERATION_COUNT, null, null, MessageCommunication.BROADCAST), WATERMARKS.f3.getTimestamp());
-            if (ITERATION_COUNT == 0) processFeedback(record);
+            if (ITERATION_COUNT == 0) {
+                setKeyContextElement(record);
+                processElement(record);
+            }
             else {
-                context.broadcastElement(ITERATE_OUTPUT_TAG, record.getValue());
+                output.collect(ITERATE_OUTPUT_TAG, record);
             }
         }
     }
@@ -421,8 +382,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Record acknowledges watermark/watermarkStatus or else just process it normally
      */
     @Override
-    public final void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        setKeyContextElement(element);
+    public final void processElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.WATERMARK) {
             if (ITERATION_COUNT == 0 || ++WATERMARKS.f0 == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                 WATERMARKS.f0 = 0; // Number of acknowledges is zero again
@@ -436,7 +396,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                         // Still needs to iterate in the stream
                         processActualWatermark(new Watermark(WATERMARKS.f1.getTimestamp() - element.getValue().getPartId()));
                         element.getValue().setPartId((short) (element.getValue().getPartId() - 1));
-                        context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
+                        output.collect(ITERATE_OUTPUT_TAG, element);
                     } else {
                         // Now the watermark can be finally emitted
                         processActualWatermark(WATERMARKS.f1);
@@ -449,11 +409,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             }
         } else if (element.getValue().getOp() == Op.WATERMARK_STATUS) {
             if (ITERATION_COUNT == 0 || ++WATERMARK_STATUSES.f0 == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
+                System.out.format("Watermark Status iteration %s at %s, %s\n", element.getValue().getPartId(), position, operatorIndex);
                 WATERMARK_STATUSES.f0 = 0;
                 if (element.getValue().getPartId() > 0) {
                     processActualWatermarkStatus(WATERMARK_STATUSES.f1);
                     element.getValue().setPartId((short) (element.getValue().getPartId() - 1));
-                    context.broadcastElement(ITERATE_OUTPUT_TAG, element.getValue());
+                    output.collect(ITERATE_OUTPUT_TAG, element);
                 } else {
                     processActualWatermarkStatus(WATERMARK_STATUSES.f1);
                     WATERMARK_STATUSES.f3 = WATERMARK_STATUSES.f1;
@@ -463,7 +424,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 }
             }
         } else {
-            processElement(element);
+            processActualElement(element);
+            if (element.getValue().getOp() == Op.SYNC) {
+                this.waitingSyncs.removeIf(item -> item == element.getTimestamp());
+                acknowledgeIfWatermarkIsReady();
+                acknowledgeIfWatermarkStatusReady();
+            }
         }
     }
 
@@ -474,14 +440,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void endInput() throws Exception {
-        while (!finalWatermarkReceived) {
-            // Normal data processing stops here, just consume the iteration mailbox until the Long.MAXVALUE watermark is received
-            mailboxExecutor.tryYield();
-            Thread.sleep(200);
-        }
+
     }
-
-
 
     /**
      * SETUP OF: BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
@@ -525,17 +485,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         if (thisKeys.isEmpty())
             throw new IllegalStateException("Make sure Partitioner keys are large enough to fill physical partitioning");
         this.thisParts = thisKeys;
-    }
-
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = containingTask.getIndexInSubtaskGroup();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationId, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, 0);
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 
     /**
@@ -695,25 +644,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         protected void emitWatermarkStatus(WatermarkStatus s) {
             output.emitWatermarkStatus(s);
-        }
-
-        /**
-         * Broadcast element to one input channel
-         *
-         * @param outputTag outputTag or null for broadcasting to forward operator
-         * @param el        Element
-         */
-        public <OUT> void broadcastElement(@Nullable OutputTag<OUT> outputTag, OUT el) {
-            StreamRecord<OUT> record = new StreamRecord<>(el, element.getTimestamp());
-            for (int i = 0; i < internalOutputTags.length; i++) {
-                if (Objects.equals(outputTag, internalOutputTags[i])) {
-                    try {
-                        internalBroadcastOutputs[i].broadcastEmit(record);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
         }
 
         /**

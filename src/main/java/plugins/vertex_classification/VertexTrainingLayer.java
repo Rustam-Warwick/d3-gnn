@@ -13,7 +13,6 @@ import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import elements.iterations.Rmi;
-import operators.BaseWrapperOperator;
 import operators.coordinators.events.StartTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
@@ -106,43 +105,47 @@ public class VertexTrainingLayer extends Plugin {
             // 1. Compute the gradients per each vertex output feature
             List<NDList> inputs = new ArrayList<>();
             List<NDList> labels = new ArrayList<>();
-            for (String vId : trainVertices.getValue()) {
-                Vertex v = storage.getVertex(vId);
-                ((NDArray) v.getFeature("feature").getValue()).setRequiresGradient(true);
-                inputs.add(new NDList((NDArray) v.getFeature("feature").getValue()));
-                labels.add(new NDList((NDArray) v.getFeature("trainLabel").getValue()));
-                v.getFeature("trainLabel").delete(); // Delete so it does not retrigger it
-            }
-            NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
-            NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
-            NDList predictions = outputLayer.output(batchedInputs, true);
-            NDArray meanLoss = loss.evaluate(batchedLabels, predictions).neg();
-            JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
+            try {
+                for (String vId : trainVertices.getValue()) {
+                    Vertex v = storage.getVertex(vId);
+                    ((NDArray) v.getFeature("feature").getValue()).setRequiresGradient(true);
+                    inputs.add(new NDList((NDArray) v.getFeature("feature").getValue()));
+                    labels.add(new NDList((NDArray) v.getFeature("trainLabel").getValue()));
+                    v.getFeature("trainLabel").delete(); // Delete so it does not retrigger it
+                }
+                NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
+                NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
+                NDList predictions = outputLayer.output(batchedInputs, true);
+                NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
+                JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.threadNDManager.get().ones(new Shape()), false, false);
 
-            // 2. Prepare the HashMap for Each Vertex and send to previous layer
-            HashMap<String, NDArray> backwardGrads = new HashMap<>();
-            for (int i = 0; i < trainVertices.getValue().size(); i++) {
-                backwardGrads.put(trainVertices.getValue().get(i), inputs.get(i).get(0).getGradient());
+                // 2. Prepare the HashMap for Each Vertex and send to previous layer
+                HashMap<String, NDArray> backwardGrads = new HashMap<>();
+                for (int i = 0; i < trainVertices.getValue().size(); i++) {
+                    backwardGrads.put(trainVertices.getValue().get(i), inputs.get(i).get(0).getGradient());
+                }
+                new RemoteInvoke()
+                        .addDestination(getPartId()) // Only masters will be here anyway
+                        .noUpdate()
+                        .method("collect")
+                        .toElement(getId(), elementType())
+                        .where(MessageDirection.BACKWARD)
+                        .withArgs(backwardGrads)
+                        .buildAndRun(storage);
+            }catch (Exception e){
+                // Pass
+            }finally {
+                //3. Clean the trainVertices data and clean the inputs
+                inputs.forEach(item -> item.get(0).setRequiresGradient(false));
+                trainVertices.getValue().clear();
+                storage.updateFeature(trainVertices);
             }
-            new RemoteInvoke()
-                    .addDestination(getPartId()) // Only masters will be here anyway
-                    .noUpdate()
-                    .method("collect")
-                    .toElement(getId(), elementType())
-                    .where(MessageDirection.BACKWARD)
-                    .withArgs(backwardGrads)
-                    .buildAndRun(storage);
-
-            //3. Clean the trainVertices data and clean the inputs
-            inputs.forEach(item -> item.get(0).setRequiresGradient(false));
-            trainVertices.getValue().clear();
-            storage.updateFeature(trainVertices);
         }
         if (isLastReplica()) {
             // This is the last call of plugin from this operator so send ack message to previous operator
             BATCH_COUNT = 0;
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
-            storage.layerFunction.sideBroadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), MessageDirection.BACKWARD);
             outputLayer.modelServer.sync();
 
         }
@@ -152,7 +155,8 @@ public class VertexTrainingLayer extends Plugin {
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
         if (event instanceof StartTraining) {
-            if(isLastReplica()) System.out.format("Start training %s\n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask());
+            if (isLastReplica())
+                System.out.format("Start training %s\n", storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask());
             startTraining();
         }
     }

@@ -21,43 +21,56 @@ import org.apache.flink.statefun.flink.core.queue.Locks;
 
 import java.util.Deque;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * One implementation of FeedbackQueue
  * Has logic of maintin currently active snapshots
+ *
  * @param <ElementT> Element that should be sent using this queue
  */
 public final class LockFreeBatchFeedbackQueue<ElementT> {
-  private static final int INITIAL_BUFFER_SIZE = 32 * 1024; // 32k
-  protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
-  private final ConcurrentHashMap<Long, Short> pendingSnapshots = new ConcurrentHashMap<>();
+    private static final int INITIAL_BUFFER_SIZE = 32 * 1024; // 32k
 
-  public boolean addAndCheckIfWasEmpty(ElementT element) {
-    final int size = queue.add(element);
-    return size == 1;
-  }
+    protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
 
-  public synchronized void addSnapshot(long snapshotId){
-    if(!pendingSnapshots.containsKey(snapshotId)){
-      pendingSnapshots.put(snapshotId, (short) 2);
+    private final ConcurrentHashMap<Long, Short> pendingSnapshots = new ConcurrentHashMap<>();
+
+    private final AtomicBoolean channelFinished = new AtomicBoolean(false);
+
+    public boolean addAndCheckIfWasEmpty(ElementT element) {
+        final int size = queue.add(element);
+        return size == 1;
     }
-  }
 
-  public synchronized void snapshotFinalize(long snapshotId){
-    if(pendingSnapshots.containsKey(snapshotId)) {
-      pendingSnapshots.compute(snapshotId, (key, value) -> (short) (value - 1));
-      if (pendingSnapshots.get(snapshotId) == 0) {
-        pendingSnapshots.remove(snapshotId);
-      }
+    public synchronized void addSnapshot(long snapshotId) {
+        if (!pendingSnapshots.containsKey(snapshotId)) {
+            pendingSnapshots.put(snapshotId, (short) 2);
+        }
     }
-  }
 
+    public synchronized void snapshotFinalize(long snapshotId) {
+        if (pendingSnapshots.containsKey(snapshotId)) {
+            pendingSnapshots.compute(snapshotId, (key, value) -> (short) (value - 1));
+            if (pendingSnapshots.get(snapshotId) == 0) {
+                pendingSnapshots.remove(snapshotId);
+            }
+        }
+    }
 
-  public boolean hasPendingSnapshots(){
-    return !pendingSnapshots.isEmpty();
-  }
+    public void setChannelFinished(boolean f){
+        channelFinished.set(f);
+    }
 
-  public Deque<ElementT> drainAll() {
-    return queue.drainAll();
-  }
+    public  boolean getChannelFinished() {
+        return channelFinished.getOpaque();
+    }
+
+    public boolean hasPendingSnapshots() {
+        return !pendingSnapshots.isEmpty();
+    }
+
+    public Deque<ElementT> drainAll() {
+        return queue.drainAll();
+    }
 }

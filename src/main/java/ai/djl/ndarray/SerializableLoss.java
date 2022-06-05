@@ -1,10 +1,16 @@
 package ai.djl.ndarray;
 
+import ai.djl.nn.Parameter;
+import ai.djl.pytorch.engine.PtNDManager;
+import ai.djl.serializers.NDArraySerializer;
+import ai.djl.serializers.NDManagerSerializer;
+import ai.djl.serializers.ParameterSerializer;
 import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import helpers.GraphStream;
+import ai.djl.pytorch.engine.PtNDArray;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;
 
@@ -30,11 +36,18 @@ public class SerializableLoss implements Externalizable {
         return internalLoss.getName();
     }
 
+    public static void configureSerializers(Kryo kryo) {
+        kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
+        ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
+        kryo.register(PtNDArray.class, new NDArraySerializer());
+        kryo.register(PtNDManager.class, new NDManagerSerializer());
+        kryo.register(Parameter.class, new ParameterSerializer());
+    }
 
     @Override
     public void writeExternal(ObjectOutput out) throws IOException {
         Kryo a = new Kryo();
-        GraphStream.configureSerializers(a);
+        configureSerializers(a);
         OutputStream tmp = new OutputStream() {
             @Override
             public void write(int b) throws IOException {
@@ -49,7 +62,7 @@ public class SerializableLoss implements Externalizable {
     @Override
     public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
         Kryo a = new Kryo();
-        GraphStream.configureSerializers(a);
+        configureSerializers(a);
         InputStream tmp = new InputStream() {
             @Override
             public int read() throws IOException {

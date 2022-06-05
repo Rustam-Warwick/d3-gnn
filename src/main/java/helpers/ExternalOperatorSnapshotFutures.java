@@ -13,12 +13,12 @@ public class ExternalOperatorSnapshotFutures extends OperatorSnapshotFutures {
 
     public ExternalOperatorSnapshotFutures(long checkpointId, long timestamp, CheckpointOptions checkpointOptions, CheckpointStreamFactory storageLocation) {
         super(
-            new PendingWrapperFuture<SnapshotResult<KeyedStateHandle>>(),
-            new PendingWrapperFuture<SnapshotResult<KeyedStateHandle>>(),
-            new PendingWrapperFuture<SnapshotResult<OperatorStateHandle>>(),
-            new PendingWrapperFuture<SnapshotResult<OperatorStateHandle>>(),
-            new PendingWrapperFuture<SnapshotResult<StateObjectCollection<InputChannelStateHandle>>>(),
-            new PendingWrapperFuture<SnapshotResult<StateObjectCollection<ResultSubpartitionStateHandle>>>()
+                new PendingWrapperFuture<SnapshotResult<KeyedStateHandle>>(),
+                new PendingWrapperFuture<SnapshotResult<KeyedStateHandle>>(),
+                new PendingWrapperFuture<SnapshotResult<OperatorStateHandle>>(),
+                new PendingWrapperFuture<SnapshotResult<OperatorStateHandle>>(),
+                new PendingWrapperFuture<SnapshotResult<StateObjectCollection<InputChannelStateHandle>>>(),
+                new PendingWrapperFuture<SnapshotResult<StateObjectCollection<ResultSubpartitionStateHandle>>>()
         );
         this.checkpointId = checkpointId;
         this.timestamp = timestamp;

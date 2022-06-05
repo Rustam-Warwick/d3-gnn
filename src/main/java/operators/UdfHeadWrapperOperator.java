@@ -3,19 +3,16 @@ package operators;
 import elements.GraphOp;
 import operators.coordinators.events.StartTraining;
 import operators.coordinators.events.StopTraining;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheReader;
-import org.apache.flink.iteration.datacache.nonkeyed.DataCacheSnapshot;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheWriter;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.runtime.state.StatePartitionStreamProvider;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
@@ -32,7 +29,6 @@ import org.apache.flink.util.function.SupplierWithException;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -83,36 +79,12 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
                     OperatorUtils.createDataCacheFileGenerator(
                             basePath, "buffer", getOperatorID());
 
-            DataCacheSnapshot dataCacheSnapshot = null;
-            List<StatePartitionStreamProvider> rawStateInputs =
-                    IteratorUtils.toList(context.getRawOperatorStateInputs().iterator());
-            if (rawStateInputs.size() > 0) {
-                checkState(
-                        rawStateInputs.size() == 1,
-                        "Currently the replay operator does not support rescaling");
-
-                dataCacheSnapshot =
-                        DataCacheSnapshot.recover(
-                                rawStateInputs.get(0).getStream(), fileSystem, pathGenerator);
-            }
-
             dataCacheWriter =
                     new DataCacheWriter<>(
                             typeSerializer,
                             fileSystem,
                             pathGenerator,
-                            dataCacheSnapshot == null
-                                    ? Collections.emptyList()
-                                    : dataCacheSnapshot.getSegments());
-
-            if (dataCacheSnapshot != null && dataCacheSnapshot.getReaderPosition() != null) {
-                currentDataCacheReader =
-                        new DataCacheReader<>(
-                                typeSerializer,
-                                fileSystem,
-                                dataCacheSnapshot.getSegments(),
-                                dataCacheSnapshot.getReaderPosition());
-            }
+                            Collections.emptyList());
 
         } catch (Exception e) {
             throw new FlinkRuntimeException("Failed to replay the records", e);
@@ -149,8 +121,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
         } else if (evt instanceof StopTraining) {
             try {
                 processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
-                dataCacheWriter.finish();
-                checkState(currentDataCacheReader == null, "Concurrent replay is not supported");
+                dataCacheWriter.finishCurrentSegment();
                 currentDataCacheReader =
                         new DataCacheReader<>(
                                 typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());

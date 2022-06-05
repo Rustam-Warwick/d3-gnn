@@ -5,26 +5,27 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -47,9 +48,25 @@ public class CoraFull implements Dataset {
     public KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter() {
 
         return new KeyedProcessFunction<String, GraphOp, GraphOp>() {
+            public transient File outputFile;
+            @Override
+            public void open(Configuration parameters) throws Exception {
+                super.open(parameters);
+                String homePath = System.getenv("HOME");
+                outputFile = new File(String.format("%s/metrics/%s/ingestion-%s.csv",homePath,getRuntimeContext().getJobId(), getRuntimeContext().getIndexOfThisSubtask()));
+                File parent = outputFile.getParentFile();
+                try {
+                    parent.mkdirs();
+                    outputFile.createNewFile();
+                } catch (IOException | IllegalStateException e) {
+                    e.printStackTrace();
+                }
+            }
+
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
+                Files.write(outputFile.toPath(), String.format("%s,%s\n", ctx.timestamp(), ctx.timerService().currentProcessingTime()).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
                 Edge e = (Edge) value.element;
                 if (e.src.getFeature("label") != null) {
                     Feature<?, ?> label = e.src.getFeature("label"); // Get label
@@ -98,7 +115,7 @@ public class CoraFull implements Dataset {
         try {
 //            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
             DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
-                new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
+                    new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
             ).build(), WatermarkStrategy.noWatermarks(), "file");
 
 //            DataStream<String> edges = env.readTextFile(edgesFile.toString());

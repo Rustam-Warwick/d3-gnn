@@ -72,6 +72,7 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
             handleOperatorEvent(new ActionTaken());
             if (status == WatermarkStatus.IDLE && context.getPosition() == context.getNumLayers()) {
                 // This is an indication of training starting on the output layer, think it is starting training again
+                System.out.println("StartTraining");
                 handleOperatorEvent(new StartTraining());
             }
         }

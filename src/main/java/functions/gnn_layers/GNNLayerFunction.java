@@ -8,7 +8,10 @@ import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.state.FunctionInitializationContext;
+import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.TimerService;
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
@@ -19,7 +22,7 @@ import java.util.Objects;
  * Interface that the storage and everything else interacts with
  * Real implementation should be tightly coupled with their respective operators
  */
-public interface GNNLayerFunction extends RichFunction {
+public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     // ---------------> Externally set Features, Variables
 
     /**
@@ -90,6 +93,16 @@ public interface GNNLayerFunction extends RichFunction {
     }
 
     // ----------------> Derived methods
+
+    @Override
+    default void snapshotState(FunctionSnapshotContext context) throws Exception {
+        getStorage().snapshotState(context);
+    }
+
+    @Override
+    default void initializeState(FunctionInitializationContext context) throws Exception {
+        getStorage().initializeState(context);
+    }
 
     /**
      * Get the current part of this operator

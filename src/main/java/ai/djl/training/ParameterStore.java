@@ -22,6 +22,7 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import ai.djl.training.optimizer.Adam;
 import ai.djl.training.optimizer.Optimizer;
+import ai.djl.training.tracker.Tracker;
 import ai.djl.util.PairList;
 import elements.Plugin;
 import elements.iterations.MessageDirection;
@@ -37,10 +38,14 @@ import java.util.Objects;
  * Each ParameterStore stores the parameters of a single Model only.
  * If you want to have multiple Model in the same operator you need to define several ParameterStores for each of them
  */
-public class ParameterStore extends Plugin {
-    public boolean IS_DIRTY = false;
-    protected Model model;
-    protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected
+public class ParameterStore extends Plugin{
+
+    public boolean IS_DIRTY = false; // Has the model been updated just now. Notes that it is currently dirty
+
+    protected Model model; // Model attached
+
+    protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
+
     protected HashMap<String, NDArray> collectedGradients; // HashMap of the collected gradients so far
 
     protected Optimizer optimizer; // Optimizer
@@ -55,7 +60,7 @@ public class ParameterStore extends Plugin {
     public void open() {
         super.open();
         inputShape = model.describeInput();
-        optimizer = Adam.builder().build();
+        optimizer = Adam.builder().optLearningRateTracker(Tracker.fixed(0.01f)).build();
     }
 
     // INITIALIZATION DONE!!!
@@ -68,7 +73,6 @@ public class ParameterStore extends Plugin {
         return inputShape;
     }
 
-
     public void setParameterServer(ParameterServer parameterServer, Device[] devices) {
         // NONE. Just need to have this because DJL might need it at some point
     }
@@ -79,7 +83,6 @@ public class ParameterStore extends Plugin {
             optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
             parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
         });
-        collectedGradients = null;
         new RemoteInvoke()
                 .method("updateReplicaParameters")
                 .noUpdate()
@@ -89,6 +92,7 @@ public class ParameterStore extends Plugin {
                 .addDestinations(othersMasterParts())
                 .buildAndRun(storage);
         IS_DIRTY = true;
+        collectedGradients = null;
         storage.layerFunction.operatorEventMessage(new StopTraining());
     }
 
@@ -134,12 +138,12 @@ public class ParameterStore extends Plugin {
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
-            collectedGradients = null;
         }
     }
 
     /**
      * Sync gradients from all the parallel operators to the master operator.
+     *
      * @implNote Calling Sync for all of the parallel subtasks will result in training and syncing of the underlying model
      * @implNote calling the @link{collect} method from here
      */
