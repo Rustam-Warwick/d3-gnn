@@ -24,7 +24,6 @@ import java.util.Objects;
  */
 public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     // ---------------> Externally set Features, Variables
-
     /**
      * @return Attached storage engine
      */

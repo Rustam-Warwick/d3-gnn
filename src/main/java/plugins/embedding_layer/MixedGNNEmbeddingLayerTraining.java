@@ -137,9 +137,9 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
                             .withArgs(backwardGrads)
                             .buildAndRun(storage);
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
                 // Pass
-            }finally {
+            } finally {
                 // 5. Clean the collected gradients Feature, make require gradeitns back to false again
                 inputs.forEach(item -> {
                     item.get(0).setRequiresGradient(false);
@@ -165,7 +165,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
             // 1.1 Fill up those 2 data structures
             HashMap<BaseAggregator<?>, List<Vertex>> reverseEdgeList = new HashMap<>(); // Agg -> All in Vertices with Features
             List<Vertex> srcVertices = new ArrayList<>(); // Vertices samereference as the above data structure for batching
-            try{
+            try {
                 for (Map.Entry<BaseAggregator<?>, NDArray> entry : collectedAggregators.getValue().entrySet()) {
                     entry.getKey().setStorage(storage);
                     Vertex v = (Vertex) entry.getKey().getElement();
@@ -234,7 +234,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
                                 .buildAndRun(storage);
                     }
                 }
-            } catch (Exception e){
+            } catch (Exception e) {
                 // Pass
             } finally {
                 // 3. Cleanup
@@ -246,9 +246,9 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
         if (isLastReplica()) {
             if (!storage.layerFunction.isFirst()) {
                 Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
-                storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST),MessageDirection.BACKWARD);
+                storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), MessageDirection.BACKWARD);
             }
-            embeddingLayer.modelServer.sync(); // This operator index is fully ready to update the model
+            embeddingLayer.modelServer.getParameterStore().sync(); // This operator index is fully ready to update the model
         }
 
     }

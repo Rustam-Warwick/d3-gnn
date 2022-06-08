@@ -15,4 +15,9 @@ abstract public class BasePartitioner extends RichMapFunction<GraphOp, GraphOp> 
      * @return Can we?
      */
     abstract public boolean isParallel();
+
+    /**
+     * Name of this partitioner
+     */
+    abstract public String getName();
 }

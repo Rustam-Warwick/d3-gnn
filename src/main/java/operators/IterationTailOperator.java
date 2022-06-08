@@ -21,10 +21,9 @@ package operators;
 import elements.GraphOp;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
-import operators.logger.FeedbackLogger;
-import operators.logger.IterationQueueCheckpointLogger;
+import org.apache.flink.api.common.state.ListState;
+import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
-import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -40,6 +39,9 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.util.IOUtils;
 
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -52,7 +54,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
-    protected transient KeySelector<GraphOp, ?> stateKeySelector; // Exists in AbstractStreamOperator but is private so re-define here
 
     private OperatorID operatorID; // Unique Operator Id
 
@@ -61,6 +62,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
     private transient TypeSerializer<StreamElement> recordSerializer; // StreamElement serializer
+
+    private transient ListState<StreamRecord<GraphOp>> bufferedRecords; // Buffered records for the checkpoint
 
     public IterationTailOperator(IterationID iterationId) {
         this.iterationId = Objects.requireNonNull(iterationId);
@@ -71,13 +74,30 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
         super.setup(containingTask, config, output);
         operatorID = getOperatorID();
-        registerFeedbackWriter();
-        stateKeySelector = getContainingTask().getConfiguration().getStatePartitioner(0, getUserCodeClassloader());
         recordSerializer = new StreamElementSerializer<StreamRecord<GraphOp>>(getContainingTask().getConfiguration().getTypeSerializerIn(0, getClass().getClassLoader()));
-        this.recordConsumer =
+        recordConsumer =
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
+        registerFeedbackWriter();
+    }
+
+    @Override
+    public void initializeState(StateInitializationContext context) throws Exception {
+        super.initializeState(context);
+        ListStateDescriptor<StreamRecord<GraphOp>> descriptor =
+                new ListStateDescriptor(
+                        "buffered-records",
+                        recordSerializer); // Make sure the typeserializer works
+
+        bufferedRecords = context.getOperatorStateStore().getListState(descriptor);
+        if (Objects.nonNull(bufferedRecords)) {
+            // Re-stream the iteration messages
+            Iterable<StreamRecord<GraphOp>> tmp = bufferedRecords.get();
+            for (StreamRecord<GraphOp> record : tmp) {
+                processElement(record);
+            }
+        }
     }
 
     @Override
@@ -91,27 +111,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     }
 
     @Override
-    public void initializeState(StateInitializationContext context) throws Exception {
-        super.initializeState(context);
-    }
-
-    @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
+        ArrayDeque<StreamRecord<GraphOp>> buffer = feedbackChannel.getUnsafeBuffer(operatorID);
+        List<StreamRecord<GraphOp>> tmp = new ArrayList<>(buffer);
+        bufferedRecords.update(tmp);
         super.snapshotState(context);
-        FeedbackLogger<StreamRecord<GraphOp>> logger =
-                new IterationQueueCheckpointLogger(
-                        context,
-                        null,
-                        recordSerializer,
-                        getContainingTask().getEnvironment().getIOManager());
-        try (logger) {
-            feedbackChannel.dumpQueueToLogger(logger, operatorID);
-            logger.commit();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            feedbackChannel.finalizeSnapshotFromQueue(context.getCheckpointId(), operatorID);
-        }
+        feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
     }
 
     @Override

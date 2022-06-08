@@ -2,7 +2,6 @@ package ai.djl.serializers;
 
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import com.esotericsoftware.kryo.Kryo;

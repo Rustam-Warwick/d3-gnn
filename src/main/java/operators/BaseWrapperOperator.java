@@ -331,11 +331,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             WATERMARKS.f1 = WATERMARKS.f2;
             WATERMARKS.f2 = null;
             StreamRecord<GraphOp> record = new StreamRecord<>(new GraphOp(Op.WATERMARK, ITERATION_COUNT, null, null, MessageCommunication.BROADCAST), WATERMARKS.f1.getTimestamp());
-            if (ITERATION_COUNT == 0){
+            if (ITERATION_COUNT == 0) {
                 setKeyContextElement(record);
                 processElement(record);
-            }
-            else {
+            } else {
                 output.collect(ITERATE_OUTPUT_TAG, record);
             }
         }
@@ -353,8 +352,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if (ITERATION_COUNT == 0) {
                 setKeyContextElement(record);
                 processElement(record);
-            }
-            else {
+            } else {
                 output.collect(ITERATE_OUTPUT_TAG, record);
             }
         }
@@ -440,7 +438,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void endInput() throws Exception {
-
     }
 
     /**

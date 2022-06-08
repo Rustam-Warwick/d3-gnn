@@ -132,9 +132,9 @@ public class VertexTrainingLayer extends Plugin {
                         .where(MessageDirection.BACKWARD)
                         .withArgs(backwardGrads)
                         .buildAndRun(storage);
-            }catch (Exception e){
+            } catch (Exception e) {
                 // Pass
-            }finally {
+            } finally {
                 //3. Clean the trainVertices data and clean the inputs
                 inputs.forEach(item -> item.get(0).setRequiresGradient(false));
                 trainVertices.getValue().clear();
@@ -146,7 +146,7 @@ public class VertexTrainingLayer extends Plugin {
             BATCH_COUNT = 0;
             Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
             storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), MessageDirection.BACKWARD);
-            outputLayer.modelServer.sync();
+            outputLayer.modelServer.getParameterStore().sync();
 
         }
     }

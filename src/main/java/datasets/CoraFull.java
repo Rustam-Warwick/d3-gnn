@@ -5,7 +5,6 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -49,11 +48,12 @@ public class CoraFull implements Dataset {
 
         return new KeyedProcessFunction<String, GraphOp, GraphOp>() {
             public transient File outputFile;
+
             @Override
             public void open(Configuration parameters) throws Exception {
                 super.open(parameters);
                 String homePath = System.getenv("HOME");
-                outputFile = new File(String.format("%s/metrics/%s/ingestion-%s.csv",homePath,getRuntimeContext().getJobId(), getRuntimeContext().getIndexOfThisSubtask()));
+                outputFile = new File(String.format("%s/metrics/%s/ingestion-%s.csv", homePath, getRuntimeContext().getJobId(), getRuntimeContext().getIndexOfThisSubtask()));
                 File parent = outputFile.getParentFile();
                 try {
                     parent.mkdirs();
@@ -116,12 +116,11 @@ public class CoraFull implements Dataset {
 //            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
             DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
                     new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
-            ).build(), WatermarkStrategy.noWatermarks(), "file");
+            ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
 
-//            DataStream<String> edges = env.readTextFile(edgesFile.toString());
-            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
+            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser());
             DataStream<GraphOp> joinedData = parsedEdges
-                    .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString())).setParallelism(1)
+                    .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString())).setParallelism(1)//Should be local
                     .assignTimestampsAndWatermarks(WatermarkStrategy
                             .forGenerator(ctx -> new PunctuatedWatermarks())
                             .withTimestampAssigner((event, ts) -> event.getTimestamp()));
@@ -134,7 +133,7 @@ public class CoraFull implements Dataset {
     protected static class PunctuatedWatermarks implements WatermarkGenerator<GraphOp> {
         @Override
         public void onEvent(GraphOp event, long eventTimestamp, WatermarkOutput output) {
-            if (eventTimestamp % 2000 == 0) output.emitWatermark(new Watermark(eventTimestamp - 40));
+
         }
 
         @Override

@@ -11,15 +11,14 @@
  * and limitations under the License.
  */
 
-package ai.djl.training;
+package plugins;
 
 import ai.djl.Device;
 import ai.djl.Model;
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
+import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Adam;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
@@ -38,7 +37,7 @@ import java.util.Objects;
  * Each ParameterStore stores the parameters of a single Model only.
  * If you want to have multiple Model in the same operator you need to define several ParameterStores for each of them
  */
-public class ParameterStore extends Plugin{
+public class ModelServer extends Plugin {
 
     public boolean IS_DIRTY = false; // Has the model been updated just now. Notes that it is currently dirty
 
@@ -52,7 +51,9 @@ public class ParameterStore extends Plugin{
 
     private transient PairList<String, Shape> inputShape; // Input Shape of the model
 
-    public ParameterStore(Model m) {
+    private transient ParameterStore parameterStore;
+
+    public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
         this.model = m;
     }
@@ -61,6 +62,7 @@ public class ParameterStore extends Plugin{
         super.open();
         inputShape = model.describeInput();
         optimizer = Adam.builder().optLearningRateTracker(Tracker.fixed(0.01f)).build();
+        parameterStore = new ParameterStoreWrapper();
     }
 
     // INITIALIZATION DONE!!!
@@ -73,29 +75,13 @@ public class ParameterStore extends Plugin{
         return inputShape;
     }
 
-    public void setParameterServer(ParameterServer parameterServer, Device[] devices) {
-        // NONE. Just need to have this because DJL might need it at some point
+    public ParameterStore getParameterStore() {
+        return parameterStore;
     }
 
-    public void updateAllParameters() {
-        HashMap<String, NDArray> parameters = new HashMap<>();
-        model.getBlock().getParameters().forEach(parameter -> {
-            optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
-            parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
-        });
-        new RemoteInvoke()
-                .method("updateReplicaParameters")
-                .noUpdate()
-                .where(MessageDirection.ITERATE)
-                .toElement(getId(), elementType())
-                .withArgs(parameters)
-                .addDestinations(othersMasterParts())
-                .buildAndRun(storage);
-        IS_DIRTY = true;
-        collectedGradients = null;
-        storage.layerFunction.operatorEventMessage(new StopTraining());
-    }
-
+    /**
+     * Update the model of replicas to the sent master parameters
+     */
     @RemoteFunction
     public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
         model.getBlock().getParameters().forEach(parameter -> {
@@ -105,19 +91,6 @@ public class ParameterStore extends Plugin{
         });
         IS_DIRTY = true;
         storage.layerFunction.operatorEventMessage(new StopTraining());
-    }
-
-    public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        if (Objects.nonNull(parameter)) {
-            parameter.getArray().setRequiresGradient(training);
-            return parameter.getArray();
-        } else {
-            return null;
-        }
-    }
-
-    public NDManager getManager() {
-        return BaseNDManager.threadNDManager.get();
     }
 
     /**
@@ -136,33 +109,60 @@ public class ParameterStore extends Plugin{
             });
         }
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
-            updateAllParameters();
+            parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
         }
     }
 
-    /**
-     * Sync gradients from all the parallel operators to the master operator.
-     *
-     * @implNote Calling Sync for all of the parallel subtasks will result in training and syncing of the underlying model
-     * @implNote calling the @link{collect} method from here
-     */
-    public void sync() {
-        HashMap<String, NDArray> thisGradients = new HashMap<>();
-        model.getBlock().getParameters().forEach((parameter) -> {
-            if (parameter.getValue().getArray().hasGradient()) {
-                thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
+    public class ParameterStoreWrapper extends ParameterStore {
+        @Override
+        public void updateAllParameters() {
+            HashMap<String, NDArray> parameters = new HashMap<>();
+            model.getBlock().getParameters().forEach(parameter -> {
+                optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
+                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
+            });
+            new RemoteInvoke()
+                    .method("updateReplicaParameters")
+                    .noUpdate()
+                    .where(MessageDirection.ITERATE)
+                    .toElement(getId(), elementType())
+                    .withArgs(parameters)
+                    .addDestinations(othersMasterParts())
+                    .buildAndRun(storage);
+            IS_DIRTY = true;
+            collectedGradients = null;
+            storage.layerFunction.operatorEventMessage(new StopTraining());
+        }
+
+        @Override
+        public NDArray getValue(Parameter parameter, Device device, boolean training) {
+            if (Objects.nonNull(parameter)) {
+                parameter.getArray().setRequiresGradient(training);
+                return parameter.getArray();
             } else {
-                thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().zerosLike());
+                return null;
             }
-        });
-        new RemoteInvoke()
-                .withArgs(thisGradients)
-                .where(MessageDirection.ITERATE)
-                .toElement(getId(), elementType())
-                .noUpdate()
-                .addDestination((short) 0)
-                .method("collect")
-                .buildAndRun(storage);
+        }
+
+        @Override
+        public void sync() {
+            HashMap<String, NDArray> thisGradients = new HashMap<>();
+            model.getBlock().getParameters().forEach((parameter) -> {
+                if (parameter.getValue().getArray().hasGradient()) {
+                    thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
+                } else {
+                    thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().zerosLike());
+                }
+            });
+            new RemoteInvoke()
+                    .withArgs(thisGradients)
+                    .where(MessageDirection.ITERATE)
+                    .toElement(getId(), elementType())
+                    .noUpdate()
+                    .addDestination((short) 0)
+                    .method("collect")
+                    .buildAndRun(storage);
+        }
     }
 }

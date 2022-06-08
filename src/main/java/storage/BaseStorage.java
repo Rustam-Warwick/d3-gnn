@@ -9,7 +9,6 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
-import org.apache.flink.util.CollectionUtil;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -32,7 +31,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-    private transient ListState<Plugin> pluginListState;
+    private transient ListState<HashMap<String, Plugin>> pluginListState;
 
     // -------- Abstract methods
 
@@ -124,17 +123,16 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
         // pass
-        ListStateDescriptor<Plugin> descriptor =
-                new ListStateDescriptor<>(
+        ListStateDescriptor<HashMap<String, Plugin>> descriptor =
+                new ListStateDescriptor(
                         "plugins",
-                        TypeInformation.of(Plugin.class));
-        pluginListState = context.getOperatorStateStore().getUnionListState(descriptor);
+                        TypeInformation.of(HashMap.class));
+        pluginListState = context.getOperatorStateStore().getListState(descriptor);
         if (context.isRestored()) {
-            for (Plugin plugin : pluginListState.get()) {
-                withPlugin(plugin);
-            }
+            plugins.clear();
+            pluginListState.get().forEach(plugins::putAll);
         } else {
-            pluginListState.addAll(CollectionUtil.iterableToList(plugins.values()));
+            pluginListState.add(plugins);
         }
 
     }

@@ -127,6 +127,11 @@ public class HDRF extends BasePartitioner {
     }
 
     @Override
+    public String getName() {
+        return "HDRF-Partitioner";
+    }
+
+    @Override
     public GraphOp map(GraphOp value) throws Exception {
         GraphElement elementToPartition = value.element;
         if (elementToPartition.elementType() == ElementType.FEATURE) {

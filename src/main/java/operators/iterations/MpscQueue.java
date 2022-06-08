@@ -103,6 +103,15 @@ public final class MpscQueue<T> {
         }
     }
 
+    /**
+     * Returns buffer without the lock
+     *
+     * @implNote Be careful when implementing this
+     */
+    public ArrayDeque<T> getUnsafeBuffer() {
+        return active;
+    }
+
     public void logQueue(FeedbackLogger<T> logger) throws Exception {
         final Lock lock = this.lock;
         lock.lockUninterruptibly();

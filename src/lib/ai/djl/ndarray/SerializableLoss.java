@@ -28,20 +28,20 @@ public class SerializableLoss implements Externalizable {
         this.internalLoss = internalLoss;
     }
 
-    public NDArray evaluate(NDList labels, NDList predictions) {
-        return internalLoss.evaluate(labels, predictions);
-    }
-
-    public String getName() {
-        return internalLoss.getName();
-    }
-
     public static void configureSerializers(Kryo kryo) {
         kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
         ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
         kryo.register(PtNDArray.class, new NDArraySerializer());
         kryo.register(PtNDManager.class, new NDManagerSerializer());
         kryo.register(Parameter.class, new ParameterSerializer());
+    }
+
+    public NDArray evaluate(NDList labels, NDList predictions) {
+        return internalLoss.evaluate(labels, predictions);
+    }
+
+    public String getName() {
+        return internalLoss.getName();
     }
 
     @Override

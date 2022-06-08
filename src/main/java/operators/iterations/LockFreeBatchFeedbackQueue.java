@@ -34,7 +34,7 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
 
     protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
 
-    private final ConcurrentHashMap<Long, Short> pendingSnapshots = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Boolean> pendingSnapshots = new ConcurrentHashMap<>(); // Snapshot
 
     private final AtomicBoolean channelFinished = new AtomicBoolean(false);
 
@@ -45,25 +45,20 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
 
     public synchronized void addSnapshot(long snapshotId) {
         if (!pendingSnapshots.containsKey(snapshotId)) {
-            pendingSnapshots.put(snapshotId, (short) 2);
+            pendingSnapshots.put(snapshotId, false);
         }
     }
 
     public synchronized void snapshotFinalize(long snapshotId) {
-        if (pendingSnapshots.containsKey(snapshotId)) {
-            pendingSnapshots.compute(snapshotId, (key, value) -> (short) (value - 1));
-            if (pendingSnapshots.get(snapshotId) == 0) {
-                pendingSnapshots.remove(snapshotId);
-            }
-        }
+        pendingSnapshots.remove(snapshotId);
     }
 
-    public void setChannelFinished(boolean f){
-        channelFinished.set(f);
-    }
-
-    public  boolean getChannelFinished() {
+    public boolean getChannelFinished() {
         return channelFinished.getOpaque();
+    }
+
+    public void setChannelFinished(boolean f) {
+        channelFinished.set(f);
     }
 
     public boolean hasPendingSnapshots() {

@@ -15,7 +15,6 @@ package ai.djl.pytorch.engine;
 import ai.djl.Device;
 import ai.djl.Model;
 import ai.djl.engine.Engine;
-import ai.djl.engine.EngineException;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.SymbolBlock;
 import ai.djl.pytorch.jni.JniUtils;
@@ -36,26 +35,27 @@ import java.nio.file.Paths;
  *
  * <p>To get an instance of the {@code PtEngine} when it is not the default Engine, call {@link
  * Engine#getEngine(String)} with the Engine name "PyTorch".
+ *
  * @implNote I have changed the newInstance method to never throw errors since in Flink dynamic classloading it causes errors when the lib loded twice in the same session
  */
 public final class PtEngine extends Engine {
 
-    private static final Logger logger = LoggerFactory.getLogger(PtEngine.class);
-
     public static final String ENGINE_NAME = "PyTorch";
     static final int RANK = 2;
+    private static final Logger logger = LoggerFactory.getLogger(PtEngine.class);
 
-    private PtEngine() {}
+    private PtEngine() {
+    }
 
     static Engine newInstance() {
         try {
             LibUtils.loadLibrary();
-            if (Integer.getInteger("ai.djl.pytorch.num_interop_threads") != null) {
+            if (Integer.getInteger("ai.ai.djl.pytorch.num_interop_threads") != null) {
                 JniUtils.setNumInteropThreads(
-                        Integer.getInteger("ai.djl.pytorch.num_interop_threads"));
+                        Integer.getInteger("ai.ai.djl.pytorch.num_interop_threads"));
             }
-            if (Integer.getInteger("ai.djl.pytorch.num_threads") != null) {
-                JniUtils.setNumThreads(Integer.getInteger("ai.djl.pytorch.num_threads"));
+            if (Integer.getInteger("ai.ai.djl.pytorch.num_threads") != null) {
+                JniUtils.setNumThreads(Integer.getInteger("ai.ai.djl.pytorch.num_threads"));
             }
             logger.info("Number of inter-op threads is " + JniUtils.getNumInteropThreads());
             logger.info("Number of intra-op threads is " + JniUtils.getNumThreads());
@@ -77,71 +77,94 @@ public final class PtEngine extends Engine {
             return new PtEngine();
         } catch (Throwable t) {
             // Pass
+            t.printStackTrace();
             return new PtEngine();
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Engine getAlternativeEngine() {
         return null;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getEngineName() {
         return ENGINE_NAME;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int getRank() {
         return RANK;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getVersion() {
         return LibUtils.getVersion();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasCapability(String capability) {
         return JniUtils.getFeatures().contains(capability);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SymbolBlock newSymbolBlock(NDManager manager) {
         return new PtSymbolBlock((PtNDManager) manager);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Model newModel(String name, Device device) {
         return new PtModel(name, device);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDManager newBaseManager() {
         return PtNDManager.getSystemManager().newSubManager();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDManager newBaseManager(Device device) {
         return PtNDManager.getSystemManager().newSubManager(device);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GradientCollector newGradientCollector() {
         return new PtGradientCollector();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setRandomSeed(int seed) {
         super.setRandomSeed(seed);
@@ -149,7 +172,9 @@ public final class PtEngine extends Engine {
         RandomUtils.RANDOM.setSeed(seed);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(200);

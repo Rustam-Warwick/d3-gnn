@@ -67,19 +67,19 @@ dependencies {
     // --------------------------------------------------------------
     // Dependencies that should be part of the shadow jar, e.g.
     // --------------------------------------------------------------
-    flinkShadowJar("org.apache.flink:statefun-flink-core:3.2.0"){
+    flinkLibShadowJar("org.apache.flink:statefun-flink-core:3.2.0"){
         // Need only the main classes from here
         transitive(false)
     }
 
-    flinkShadowJar('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
+    flinkLibShadowJar('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
         // Need only the main classes from here
         transitive(false)
     }
 
-    flinkShadowJar 'ai.djl:api:0.16.0'
-    flinkShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
-    flinkShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
+    flinkLibShadowJar 'ai.djl:api:0.16.0'
+    flinkLibShadowJar 'ai.djl.pytorch:pytorch-engine:0.16.0'
+    flinkLibShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.10.0'
     flinkShadowJar 'org.apache.flink:flink-connector-files:1.16-SNAPSHOT'
     // Packages that should be part of library put into flink statically
 
@@ -95,7 +95,7 @@ sourceSets {
     lib{
         // Lib files that should go to flink
         java{
-            srcDirs = [files("src/lib")]
+            srcDirs = [files("src/lib") ]
         }
 
         runtimeClasspath = configurations.flinkLibShadowJar + configurations.flinkShadowJar + configurations.runtimeClasspath
@@ -129,14 +129,15 @@ task libShadowJar(type: ShadowJar){
     from sourceSets.lib.output
 }
 
-libShadowJar.archiveBaseName.set("lib")
+libShadowJar.archiveBaseName.set("flink-gnn")
 
 task copyLibJar(type: Copy){
-    from 'build/libs/lib-0.1-SNAPSHOT.jar'
+    from 'build/libs/flink-gnn-0.1-SNAPSHOT.jar'
     into '/Users/rustamwarwick/flink-1.15.0/lib'
 }
 
 
 shadowJar {
     configurations = [project.configurations.flinkShadowJar]
+//    exclude("ai","elements")
 }

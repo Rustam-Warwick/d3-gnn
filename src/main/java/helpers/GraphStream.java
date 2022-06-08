@@ -18,6 +18,7 @@ import operators.BaseWrapperOperator;
 import operators.IterationHeadOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
+import org.apache.commons.cli.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -30,15 +31,23 @@ import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
 
 import java.util.List;
+import java.util.Objects;
 
 public class GraphStream {
     public final short parallelism; // Default parallelism
-    public final double lambda; // GNN operator explosion coefficient. 1 means no explosion
+
     public final StreamExecutionEnvironment env; // Stream environment
+
     private final boolean isLocal;
+
+    public double lambda; // GNN operator explosion coefficient. 1 means no explosion
+
     public short layers;// Number of GNN Layers in the pipeline
+
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
+
     public IterationID fullLoopIterationId; // Iteration Id of 0 layer
+
     public short position_index; // Counter of the Current GNN layer being
 
     public GraphStream(StreamExecutionEnvironment env, double explosionFactor) {
@@ -48,7 +57,7 @@ public class GraphStream {
         configureSerializers(this.env);
         if (env instanceof LocalStreamEnvironment) {
             isLocal = true;
-        } else isLocal = true;
+        } else isLocal = false;
     }
 
     public GraphStream(StreamExecutionEnvironment env) {
@@ -71,19 +80,56 @@ public class GraphStream {
         env.registerType(MeanAggregator.class);
     }
 
+    public GraphStream parseCmdArgs(String[] cmdArgs) {
+        Option explosionCoeff = Option
+                .builder("lambda")
+                .required(false)
+                .desc("Explosion Coefficient of the GNN models")
+                .type(Float.class)
+                .hasArg(true)
+                .argName("Value")
+                .longOpt("lambda")
+                .numberOfArgs(1)
+                .build();
+
+        Option objectReuse = Option
+                .builder("o")
+                .required(false)
+                .desc("Enable object reuse")
+                .hasArg(false)
+                .build();
+        Options options = new Options();
+        CommandLineParser parser = new DefaultParser();
+        options.addOption(explosionCoeff);
+        options.addOption(objectReuse);
+        try {
+            CommandLine commandLine = parser.parse(options, cmdArgs);
+            if (commandLine.hasOption("lambda")) {
+                String lambdaValue = commandLine.getOptionValue("lambda");
+                double r = Double.valueOf(lambdaValue);
+                this.lambda = r;
+            }
+            if(commandLine.hasOption("o")){
+                this.env.getConfig().enableObjectReuse();
+            }
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
 
     /**
-     * Partition the incoming GraphOp Stream into getMaxParallelism() number of subtasks
+     * Partition the incoming GraphOp Stream into getMaxParallelism() number of parts
      *
      * @param stream      Incoming GraphOp Stream
      * @param partitioner Partitioner MapFunction class
-     * @return Partitioned and keyed DataStream of GraphOps.
+     * @return Partitioned but not-keyed DataStream of GraphOps.
      */
     public DataStream<GraphOp> partition(DataStream<GraphOp> stream, BasePartitioner partitioner) {
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        return stream.map(partitioner).setParallelism(part_parallelism).name("Partitioner");
+        return stream.map(partitioner).setParallelism(part_parallelism).name(partitioner.getName());
     }
 
     /**
@@ -97,11 +143,11 @@ public class GraphStream {
         int thisParallelism = (int) (parallelism * Math.pow(lambda, position_index));
         IterationID localIterationId = new IterationID();
 
-        SingleOutputStreamOperator<GraphOp> iterationHead = inputData.transform(String.format("IterationHead - %s", position_index), TypeInformation.of(GraphOp.class), new IterationHeadOperator(localIterationId, position_index)).uid(String.format("IterationHead - %s", position_index));
+        SingleOutputStreamOperator<GraphOp> iterationHead = inputData.transform(String.format("IterationHead - %s", position_index), TypeInformation.of(GraphOp.class), new IterationHeadOperator(localIterationId, position_index)).uid(String.format("IterationHead - %s", position_index)).setParallelism(thisParallelism);
         SingleOutputStreamOperator<GraphOp> forward = iterationHead.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
 
-        iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+//        iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+//        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         if (!isLocal) forward.slotSharingGroup("gnn-" + position_index);
         if (!isLocal) iterationHead.slotSharingGroup("gnn-" + position_index);
 
@@ -112,7 +158,7 @@ public class GraphStream {
         if (position_index > 0) {
             // Add iteration
             SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).forward().transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism).uid(String.format("IterationTail - %s", position_index));
-            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+//            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
             if (!isLocal) iterationHandler.slotSharingGroup("gnn-" + position_index);
         }
 
@@ -121,15 +167,15 @@ public class GraphStream {
             // Add Backward Iteration
             int previousParallelism = (int) (parallelism * Math.pow(lambda, position_index - 1));
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
-            SingleOutputStreamOperator<Void> backwardIteration = backFilter.forward().transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism).uid(String.format("BackwardTail - %s", position_index - 1));
-            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism).uid(String.format("BackwardTail - %s", position_index - 1));
+//            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
             if (!isLocal) backwardIteration.slotSharingGroup("gnn-" + (position_index - 1));
         }
         if (position_index == layers) {
-            // This is the last one
+            // Add Full Loop Iteration
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
-            SingleOutputStreamOperator<Void> backwardIteration = backFilter.forward().transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(parallelism).uid("FullLoopTail");
-            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-0");
+            SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(parallelism).uid("FullLoopTail");
+//            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-0");
             if (!isLocal) backwardIteration.slotSharingGroup("gnn-0");
 
         }
@@ -145,15 +191,16 @@ public class GraphStream {
      * @param processFunctions List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
      */
-    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, List<KeyedProcessFunction<String, GraphOp, GraphOp>> processFunctions) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, KeyedProcessFunction<String, GraphOp, GraphOp> ...processFunctions) {
         assert layers == 0;
         assert position_index == 0;
-        this.layers = (short) (processFunctions.size() - 1); // First input is not counted as a layer
+        this.layers = (short) (processFunctions.length - 1); // First input is not counted as a layer
         DataStream<GraphOp> topologyUpdates = null;
         DataStream<GraphOp> normalUpdates = null;
         DataStream<GraphOp> trainTestSplit = null;
         DataStream<GraphOp> previousLayerUpdates = null;
         for (KeyedProcessFunction processFn : processFunctions) {
+            if(Objects.isNull(processFn))continue;
             if (position_index == 0) {
                 SingleOutputStreamOperator<GraphOp> tmp = streamingGNNLayer(allUpdates, processFn);
                 topologyUpdates = tmp.getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);

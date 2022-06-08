@@ -30,8 +30,6 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.apache.flink.util.Preconditions.checkState;
-
 /**
  * Head Operator that receives all external inputs to the graph. Handles buffering while training and splitting messages
  *

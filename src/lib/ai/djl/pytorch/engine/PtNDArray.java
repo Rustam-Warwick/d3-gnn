@@ -248,7 +248,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray, External
     @Override
     public void set(Buffer data) {
         int size = Math.toIntExact(size());
-        BaseNDManager.validateBufferSize(data, getDataType(), size);
+        ai.djl.ndarray.BaseNDManager.validateBufferSize(data, getDataType(), size);
         // TODO how do we handle the exception happened in the middle
         dataRef = null;
         if (data.isDirect() && data instanceof ByteBuffer) {
@@ -263,7 +263,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray, External
         // int8, uint8, boolean use ByteBuffer, so need to explicitly input DataType
         DataType inputType = DataType.fromBuffer(data);
         ByteBuffer buf = manager.allocateDirect(size * inputType.getNumOfBytes());
-        BaseNDManager.copyBuffer(data, buf);
+        ai.djl.ndarray.BaseNDManager.copyBuffer(data, buf);
 
         // If NDArray is on the GPU, it is native code responsibility to control the data life cycle
         if (!getDevice().isGpu()) {

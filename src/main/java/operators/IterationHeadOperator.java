@@ -33,6 +33,7 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
@@ -90,19 +91,21 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-        feedbackChannel.addSnapshotToAllQueues(checkpointId); // Stop all the iterations from being consumed
+        feedbackChannel.addSnapshot(checkpointId); // Stop all the iterations from being consumed
         super.prepareSnapshotPreBarrier(checkpointId);
     }
 
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
         super.snapshotState(context);
-        feedbackChannel.finalizeSnapshotFromAllQueues(context.getCheckpointId());
     }
 
     @Override
     public void endInput() throws Exception {
-
+        while (true) {
+            mailboxExecutor.yield();
+            Thread.sleep(100);
+        }
     }
 
     @Override
@@ -116,6 +119,15 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
         if (position == 0)
             return; // Do not process watermark status from external streams since it is vital in training
         super.processWatermarkStatus(watermarkStatus);
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if (position == 0 && mark.getTimestamp() == Long.MAX_VALUE) {
+            // End input watermark
+            return;
+        }
+        super.processWatermark(mark);
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {

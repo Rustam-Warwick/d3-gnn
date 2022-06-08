@@ -25,6 +25,7 @@ import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 
 import java.io.Closeable;
+import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +40,7 @@ public final class FeedbackChannel<T> implements Closeable {
     /**
      * Map from the iteration sink operators to their respective queues
      */
-    public final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Producers in this channel
+    private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Producers in this channel
     /**
      * The key that used to identify this channel.
      */
@@ -99,42 +100,31 @@ public final class FeedbackChannel<T> implements Closeable {
     /**
      * Registers snapshot in all queues
      */
-    public void addSnapshotToAllQueues(long snapshotId) {
+    public void addSnapshot(long snapshotId) {
         queues.forEach((key, item) -> {
-            System.out.format("Queue Locked for operator %s \n ", key);
-            item.addSnapshot(snapshotId);});
-    }
-
-    /**
-     * Adds snapshot to a specific queue
-     */
-    public void addSnapshotToQueue(long snapshotId, OperatorID operatorID) {
-        queues.get(operatorID).addSnapshot(snapshotId);
-    }
-
-    /**
-     * Finished snapshots from all queues
-     */
-    public void finalizeSnapshotFromAllQueues(long snapshotId) {
-        queues.forEach((key,item) -> {
-            System.out.format("Queue unlocked by consumer \n");
-            item.snapshotFinalize(snapshotId);
+            item.addSnapshot(snapshotId);
         });
     }
 
     /**
      * Finish snapshot from a particular queue
      */
-    public void finalizeSnapshotFromQueue(long snapshotId, OperatorID operatorID) {
-        System.out.format("Queue Unlocked by published %s\n", operatorID);
+    public void finishSnapshot(long snapshotId, OperatorID operatorID) {
         queues.get(operatorID).snapshotFinalize(snapshotId);
     }
 
-    public void finishChanel(OperatorID operatorID){
+    /**
+     * Get the buffer of the queue without the lockm only use if the buffer is not being modified
+     */
+    public ArrayDeque<T> getUnsafeBuffer(OperatorID operatorID) {
+        return queues.get(operatorID).queue.getUnsafeBuffer();
+    }
+
+    public void finishChanel(OperatorID operatorID) {
         queues.get(operatorID).setChannelFinished(true);
     }
 
-    public boolean getChannelFinished(OperatorID operatorID){
+    public boolean getChannelFinished(OperatorID operatorID) {
         return queues.get(operatorID).getChannelFinished();
     }
 
@@ -177,7 +167,7 @@ public final class FeedbackChannel<T> implements Closeable {
         public void run() {
             for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
                 if (value.hasPendingSnapshots()) {
-                    System.out.println("Snapshot is bing done");
+//                    System.out.println("Snapshot is bing done");
                     continue;
                 }
                 final Deque<T> buffer = value.drainAll();

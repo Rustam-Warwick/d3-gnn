@@ -17,6 +17,11 @@ public class RandomPartitioner extends BasePartitioner {
     }
 
     @Override
+    public String getName() {
+        return "Random-Partitioner";
+    }
+
+    @Override
     public GraphOp map(GraphOp value) throws Exception {
         if (value.element.elementType() == ElementType.EDGE) {
             value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);

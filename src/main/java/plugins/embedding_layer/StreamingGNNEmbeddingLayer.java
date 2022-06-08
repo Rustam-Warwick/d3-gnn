@@ -5,7 +5,6 @@ import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.training.ParameterStore;
 import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
 import elements.*;
@@ -13,13 +12,14 @@ import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
 import org.apache.flink.util.Preconditions;
+import plugins.ModelServer;
 
-import java.util.*;
+import java.util.Objects;
 
 public class StreamingGNNEmbeddingLayer extends Plugin {
     public final String modelName; // Model name to identify the ParameterStore
     public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
-    public transient ParameterStore modelServer; // ParameterServer Plugin
+    public transient ModelServer modelServer; // ParameterServer Plugin
     public transient Batchifier batchifier; // If we process data as batches
 
     public StreamingGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
@@ -31,7 +31,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
-        modelServer = (ParameterStore) storage.getPlugin(String.format("%s-server", modelName));
+        modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
         batchifier = new StackBatchifier();
     }
 
@@ -181,7 +181,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDList UPDATE(NDList feature, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer, feature, training);
+        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -192,7 +192,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDList MESSAGE(NDList features, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer, features, training);
+        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
     }
 
     /**
