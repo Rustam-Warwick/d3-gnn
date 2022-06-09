@@ -3,6 +3,8 @@ package elements;
 import elements.iterations.MessageCommunication;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
+import java.util.Objects;
+
 /**
  * Main message object that gets passed around the system
  */
@@ -128,5 +130,18 @@ public class GraphOp {
                 ", element=" + element +
                 ", ts=" + ts +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GraphOp graphOp = (GraphOp) o;
+        return op == graphOp.op && Objects.equals(element, graphOp.element) && Objects.equals(operatorEvent, graphOp.operatorEvent);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(op, element, operatorEvent);
     }
 }

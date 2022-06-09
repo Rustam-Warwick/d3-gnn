@@ -1,8 +1,6 @@
 package operators;
 
 import elements.GraphOp;
-import operators.events.StartTraining;
-import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.FileSystem;
@@ -11,17 +9,14 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheReader;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheWriter;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.function.SupplierWithException;
@@ -90,45 +85,36 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if (WATERMARK_STATUSES.f3 == WatermarkStatus.IDLE) {
+        if (false) {
             dataCacheWriter.addRecord(element);
         } else {
             getWrappedOperator().processElement(element);
         }
     }
 
-    @Override
-    public void processActualWatermark(Watermark mark) throws Exception {
-        getWrappedOperator().processWatermark(mark);
-    }
-
-    @Override
-    public void processActualWatermarkStatus(WatermarkStatus status) throws Exception {
-        getWrappedOperator().processWatermarkStatus(status);
-    }
-
-    @Override
-    public void handleOperatorEvent(OperatorEvent evt) {
-        if (evt instanceof StartTraining) {
-            try {
-                processWatermarkStatus(WatermarkStatus.IDLE); // Mark the subsequent watermarks as idle
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } else if (evt instanceof StopTraining) {
-            try {
-                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
-                dataCacheWriter.finishCurrentSegment();
-                currentDataCacheReader =
-                        new DataCacheReader<>(
-                                typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
-                replayRecords(currentDataCacheReader);
-                acknowledgeIfWatermarkIsReady();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        }
-    }
+//
+//    @Override
+//    public void handleOperatorEvent(OperatorEvent evt) {
+//        if (evt instanceof StartTraining) {
+//            try {
+//                processWatermarkStatus(WatermarkStatus.IDLE); // Mark the subsequent watermarks as idle
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        } else if (evt instanceof StopTraining) {
+//            try {
+//                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
+//                dataCacheWriter.finishCurrentSegment();
+//                currentDataCacheReader =
+//                        new DataCacheReader<>(
+//                                typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
+//                replayRecords(currentDataCacheReader);
+//                acknowledgeIfWatermarkIsReady();
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
+//        }
+//    }
 
     private void replayRecords(DataCacheReader<StreamElement> dataCacheReader) throws Exception {
         while (dataCacheReader.hasNext()) {
