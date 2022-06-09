@@ -1,7 +1,7 @@
 package operators.coordinators;
 
-import operators.coordinators.events.StartTraining;
-import operators.coordinators.events.StopTraining;
+import operators.events.StartTraining;
+import operators.events.StopTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;

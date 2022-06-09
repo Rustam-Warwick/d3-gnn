@@ -1,8 +1,8 @@
 package operators;
 
 import elements.GraphOp;
-import operators.coordinators.events.StartTraining;
-import operators.coordinators.events.StopTraining;
+import operators.events.StartTraining;
+import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.FileSystem;
@@ -51,7 +51,6 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     public UdfHeadWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
         super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 0);
-        this.ITERATION_COUNT = 0; // No watermark iteration at all needed for this operator
         try {
             basePath =
                     OperatorUtils.getDataCachePath(

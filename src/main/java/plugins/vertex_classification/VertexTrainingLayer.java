@@ -13,7 +13,7 @@ import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import elements.iterations.Rmi;
-import operators.coordinators.events.StartTraining;
+import operators.events.StartTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import java.util.ArrayList;

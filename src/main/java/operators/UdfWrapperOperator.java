@@ -4,9 +4,9 @@ import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
 import functions.gnn_layers.GNNLayerFunction;
-import operators.coordinators.events.ActionTaken;
-import operators.coordinators.events.ElementsSynced;
-import operators.coordinators.events.StartTraining;
+import operators.events.ActionTaken;
+import operators.events.ElementsSynced;
+import operators.events.StartTraining;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
@@ -49,12 +49,12 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
     @Override
     public void processActualWatermark(Watermark mark) throws Exception {
         getWrappedOperator().processWatermark(mark);
-        short iterationNumber = context.element.getValue().getPartId();
-        if (iterationNumber == 1) {
-            handleOperatorEvent(new ElementsSynced());
-        } else if (iterationNumber == 0) {
-            handleOperatorEvent(new ActionTaken());
-        }
+//        short iterationNumber = context.element.getValue().getPartId();
+//        if (iterationNumber == 1) {
+//            handleOperatorEvent(new ElementsSynced());
+//        } else if (iterationNumber == 0) {
+//            handleOperatorEvent(new ActionTaken());
+//        }
     }
 
     /**

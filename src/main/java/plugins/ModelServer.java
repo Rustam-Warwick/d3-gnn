@@ -27,7 +27,7 @@ import elements.Plugin;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
-import operators.coordinators.events.StopTraining;
+import operators.events.StopTraining;
 
 import java.util.HashMap;
 import java.util.Objects;

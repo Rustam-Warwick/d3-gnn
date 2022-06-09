@@ -30,7 +30,6 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
 
-import java.util.List;
 import java.util.Objects;
 
 public class GraphStream {
@@ -43,6 +42,8 @@ public class GraphStream {
     public double lambda; // GNN operator explosion coefficient. 1 means no explosion
 
     public short layers;// Number of GNN Layers in the pipeline
+
+    public String partitionerName = "random";
 
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
 
@@ -82,7 +83,7 @@ public class GraphStream {
 
     public GraphStream parseCmdArgs(String[] cmdArgs) {
         Option explosionCoeff = Option
-                .builder("lambda")
+                .builder("l")
                 .required(false)
                 .desc("Explosion Coefficient of the GNN models")
                 .type(Float.class)
@@ -94,20 +95,38 @@ public class GraphStream {
 
         Option objectReuse = Option
                 .builder("o")
+                .longOpt("objectReuse")
                 .required(false)
                 .desc("Enable object reuse")
                 .hasArg(false)
                 .build();
+
+        Option partitioner = Option
+                .builder("p")
+                .longOpt("partitioner")
+                .required(false)
+                .desc("Partitioner type")
+                .type(String.class)
+                .hasArg(true)
+                .argName("value")
+                .numberOfArgs(1)
+                .build();
+
         Options options = new Options();
         CommandLineParser parser = new DefaultParser();
         options.addOption(explosionCoeff);
         options.addOption(objectReuse);
+        options.addOption(partitioner);
         try {
             CommandLine commandLine = parser.parse(options, cmdArgs);
-            if (commandLine.hasOption("lambda")) {
+            if (commandLine.hasOption("l")) {
                 String lambdaValue = commandLine.getOptionValue("lambda");
                 double r = Double.valueOf(lambdaValue);
                 this.lambda = r;
+            }
+            if (commandLine.hasOption("p")) {
+                String lambdaValue = commandLine.getOptionValue("p");
+                this.partitionerName = lambdaValue;
             }
             if(commandLine.hasOption("o")){
                 this.env.getConfig().enableObjectReuse();
@@ -122,10 +141,10 @@ public class GraphStream {
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of parts
      *
      * @param stream      Incoming GraphOp Stream
-     * @param partitioner Partitioner MapFunction class
      * @return Partitioned but not-keyed DataStream of GraphOps.
      */
-    public DataStream<GraphOp> partition(DataStream<GraphOp> stream, BasePartitioner partitioner) {
+    public DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
+        BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName);
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
@@ -186,7 +205,7 @@ public class GraphStream {
 
     /**
      * Start of the GNN Chain
-     *
+     * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
      * @param allUpdates       External System updates
      * @param processFunctions List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings

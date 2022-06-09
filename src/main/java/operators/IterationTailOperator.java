@@ -33,6 +33,7 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -53,7 +54,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void>, BoundedOneInput {
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
-
 
     private OperatorID operatorID; // Unique Operator Id
 
@@ -117,6 +117,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         bufferedRecords.update(tmp);
         super.snapshotState(context);
         feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        super.processWatermark(mark);
+        if(mark.getTimestamp() == Long.MAX_VALUE)feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
     }
 
     @Override

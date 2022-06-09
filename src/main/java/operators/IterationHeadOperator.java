@@ -102,9 +102,11 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void endInput() throws Exception {
-        while (true) {
+        boolean watermarkSent = false;
+        while (!feedbackChannel.allChannelsFinished()) {
+            if(!watermarkSent)output.emitWatermark(new Watermark(Long.MAX_VALUE));
             mailboxExecutor.yield();
-            Thread.sleep(100);
+            Thread.sleep(1000);
         }
     }
 
@@ -119,15 +121,6 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
         if (position == 0)
             return; // Do not process watermark status from external streams since it is vital in training
         super.processWatermarkStatus(watermarkStatus);
-    }
-
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-        if (position == 0 && mark.getTimestamp() == Long.MAX_VALUE) {
-            // End input watermark
-            return;
-        }
-        super.processWatermark(mark);
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {

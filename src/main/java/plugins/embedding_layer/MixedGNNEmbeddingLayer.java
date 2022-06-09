@@ -12,8 +12,8 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
-import operators.coordinators.events.ActionTaken;
-import operators.coordinators.events.ElementsSynced;
+import operators.events.ActionTaken;
+import operators.events.ElementsSynced;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import plugins.ModelServer;
 

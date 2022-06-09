@@ -120,12 +120,12 @@ public final class FeedbackChannel<T> implements Closeable {
         return queues.get(operatorID).queue.getUnsafeBuffer();
     }
 
-    public void finishChanel(OperatorID operatorID) {
+    public void finishChannel(OperatorID operatorID) {
         queues.get(operatorID).setChannelFinished(true);
     }
 
-    public boolean getChannelFinished(OperatorID operatorID) {
-        return queues.get(operatorID).getChannelFinished();
+    public boolean allChannelsFinished() {
+        return queues.values().stream().map(LockFreeBatchFeedbackQueue::getChannelFinished).reduce(true, (a, b) -> a && b);
     }
 
     /**

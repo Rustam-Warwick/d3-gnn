@@ -1,4 +1,4 @@
-package operators.coordinators.events;
+package operators.events;
 
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 

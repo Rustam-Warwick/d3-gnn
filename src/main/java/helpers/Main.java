@@ -13,15 +13,12 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
-import functions.gnn_layers.GNNLayerFunction;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import partitioner.HDRF;
 import plugins.ModelServer;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.TupleStorage;
@@ -33,7 +30,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.function.Function;
 
 public class Main {
@@ -71,12 +67,11 @@ public class Main {
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setMaxParallelism(env.getParallelism() * 10); // I think it will fit all the keys
-
         // Begin the Dataflow Graph
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
         Dataset dataset = new CoraFull(Path.of(System.getenv("DATASET_DIR"), "cora"));
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
-        DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0], new HDRF());
+        DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new TupleStorage()
