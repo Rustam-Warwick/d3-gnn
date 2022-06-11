@@ -1,6 +1,7 @@
 package ai.djl.ndarray;
 
 import ai.djl.nn.Parameter;
+import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.serializers.NDArraySerializer;
 import ai.djl.serializers.NDManagerSerializer;
@@ -9,7 +10,6 @@ import ai.djl.training.loss.Loss;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
-import ai.djl.pytorch.engine.PtNDArray;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.*;

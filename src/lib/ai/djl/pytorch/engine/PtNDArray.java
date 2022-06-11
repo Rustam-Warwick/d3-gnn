@@ -19,8 +19,6 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.ndarray.types.SparseFormat;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.util.NativeResource;
-import ai.djl.ndarray.BaseNDManager;
-import ai.djl.ndarray.NDSerializer;
 
 import java.io.*;
 import java.nio.Buffer;

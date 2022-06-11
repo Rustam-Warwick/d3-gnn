@@ -13,7 +13,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class GraphElement implements Serializable {
     public String id;
     public short partId;
-    public Long ts = null;
+    public Long ts;
     public transient BaseStorage storage;
     public List<Feature<?, ?>> features;
 

@@ -1,11 +1,11 @@
 package ai.djl.nn.gnn;
 
 import ai.djl.ndarray.NDList;
+import ai.djl.nn.Activation;
 import ai.djl.nn.LambdaBlock;
 import ai.djl.nn.ParallelBlock;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.Activation;
 
 import java.util.List;
 import java.util.function.Function;

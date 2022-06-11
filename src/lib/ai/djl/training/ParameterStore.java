@@ -8,10 +8,15 @@ import ai.djl.nn.Parameter;
 
 public abstract class ParameterStore {
     abstract public void updateAllParameters();
+
     abstract public NDArray getValue(Parameter parameter, Device device, boolean training);
-    public NDManager getManager(){
+
+    public NDManager getManager() {
         return BaseNDManager.threadNDManager.get();
-    };
+    }
+
     abstract public void sync();
-    public void setParameterServer(){}
+
+    public void setParameterServer() {
+    }
 }

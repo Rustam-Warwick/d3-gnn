@@ -1,13 +1,13 @@
 package operators.events;
 
+import org.apache.flink.streaming.api.watermark.Watermark;
+
 import java.util.Objects;
 
 public class WatermarkEvent extends IterableOperatorEvent {
     public long timestamp;
-    public WatermarkEvent(long timestamp){
-        this.timestamp = timestamp;
-    }
-    public WatermarkEvent(long timestamp,Short currentIteration) {
+
+    public WatermarkEvent(long timestamp, Short currentIteration) {
         super(currentIteration);
         this.timestamp = timestamp;
     }
@@ -18,6 +18,10 @@ public class WatermarkEvent extends IterableOperatorEvent {
 
     public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public Watermark getWatermark() {
+        return new Watermark(this.timestamp);
     }
 
     @Override

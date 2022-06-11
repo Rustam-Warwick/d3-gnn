@@ -37,13 +37,15 @@ public class GraphStream {
 
     public final StreamExecutionEnvironment env; // Stream environment
 
-    private final boolean isLocal;
+    private final boolean isLocal; // Is this running in local environemt
 
     public double lambda; // GNN operator explosion coefficient. 1 means no explosion
 
     public short layers;// Number of GNN Layers in the pipeline
 
     public String partitionerName = "random";
+
+    public String dataset = "cora";
 
     public IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
 
@@ -56,9 +58,7 @@ public class GraphStream {
         this.parallelism = (short) this.env.getParallelism();
         this.lambda = explosionFactor;
         configureSerializers(this.env);
-        if (env instanceof LocalStreamEnvironment) {
-            isLocal = true;
-        } else isLocal = false;
+        isLocal = env instanceof LocalStreamEnvironment;
     }
 
     public GraphStream(StreamExecutionEnvironment env) {
@@ -112,9 +112,21 @@ public class GraphStream {
                 .numberOfArgs(1)
                 .build();
 
+        Option dataset = Option
+                .builder("d")
+                .longOpt("dataset")
+                .required(false)
+                .desc("Partitioner type")
+                .type(String.class)
+                .hasArg(true)
+                .argName("value")
+                .numberOfArgs(1)
+                .build();
+
         Options options = new Options();
         CommandLineParser parser = new DefaultParser();
         options.addOption(explosionCoeff);
+        options.addOption(dataset);
         options.addOption(objectReuse);
         options.addOption(partitioner);
         try {
@@ -124,12 +136,18 @@ public class GraphStream {
                 double r = Double.valueOf(lambdaValue);
                 this.lambda = r;
             }
+
             if (commandLine.hasOption("p")) {
                 String lambdaValue = commandLine.getOptionValue("p");
                 this.partitionerName = lambdaValue;
             }
-            if(commandLine.hasOption("o")){
+
+            if (commandLine.hasOption("o")) {
                 this.env.getConfig().enableObjectReuse();
+            }
+
+            if(commandLine.hasOption("d")){
+                this.dataset = commandLine.getOptionValue("d");
             }
         } catch (ParseException e) {
             e.printStackTrace();
@@ -140,7 +158,7 @@ public class GraphStream {
     /**
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of parts
      *
-     * @param stream      Incoming GraphOp Stream
+     * @param stream Incoming GraphOp Stream
      * @return Partitioned but not-keyed DataStream of GraphOps.
      */
     public DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
@@ -205,12 +223,13 @@ public class GraphStream {
 
     /**
      * Start of the GNN Chain
-     * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
+     *
      * @param allUpdates       External System updates
      * @param processFunctions List of Storages with corresponding plugins
      * @return Last layer corresponding to vertex embeddings
+     * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
      */
-    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, KeyedProcessFunction<String, GraphOp, GraphOp> ...processFunctions) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
         assert layers == 0;
         assert position_index == 0;
         this.layers = (short) (processFunctions.length - 1); // First input is not counted as a layer
@@ -219,7 +238,7 @@ public class GraphStream {
         DataStream<GraphOp> trainTestSplit = null;
         DataStream<GraphOp> previousLayerUpdates = null;
         for (KeyedProcessFunction processFn : processFunctions) {
-            if(Objects.isNull(processFn))continue;
+            if (Objects.isNull(processFn)) continue;
             if (position_index == 0) {
                 SingleOutputStreamOperator<GraphOp> tmp = streamingGNNLayer(allUpdates, processFn);
                 topologyUpdates = tmp.getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);

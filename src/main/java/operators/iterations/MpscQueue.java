@@ -17,7 +17,6 @@
  */
 package operators.iterations;
 
-import operators.logger.FeedbackLogger;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.statefun.flink.core.queue.Lock;
 
@@ -112,17 +111,5 @@ public final class MpscQueue<T> {
         return active;
     }
 
-    public void logQueue(FeedbackLogger<T> logger) throws Exception {
-        final Lock lock = this.lock;
-        lock.lockUninterruptibly();
-        try {
-            final ArrayDeque<T> ready = this.active;
-            for (T el : ready) {
-                logger.append(el);
-            }
-        } finally {
-            lock.unlock();
-        }
 
-    }
 }

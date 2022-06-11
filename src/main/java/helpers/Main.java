@@ -14,6 +14,7 @@ import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.helpers.LatencyOutput;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -66,10 +67,12 @@ public class Main {
         // Configuration
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setMaxParallelism(env.getParallelism() * 10); // I think it will fit all the keys
+        env.getConfig().setAutoWatermarkInterval(10000);
+
         // Begin the Dataflow Graph
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
-        Dataset dataset = new CoraFull(Path.of(System.getenv("DATASET_DIR"), "cora"));
+        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 3));
+        Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
         DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,
@@ -85,33 +88,13 @@ public class Main {
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
                 ),
                 null
-                );
+        );
 
-        embeddings.process(new ProcessFunction<GraphOp, Void>() {
-            public transient File outputFile;
+        String jobName = String.format("%s-%s-%s-%s",gs.partitionerName,gs.dataset, env.getParallelism(), env.getMaxParallelism());
 
-            @Override
-            public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                String homePath = System.getenv("HOME");
-                outputFile = new File(String.format("%s/metrics/%s/output-%s.csv", homePath, getRuntimeContext().getJobId(), getRuntimeContext().getIndexOfThisSubtask()));
-                File parent = outputFile.getParentFile();
-                try {
-                    parent.mkdirs();
-                    outputFile.createNewFile();
-                } catch (IOException | IllegalStateException e) {
-                    e.printStackTrace();
-                }
-            }
+        partitioned.connect(embeddings).process(new LatencyOutput(jobName)).setParallelism(1);
 
-            @Override
-            public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-                Files.write(outputFile.toPath(), String.format("%s,%s\n", ctx.timestamp(), ctx.timerService().currentProcessingTime()).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-            }
-        });
-
-
-        env.execute("gnn");
+        env.execute(jobName);
 
 //        Thread.sleep(20000);
 //        System.out.println("Triggered savepoint");

@@ -17,7 +17,6 @@
  */
 package operators.iterations;
 
-import operators.logger.FeedbackLogger;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
@@ -128,13 +127,6 @@ public final class FeedbackChannel<T> implements Closeable {
         return queues.values().stream().map(LockFreeBatchFeedbackQueue::getChannelFinished).reduce(true, (a, b) -> a && b);
     }
 
-    /**
-     * Synchronously log the state of the queue to the passed logger,
-     * Done on snapshotting on iteration sink
-     */
-    public void dumpQueueToLogger(FeedbackLogger<T> logger, OperatorID operatorID) throws Exception {
-        queues.get(operatorID).queue.logQueue(logger);
-    }
 
     /**
      * Closes this channel.

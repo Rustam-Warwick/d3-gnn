@@ -19,6 +19,7 @@
 package operators;
 
 import elements.GraphOp;
+import elements.Op;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.state.ListState;
@@ -51,7 +52,7 @@ import java.util.function.Consumer;
  * It also handles the checkpointing of the data @todo enable checkpointing
  */
 public class IterationTailOperator extends AbstractStreamOperator<Void>
-        implements OneInputStreamOperator<GraphOp, Void>, BoundedOneInput {
+        implements OneInputStreamOperator<GraphOp, Void>{
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
@@ -106,11 +107,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     }
 
     @Override
-    public void endInput() throws Exception {
-
-    }
-
-    @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
         ArrayDeque<StreamRecord<GraphOp>> buffer = feedbackChannel.getUnsafeBuffer(operatorID);
         List<StreamRecord<GraphOp>> tmp = new ArrayList<>(buffer);
@@ -121,18 +117,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
+        if (mark.getTimestamp() == Long.MAX_VALUE) {
+            feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
+            System.out.println("Finished Channel"+getRuntimeContext().getIndexOfThisSubtask());
+        }
         super.processWatermark(mark);
-        if(mark.getTimestamp() == Long.MAX_VALUE)feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
-    }
 
-    @Override
-    public void notifyCheckpointAborted(long checkpointId) throws Exception {
-        super.notifyCheckpointAborted(checkpointId);
-    }
-
-    @Override
-    public void notifyCheckpointComplete(long checkpointId) throws Exception {
-        super.notifyCheckpointComplete(checkpointId);
     }
 
     private void registerFeedbackWriter() {
@@ -149,8 +139,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
-        GraphOp cloned = record.getValue().copy();
-        feedbackChannel.put(new StreamRecord<>(cloned, record.getTimestamp()), operatorID);
+        StreamRecord<GraphOp> copyRecord = record.copy(record.getValue().copy());
+        feedbackChannel.put(copyRecord, operatorID);
     }
 
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {

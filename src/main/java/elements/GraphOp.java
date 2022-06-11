@@ -22,12 +22,10 @@ public class GraphOp {
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element = null;
-
     /**
      * Operator Event for the plugins communicated through this channel
      */
     public OperatorEvent operatorEvent = null;
-
     /**
      * Type of communication message Part-to-Part or Broadcast
      */
@@ -59,11 +57,16 @@ public class GraphOp {
     }
 
     public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
+        this(op, partId, element, null, communication, ts);
+    }
+
+    public GraphOp(Op op, Short partId, GraphElement element, OperatorEvent operatorEvent, MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;
+        this.operatorEvent = operatorEvent;
+        this.messageCommunication = messageCommunication;
         this.ts = ts;
-        this.messageCommunication = communication;
     }
 
     public Op getOp() {
@@ -119,7 +122,8 @@ public class GraphOp {
     }
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.partId, this.element, this.ts);
+        return
+                new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
 
     @Override

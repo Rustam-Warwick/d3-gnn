@@ -1,6 +1,7 @@
 package operators;
 
 import elements.GraphOp;
+import elements.Op;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.FileSystem;
@@ -85,6 +86,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
+        if (element.getValue().getOp() == Op.OPERATOR_EVENT) return;
         if (false) {
             dataCacheWriter.addRecord(element);
         } else {
