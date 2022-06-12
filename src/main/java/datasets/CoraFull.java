@@ -5,7 +5,6 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.eventtime.Watermark;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -92,17 +91,16 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-//            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
             DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
                     new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
             ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
 
-            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser());
+            DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
             DataStream<GraphOp> joinedData = parsedEdges
                     .flatMap(new JoinEdgeAndFeatures(this.vertexFeatures.toString(), this.vertexLabels.toString())).setParallelism(1)//Should be local
                     .assignTimestampsAndWatermarks(WatermarkStrategy
-                            .<GraphOp>forMonotonousTimestamps()
-                            .withTimestampAssigner((event, ts) -> event.getTimestamp()));
+                            .<GraphOp>noWatermarks()
+                            .withTimestampAssigner((event, ts) -> event.getTimestamp())).startNewChain();
             return new DataStream[]{joinedData};
         } catch (Exception e) {
             return null;

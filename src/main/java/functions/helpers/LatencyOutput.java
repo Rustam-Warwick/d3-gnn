@@ -1,8 +1,9 @@
 package functions.helpers;
 
 import elements.GraphOp;
-import org.apache.flink.streaming.api.functions.co.CoProcessFunction;
-import org.apache.flink.streaming.api.watermark.Watermark;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Gauge;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.io.File;
@@ -13,19 +14,50 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class LatencyOutput extends CoProcessFunction<GraphOp, GraphOp, Void> {
+public class LatencyOutput extends KeyedProcessFunction<Long, GraphOp, Void> {
     private final HashMap<Long, List<Long>> requestLatencies = new HashMap<>();
     private final String outputFileName;
+    private transient long sumLatency;
+    private transient int N;
 
     public LatencyOutput(String outputFileName) {
         this.outputFileName = outputFileName;
     }
 
     @Override
+    public void processElement(GraphOp value, KeyedProcessFunction<Long, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
+        requestLatencies.computeIfAbsent(value.getTimestamp(), (key)->new ArrayList<>());
+        requestLatencies.compute(value.getTimestamp(), (key, val)->{
+            if(!val.isEmpty()){
+                sumLatency+= Math.abs(val.get(0) - ctx.timerService().currentProcessingTime());
+            }
+           val.add(ctx.timerService().currentProcessingTime());
+           return val;
+        });
+    }
+
+
+    @Override
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        getRuntimeContext().getMetricGroup().gauge("MyLatency",new MyGauge());
+    }
+
+    public class MyGauge implements Gauge<Long>{
+        @Override
+        public Long getValue() {
+            long latencyOutput = (long) sumLatency/N;
+            sumLatency = 0;
+            N = 0;
+            return latencyOutput;
+        }
+    }
+
+    @Override
     public void close() throws Exception {
         super.close();
         String homePath = System.getenv("HOME");
-        File outputFile = new File(String.format("%s/metrics/%s/latencies.csv", homePath, outputFileName));
+        File outputFile = new File(String.format("%s/metrics/%s/latencies-%s.csv", homePath, outputFileName, getRuntimeContext().getIndexOfThisSubtask()));
         File parent = outputFile.getParentFile();
         try {
             parent.mkdirs();
@@ -42,28 +74,5 @@ public class LatencyOutput extends CoProcessFunction<GraphOp, GraphOp, Void> {
         });
 
         Files.write(outputFile.toPath(), builder.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-    }
-
-    /**
-     * Input data stream
-     */
-    @Override
-    public void processElement1(GraphOp value, CoProcessFunction<GraphOp, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-//        commitIfWatermarkChanged(ctx.timerService().currentWatermark());
-        ArrayList<Long> processingTimes = new ArrayList<>();
-        processingTimes.add(ctx.timerService().currentProcessingTime());
-        requestLatencies.put(ctx.timestamp(), processingTimes);
-    }
-
-    /**
-     * Output Data Stream
-     */
-    @Override
-    public void processElement2(GraphOp value, CoProcessFunction<GraphOp, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-//        commitIfWatermarkChanged(ctx.timerService().currentWatermark());
-        requestLatencies.computeIfPresent(ctx.timestamp(), (key, val)->{
-            val.add(ctx.timerService().currentProcessingTime());
-            return val;
-        });
     }
 }

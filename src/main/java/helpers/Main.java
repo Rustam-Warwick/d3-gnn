@@ -10,26 +10,18 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
-import datasets.CoraFull;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.helpers.AddTimestamp;
 import functions.helpers.LatencyOutput;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import plugins.ModelServer;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.TupleStorage;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.function.Function;
 
@@ -67,7 +59,7 @@ public class Main {
         // Configuration
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setAutoWatermarkInterval(10000);
+
 
         // Begin the Dataflow Graph
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
@@ -90,9 +82,12 @@ public class Main {
                 null
         );
 
-        String jobName = String.format("%s-%s-%s-%s",gs.partitionerName,gs.dataset, env.getParallelism(), env.getMaxParallelism());
-
-        partitioned.connect(embeddings).process(new LatencyOutput(jobName)).setParallelism(1);
+        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s",gs.partitionerName,gs.dataset,gs.lambda, env.getParallelism(), env.getMaxParallelism());
+        partitioned
+                .connect(embeddings)
+                .process(new AddTimestamp())
+                .keyBy(GraphOp::getTimestamp)
+                .process(new LatencyOutput(jobName));
 
         env.execute(jobName);
 

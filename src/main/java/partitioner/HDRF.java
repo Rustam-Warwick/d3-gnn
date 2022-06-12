@@ -17,7 +17,7 @@ public class HDRF extends BasePartitioner {
     public transient int totalNumberOfReplicas = 0;
     public int maxSize = 0;
     public int minSize = 0;
-    public float lamb = 0.9f;
+    public float lamb = 0.8f;
     public float eps = 1;
 
     public HDRF() {
@@ -39,7 +39,7 @@ public class HDRF extends BasePartitioner {
         getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {
             @Override
             public Integer getValue() {
-                return (int) ((float) totalNumberOfReplicas / totalNumberOfVertices) * 1000;
+                return (int) (replicationFactor * 1000);
             }
         });
     }
@@ -89,7 +89,7 @@ public class HDRF extends BasePartitioner {
         }
         // Update the partition size and vertex partition tables
         this.partitionsSize.compute(selected, (key, item) -> item + 1);
-        maxSize = this.partitionsSize.values().stream().max(Integer::compareTo).get();
+        maxSize = Math.max(maxSize, this.partitionsSize.get(selected));
         minSize = this.partitionsSize.values().stream().min(Integer::compareTo).get();
         if (!this.partitionTable.get(edge.src.getId()).contains(selected)) {
             this.partitionTable.get(edge.src.getId()).add(selected);

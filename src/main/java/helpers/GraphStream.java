@@ -166,7 +166,7 @@ public class GraphStream {
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        return stream.map(partitioner).setParallelism(part_parallelism).name(partitioner.getName());
+        return stream.map(partitioner).slotSharingGroup("Partitioner").setParallelism(part_parallelism).name(partitioner.getName());
     }
 
     /**

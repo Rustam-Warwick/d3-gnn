@@ -124,7 +124,11 @@ public final class FeedbackChannel<T> implements Closeable {
     }
 
     public boolean allChannelsFinished() {
-        return queues.values().stream().map(LockFreeBatchFeedbackQueue::getChannelFinished).reduce(true, (a, b) -> a && b);
+        boolean finished = true;
+        for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
+            finished &= value.getChannelFinished();
+        }
+        return finished;
     }
 
 
