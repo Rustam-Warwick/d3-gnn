@@ -5,6 +5,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -91,6 +92,7 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
+            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
             DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
                     new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
             ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
