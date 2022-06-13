@@ -32,6 +32,7 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
@@ -60,8 +61,8 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     public IterationHeadOperator(IterationID iterationId, short position) {
         this.iterationId = Objects.requireNonNull(iterationId);
-        this.chainingStrategy = ChainingStrategy.ALWAYS;
         this.position = position;
+        this.chainingStrategy = ChainingStrategy.HEAD;
     }
 
     @Override
@@ -99,9 +100,10 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void endInput() throws Exception {
+        if(!feedbackChannel.allChannelsFinished())output.emitWatermark(new Watermark(Long.MAX_VALUE));
         while (!feedbackChannel.allChannelsFinished()) {
-            mailboxExecutor.yield();
-            Thread.sleep(300);
+            mailboxExecutor.tryYield();
+            Thread.sleep(800);
         }
     }
 

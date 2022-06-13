@@ -12,6 +12,7 @@ import datasets.Dataset;
 import elements.*;
 import elements.iterations.Rmi;
 import features.Set;
+import features.Tensor;
 import features.VTensor;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
@@ -76,6 +77,7 @@ public class GraphStream {
         env.registerType(Feature.class);
         env.registerType(Set.class);
         env.registerType(VTensor.class);
+        env.registerType(Tensor.class);
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
@@ -146,7 +148,7 @@ public class GraphStream {
                 this.env.getConfig().enableObjectReuse();
             }
 
-            if(commandLine.hasOption("d")){
+            if (commandLine.hasOption("d")) {
                 this.dataset = commandLine.getOptionValue("d");
             }
         } catch (ParseException e) {
@@ -166,7 +168,10 @@ public class GraphStream {
         partitioner.partitions = (short) this.env.getMaxParallelism();
         short part_parallelism = this.parallelism;
         if (!partitioner.isParallel()) part_parallelism = 1;
-        return stream.map(partitioner).slotSharingGroup("Partitioner").setParallelism(part_parallelism).name(partitioner.getName());
+        SingleOutputStreamOperator<GraphOp> outp = stream.map(partitioner).setParallelism(part_parallelism).name(partitioner.getName());
+        if (!isLocal) outp.slotSharingGroup("partitioner");
+        return outp;
+
     }
 
     /**
@@ -199,20 +204,19 @@ public class GraphStream {
             if (!isLocal) iterationHandler.slotSharingGroup("gnn-" + position_index);
         }
 
-
         if (position_index > 1) {
             // Add Backward Iteration
             int previousParallelism = (int) (parallelism * Math.pow(lambda, position_index - 1));
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism).uid(String.format("BackwardTail - %s", position_index - 1));
-//            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
             if (!isLocal) backwardIteration.slotSharingGroup("gnn-" + (position_index - 1));
         }
         if (position_index == layers) {
             // Add Full Loop Iteration
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(parallelism).uid("FullLoopTail");
-//            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-0");
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-0");
             if (!isLocal) backwardIteration.slotSharingGroup("gnn-0");
 
         }
@@ -229,7 +233,7 @@ public class GraphStream {
      * @return Last layer corresponding to vertex embeddings
      * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
      */
-    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates,boolean lastLayerTopology, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, boolean lastLayerTopology, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
         assert layers == 0;
         assert position_index == 0;
         this.layers = (short) (processFunctions.length - 1); // First input is not counted as a layer
@@ -250,7 +254,8 @@ public class GraphStream {
                 // Still mid layer
                 previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(topologyUpdates), processFn);
             } else {
-                if(lastLayerTopology) previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn);
+                if (lastLayerTopology)
+                    previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn);
                 else previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit), processFn);
             }
 

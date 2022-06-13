@@ -119,12 +119,18 @@ public final class FeedbackChannel<T> implements Closeable {
         return queues.get(operatorID).queue.getUnsafeBuffer();
     }
 
+    /**
+     * Finish a specific chanel
+     */
     public void finishChannel(OperatorID operatorID) {
         queues.get(operatorID).setChannelFinished(true);
     }
 
+    /**
+     * All channels have been finished
+     */
     public boolean allChannelsFinished() {
-        if(queues.isEmpty()) return false;
+        if (queues.isEmpty()) return false;
         boolean finished = true;
         for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
             finished &= value.getChannelFinished();
@@ -132,6 +138,9 @@ public final class FeedbackChannel<T> implements Closeable {
         return finished;
     }
 
+    public boolean channelFinished(OperatorID operatorID) {
+        return queues.get(operatorID).getChannelFinished();
+    }
 
     /**
      * Closes this channel.
@@ -164,7 +173,6 @@ public final class FeedbackChannel<T> implements Closeable {
         public void run() {
             for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
                 if (value.hasPendingSnapshots()) {
-//                    System.out.println("Snapshot is bing done");
                     continue;
                 }
                 final Deque<T> buffer = value.drainAll();

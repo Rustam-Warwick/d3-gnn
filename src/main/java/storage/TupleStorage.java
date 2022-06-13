@@ -234,8 +234,6 @@ public class TupleStorage extends BaseStorage {
                             String srcId = (String) item;
                             Vertex src = getVertex(srcId);
                             Edge e = new Edge(src, vertex);
-                            long ts = edgeTimestamps.get(e.getId());
-                            e.setTimestamp(ts);
                             e.setStorage(_this);
                             return e;
                         } catch (Exception e) {
@@ -253,8 +251,6 @@ public class TupleStorage extends BaseStorage {
                             String destId = (String) item;
                             Vertex dest = getVertex(destId);
                             Edge e = new Edge(vertex, dest);
-                            long ts = edgeTimestamps.get(e.getId());
-                            e.setTimestamp(ts);
                             e.setStorage(_this);
                             return e;
                         } catch (Exception e) {

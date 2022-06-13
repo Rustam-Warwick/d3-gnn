@@ -15,10 +15,12 @@ public interface Dataset extends Serializable {
     OutputTag<GraphOp> TOPOLOGY_ONLY_DATA_OUTPUT = new OutputTag<>("topologyData", TypeInformation.of(GraphOp.class)); // Output that only contains the topology of the graph updates
 
 
-    public static Dataset getDataset(String name){
-        switch (name){
-            default:
+    public static Dataset getDataset(String name) {
+        switch (name) {
+            case "cora":
                 return new CoraFull(Path.of(System.getenv("DATASET_DIR"), "cora"));
+            default:
+                return new EdgeList(Path.of(System.getenv("DATASET_DIR"), "edge-list",name).toString());
         }
     }
 

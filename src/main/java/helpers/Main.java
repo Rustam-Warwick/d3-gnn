@@ -11,18 +11,28 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
+import elements.Feature;
+import elements.GraphElement;
 import elements.GraphOp;
+import elements.Vertex;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import functions.helpers.AddTimestamp;
 import functions.helpers.LatencyOutput;
+import org.apache.flink.api.common.JobExecutionResult;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.TupleStorage;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class Main {
@@ -44,7 +54,7 @@ public class Main {
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
 //        model.load(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"));
-        model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(8710));
+        model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(128));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
@@ -60,7 +70,6 @@ public class Main {
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-
         // Begin the Dataflow Graph
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 3));
@@ -68,11 +77,11 @@ public class Main {
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,true,
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new TupleStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
                 ),
                 new StreamingGNNLayerFunction(new TupleStorage()
@@ -82,17 +91,27 @@ public class Main {
                 )
         );
 
-        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s",gs.partitionerName,gs.dataset,gs.lambda, env.getParallelism(), env.getMaxParallelism());
-        partitioned
-                .connect(embeddings)
+        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s", gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
+
+        embeddings.union(partitioned)
                 .process(new AddTimestamp())
                 .keyBy(GraphOp::getTimestamp)
                 .process(new LatencyOutput(jobName));
 
-        env.execute(jobName);
+        JobExecutionResult result = env.execute(jobName);
 
-//        Thread.sleep(20000);
-//        System.out.println("Triggered savepoint");
-//        c.triggerSavepoint("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints", SavepointFormatType.NATIVE);
+        // Write the runtime of the job
+        String homePath = System.getenv("HOME");
+        File outputFile = new File(String.format("%s/metrics/%s/runtime.csv", homePath, jobName));
+        File parent = outputFile.getParentFile();
+        try {
+            parent.mkdirs();
+            outputFile.createNewFile();
+        } catch (IllegalStateException e) {
+            e.printStackTrace();
+        }
+
+        Files.write(outputFile.toPath(), String.valueOf(result.getNetRuntime(TimeUnit.SECONDS)).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+
     }
 }

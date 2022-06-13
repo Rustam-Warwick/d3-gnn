@@ -5,15 +5,12 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDSerializer;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
 import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.connector.file.src.FileSource;
-import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -92,10 +89,11 @@ public class CoraFull implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         try {
-            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
-            DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
-                    new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
-            ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
+//            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
+            DataStream<String> edges = env.readTextFile(edgesFile.toString());
+//            DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
+//                    new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
+//            ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
 
             DataStream<GraphOp> parsedEdges = edges.map(new EdgeParser()).setParallelism(1);
             DataStream<GraphOp> joinedData = parsedEdges

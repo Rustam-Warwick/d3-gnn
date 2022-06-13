@@ -48,4 +48,8 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
         return new WrapperOperatorCoordinator.HeadOperatorCoordinatorProvider(operatorID, position, totalLayers);
     }
 
+    @Override
+    public ChainingStrategy getChainingStrategy() {
+        return ChainingStrategy.ALWAYS;
+    }
 }

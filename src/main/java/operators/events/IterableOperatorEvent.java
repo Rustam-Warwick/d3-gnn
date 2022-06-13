@@ -7,6 +7,7 @@ import java.util.Objects;
 public class IterableOperatorEvent implements OperatorEvent {
     public Short currentIteration;
 
+
     public IterableOperatorEvent(Short currentIteration) {
         this.currentIteration = currentIteration;
     }

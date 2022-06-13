@@ -116,9 +116,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
 
-
     /**
-     *  Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
+     * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
 
     protected Output[] internalOutputs; // All of operator-to-operator outputs
@@ -377,9 +376,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                     processActualElement(element);
                     events.remove(ev);
                     if (ev.currentIteration == 0) {
-                        if(context.getPosition()>0){
-                            System.out.println("");
-                        }
                         // pass, do not do anymore iterations
                         if (ev instanceof WatermarkEvent) {
                             Watermark mark = ((WatermarkEvent) ev).getWatermark();
@@ -406,7 +402,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void endInput() throws Exception {
-
     }
 
     /**
@@ -492,6 +487,16 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.internalOutputTags = rawOutputTags;
         this.numOutChannels = rawNumOutChannels;
         createInternalBroadcastOutput.setAccessible(false);
+    }
+
+    private void addFeedbackConsumer() {
+        int indexOfThisSubtask = this.containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(this.iterationID, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, this.containingTask.getEnvironment().getTaskInfo().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
     }
 
     private static class RecordingStreamTaskStateInitializer implements StreamTaskStateInitializer {
@@ -652,16 +657,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return totalLayers;
         }
 
-    }
-
-    private void addFeedbackConsumer() {
-        int indexOfThisSubtask = this.containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(this.iterationID, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, this.containingTask.getEnvironment().getTaskInfo().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
     }
 
 }

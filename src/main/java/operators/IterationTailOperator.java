@@ -54,7 +54,7 @@ import java.util.function.Consumer;
  * It also handles the checkpointing of the data @todo enable checkpointing
  */
 public class IterationTailOperator extends AbstractStreamOperator<Void>
-        implements OneInputStreamOperator<GraphOp, Void>{
+        implements OneInputStreamOperator<GraphOp, Void> {
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
@@ -123,7 +123,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
             feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
         }
         super.processWatermark(mark);
-
     }
 
     private void registerFeedbackWriter() {
@@ -147,6 +146,11 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
         feedbackChannel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()), operatorID);
+    }
+
+    @Override
+    public void finish() throws Exception {
+        super.finish();
     }
 
     @Override

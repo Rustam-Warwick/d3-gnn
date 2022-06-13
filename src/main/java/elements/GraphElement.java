@@ -5,10 +5,10 @@ import storage.BaseStorage;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GraphElement implements Serializable {
     public String id;
@@ -25,7 +25,7 @@ public class GraphElement implements Serializable {
         this.id = id;
         this.partId = -1;
         this.storage = null;
-        this.features = new CopyOnWriteArrayList<Feature<?, ?>>();
+        this.features = new ArrayList<>();
     }
 
     /**
@@ -75,12 +75,12 @@ public class GraphElement implements Serializable {
      * @return Was element created
      */
     public Boolean createElement() {
-        boolean is_created = this.storage.addElement(this);
+        boolean is_created = storage.addElement(this);
         if (is_created) {
-            for (GraphElement el : this.features) {
+            for (GraphElement el : features) {
                 el.createElement();
             }
-            this.storage.getPlugins().forEach(item -> item.addElementCallback(this));
+            storage.getPlugins().forEach(item -> item.addElementCallback(this));
         }
         return is_created;
     }
@@ -92,12 +92,12 @@ public class GraphElement implements Serializable {
      */
     public Boolean deleteElement() {
         cacheFeatures();
-        for (GraphElement el : this.features) {
+        for (GraphElement el : features) {
             el.deleteElement();
         }
-        boolean is_deleted = this.storage.deleteElement(this);
+        boolean is_deleted = storage.deleteElement(this);
         if (is_deleted) {
-            this.storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
+            storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
         }
         return is_deleted;
     }
