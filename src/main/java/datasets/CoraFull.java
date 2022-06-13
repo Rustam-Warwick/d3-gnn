@@ -60,7 +60,7 @@ public class CoraFull implements Dataset {
 
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
-                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
+//                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
                 }
                 if (e.dest.getFeature("label") != null) {
                     Feature<?, ?> label = e.dest.getFeature("label"); // Get label
@@ -73,7 +73,7 @@ public class CoraFull implements Dataset {
                     }
                     GraphOp copyGraphOp = value.copy();
                     copyGraphOp.setElement(label);
-                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
+//                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
                 }
                 GraphOp copy = value.copy();
                 copy.setElement(value.element.copy());

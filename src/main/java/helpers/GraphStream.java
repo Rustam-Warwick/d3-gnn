@@ -183,8 +183,8 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp> iterationHead = inputData.transform(String.format("IterationHead - %s", position_index), TypeInformation.of(GraphOp.class), new IterationHeadOperator(localIterationId, position_index)).uid(String.format("IterationHead - %s", position_index)).setParallelism(thisParallelism);
         SingleOutputStreamOperator<GraphOp> forward = iterationHead.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
 
-//        iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
-//        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+        forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
         if (!isLocal) forward.slotSharingGroup("gnn-" + position_index);
         if (!isLocal) iterationHead.slotSharingGroup("gnn-" + position_index);
 
@@ -195,7 +195,7 @@ public class GraphStream {
         if (position_index > 0) {
             // Add iteration
             SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).forward().transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism).uid(String.format("IterationTail - %s", position_index));
-//            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
             if (!isLocal) iterationHandler.slotSharingGroup("gnn-" + position_index);
         }
 
@@ -229,7 +229,7 @@ public class GraphStream {
      * @return Last layer corresponding to vertex embeddings
      * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
      */
-    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
+    public SingleOutputStreamOperator<GraphOp> gnnEmbeddings(DataStream<GraphOp> allUpdates,boolean lastLayerTopology, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
         assert layers == 0;
         assert position_index == 0;
         this.layers = (short) (processFunctions.length - 1); // First input is not counted as a layer
@@ -250,7 +250,8 @@ public class GraphStream {
                 // Still mid layer
                 previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(topologyUpdates), processFn);
             } else {
-                previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit), processFn);
+                if(lastLayerTopology) previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn);
+                else previousLayerUpdates = streamingGNNLayer(previousLayerUpdates.union(trainTestSplit), processFn);
             }
 
         }

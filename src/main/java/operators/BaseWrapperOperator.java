@@ -8,6 +8,8 @@ import helpers.MyOutputReflectionContext;
 import operators.events.IterableOperatorEvent;
 import operators.events.WatermarkEvent;
 import operators.events.WatermarkStatusEvent;
+import operators.iterations.FeedbackChannel;
+import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -15,6 +17,7 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.broadcast.OutputReflectionContext;
+import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -30,6 +33,8 @@ import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
+import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
+import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -104,9 +109,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short totalLayers; // Total horizontal layers
 
+    protected final IterationID iterationID;
+
     protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
+
 
 
     /**
@@ -125,6 +133,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected HashMap<IterableOperatorEvent, Short> events;
 
+    private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
+
     // MAIN CONSTRUCTOR
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
@@ -134,6 +144,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             short totalLayers,
             short iterationCount) {
         this.position = position;
+        this.iterationID = iterationID;
         this.totalLayers = totalLayers;
         this.ITERATION_COUNT = iterationCount;
         this.parameters = Objects.requireNonNull(parameters);
@@ -152,9 +163,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                                 .f0;
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
-
         this.events = new HashMap<>();
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
+        this.addFeedbackConsumer();
         parameters
                 .getOperatorEventDispatcher()
                 .registerEventHandler(
@@ -641,6 +652,16 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return totalLayers;
         }
 
+    }
+
+    private void addFeedbackConsumer() {
+        int indexOfThisSubtask = this.containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(this.iterationID, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, this.containingTask.getEnvironment().getTaskInfo().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
     }
 
 }

@@ -19,7 +19,6 @@
 package operators;
 
 import elements.GraphOp;
-import elements.Op;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.state.ListState;
@@ -33,7 +32,10 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
+import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
@@ -119,7 +121,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
             feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
-            System.out.println("Finished Channel"+getRuntimeContext().getIndexOfThisSubtask());
         }
         super.processWatermark(mark);
 
@@ -133,7 +134,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         SubtaskFeedbackKey<StreamRecord<GraphOp>> realKey =
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(realKey);
+        feedbackChannel = broker.getChannel(realKey);
         feedbackChannel.registerPublisher(operatorID);
     }
 

@@ -64,10 +64,11 @@ public class Main {
         // Begin the Dataflow Graph
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 3));
+
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,true,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new TupleStorage()
                         .withPlugin(new ModelServer(models.get(0)))
@@ -78,8 +79,7 @@ public class Main {
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
-                ),
-                null
+                )
         );
 
         String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s",gs.partitionerName,gs.dataset,gs.lambda, env.getParallelism(), env.getMaxParallelism());
