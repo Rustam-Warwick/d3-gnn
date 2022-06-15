@@ -60,7 +60,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Iterable<Vertex> getVertices();
 
     @Nullable
-    public abstract Edge getEdge(String id);
+    public abstract Edge getEdge(String src, String dest);
+
+    @Nullable
+    public Edge getEdge(String id){String[] ids = id.split(":"); return getEdge(ids[0], ids[1]);}
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 

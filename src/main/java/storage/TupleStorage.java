@@ -224,16 +224,6 @@ public class TupleStorage extends BaseStorage {
     }
 
     @Override
-    public Edge getEdge(String id) {
-        try {
-            String[] idArr = id.split(":");
-            return getEdge(idArr[0], idArr[1]);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
             Iterator<Edge> inIterator = IteratorUtils.emptyIterator();

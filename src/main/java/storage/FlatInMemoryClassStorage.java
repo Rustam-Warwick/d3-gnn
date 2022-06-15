@@ -140,10 +140,9 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Nullable
     @Override
-    public Edge getEdge(String id) {
+    public Edge getEdge(String src, String dest) {
         try{
-            String[] ids = id.split(":");
-            return edgeTable.get(ids[0]).get(ids[1]);
+            return edgeTable.get(src).get(dest);
         }catch (Exception e){
             e.printStackTrace();
             return null;
