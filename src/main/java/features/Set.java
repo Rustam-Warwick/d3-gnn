@@ -7,35 +7,25 @@ import java.util.List;
 
 public class Set<T> extends Feature<List<T>, List<T>> {
     public Set() {
+        super();
+    }
+
+    public Set(Set<T> st, boolean deepCopy){
+        super(st, deepCopy);
     }
 
     public Set(List<T> value, boolean halo) {
         super(value, halo, (short) -1);
     }
 
-    public Set(String id, List<T> value, boolean halo, short master) {
-        super(id, value, halo, master);
-    }
-
     @Override
     public Set<T> copy() {
-        Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.partId = this.partId;
-        return tmp;
+        return new Set<>(this, false);
     }
 
     @Override
     public Set<T> deepCopy() {
-        Set<T> tmp = new Set<T>(this.id, this.value, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.element = this.element;
-        tmp.partId = this.partId;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        return tmp;
+        return new Set<>(this, true);
     }
 
     @RemoteFunction

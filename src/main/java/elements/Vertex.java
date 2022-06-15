@@ -10,8 +10,8 @@ public class Vertex extends ReplicableGraphElement {
         super(id, false, (short) -1);
     }
 
-    public Vertex(String id, boolean halo) {
-        super(id, halo, (short) -1);
+    public Vertex(Vertex v, boolean deepCopy){
+        super(v, deepCopy);
     }
 
     public Vertex(String id, boolean halo, short master) {
@@ -20,20 +20,12 @@ public class Vertex extends ReplicableGraphElement {
 
     @Override
     public Vertex copy() {
-        Vertex tmp = new Vertex(this.id, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.partId = this.partId;
-        return tmp;
+        return new Vertex(this, false);
     }
 
     @Override
     public Vertex deepCopy() {
-        Vertex tmp = new Vertex(this.id, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.partId = this.partId;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        return tmp;
+        return new Vertex(this, true);
     }
 
     @Override

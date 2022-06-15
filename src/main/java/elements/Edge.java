@@ -18,26 +18,20 @@ public class Edge extends GraphElement {
         this.dest = dest;
     }
 
+    public Edge(Edge e, boolean deepCopy){
+        super(e, deepCopy);
+        this.src = e.src;
+        this.dest = e.dest;
+    }
+
     @Override
     public Edge copy() {
-        Vertex srcCpy = this.src.copy();
-        Vertex destCpy = this.dest.copy();
-        Edge tmp = new Edge(srcCpy, destCpy);
-        tmp.ts = this.ts;
-        tmp.partId = this.partId;
-        return tmp;
+        return new Edge(this, false);
     }
 
     @Override
     public Edge deepCopy() {
-        Vertex srcCpy = this.src.deepCopy();
-        Vertex destCpy = this.dest.deepCopy();
-        Edge tmp = new Edge(srcCpy, destCpy);
-        tmp.ts = this.ts;
-        tmp.partId = this.partId;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        return tmp;
+        return new Edge(this, true);
     }
 
     /**
@@ -61,19 +55,12 @@ public class Edge extends GraphElement {
     @Override
     public Boolean create() {
         // Update or Create Vertices
-        Vertex localSrc = storage.getVertex(src.getId());
-        Vertex localDest = storage.getVertex(dest.getId());
-
-        if (localSrc == null) {
-            this.src.create();
-        } else {
-            localSrc.update(src);
+        assert storage!=null;
+        if (!storage.containsVertex(src.getId())) {
+            src.create();
         }
-
-        if (localDest == null) {
-            this.dest.create();
-        } else {
-            localDest.update(dest);
+        if(!storage.containsVertex(dest.getId())){
+            dest.create();
         }
         return super.create();
     }

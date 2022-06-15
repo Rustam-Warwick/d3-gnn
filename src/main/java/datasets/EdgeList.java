@@ -9,8 +9,9 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.util.concurrent.ThreadLocalRandom;
-
+/**
+ * Expecting an edge-list files, (index, src, dest)
+ */
 public class EdgeList implements Dataset {
     protected String edgeFileName;
 
@@ -26,7 +27,7 @@ public class EdgeList implements Dataset {
                         .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
                     @Override
                     public long extractTimestamp(GraphOp element, long recordTimestamp) {
-                        return ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE - 1);
+                        return element.getTimestamp();
                     }
                 }))
 
@@ -51,8 +52,9 @@ public class EdgeList implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] edges = value.split(",");
-            Edge e = new Edge(new Vertex(edges[0]), new Vertex(edges[1]));
-            return new GraphOp(Op.COMMIT, e, null);
+            Edge e = new Edge(new Vertex(edges[1]), new Vertex(edges[2]));
+            long ts = Long.parseLong(edges[0]);
+            return new GraphOp(Op.COMMIT, e,ts);
         }
     }
 }

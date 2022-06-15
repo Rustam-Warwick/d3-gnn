@@ -10,6 +10,7 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.stream.Stream;
@@ -35,33 +36,42 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // -------- Abstract methods
 
-    public abstract boolean addFeature(Feature feature);
+    public abstract boolean addFeature(Feature<?,?> feature);
 
     public abstract boolean addVertex(Vertex vertex);
 
     public abstract boolean addEdge(Edge edge);
 
-    public abstract boolean updateFeature(Feature feature);
+    public abstract boolean updateFeature(Feature<?,?> feature);
 
     public abstract boolean updateVertex(Vertex vertex);
 
     public abstract boolean updateEdge(Edge edge);
 
-    public abstract boolean deleteFeature(Feature feature);
+    public abstract boolean deleteFeature(Feature<?,?> feature);
 
     public abstract boolean deleteVertex(Vertex vertex);
 
     public abstract boolean deleteEdge(Edge edge);
 
+    @Nullable
     public abstract Vertex getVertex(String id);
 
     public abstract Iterable<Vertex> getVertices();
 
+    @Nullable
     public abstract Edge getEdge(String id);
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
+    @Nullable
     public abstract Feature<?, ?> getFeature(String id);
+
+    public abstract boolean containsVertex(String id);
+
+    public abstract boolean containsFeature(String id);
+
+    public abstract boolean containsEdge(String id);
 
     public abstract void cacheFeaturesOf(GraphElement e);
 
@@ -173,6 +183,19 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.updateEdge((Edge) element);
             case FEATURE:
                 return this.updateFeature((Feature) element);
+            default:
+                return false;
+        }
+    }
+
+    public boolean containsElement(GraphElement element){
+        switch (element.elementType()) {
+            case VERTEX:
+                return this.containsVertex(element.getId());
+            case EDGE:
+                return this.containsEdge(element.getId());
+            case FEATURE:
+                return this.containsFeature(element.getId());
             default:
                 return false;
         }

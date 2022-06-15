@@ -10,7 +10,7 @@ import java.util.Arrays;
 public class Rmi extends GraphElement {
     public Object[] args;
     public ElementType elemType;
-    public boolean hasUpdate = true;
+    public Boolean hasUpdate = true;
     public String methodName;
 
     public Rmi() {

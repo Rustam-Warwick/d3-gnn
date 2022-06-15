@@ -11,28 +11,19 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
-import elements.Feature;
-import elements.GraphElement;
 import elements.GraphOp;
-import elements.Vertex;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import functions.helpers.AddTimestamp;
-import functions.helpers.LatencyOutput;
-import org.apache.flink.api.common.JobExecutionResult;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.util.Collector;
 import plugins.ModelServer;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
-import storage.TupleStorage;
+import storage.FlatInMemoryClassStorage;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class Main {
@@ -70,48 +61,49 @@ public class Main {
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
+
         // Begin the Dataflow Graph
+        env.setParallelism(2);
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
-        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 3));
+//        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 5));
+        env.setMaxParallelism(5);
 
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true,
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,true,
                 dataset.trainTestSplitter(),
-                new StreamingGNNLayerFunction(new TupleStorage()
+                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
+                        .withPlugin(new PrintVertexPlugin("1","2"))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
                 ),
-                new StreamingGNNLayerFunction(new TupleStorage()
+                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
+                        .withPlugin(new PrintVertexPlugin("1","2"))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
                 )
         );
 
-        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s", gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
 
-        embeddings.union(partitioned)
-                .process(new AddTimestamp())
-                .keyBy(GraphOp::getTimestamp)
-                .process(new LatencyOutput(jobName));
+        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s",gs.partitionerName,gs.dataset,gs.lambda, env.getParallelism(), env.getMaxParallelism());
+//        partitioned
+//                .process(new AddTimestamp()).name("Inputs").keyBy(GraphOp::getTimestamp)
+//                .connect(embeddings.process(new AddTimestamp()).name("Embeddings").keyBy(GraphOp::getTimestamp))
+//                .process(new LatencyOutput(1000));
+        embeddings.process(new ProcessFunction<GraphOp, GraphOp>() {
+            @Override
+            public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+                System.out.format("%s,%s\n", value, ctx.timestamp());
+            }
 
-        JobExecutionResult result = env.execute(jobName);
+        });
+        env.execute(jobName);
 
-        // Write the runtime of the job
-        String homePath = System.getenv("HOME");
-        File outputFile = new File(String.format("%s/metrics/%s/runtime.csv", homePath, jobName));
-        File parent = outputFile.getParentFile();
-        try {
-            parent.mkdirs();
-            outputFile.createNewFile();
-        } catch (IllegalStateException e) {
-            e.printStackTrace();
-        }
-
-        Files.write(outputFile.toPath(), String.valueOf(result.getNetRuntime(TimeUnit.SECONDS)).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-
+//        Thread.sleep(20000);
+//        System.out.println("Triggered savepoint");
+//        c.triggerSavepoint("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints", SavepointFormatType.NATIVE);
     }
 }

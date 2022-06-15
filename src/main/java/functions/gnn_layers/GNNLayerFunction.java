@@ -16,7 +16,6 @@ import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
-import java.util.Objects;
 
 /**
  * Interface that the storage and everything else interacts with
@@ -144,18 +143,17 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
         try {
             switch (value.op) {
                 case COMMIT:
-                    GraphElement thisElement = getStorage().getElement(value.element);
-                    if (Objects.isNull(thisElement)) {
+                    if (!getStorage().containsElement(value.element)) {
                         value.element.setStorage(getStorage());
                         value.element.create();
                     } else {
+                        GraphElement thisElement = getStorage().getElement(value.element);
                         thisElement.update(value.element);
                     }
                     break;
                 case SYNC:
-                    GraphElement el = this.getStorage().getElement(value.element);
-                    if (Objects.isNull(el)) {
-                        el = value.element.copy();
+                    if (!getStorage().containsElement(value.element)) {
+                        GraphElement el = value.element.copy();
                         el.setStorage(getStorage());
                         if (el.state() == ReplicaState.MASTER) {
                             // Replicas should not be created by master since they are the first parties sending sync messages
@@ -163,6 +161,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                             el.sync(value.element);
                         }
                     } else {
+                        GraphElement el = this.getStorage().getElement(value.element);
                         el.sync(value.element);
                     }
                     break;
@@ -177,7 +176,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
             System.out.println(value);
             e.printStackTrace();
         } finally {
-            getStorage().getPlugins().forEach(item -> item.features.clear()); // Clear the features since it may come later
+            getStorage().getPlugins().forEach(GraphElement::clearFeatures); // Clear the features since it may come later
         }
     }
 

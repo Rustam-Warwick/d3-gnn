@@ -174,6 +174,20 @@ public class TupleStorage extends BaseStorage {
     }
 
     @Override
+    public boolean containsFeature(String id) {
+        try {
+            return featureTable.contains(id);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public boolean containsEdge(String id) {
+        return false;
+    }
+
+    @Override
     public Iterable<Vertex> getVertices() {
         try {
             BaseStorage _this = this;
@@ -287,6 +301,16 @@ public class TupleStorage extends BaseStorage {
             return res;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+
+    @Override
+    public boolean containsVertex(String id) {
+        try {
+            return vertexTable.contains(id);
+        } catch (Exception e) {
+            return false;
         }
     }
 

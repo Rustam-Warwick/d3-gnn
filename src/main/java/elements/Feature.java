@@ -15,12 +15,22 @@ import java.util.Objects;
  */
 public class Feature<T, V> extends ReplicableGraphElement {
     public T value;
+    @Nullable
     public transient GraphElement element;
-    public Tuple2<ElementType, String> attachedTo = new Tuple2<>(ElementType.NONE, null);
+    @Nullable
+    public Tuple2<ElementType, String> attachedTo;
 
     public Feature() {
         super();
-        this.value = null;
+    }
+
+    public Feature(Feature<T,V> f, boolean deepCopy){
+        super(f, deepCopy);
+        this.attachedTo = f.attachedTo;
+        this.value = f.value;
+        if(deepCopy){
+            this.element = f.element;
+        }
     }
 
     public Feature(T value) {
@@ -45,23 +55,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     @Override
     public Feature<T, V> copy() {
-        Feature<T, V> tmp = new Feature<>(this.id, this.value, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.partId = this.partId;
-        return tmp;
+        return new Feature<>(this, false);
     }
 
     @Override
     public Feature<T, V> deepCopy() {
-        Feature<T, V> tmp = new Feature<>(this.id, this.value, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.partId = this.partId;
-        tmp.element = this.element;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        return tmp;
+        return new Feature<>(this, true);
     }
 
     /**
@@ -72,7 +71,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public Boolean create() {
-        if (this.attachedTo.f0 == ElementType.NONE) return super.create();
+        if (this.attachedTo == null) return super.create();
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
@@ -90,24 +89,25 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        Feature<T, V> memento = this.copy();
+        assert storage!=null;
+        Feature<T, V> memento = copy();
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         boolean isUpdated = !this.valuesEqual(newFeature.value, this.value);
-        if (isUpdated) this.value = newFeature.value;
-        if (this.attachedTo.f0 == ElementType.NONE) {
+        if (isUpdated) value = newFeature.value;
+        if (attachedTo == null && newElement.features!=null) {
             // If none sub-features may exist
             for (Feature<?, ?> newSubFeature : newElement.features) {
                 Feature<?, ?> thisSubFeature = this.getFeature(newSubFeature.getName());
                 if (Objects.nonNull(thisSubFeature)) {
                     Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
                     isUpdated |= tmp.f0;
-                    addIfNotExists(memento.features, (Feature<?, ?>) tmp.f1);
+                    addCachedFeatureOrExists(memento, (Feature<?, ?>) tmp.f1);
                 } else {
                     Feature<?, ?> featureCopy = newSubFeature.copy();
                     featureCopy.setElement(this);
                     featureCopy.setStorage(this.storage);
                     featureCopy.createElement();
-                    addIfNotExists(this.features, featureCopy);
+                    addCachedFeatureOrExists(this, featureCopy);
                     isUpdated = true;
                 }
             }
@@ -149,9 +149,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return master part
      */
     @Override
-    public short masterPart() {
-        if (Objects.nonNull(this.getElement())) {
-            return this.getElement().masterPart();
+    public Short masterPart() {
+        if (Objects.nonNull(getElement())) {
+            return getElement().masterPart();
         }
         return super.masterPart();
     }
@@ -163,8 +163,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public List<Short> replicaParts() {
-        if (Objects.nonNull(this.getElement())) {
-            return this.getElement().replicaParts();
+        if (Objects.nonNull(getElement())) {
+            return getElement().replicaParts();
         }
         return super.replicaParts();
     }
@@ -177,8 +177,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        if (this.attachedTo.f0 == ElementType.NONE) return super.getId();
-        return this.attachedTo.f1 + this.id;
+        if (this.attachedTo == null) return super.getId();
+        return attachedTo.f1 +":"+ this.id;
     }
 
     /**
@@ -197,7 +197,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Nullable
     public GraphElement getElement() {
-        if (attachedTo.f0 == ElementType.NONE) return null;
+        if (attachedTo == null) return null;
         if (element == null && storage != null) {
             setElement(storage.getElement(attachedTo.f1, attachedTo.f0));
         }
@@ -212,7 +212,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * between element.features <--> feature.element.
      */
     public void setElement(GraphElement attachingElement) {
-        if (element == null && attachingElement != null && addIfNotExists(attachingElement.features, this)) {
+        if (element == null && attachingElement != null && addCachedFeatureOrExists(attachingElement, this)) {
             attachedTo = new Tuple2<>(attachingElement.elementType(), attachingElement.getId());
             element = attachingElement;
         }
@@ -227,7 +227,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     @Nullable
     public Feature<?, ?> getFeature(String name) {
-        if (attachedTo.f0 == ElementType.NONE) return super.getFeature(name);
+        if (attachedTo == null) return super.getFeature(name);
         return null;
     }
 
@@ -239,7 +239,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo.f0 == ElementType.NONE) super.setFeature(name, feature);
+        if (attachedTo == null ) super.setFeature(name, feature);
         throw new IllegalStateException("Nested features not allowed");
     }
 

@@ -1,7 +1,9 @@
 package elements;
 
+import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
+import typeinfo.ListTypeInformationFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -10,37 +12,57 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+
 public class GraphElement implements Serializable {
+    @Nullable
     public String id;
-    public short partId;
+    @Nullable
+    public Short partId;
+    @Nullable
     public Long ts;
+    @Nullable
     public transient BaseStorage storage;
+    @Nullable
+    @TypeInfo(ListTypeInformationFactory.class)
     public List<Feature<?, ?>> features;
 
     public GraphElement() {
-        this(null);
+
     }
 
-    public GraphElement(String id) {
+    public GraphElement(@Nullable String id) {
         this.id = id;
-        this.partId = -1;
+        this.partId = null;
         this.storage = null;
-        this.features = new ArrayList<>();
+        this.features = null;
+    }
+
+    public GraphElement(GraphElement element, boolean deepCopy){
+        this.id = element.id;
+        this.partId = element.partId;
+        this.ts = element.ts;
+        if(deepCopy){
+            this.storage = element.storage;
+            if(element.features !=null){
+                this.features = new ArrayList<>(element.features);
+            }
+        }
     }
 
     /**
      * Helper method to add feature if it does not exist
      *
-     * @param list    list of features
+     * @param  el  Element to add Feature to
      * @param feature feature we are willing to add
      * @return could we add it
      */
-    public static boolean addIfNotExists(List<Feature<?, ?>> list, Feature<?, ?> feature) {
-        if (!list.contains(feature)) {
-            list.add(feature);
+    public static boolean addCachedFeatureOrExists(GraphElement el, Feature<?, ?> feature) {
+        if(el.features==null)el.features = new ArrayList<>(3);
+        if (!el.features.contains(feature)) {
+            el.features.add(feature);
             return true;
         }
-        return list.stream().anyMatch(item -> item == feature);
+        return false;
     }
 
     /**
@@ -49,10 +71,7 @@ public class GraphElement implements Serializable {
      * @return copied element
      */
     public GraphElement copy() {
-        GraphElement tmp = new GraphElement(this.id);
-        tmp.partId = this.partId;
-        tmp.ts = this.ts;
-        return tmp;
+        return new GraphElement(this, false);
     }
 
     /**
@@ -61,12 +80,7 @@ public class GraphElement implements Serializable {
      * @return copied element
      */
     public GraphElement deepCopy() {
-        GraphElement tmp = new GraphElement(this.id);
-        tmp.partId = this.partId;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        tmp.ts = this.ts;
-        return tmp;
+        return new GraphElement(this, true);
     }
 
     /**
@@ -75,10 +89,13 @@ public class GraphElement implements Serializable {
      * @return Was element created
      */
     public Boolean createElement() {
+        assert storage != null;
         boolean is_created = storage.addElement(this);
         if (is_created) {
-            for (GraphElement el : features) {
-                el.createElement();
+            if(features!=null){
+                for (GraphElement el : features) {
+                    el.createElement();
+                }
             }
             storage.getPlugins().forEach(item -> item.addElementCallback(this));
         }
@@ -91,9 +108,12 @@ public class GraphElement implements Serializable {
      * @return Was element deleted
      */
     public Boolean deleteElement() {
+        assert storage !=null;
         cacheFeatures();
-        for (GraphElement el : features) {
-            el.deleteElement();
+        if(features!=null){
+            for (GraphElement el : features) {
+                el.deleteElement();
+            }
         }
         boolean is_deleted = storage.deleteElement(this);
         if (is_deleted) {
@@ -109,29 +129,30 @@ public class GraphElement implements Serializable {
      * @return (is updated, previous values)
      */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+        assert storage!=null;
         GraphElement memento = this.copy(); // No features to storage
         boolean is_updated = false;
-        for (Feature<?, ?> feature : newElement.features) {
-            Feature<?, ?> thisFeature = this.getFeature(feature.getName());
-            if (Objects.nonNull(thisFeature)) {
-                Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
-                is_updated |= tmp.f0;
-                memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
-            } else {
-                Feature<?, ?> featureCopy = feature.copy();
-                featureCopy.setStorage(storage);
-                featureCopy.setElement(this);
-                featureCopy.createElement();
-                is_updated = true;
+        if(newElement.features!=null) {
+            for (Feature<?, ?> feature : newElement.features) {
+                Feature<?, ?> thisFeature = this.getFeature(feature.getName());
+                if (Objects.nonNull(thisFeature)) {
+                    Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
+                    is_updated |= tmp.f0;
+                    memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
+                } else {
+                    Feature<?, ?> featureCopy = feature.copy();
+                    featureCopy.setStorage(storage);
+                    featureCopy.setElement(this);
+                    featureCopy.createElement();
+                    is_updated = true;
+                }
+            }
+            if (is_updated) {
+                resolveTimestamp(newElement.getTimestamp());
+                this.storage.updateElement(this);
+                this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
             }
         }
-
-        if (is_updated) {
-            resolveTimestamp(newElement.getTimestamp());
-            this.storage.updateElement(this);
-            this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
-        }
-
         return new Tuple2<>(is_updated, memento);
     }
 
@@ -192,7 +213,8 @@ public class GraphElement implements Serializable {
      *
      * @return master part of this element
      */
-    public short masterPart() {
+    @Nullable
+    public Short masterPart() {
         return getPartId();
     }
 
@@ -211,8 +233,8 @@ public class GraphElement implements Serializable {
      * @return state of this element
      */
     public ReplicaState state() {
-        if (getPartId() == -1) return ReplicaState.UNDEFINED;
-        if (getPartId() == this.masterPart()) return ReplicaState.MASTER;
+        if (getPartId() == null) return ReplicaState.UNDEFINED;
+        if (Objects.equals(getPartId(), this.masterPart())) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
 
@@ -228,9 +250,9 @@ public class GraphElement implements Serializable {
     /**
      * Element Timestamp
      * If the timestamp does not exist take the current element's timestamp in the pipeline
-     *
      * @return timestamp
      */
+    @Nullable
     public Long getTimestamp() {
         return ts;
     }
@@ -245,10 +267,11 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * get Id of this element
+     * get id of this element
      *
      * @return element id
      */
+    @Nullable
     public String getId() {
         return id;
     }
@@ -258,7 +281,7 @@ public class GraphElement implements Serializable {
      *
      * @param id id to be set
      */
-    public void setId(String id) {
+    public void setId(@Nullable String id) {
         this.id = id;
     }
 
@@ -267,8 +290,8 @@ public class GraphElement implements Serializable {
      *
      * @return Element part id
      */
-    public short getPartId() {
-        if (Objects.nonNull(this.storage)) return storage.layerFunction.getCurrentPart();
+    @Nullable
+    public Short getPartId() {
         return partId;
     }
 
@@ -277,7 +300,7 @@ public class GraphElement implements Serializable {
      *
      * @param partId part id
      */
-    public void setPartId(short partId) {
+    public void setPartId(@Nullable Short partId) {
         this.partId = partId;
     }
 
@@ -290,10 +313,12 @@ public class GraphElement implements Serializable {
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        this.partId = getPartId();
-        for (Feature<?, ?> ft : this.features) {
-            ft.setStorage(storage);
-            ft.setElement(this);
+        this.partId = storage==null?this.partId:storage.layerFunction.getCurrentPart();
+        if(features!=null){
+            for (Feature<?, ?> ft : this.features) {
+                ft.setStorage(storage);
+                ft.setElement(this);
+            }
         }
     }
 
@@ -306,11 +331,11 @@ public class GraphElement implements Serializable {
      */
     @Nullable
     public Feature<?, ?> getFeature(String name) {
-        Feature<?, ?> result = this.features.stream().filter(item -> item.getName().equals(name)).findAny().orElse(null);
+        Feature<?, ?> result = features!=null?features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null):null;
         if (result == null && storage != null) {
             result = storage.getFeature(decodeFeatureId(name));
+            if (Objects.nonNull(result)) result.setElement(this);
         }
-        if (Objects.nonNull(result)) result.setElement(this);
         return result;
     }
 
@@ -357,7 +382,7 @@ public class GraphElement implements Serializable {
      * Clear the cached features on this GraphElement
      */
     public void clearFeatures() {
-        features.clear();
+        if(features!=null)features.clear();
     }
 
     /**
@@ -367,8 +392,9 @@ public class GraphElement implements Serializable {
      * @return full feature id
      */
     public String decodeFeatureId(String name) {
-        return getId() + name;
+        return getId() +":"+ name;
     }
+
 
     /**
      * Resolve timestamp of the new Element that just came in
@@ -398,12 +424,14 @@ public class GraphElement implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GraphElement that = (GraphElement) o;
-        return getId().equals(that.getId());
+        return Objects.equals(getId(), that.getId());
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(getId());
-
     }
+
+
+
 }

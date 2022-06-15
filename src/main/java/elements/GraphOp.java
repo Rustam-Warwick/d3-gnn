@@ -17,15 +17,15 @@ public class GraphOp {
     /**
      * The part number where this record should be sent to
      */
-    public Short partId = null;
+    public Short partId;
     /**
      * The GraphElement on which the Op is being acted upon
      */
-    public GraphElement element = null;
+    public GraphElement element;
     /**
      * Operator Event for the plugins communicated through this channel
      */
-    public OperatorEvent operatorEvent = null;
+    public OperatorEvent operatorEvent;
     /**
      * Type of communication message Part-to-Part or Broadcast
      */

@@ -13,7 +13,6 @@ import elements.*;
 import elements.iterations.Rmi;
 import features.Set;
 import features.Tensor;
-import features.VTensor;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
 import operators.IterationHeadOperator;
@@ -76,7 +75,6 @@ public class GraphStream {
         env.registerType(Edge.class);
         env.registerType(Feature.class);
         env.registerType(Set.class);
-        env.registerType(VTensor.class);
         env.registerType(Tensor.class);
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);

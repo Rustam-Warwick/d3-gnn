@@ -1,79 +1,68 @@
 package functions.helpers;
 
 import elements.GraphOp;
+import org.apache.commons.collections.buffer.CircularFifoBuffer;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.runtime.metrics.DescriptiveStatisticsHistogram;
+import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 
-public class LatencyOutput extends KeyedProcessFunction<Long, GraphOp, Void> {
-    private final HashMap<Long, List<Long>> requestLatencies = new HashMap<>();
+public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void> {
+    private final int movingAverageSize;
+    private transient MyGauge gauge;
+    private transient DescriptiveStatisticsHistogram histogram;
+    private transient HashMap<Long, Long> requestLatencies;
 
-    private final String outputFileName;
-    private transient long sumLatency;
-    private transient int N;
-
-    public LatencyOutput(String outputFileName) {
-        this.outputFileName = outputFileName;
+    public LatencyOutput(int movingAverageSize) {
+       this.movingAverageSize = movingAverageSize;
     }
 
     @Override
-    public void processElement(GraphOp value, KeyedProcessFunction<Long, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-        requestLatencies.computeIfAbsent(value.getTimestamp(), (key) -> new ArrayList<>());
-        requestLatencies.compute(value.getTimestamp(), (key, val) -> {
-            if (!val.isEmpty()) {
-                sumLatency += Math.abs(val.get(0) - ctx.timerService().currentProcessingTime());
-            }
-            val.add(ctx.timerService().currentProcessingTime());
-            return val;
-        });
+    public void processElement1(GraphOp value, KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
+        requestLatencies.put(value.getTimestamp(), ctx.timerService().currentProcessingTime());
+    }
+
+    @Override
+    public void processElement2(GraphOp value, KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
+        if(requestLatencies.containsKey(value.getTimestamp())){
+            int latency = (int) (ctx.timerService().currentProcessingTime() - requestLatencies.get(value.getTimestamp()));
+            gauge.add(latency);
+            histogram.update(latency);
+        }
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
-        super.open(parameters);
-        getRuntimeContext().getMetricGroup().gauge("MyLatency", new MyGauge());
+        gauge = new MyGauge(movingAverageSize);
+        histogram = new DescriptiveStatisticsHistogram(3000);
+        requestLatencies = new HashMap<>();
+        getRuntimeContext().getMetricGroup().gauge(String.format("%s-Maverage-latency",movingAverageSize),gauge);
+        getRuntimeContext().getMetricGroup().histogram(String.format("histogram-latency"),histogram);
+    }
+
+    public static class MyGauge implements Gauge<Integer>{
+        private transient CircularFifoBuffer buffer;
+        public MyGauge(int capacity){
+            buffer = new CircularFifoBuffer(capacity);
+        }
+        public void add(int latency){
+            buffer.add(latency);
+        }
+
+        @Override
+        public Integer getValue() {
+            if(buffer.isEmpty())return 0;
+            Integer sum = (Integer) buffer.parallelStream().reduce(1, (a,b)->((int)a + (int) b));
+            long latencyOutput = sum/buffer.size();
+            return (int) latencyOutput;
+        }
     }
 
     @Override
     public void close() throws Exception {
         super.close();
-        String homePath = System.getenv("HOME");
-        File outputFile = new File(String.format("%s/metrics/%s/latencies-%s.csv", homePath, outputFileName, getRuntimeContext().getIndexOfThisSubtask()));
-        File parent = outputFile.getParentFile();
-
-        try {
-            parent.mkdirs();
-            outputFile.createNewFile();
-        } catch (IllegalStateException e) {
-            e.printStackTrace();
-        }
-
-        StringBuilder builder = new StringBuilder();
-        requestLatencies.forEach((timestamp, processingTimeLists) -> {
-            for (Long processingTime : processingTimeLists) {
-                builder.append(String.format("%s,%s\n", timestamp, processingTime));
-            }
-        });
-
-        Files.write(outputFile.toPath(), builder.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-    }
-
-    public class MyGauge implements Gauge<Long> {
-        @Override
-        public Long getValue() {
-            long latencyOutput = (long) sumLatency / N;
-            sumLatency = 0;
-            N = 0;
-            return latencyOutput;
-        }
     }
 }

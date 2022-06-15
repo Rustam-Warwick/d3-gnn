@@ -9,8 +9,11 @@ import java.util.Arrays;
 public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     public MeanAggregator() {
+        super();
     }
-
+    public MeanAggregator(MeanAggregator m, boolean deepCopy){
+        super(m, deepCopy);
+    }
     public MeanAggregator(NDArray value, boolean halo) {
         this(new Tuple2<>(value, 0), halo, (short) -1);
     }
@@ -38,23 +41,12 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     @Override
     public MeanAggregator copy() {
-        MeanAggregator tmp = new MeanAggregator(this.id, this.value, this.halo, this.master);
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.partId = this.partId;
-        return tmp;
+        return new MeanAggregator(this, false);
     }
 
     @Override
     public MeanAggregator deepCopy() {
-        MeanAggregator tmp = this.copy();
-        tmp.ts = this.ts;
-        tmp.attachedTo = this.attachedTo;
-        tmp.partId = this.partId;
-        tmp.element = this.element;
-        tmp.storage = this.storage;
-        tmp.features.addAll(this.features);
-        return tmp;
+        return new MeanAggregator(this, true);
     }
 
     @RemoteFunction

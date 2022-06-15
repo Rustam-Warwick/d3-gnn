@@ -24,22 +24,32 @@ public class Plugin extends ReplicableGraphElement {
 
     @Override
     public Boolean create() {
-        return false;
+        throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
-        return null;
+        throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
     public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
-        return null;
+        throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
     public Boolean delete() {
-        return false;
+        throw new IllegalStateException("Plugins are not created");
+    }
+
+    @Override
+    public ReplicableGraphElement copy() {
+        throw new IllegalStateException("No copy");
+    }
+
+    @Override
+    public ReplicableGraphElement deepCopy() {
+        throw new IllegalStateException("No deepcopy");
     }
 
     /**
@@ -57,6 +67,9 @@ public class Plugin extends ReplicableGraphElement {
         return othersMasterParts;
     }
 
+    /**
+     * Is this key the last one in this operator
+     */
     public boolean isLastReplica() {
         return replicaParts().isEmpty() || getPartId() == replicaParts().get(replicaParts().size() - 1);
     }
@@ -68,6 +81,9 @@ public class Plugin extends ReplicableGraphElement {
     public ElementType elementType() {
         return ElementType.PLUGIN;
     }
+
+
+    // GraphElement Callbacks
 
     /**
      * Callback when a graph element is created
