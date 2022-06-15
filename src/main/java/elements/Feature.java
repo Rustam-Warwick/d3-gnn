@@ -24,11 +24,11 @@ public class Feature<T, V> extends ReplicableGraphElement {
         super();
     }
 
-    public Feature(Feature<T,V> f, boolean deepCopy){
+    public Feature(Feature<T, V> f, boolean deepCopy) {
         super(f, deepCopy);
         this.attachedTo = f.attachedTo;
         this.value = f.value;
-        if(deepCopy){
+        if (deepCopy) {
             this.element = f.element;
         }
     }
@@ -89,12 +89,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        assert storage!=null;
+        assert storage != null;
         Feature<T, V> memento = copy();
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         boolean isUpdated = !this.valuesEqual(newFeature.value, this.value);
         if (isUpdated) value = newFeature.value;
-        if (attachedTo == null && newElement.features!=null) {
+        if (attachedTo == null && newElement.features != null) {
             // If none sub-features may exist
             for (Feature<?, ?> newSubFeature : newElement.features) {
                 Feature<?, ?> thisSubFeature = this.getFeature(newSubFeature.getName());
@@ -178,7 +178,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public String getId() {
         if (this.attachedTo == null) return super.getId();
-        return attachedTo.f1 +":"+ this.id;
+        return attachedTo.f1 + ":" + this.id;
     }
 
     /**
@@ -239,7 +239,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo == null ) super.setFeature(name, feature);
+        if (attachedTo == null) super.setFeature(name, feature);
         throw new IllegalStateException("Nested features not allowed");
     }
 

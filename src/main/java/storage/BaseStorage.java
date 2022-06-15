@@ -36,19 +36,19 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // -------- Abstract methods
 
-    public abstract boolean addFeature(Feature<?,?> feature);
+    public abstract boolean addFeature(Feature<?, ?> feature);
 
     public abstract boolean addVertex(Vertex vertex);
 
     public abstract boolean addEdge(Edge edge);
 
-    public abstract boolean updateFeature(Feature<?,?> feature);
+    public abstract boolean updateFeature(Feature<?, ?> feature);
 
     public abstract boolean updateVertex(Vertex vertex);
 
     public abstract boolean updateEdge(Edge edge);
 
-    public abstract boolean deleteFeature(Feature<?,?> feature);
+    public abstract boolean deleteFeature(Feature<?, ?> feature);
 
     public abstract boolean deleteVertex(Vertex vertex);
 
@@ -63,7 +63,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Edge getEdge(String src, String dest);
 
     @Nullable
-    public Edge getEdge(String id){String[] ids = id.split(":"); return getEdge(ids[0], ids[1]);}
+    public Edge getEdge(String id) {
+        String[] ids = id.split(":");
+        return getEdge(ids[0], ids[1]);
+    }
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
@@ -191,7 +194,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    public boolean containsElement(GraphElement element){
+    public boolean containsElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:
                 return this.containsVertex(element.getId());

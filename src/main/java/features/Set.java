@@ -10,7 +10,7 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         super();
     }
 
-    public Set(Set<T> st, boolean deepCopy){
+    public Set(Set<T> st, boolean deepCopy) {
         super(st, deepCopy);
     }
 

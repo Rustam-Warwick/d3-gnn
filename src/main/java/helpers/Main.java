@@ -13,17 +13,18 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.helpers.AddTimestamp;
+import functions.helpers.LatencyOutput;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import plugins.ModelServer;
-import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.function.Function;
 
 public class Main {
@@ -61,45 +62,34 @@ public class Main {
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-
         // Begin the Dataflow Graph
-        env.setParallelism(2);
         GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
-//        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 5));
-        env.setMaxParallelism(5);
+        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 3));
 
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned,true,
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
-                        .withPlugin(new PrintVertexPlugin("1","2"))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(0).getName()))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
-                        .withPlugin(new PrintVertexPlugin("1","2"))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
                 )
         );
 
+        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
+        String jobName = String.format("%s| P-%s D-%s L-%s Par-%s MaxPar-%s ", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
+        partitioned
+                .process(new AddTimestamp()).name("Inputs").keyBy(GraphOp::getTimestamp)
+                .connect(embeddings.process(new AddTimestamp()).name("Embeddings").keyBy(GraphOp::getTimestamp))
+                .process(new LatencyOutput(jobName,10000));
 
-        String jobName = String.format("P-%s D-%s L-%s Par-%s MaxPar-%s",gs.partitionerName,gs.dataset,gs.lambda, env.getParallelism(), env.getMaxParallelism());
-//        partitioned
-//                .process(new AddTimestamp()).name("Inputs").keyBy(GraphOp::getTimestamp)
-//                .connect(embeddings.process(new AddTimestamp()).name("Embeddings").keyBy(GraphOp::getTimestamp))
-//                .process(new LatencyOutput(1000));
-        embeddings.process(new ProcessFunction<GraphOp, GraphOp>() {
-            @Override
-            public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-                System.out.format("%s,%s\n", value, ctx.timestamp());
-            }
-
-        });
         env.execute(jobName);
 
 //        Thread.sleep(20000);

@@ -8,7 +8,8 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     public BaseAggregator() {
         super();
     }
-    public BaseAggregator(BaseAggregator<T> agg, boolean deepCopy){
+
+    public BaseAggregator(BaseAggregator<T> agg, boolean deepCopy) {
         super(agg, deepCopy);
     }
 

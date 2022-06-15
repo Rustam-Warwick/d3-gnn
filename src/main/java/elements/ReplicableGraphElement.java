@@ -33,7 +33,6 @@ public class ReplicableGraphElement extends GraphElement {
         this.master = master;
     }
 
-
     @Override
     public ReplicableGraphElement copy() {
         return new ReplicableGraphElement(this, false);
@@ -41,7 +40,7 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public ReplicableGraphElement deepCopy() {
-       return new ReplicableGraphElement(this, true);
+        return new ReplicableGraphElement(this, true);
     }
 
     /**
@@ -83,7 +82,6 @@ public class ReplicableGraphElement extends GraphElement {
                     .addDestination(masterPart())
                     .where(MessageDirection.ITERATE)
                     .withArgs(newElement.getPartId())
-                    .withTimestamp(getTimestamp())
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
@@ -96,6 +94,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> update element, if changed send message to replica
      * replica -> Redirect to master, false message
+     *
      * @param newElement newElement to update with
      * @return (isUpdated, oldElement)
      */
@@ -103,7 +102,7 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
-            if(tmp.f0) syncReplicas(replicaParts());
+            if (tmp.f0) syncReplicas(replicaParts());
             return tmp;
         } else if (state() == ReplicaState.REPLICA) {
             // Replica update, simply ignore it. SHold be MASTER
@@ -127,12 +126,11 @@ public class ReplicableGraphElement extends GraphElement {
                     .addDestinations(replicaParts())
                     .where(MessageDirection.ITERATE)
                     .withArgs(false)
-                    .withTimestamp(getTimestamp())
                     .buildAndRun(storage);
             return deleteElement();
 
         } else if (state() == ReplicaState.REPLICA) {
-            assert storage!=null;
+            assert storage != null;
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
             return false;
         }
@@ -156,7 +154,6 @@ public class ReplicableGraphElement extends GraphElement {
                         .withArgs(getPartId())
                         .where(MessageDirection.ITERATE)
                         .addDestination(masterPart())
-                        .withTimestamp(getTimestamp())
                         .buildAndRun(storage);
             }
         }
@@ -168,11 +165,12 @@ public class ReplicableGraphElement extends GraphElement {
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
-        assert storage!=null;
-        if ((this.state() != ReplicaState.MASTER) || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty()) return;
+        assert storage != null;
+        if ((this.state() != ReplicaState.MASTER) || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
+            return;
         cacheFeatures();
         ReplicableGraphElement cpy = copy();
-        if(features!=null) {
+        if (features != null) {
             for (Feature<?, ?> feature : features) {
                 if (feature.isHalo()) continue;
                 Feature<?, ?> tmp = feature.copy();

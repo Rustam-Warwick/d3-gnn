@@ -5,8 +5,6 @@ import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.translate.Batchifier;
-import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
@@ -18,9 +16,16 @@ import java.util.Objects;
 
 public class StreamingGNNEmbeddingLayer extends Plugin {
     public final String modelName; // Model name to identify the ParameterStore
+
     public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
+
     public transient ModelServer modelServer; // ParameterServer Plugin
-    public transient Batchifier batchifier; // If we process data as batches
+
+    public StreamingGNNEmbeddingLayer() {
+        super();
+        modelName = null;
+        externalFeatures = false;
+    }
 
     public StreamingGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
         super(String.format("%s-inferencer", modelName));
@@ -31,8 +36,8 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
     @Override
     public void open() {
         super.open();
+        assert storage != null;
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
-        batchifier = new StackBatchifier();
     }
 
     /**
@@ -69,7 +74,6 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
                         .withArgs(msg.get(0), 1)
-                        .withTimestamp(edge.getTimestamp())
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
@@ -136,7 +140,6 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.dest.masterPart())
-                        .withTimestamp(edge.getTimestamp())
                         .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
@@ -165,7 +168,6 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
                         .where(MessageDirection.ITERATE)
                         .method("replace")
                         .hasUpdate()
-                        .withTimestamp(edge.getTimestamp())
                         .addDestination(edge.dest.masterPart())
                         .withArgs(msgNew, msgOld)
                         .buildAndRun(storage);

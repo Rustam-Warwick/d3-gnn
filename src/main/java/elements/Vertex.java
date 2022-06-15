@@ -10,7 +10,7 @@ public class Vertex extends ReplicableGraphElement {
         super(id, false, (short) -1);
     }
 
-    public Vertex(Vertex v, boolean deepCopy){
+    public Vertex(Vertex v, boolean deepCopy) {
         super(v, deepCopy);
     }
 

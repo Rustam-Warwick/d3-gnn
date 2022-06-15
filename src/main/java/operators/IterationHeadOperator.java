@@ -100,7 +100,7 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void endInput() throws Exception {
-        if(!feedbackChannel.allChannelsFinished())output.emitWatermark(new Watermark(Long.MAX_VALUE));
+        if (!feedbackChannel.allChannelsFinished()) output.emitWatermark(new Watermark(Long.MAX_VALUE));
         while (!feedbackChannel.allChannelsFinished()) {
             mailboxExecutor.tryYield();
             Thread.sleep(800);

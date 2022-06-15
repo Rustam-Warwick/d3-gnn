@@ -13,7 +13,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
         super();
     }
 
-    public Tensor(Tensor s, boolean deepCopy){
+    public Tensor(Tensor s, boolean deepCopy) {
         super(s, deepCopy);
     }
 

@@ -12,45 +12,50 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 
-public class FlatInMemoryClassStorage extends BaseStorage{
+public class FlatInMemoryClassStorage extends BaseStorage {
     protected MapState<String, Vertex> vertexTable;
-    protected MapState<String, Feature<?,?>> attachedFeatureTable;
+    protected MapState<String, Feature<?, ?>> attachedFeatureTable;
+    protected MapState<String, Feature<?, ?>> independentFeatureTable;
     protected MapState<String, HashMap<String, Edge>> edgeTable;
 
     public FlatInMemoryClassStorage() {
 
     }
 
+
     @Override
     public void open() throws Exception {
         super.open();
         MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", String.class, Vertex.class);
-        MapStateDescriptor<String, HashMap<String, Edge>> edgeTableDesc= new MapStateDescriptor<>("edgeTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Edge>>() {
+        MapStateDescriptor<String, HashMap<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Edge>>() {
         }));
-        MapStateDescriptor<String, Feature<?,?>> featureTableDesc = new MapStateDescriptor<>("featureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Feature<?, ?>>() {
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Feature<?, ?>>() {
         }));
-
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDeesc = new MapStateDescriptor<>("independentFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Feature<?, ?>>() {
+        }));
         vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
         attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
-
+        independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDeesc);
     }
 
     @Override
-    public boolean addFeature(Feature<?,?> feature) {
-        try{
-            if(feature.attachedTo == null) throw new IllegalStateException("Independent Features not supported here");
-            else{
+    public boolean addFeature(Feature<?, ?> feature) {
+        try {
+            if (feature.attachedTo == null) {
+                independentFeatureTable.put(feature.getId(), feature);
+                return true;
+            } else {
                 GraphElement el = getElement(feature.attachedTo.f1, feature.attachedTo.f0);
                 feature.setElement(el);
-                if(feature.element == el){
+                if (feature.element == el) {
                     attachedFeatureTable.put(feature.getId(), feature);
                     return true;
-                }else{
+                } else {
                     return false;
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -58,10 +63,10 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Override
     public boolean addVertex(Vertex vertex) {
-        try{
+        try {
             vertexTable.put(vertex.getId(), vertex);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -69,24 +74,23 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Override
     public boolean addEdge(Edge edge) {
-        try{
-            if(!edgeTable.contains(edge.src.getId()))edgeTable.put(edge.src.getId(), new HashMap<>());
+        try {
+            if (!edgeTable.contains(edge.src.getId())) edgeTable.put(edge.src.getId(), new HashMap<>());
             edge.src = getVertex(edge.src.getId());
             edge.dest = getVertex(edge.dest.getId());
             edgeTable.get(edge.src.getId()).put(edge.dest.getId(), edge);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
     }
 
     @Override
-    public boolean updateFeature(Feature<?,?> feature) {
-        try{
-            if(feature.attachedTo == null) throw new IllegalStateException("Independent Features not supported yet");
-            return true;
-        }catch (Exception e){
+    public boolean updateFeature(Feature<?, ?> feature) {
+        try {
+            return true; // Feature updates happening on elements will be reflected here
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -103,7 +107,7 @@ public class FlatInMemoryClassStorage extends BaseStorage{
     }
 
     @Override
-    public boolean deleteFeature(Feature<?,?> feature) {
+    public boolean deleteFeature(Feature<?, ?> feature) {
         return false;
     }
 
@@ -141,9 +145,9 @@ public class FlatInMemoryClassStorage extends BaseStorage{
     @Nullable
     @Override
     public Edge getEdge(String src, String dest) {
-        try{
+        try {
             return edgeTable.get(src).get(dest);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -152,19 +156,19 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
-        try{
-            switch (edge_type){
+        try {
+            switch (edge_type) {
                 case IN:
                     throw new IllegalStateException("In Edges not suported");
                 case OUT:
-                    return edgeTable.contains(vertex.getId())?edgeTable.get(vertex.getId()).values():Collections.emptyList();
+                    return edgeTable.contains(vertex.getId()) ? edgeTable.get(vertex.getId()).values() : Collections.emptyList();
                 case BOTH:
                     Iterator<Edge> finalIterator = IteratorUtils.chainedIterator(getIncidentEdges(vertex, EdgeType.IN).iterator(), getIncidentEdges(vertex, EdgeType.OUT).iterator());
-                    return ()->finalIterator;
+                    return () -> finalIterator;
                 default:
                     return Collections.emptyList();
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
         }
@@ -173,15 +177,15 @@ public class FlatInMemoryClassStorage extends BaseStorage{
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String id) {
-        try{
-            if(id.contains(":")){
+        try {
+            if (id.contains(":")) {
                 // This is attached feature
-               return attachedFeatureTable.get(id);
-            }else{
+                return attachedFeatureTable.get(id);
+            } else {
                 // This is independent Feature
-                throw new IllegalStateException("Independed features not supported");
+                return independentFeatureTable.get(id);
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -200,11 +204,11 @@ public class FlatInMemoryClassStorage extends BaseStorage{
     @Override
     public boolean containsFeature(String id) {
         try {
-            if(id.contains(":")){
+            if (id.contains(":")) {
                 // Attached Feature
                 return attachedFeatureTable.contains(id);
-            }else{
-                throw new IllegalStateException("Independent Features not allowed");
+            } else {
+                return independentFeatureTable.contains(id);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -214,14 +218,14 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Override
     public boolean containsEdge(String id) {
-        try{
+        try {
             String[] ids = id.split(":");
-            if(edgeTable.contains(ids[0])){
+            if (edgeTable.contains(ids[0])) {
                 return edgeTable.get(ids[0]).containsKey(ids[1]);
-            }else{
+            } else {
                 return false;
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -229,6 +233,6 @@ public class FlatInMemoryClassStorage extends BaseStorage{
 
     @Override
     public void cacheFeaturesOf(GraphElement e) {
-
+        // Pass
     }
 }

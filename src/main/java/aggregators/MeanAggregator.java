@@ -11,9 +11,11 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     public MeanAggregator() {
         super();
     }
-    public MeanAggregator(MeanAggregator m, boolean deepCopy){
+
+    public MeanAggregator(MeanAggregator m, boolean deepCopy) {
         super(m, deepCopy);
     }
+
     public MeanAggregator(NDArray value, boolean halo) {
         this(new Tuple2<>(value, 0), halo, (short) -1);
     }
