@@ -1,14 +1,18 @@
 package partitioner;
 
 import elements.GraphOp;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
-abstract public class BasePartitioner extends RichMapFunction<GraphOp, GraphOp> {
+abstract public class BasePartitioner {
     /**
      * Number of partitions we should partition into
      */
     public short partitions = -1;
 
+    /**
+     * Static Helper for getting the desired partitioner from its name
+     */
     public static BasePartitioner getPartitioner(String name) {
         switch (name) {
             case "hdrf":
@@ -18,12 +22,7 @@ abstract public class BasePartitioner extends RichMapFunction<GraphOp, GraphOp> 
         }
     }
 
-    /**
-     * Can we use more than 1 parallelism with this RichMapFunction
-     *
-     * @return Can we?
-     */
-    abstract public boolean isParallel();
+    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
 
     /**
      * Name of this partitioner

@@ -164,11 +164,9 @@ public class GraphStream {
     public DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
         BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName);
         partitioner.partitions = (short) this.env.getMaxParallelism();
-        short part_parallelism = this.parallelism;
-        if (!partitioner.isParallel()) part_parallelism = 1;
-        SingleOutputStreamOperator<GraphOp> outp = stream.map(partitioner).setParallelism(part_parallelism).name(partitioner.getName());
-        if (!isLocal) outp.slotSharingGroup("partitioner");
-        return outp;
+        SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream).name(partitioner.getName());
+        if (!isLocal) partitionedOutput.slotSharingGroup("partitioner");
+        return partitionedOutput;
 
     }
 

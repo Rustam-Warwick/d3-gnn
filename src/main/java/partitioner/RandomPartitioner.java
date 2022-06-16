@@ -1,19 +1,22 @@
 package partitioner;
 
+
 import elements.Edge;
 import elements.ElementType;
 import elements.GraphOp;
 import elements.Vertex;
+import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
-import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class RandomPartitioner extends BasePartitioner {
-    public HashMap<String, Short> masters = new HashMap<String, Short>();
-
+class RandomPartitioner extends BasePartitioner{
     @Override
-    public boolean isParallel() {
-        return false;
+    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        return inputDataStream.map(new RandomMapFunction(this.partitions)).setParallelism(1);
     }
 
     @Override
@@ -21,9 +24,16 @@ public class RandomPartitioner extends BasePartitioner {
         return "Random-Partitioner";
     }
 
-    @Override
-    public GraphOp map(GraphOp value) throws Exception {
-        if (value.element.elementType() == ElementType.EDGE) {
+    public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp>{
+        public final short partitions;
+        public Map<String, Short> masters = new ConcurrentHashMap<>(5000);
+        public RandomMapFunction(short partitions){
+            this.partitions = partitions;
+        }
+
+        @Override
+        public GraphOp map(GraphOp value) throws Exception {
+            if (value.element.elementType() == ElementType.EDGE) {
             value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
             Edge edge = (Edge) value.element;
             this.masters.putIfAbsent(edge.src.getId(), value.partId);
@@ -37,5 +47,6 @@ public class RandomPartitioner extends BasePartitioner {
             value.partId = part_tmp;
         }
         return value;
+        }
     }
 }

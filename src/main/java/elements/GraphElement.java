@@ -66,7 +66,12 @@ public class GraphElement implements Serializable {
             el.features.add(feature);
             return true;
         }
-        return false;
+        else{
+            for (Feature<?, ?> feature1 : el.features) {
+                if(feature1 == feature1) return true; // This is here as a reference object
+            }
+            return false;
+        }
     }
 
     /**
