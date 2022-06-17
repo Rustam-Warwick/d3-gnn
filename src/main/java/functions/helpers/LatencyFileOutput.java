@@ -13,8 +13,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class LatencyFileOutput extends ProcessFunction<GraphOp, GraphOp> {
-    public transient HashMap<Long, Long> latenciesTable;
     public final String jobName;
+    public transient HashMap<Long, Long> latenciesTable;
 
     public LatencyFileOutput(String jobName) {
         this.jobName = jobName;

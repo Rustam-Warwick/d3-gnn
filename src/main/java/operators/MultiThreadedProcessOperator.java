@@ -18,12 +18,13 @@ import java.util.concurrent.TimeUnit;
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
- * Process Operator that distributes single parallelism across @link{nThreads} number of threads
- * @implNote It is thread-safe until the userFunction is Thread Safe!!!
+ * Process Operator that distributes single parallelism across @link{nThreads} number of local threads.
+ * Makes sure to close the operator once the Threads have stopped execution
  * @param <IN>
  * @param <OUT>
+ * @implNote It is thread-safe until the userFunction is Thread Safe!!!
  */
-public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OUT> implements BoundedOneInput {
+public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, OUT> implements BoundedOneInput {
 
     private final int nThreads;
 
@@ -36,7 +37,6 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
     private transient LinkedBlockingDeque<Runnable> workQueue;
 
 
-
     public MultiThreadedProcessOperator(ProcessFunction<IN, OUT> function, int nThreads) {
         super(function);
         this.nThreads = nThreads;
@@ -46,15 +46,15 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
     @Override
     public void open() throws Exception {
         super.open();
-        collector = ThreadLocal.withInitial(()->new SynchronousCollector<OUT>(output, this));
-        context = ThreadLocal.withInitial(()->new ContextImpl(userFunction, getProcessingTimeService()));
+        collector = ThreadLocal.withInitial(() -> new SynchronousCollector<OUT>(output, this));
+        context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
         workQueue = new LinkedBlockingDeque<>();
-        executorService = new ThreadPoolExecutor(nThreads, nThreads,Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
+        executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
     }
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        executorService.submit(()->{
+        executorService.submit(() -> {
             try {
                 this.threadSafeProcessElement(element);
             } catch (Exception e) {
@@ -65,9 +65,9 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        executorService.submit(()->{
+        executorService.submit(() -> {
             try {
-                synchronized (this){
+                synchronized (this) {
                     super.processWatermark(mark);
                 }
             } catch (Exception e) {
@@ -78,12 +78,12 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        executorService.submit(()->{
-            try{
-                synchronized (this){
+        executorService.submit(() -> {
+            try {
+                synchronized (this) {
                     super.processLatencyMarker(latencyMarker);
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         });
@@ -91,9 +91,9 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        executorService.submit(()->{
+        executorService.submit(() -> {
             try {
-                synchronized (this){
+                synchronized (this) {
                     super.processWatermarkStatus(watermarkStatus);
                 }
             } catch (Exception e) {
@@ -102,7 +102,7 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
         });
     }
 
-    private void threadSafeProcessElement(StreamRecord<IN> element) throws Exception{
+    private void threadSafeProcessElement(StreamRecord<IN> element) throws Exception {
         collector.get().getInnerCollector().setTimestamp(element);
         context.get().element = element;
         userFunction.processElement(element.getValue(), context.get(), collector.get());
@@ -112,11 +112,11 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
 
     @Override
     public void endInput() throws Exception {
-        while(!workQueue.isEmpty()){
+        while (!workQueue.isEmpty()) {
             Thread.sleep(500);
         }
         executorService.shutdown();
-        while(!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)){
+        while (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
             Thread.sleep(500);
         }
     }
@@ -136,7 +136,7 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
 
         @Override
         public void collect(OUT record) {
-            synchronized (lock){
+            synchronized (lock) {
                 innerCollector.collect(record);
             }
         }
@@ -146,10 +146,10 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
             //  Pass
         }
     }
-    private class ContextImpl extends ProcessFunction<IN, OUT>.Context implements TimerService {
-        private StreamRecord<IN> element;
 
+    private class ContextImpl extends ProcessFunction<IN, OUT>.Context implements TimerService {
         private final ProcessingTimeService processingTimeService;
+        private StreamRecord<IN> element;
 
         ContextImpl(
                 ProcessFunction<IN, OUT> function, ProcessingTimeService processingTimeService) {

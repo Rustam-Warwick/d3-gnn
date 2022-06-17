@@ -9,7 +9,7 @@ import org.apache.flink.streaming.api.operators.*;
 
 public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp>, CoordinatedOperatorFactory<GraphOp> {
     protected StreamOperator<GraphOp> innerOperator;
-    protected IterationID iterationId;
+    protected IterationID iterationId; // @todo{Might not be needed, now that we have iterationHead and iterationTail separately}
     protected short position;
     protected short totalLayers;
 
@@ -40,12 +40,17 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
 
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
+        if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
+            if (position == 0)
+                return UdfHeadWrapperOperator.class;
+            else return UdfWrapperOperator.class;
+        }
         return BaseWrapperOperator.class;
     }
 
     @Override
     public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
-        return new WrapperOperatorCoordinator.HeadOperatorCoordinatorProvider(operatorID, position, totalLayers);
+        return new WrapperOperatorCoordinator.WrappedOperatorCoordinatorProvider(operatorID, position, totalLayers);
     }
 
     @Override

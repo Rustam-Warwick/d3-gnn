@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class HDRF extends BasePartitioner{
+public class HDRF extends BasePartitioner {
     public final float lambda = 1;
 
     public final float epsilon = 1;
@@ -30,33 +30,28 @@ public class HDRF extends BasePartitioner{
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.transform(String.format("%s-5Threads", getName()),
-                TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon),5))
+                        TypeInformation.of(GraphOp.class),
+                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), 5))
                 .setParallelism(1);
     }
 
-    public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp>{
-        public Map<String, Integer> partialDegTable = new ConcurrentHashMap<>();
+    @Override
+    public String getName() {
+        return "HDRF-Partitioner";
+    }
 
-        public Map<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
-
-        public Map<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
-
+    public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         public final short partitions;
-
-        public transient double replicationFactor = 0f;
-
-        public transient int totalNumberOfVertices = 1;
-
-        public transient int totalNumberOfReplicas = 0;
-
-        public int maxSize = 0;
-
-        public int minSize = 0;
-
         public final float lamb;
-
         public final float eps;
+        public Map<String, Integer> partialDegTable = new ConcurrentHashMap<>();
+        public Map<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
+        public Map<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
+        public transient double replicationFactor = 0f;
+        public transient int totalNumberOfVertices = 1;
+        public transient int totalNumberOfReplicas = 0;
+        public int maxSize = 0;
+        public int minSize = 0;
 
         public HDRFProcessFunction(short partitions, float lambda, float eps) {
             this.partitions = partitions;
@@ -119,12 +114,12 @@ public class HDRF extends BasePartitioner{
             maxSize = Math.max(maxSize, this.partitionsSize.get(selected));
             minSize = this.partitionsSize.values().stream().min(Integer::compareTo).get();
 
-            this.partitionTable.compute(edge.src.getId(), (key, val)->{
-               if(!val.contains(finalSelected))val.add(finalSelected);
+            this.partitionTable.compute(edge.src.getId(), (key, val) -> {
+                if (!val.contains(finalSelected)) val.add(finalSelected);
                 return val;
             });
-            this.partitionTable.compute(edge.dest.getId(), (key, val)->{
-                if(!val.contains(finalSelected))val.add(finalSelected);
+            this.partitionTable.compute(edge.dest.getId(), (key, val) -> {
+                if (!val.contains(finalSelected)) val.add(finalSelected);
                 return val;
             });
 
@@ -191,10 +186,5 @@ public class HDRF extends BasePartitioner{
             this.replicationFactor = (float) this.totalNumberOfReplicas / this.totalNumberOfVertices;
             out.collect(value);
         }
-    }
-
-    @Override
-    public String getName() {
-        return "HDRF-Partitioner";
     }
 }

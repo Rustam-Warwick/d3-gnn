@@ -1,7 +1,6 @@
 package datasets;
 
 import elements.*;
-import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -26,11 +25,11 @@ public class EdgeList implements Dataset {
                 env.readTextFile(edgeFileName).setParallelism(3)
                         .map(new EdgeParser()).setParallelism(3)
                         .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
-                    @Override
-                    public long extractTimestamp(GraphOp element, long recordTimestamp) {
-                        return element.getTimestamp();
-                    }
-                })).setParallelism(3)
+                            @Override
+                            public long extractTimestamp(GraphOp element, long recordTimestamp) {
+                                return element.getTimestamp();
+                            }
+                        })).setParallelism(3)
 
         };
     }

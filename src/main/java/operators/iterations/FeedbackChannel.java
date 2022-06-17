@@ -130,6 +130,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * All channels have been finished
      */
     public boolean allChannelsFinished() {
+        if (queues.isEmpty()) return false; // Feedback channels should have iteration tails
         boolean finished = true;
         for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
             finished &= value.getChannelFinished();

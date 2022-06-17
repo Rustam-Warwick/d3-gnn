@@ -43,10 +43,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -58,7 +55,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @see UdfWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, Input<GraphOp>,  OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
+        implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
 
     /**
      * STATIC PROPS
@@ -112,17 +109,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
 
-    protected Output[] internalOutputs; // All of operator-to-operator outputs
+    protected transient Output[] internalOutputs; // All of operator-to-operator outputs
 
-    protected BroadcastOutput[] internalBroadcastOutputs; // All of operator-to-operator broadcast outputs
+    protected transient BroadcastOutput[] internalBroadcastOutputs; // All of operator-to-operator broadcast outputs
 
-    protected OutputTag[] internalOutputTags; // All the existing output tags. In other words connected to this operator
+    protected transient OutputTag[] internalOutputTags; // All the existing output tags. In other words connected to this operator
 
-    protected int[] numOutChannels; // number of output channels per each operator
+    protected transient int[] numOutChannels; // number of output channels per each operator
 
-    protected List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
+    protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
 
-    protected HashMap<IterableOperatorEvent, Short> events; // Table of IterableOperatorEvents received by this operator
+    protected transient List<Short> otherMasterParts; // Parts that are mapped to other operators
+
+    protected transient Map<IterableOperatorEvent, Short> events; // Table of IterableOperatorEvents received by this operator
 
     // MAIN CONSTRUCTOR
     public BaseWrapperOperator(
@@ -147,7 +146,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                                 operatorFactory,
                                 (StreamTask) parameters.getContainingTask(),
                                 streamConfig,
-                                new ProxyOutput(output),
+                                output,
                                 parameters.getOperatorEventDispatcher())
                                 .f0;
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
@@ -158,8 +157,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 .getOperatorEventDispatcher()
                 .registerEventHandler(
                         getOperatorID(), this);
-        calculateParts(); // Should be before the context is initialized
-        System.out.println(thisParts);
+        this.calculateParts(); // Should be before the context is initialized
         this.context = new Context();
         try {
             createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
@@ -295,14 +293,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
+
+
     /**
      * ABSTRACT FUNCTIONS
      */
 
     /**
-     * Actually process the element
+     * Actually process the element, should be implemented by the sub operators
      */
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
+
+
+
 
     /**
      * WATERMARKING PROCESSING ENDING THE STREAM LOGIC
@@ -385,6 +388,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         }
     }
 
+
+
+
+
     /**
      * SETUP OF: BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
      */
@@ -411,18 +418,23 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
-     * Calculate and assign all the parts mapped to this physical operator
+     * Calculate and assign all the parts mapped to this physical operator, and other master parts
      */
     private void calculateParts() {
         thisParts = new ArrayList<>();
+        otherMasterParts = new ArrayList<>();
         int index = operatorIndex;
         int maxParallelism = containingTask.getEnvironment().getTaskInfo().getMaxNumberOfParallelSubtasks();
         int parallelism = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
+        boolean[] seen = new boolean[parallelism];
         for (short i = 0; i < maxParallelism; i++) {
             int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(PartNumber.of(i), maxParallelism, parallelism);
             if (operatorIndex == index) {
                 thisParts.add(i);
+            } else if (!seen[operatorIndex]) {
+                otherMasterParts.add(i);
             }
+            seen[operatorIndex] = true;
         }
         if (thisParts.isEmpty())
             throw new IllegalStateException("Make sure Partitioner keys are large enough to fill physical partitioning");
@@ -435,40 +447,36 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             Output<StreamRecord<GraphOp>> output, Counter numRecordsOut) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         Method createInternalBroadcastOutput = BroadcastOutputFactory.class.getDeclaredMethod("createInternalBroadcastOutput", Output.class, OutputReflectionContext.class);
         createInternalBroadcastOutput.setAccessible(true);
-        Output[] rawOutputs;
-        BroadcastOutput[] rawBroadcastOutputs;
-        OutputTag[] rawOutputTags;
-        int[] rawNumOutChannels;
         MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
 
         if (myOutputReflectionContext.isBroadcastingOutput(output)) {
-            rawOutputs =
+            internalOutputs =
                     myOutputReflectionContext.getBroadcastingInternalOutputs(output);
         } else {
-            rawOutputs = new Output[]{output};
+            internalOutputs = new Output[]{output};
         }
-        rawBroadcastOutputs = new BroadcastOutput[rawOutputs.length];
-        rawOutputTags = new OutputTag[rawOutputs.length];
-        rawNumOutChannels = new int[rawOutputs.length];
-        for (int i = 0; i < rawOutputs.length; i++) {
-            if (myOutputReflectionContext.isRecordWriterOutput(rawOutputs[i])) {
-                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getRecordWriterOutputTag(rawOutputs[i]);
-                rawOutputTags[i] = outputTag;
-                rawNumOutChannels[i] = myOutputReflectionContext.getNumChannels(rawOutputs[i]);
+        internalBroadcastOutputs = new BroadcastOutput[internalOutputs.length];
+        internalOutputTags = new OutputTag[internalOutputs.length];
+        numOutChannels = new int[internalOutputs.length];
+        for (int i = 0; i < internalOutputs.length; i++) {
+            if (myOutputReflectionContext.isRecordWriterOutput(internalOutputs[i])) {
+                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
+                internalOutputTags[i] = outputTag;
+                numOutChannels[i] = myOutputReflectionContext.getNumChannels(internalOutputs[i]);
             } else {
-                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getChainingOutputTag(rawOutputs[i]);
-                rawNumOutChannels[i] = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
-                rawOutputTags[i] = outputTag;
+                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getChainingOutputTag(internalOutputs[i]);
+                numOutChannels[i] = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
+                internalOutputTags[i] = outputTag;
             }
-            rawBroadcastOutputs[i] = (BroadcastOutput<GraphOp>) createInternalBroadcastOutput.invoke(null, rawOutputs[i], myOutputReflectionContext);
+            internalBroadcastOutputs[i] = (BroadcastOutput<GraphOp>) createInternalBroadcastOutput.invoke(null, internalOutputs[i], myOutputReflectionContext);
         }
-        this.internalOutputs = rawOutputs;
-        this.internalBroadcastOutputs = rawBroadcastOutputs;
-        this.internalOutputTags = rawOutputTags;
-        this.numOutChannels = rawNumOutChannels;
         createInternalBroadcastOutput.setAccessible(false);
     }
 
+    /**
+     * Stream Task initializer for the wrapped operator
+     * Needed if we need to initialize some state in this operator as well
+     */
     private static class RecordingStreamTaskStateInitializer implements StreamTaskStateInitializer {
 
         private final StreamTaskStateInitializer wrapped;
@@ -503,52 +511,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                             v,
                             b);
             return lastCreated;
-        }
-    }
-
-    /**
-     * Passed on to the underlying operator, to make have some sort of middlewaring logic behind the scene
-     */
-    public class ProxyOutput implements Output<StreamRecord<GraphOp>> {
-        Output<StreamRecord<GraphOp>> output;
-
-        ProxyOutput(Output<StreamRecord<GraphOp>> output) {
-            this.output = output;
-        }
-
-        @Override
-        public void emitWatermark(Watermark mark) {
-            // Pass because watermarks should be emitted by the wrapper operators
-            output.emitWatermark(mark);
-        }
-
-        @Override
-        public void emitWatermarkStatus(WatermarkStatus watermarkStatus) {
-            // Pass because watermark status should be emitted by the wrapper operator
-            output.emitWatermarkStatus(watermarkStatus);
-        }
-
-        /**
-         * Messages sent to a different part but hashed to the same operator is executed immediately
-         */
-        @Override
-        public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
-            output.collect(outputTag, record);
-        }
-
-        @Override
-        public void emitLatencyMarker(LatencyMarker latencyMarker) {
-            output.emitLatencyMarker(latencyMarker);
-        }
-
-        @Override
-        public void collect(StreamRecord<GraphOp> record) {
-            output.collect(record);
-        }
-
-        @Override
-        public void close() {
-            output.close();
         }
     }
 
@@ -608,9 +570,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         /**
          * Get parts hashed to this operator
          */
-        public List<Short> getThisOperatorParts(){
+        public List<Short> getThisOperatorParts() {
             return thisParts;
         }
+
+        /**
+         * Master parts are defined as the first parts that are mapped to other operators
+         *
+         * @return
+         */
+        public List<Short> getOtherOperatorMasterParts() {
+            return otherMasterParts;
+        }
+
     }
 
 }

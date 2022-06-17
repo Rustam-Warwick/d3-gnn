@@ -65,10 +65,9 @@ public class GraphElement implements Serializable {
         if (!el.features.contains(feature)) {
             el.features.add(feature);
             return true;
-        }
-        else{
+        } else {
             for (Feature<?, ?> feature1 : el.features) {
-                if(feature1 == feature1) return true; // This is here as a reference object
+                if (feature1 == feature1) return true; // This is here as a reference object
             }
             return false;
         }
@@ -102,7 +101,7 @@ public class GraphElement implements Serializable {
         boolean is_created = storage.addElement(this);
         if (is_created) {
             if (features != null) {
-                for (Feature<?,?> el : features) {
+                for (Feature<?, ?> el : features) {
                     el.setElement(this);
                     el.createElement();
                 }

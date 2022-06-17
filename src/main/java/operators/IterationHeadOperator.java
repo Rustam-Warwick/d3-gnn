@@ -56,7 +56,7 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
-    private BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
+    private transient BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
 
     public IterationHeadOperator(IterationID iterationId, short position) {
         this.iterationId = Objects.requireNonNull(iterationId);

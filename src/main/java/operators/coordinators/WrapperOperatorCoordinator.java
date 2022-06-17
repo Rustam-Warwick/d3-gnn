@@ -128,13 +128,13 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
     /**
      * The factory of {@link WrapperOperatorCoordinator}.
      */
-    public static class HeadOperatorCoordinatorProvider implements Provider {
+    public static class WrappedOperatorCoordinatorProvider implements Provider {
 
         private final OperatorID operatorId;
         private final short position;
         private final short layers;
 
-        public HeadOperatorCoordinatorProvider(
+        public WrappedOperatorCoordinatorProvider(
                 OperatorID operatorId, short position, short layers) {
             this.operatorId = operatorId;
             this.position = position;

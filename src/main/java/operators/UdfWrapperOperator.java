@@ -71,23 +71,6 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
 //        }
 //    }
 
-//    /**
-//     * Operator event came in
-//     *
-//     * @param evt Operator Event
-//     */
-//    @Override
-//    public void handleOperatorEvent(OperatorEvent evt) {
-//        try {
-//            GraphOp opEvent = new GraphOp(Op.OPERATOR_EVENT, null, null, null, MessageCommunication.BROADCAST);
-//            opEvent.setOperatorEvent(evt);
-//            StreamRecord<GraphOp> tmp = new StreamRecord<>(opEvent, context.element.getTimestamp());
-//            processActualElement(tmp);
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        }
-//    }
-
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
         super.setKeyContextElement(record);

@@ -2,19 +2,14 @@ package elements;
 
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
-import org.apache.flink.runtime.state.PartNumber;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement {
-    public transient List<Short> thisReplicaKeys; // Keys(Parts) hashed to this parallel operator Except from master
-    public transient List<Short> othersMasterParts; // Master keys hashed to other parallel operators
-
     public Plugin() {
         super(null, false, (short) 0);
     }
@@ -58,21 +53,21 @@ public class Plugin extends ReplicableGraphElement {
      */
     @Override
     public List<Short> replicaParts() {
-        return thisReplicaKeys;
+        return storage.layerFunction.getWrapperContext().getThisOperatorParts();
     }
 
     /**
      * @return parts that are the local master parts of each parallel sub-operators
      */
     public List<Short> othersMasterParts() {
-        return othersMasterParts;
+        return storage.layerFunction.getWrapperContext().getOtherOperatorMasterParts();
     }
 
     /**
      * Is this key the last one in this operator
      */
     public boolean isLastReplica() {
-        return replicaParts().isEmpty() || getPartId() == replicaParts().get(replicaParts().size() - 1);
+        return replicaParts().isEmpty() || Objects.equals(getPartId(), replicaParts().get(replicaParts().size() - 1));
     }
 
     /**
@@ -129,7 +124,7 @@ public class Plugin extends ReplicableGraphElement {
      * Callback when OperatorSends event to this plugin
      */
     public void onOperatorEvent(OperatorEvent event) {
-
+        // pass
     }
 
     /**
@@ -143,7 +138,7 @@ public class Plugin extends ReplicableGraphElement {
      * Callback when the system closes. Perform all the initialization
      */
     public void open() {
-        setOperatorKeys();
+        // pass
     }
 
     /**
@@ -155,35 +150,5 @@ public class Plugin extends ReplicableGraphElement {
         // pass
     }
 
-    // HELPER METHOD
-
-    /**
-     * Populates the replicaParts, Master parts and thisReplicaParts for Plugins
-     */
-    public void setOperatorKeys() {
-        try {
-            int index = storage.layerFunction.getRuntimeContext().getIndexOfThisSubtask();
-            int maxParallelism = storage.layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
-            int parallelism = storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
-            boolean[] seen = new boolean[parallelism];
-            List<Short> thisReplicaKeys = new ArrayList<>(); // Keys of this operator
-            List<Short> otherMasterKeys = new ArrayList<>(); // Replica master keys
-            for (short i = 0; i < maxParallelism; i++) {
-                int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(PartNumber.of(i), maxParallelism, parallelism);
-                if (operatorIndex == index) {
-                    thisReplicaKeys.add(i);
-                } else if (!seen[operatorIndex]) {
-                    otherMasterKeys.add(i);
-                }
-                seen[operatorIndex] = true;
-            }
-
-            this.master = thisReplicaKeys.remove(0);
-            this.thisReplicaKeys = thisReplicaKeys;
-            this.othersMasterParts = otherMasterKeys;
-        } catch (Exception e) {
-            throw new RuntimeException("Not all parts can be hashed try with different parallelism");
-        }
-    }
 
 }

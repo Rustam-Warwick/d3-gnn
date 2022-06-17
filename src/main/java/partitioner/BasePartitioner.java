@@ -24,7 +24,7 @@ abstract public class BasePartitioner {
 
     public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
 
-    public abstract void parseCmdArgs(String [] cmdArgs);
+    public abstract void parseCmdArgs(String[] cmdArgs);
 
     /**
      * Name of this partitioner

@@ -65,14 +65,10 @@ public class Main {
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
 
-        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
-        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.noSlotSharingGroup?"no":"yes");
-
         // DataFlow
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
-        DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true, false,false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(datasetStreamList[0], true, false, false,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
@@ -83,15 +79,19 @@ public class Main {
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
-                ),
-                null
+                )
         );
 
+
+
+        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
+        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.noSlotSharingGroup ? "no" : "yes");
+
         // Latency Calculations
-        partitioned
+        embeddings[0]
                 .process(new AddTimestamp()).setParallelism(5).name("Inputs").keyBy(GraphOp::getTimestamp)
-                .connect(embeddings.forward().process(new AddTimestamp()).setParallelism(embeddings.getParallelism()).name("Embeddings").keyBy(GraphOp::getTimestamp))
-                .process(new LatencyOutput(jobName,10000)).setParallelism(embeddings.getParallelism());
+                .connect(embeddings[embeddings.length - 1].forward().process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings").keyBy(GraphOp::getTimestamp))
+                .process(new LatencyOutput(jobName, 10000)).setParallelism(embeddings[embeddings.length - 1].getParallelism());
 
         env.execute(jobName);
 

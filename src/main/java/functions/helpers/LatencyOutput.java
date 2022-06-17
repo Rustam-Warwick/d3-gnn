@@ -47,7 +47,7 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
 
     @Override
     public void processElement1(GraphOp value, KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-       requestLatencies.put(value.getTimestamp(), ctx.timerService().currentProcessingTime());
+        requestLatencies.put(value.getTimestamp(), ctx.timerService().currentProcessingTime());
     }
 
     @Override
@@ -70,8 +70,8 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
 
         // 3. File create
         String homePath = System.getenv("HOME");
-        outputLatenciesFile = new File(String.format("%s/metrics/%s/latencies-%s.csv", homePath, jobName,getRuntimeContext().getIndexOfThisSubtask()));
-        outputMovingAverageFile = new File(String.format("%s/metrics/%s/%s-Maverage-latency-%s.csv", homePath, jobName,movingAverageSize, getRuntimeContext().getIndexOfThisSubtask()));
+        outputLatenciesFile = new File(String.format("%s/metrics/%s/latencies-%s.csv", homePath, jobName, getRuntimeContext().getIndexOfThisSubtask()));
+        outputMovingAverageFile = new File(String.format("%s/metrics/%s/%s-Maverage-latency-%s.csv", homePath, jobName, movingAverageSize, getRuntimeContext().getIndexOfThisSubtask()));
         File parent = outputLatenciesFile.getParentFile();
         try {
             parent.mkdirs();
@@ -108,16 +108,16 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
 
         @Override
         public Integer getValue() {
-            try{
+            try {
                 if (buffer.isEmpty()) return 0;
                 long sum = 0;
                 for (Object o : buffer) {
-                    sum += ((Integer)o);
+                    sum += ((Integer) o);
                 }
                 int latencyOutput = (int) Long.divideUnsigned(sum, buffer.size());
                 Files.write(outputMovingAverageFile.toPath(), (latencyOutput + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
                 return (int) latencyOutput;
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
                 return 0;
             }
