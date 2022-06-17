@@ -11,16 +11,27 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class HDRF extends BasePartitioner{
+    public final float lambda = 1;
+
+    public final float epsilon = 1;
+
+
+    @Override
+    public void parseCmdArgs(String[] cmdArgs) {
+
+    }
+
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.transform(String.format("%s-5Threads", getName()),
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions),5))
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon),5))
                 .setParallelism(1);
     }
 
@@ -46,14 +57,6 @@ public class HDRF extends BasePartitioner{
         public final float lamb;
 
         public final float eps;
-
-        public HDRFProcessFunction(short partitions){
-            this(partitions, 1f);
-        }
-
-        public HDRFProcessFunction(short partitions, float lambda) {
-            this(partitions, lambda, 1f);
-        }
 
         public HDRFProcessFunction(short partitions, float lambda, float eps) {
             this.partitions = partitions;
@@ -96,8 +99,8 @@ public class HDRF extends BasePartitioner{
             // Initialize the tables if absent
             partialDegTable.putIfAbsent(edge.src.getId(), 0);
             partialDegTable.putIfAbsent(edge.dest.getId(), 0);
-            partitionTable.putIfAbsent(edge.src.getId(), new ArrayList<>());
-            partitionTable.putIfAbsent(edge.dest.getId(), new ArrayList<>());
+            partitionTable.putIfAbsent(edge.src.getId(), Collections.synchronizedList(new ArrayList<>()));
+            partitionTable.putIfAbsent(edge.dest.getId(), Collections.synchronizedList(new ArrayList<>()));
             // Increment Partial Degree
             partialDegTable.compute(edge.src.getId(), (key, item) -> item + 1);
             partialDegTable.compute(edge.dest.getId(), (key, item) -> item + 1);
@@ -110,18 +113,23 @@ public class HDRF extends BasePartitioner{
                     selected = i;
                 }
             }
+            final short finalSelected = selected;
             // Update the partition size and vertex partition tables
             this.partitionsSize.compute(selected, (key, item) -> item + 1);
             maxSize = Math.max(maxSize, this.partitionsSize.get(selected));
             minSize = this.partitionsSize.values().stream().min(Integer::compareTo).get();
-            if (!this.partitionTable.get(edge.src.getId()).contains(selected)) {
-                this.partitionTable.get(edge.src.getId()).add(selected);
-                if (this.partitionTable.get(edge.src.getId()).get(0) != selected) this.totalNumberOfReplicas++;
-            }
-            if (!this.partitionTable.get(edge.dest.getId()).contains(selected)) {
-                this.partitionTable.get(edge.dest.getId()).add(selected);
-                if (this.partitionTable.get(edge.dest.getId()).get(0) != selected) this.totalNumberOfReplicas++;
-            }
+
+            this.partitionTable.compute(edge.src.getId(), (key, val)->{
+               if(!val.contains(finalSelected))val.add(finalSelected);
+                return val;
+            });
+            this.partitionTable.compute(edge.dest.getId(), (key, val)->{
+                if(!val.contains(finalSelected))val.add(finalSelected);
+                return val;
+            });
+
+            if (this.partitionTable.get(edge.src.getId()).get(0) != selected) this.totalNumberOfReplicas++;
+            if (this.partitionTable.get(edge.dest.getId()).get(0) != selected) this.totalNumberOfReplicas++;
 
             return selected;
         }

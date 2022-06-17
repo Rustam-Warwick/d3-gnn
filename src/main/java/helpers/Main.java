@@ -13,6 +13,8 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.helpers.AddTimestamp;
+import functions.helpers.LatencyOutput;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -60,10 +62,11 @@ public class Main {
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        // Begin the Dataflow Graph
-        GraphStream gs = new GraphStream(env).parseCmdArgs(args); // Number of GNN Layers
-        env.setMaxParallelism((int) (env.getParallelism() * Math.pow(gs.lambda, 3) * 30));
-
+        // Initializate the helper classes
+        GraphStream gs = new GraphStream(env, args);
+        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
+        String jobName = String.format("%s| P-%s D-%s L-%s Par-%s MaxPar-%s ", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
+        // DataFlow
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
@@ -78,15 +81,14 @@ public class Main {
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
 //                        .withPlugin(new MixedGNNEmbeddingLayerTraining(models.get(1).getName()))
-                )
+                ),
+                null
         );
-
-        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
-        String jobName = String.format("%s| P-%s D-%s L-%s Par-%s MaxPar-%s ", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
-//        partitioned
-//                .process(new AddTimestamp()).name("Inputs").keyBy(GraphOp::getTimestamp)
-//                .connect(embeddings.process(new AddTimestamp()).name("Embeddings").keyBy(GraphOp::getTimestamp))
-//                .process(new LatencyOutput(jobName,10000));
+        // Latency Calculations
+        partitioned
+                .process(new AddTimestamp()).setParallelism(5).name("Inputs").keyBy(GraphOp::getTimestamp)
+                .connect(embeddings.forward().process(new AddTimestamp()).setParallelism(embeddings.getParallelism()).name("Embeddings").keyBy(GraphOp::getTimestamp))
+                .process(new LatencyOutput(jobName,10000)).setParallelism(embeddings.getParallelism());
 
         env.execute(jobName);
 

@@ -39,7 +39,9 @@ public class GraphStream {
 
     private final boolean isLocal; // Is this running in local environemt
 
-    public double lambda; // GNN operator explosion coefficient. 1 means no explosion
+    private final String[] cmdArgs;
+
+    public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
 
     public short layers;// Number of GNN Layers in the pipeline
 
@@ -53,16 +55,14 @@ public class GraphStream {
 
     public short position_index; // Counter of the Current GNN layer being
 
-    public GraphStream(StreamExecutionEnvironment env, double explosionFactor) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
         this.env = env;
         this.parallelism = (short) this.env.getParallelism();
-        this.lambda = explosionFactor;
+        this.cmdArgs = cmdArgs;
         configureSerializers(this.env);
+        parseCmdArgs();
+        this.env.setMaxParallelism((int) (this.env.getParallelism() * Math.pow(lambda, 3) * 4));
         isLocal = env instanceof LocalStreamEnvironment;
-    }
-
-    public GraphStream(StreamExecutionEnvironment env) {
-        this(env, 1);
     }
 
     private static void configureSerializers(StreamExecutionEnvironment env) {
@@ -81,7 +81,7 @@ public class GraphStream {
         env.registerType(MeanAggregator.class);
     }
 
-    public GraphStream parseCmdArgs(String[] cmdArgs) {
+    public GraphStream parseCmdArgs() {
         Option explosionCoeff = Option
                 .builder("l")
                 .required(false)
@@ -163,6 +163,7 @@ public class GraphStream {
      */
     public DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
         BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName);
+        partitioner.parseCmdArgs(cmdArgs);
         partitioner.partitions = (short) this.env.getMaxParallelism();
         SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream).name(partitioner.getName());
         if (!isLocal) partitionedOutput.slotSharingGroup("partitioner");

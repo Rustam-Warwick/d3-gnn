@@ -94,8 +94,11 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
         public Integer getValue() {
             try{
                 if (buffer.isEmpty()) return 0;
-                Integer sum = (Integer) buffer.parallelStream().reduce(1, (a, b) -> ((int) a + (int) b));
-                long latencyOutput = sum / buffer.size();
+                long sum = 0;
+                for (Object o : buffer) {
+                    sum += ((Integer)o);
+                }
+                int latencyOutput = (int) Long.divideUnsigned(sum, buffer.size());
                 Files.write(outputMovingAverageFile.toPath(), (latencyOutput + "\n").getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
                 return (int) latencyOutput;
             }catch (Exception e){

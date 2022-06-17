@@ -20,6 +20,11 @@ class RandomPartitioner extends BasePartitioner{
     }
 
     @Override
+    public void parseCmdArgs(String[] cmdArgs) {
+
+    }
+
+    @Override
     public String getName() {
         return "Random-Partitioner";
     }

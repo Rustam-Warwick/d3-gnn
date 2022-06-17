@@ -32,10 +32,7 @@ import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
-import org.apache.flink.streaming.api.operators.ChainingStrategy;
-import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
@@ -124,6 +121,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         }
         super.processWatermark(mark);
     }
+
 
     private void registerFeedbackWriter() {
         int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();

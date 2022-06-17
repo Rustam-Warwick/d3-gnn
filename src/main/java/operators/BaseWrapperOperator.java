@@ -371,8 +371,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if (Objects.isNull(ev.getCurrentIteration())) {
                 // This event is received from previous operator, not iteration messages nor generated using above functions
             } else {
-                if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) == containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
+                if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                     // Process This Iteration
+                    System.out.println(ev.getCurrentIteration());
                     processActualElement(element);
                     events.remove(ev);
                     if (ev.currentIteration == 0) {
