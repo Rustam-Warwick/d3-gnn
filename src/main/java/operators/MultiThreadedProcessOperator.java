@@ -119,7 +119,6 @@ public class MultiThreadedProcessOperator<IN,OUT> extends ProcessOperator<IN, OU
         while(!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)){
             Thread.sleep(500);
         }
-        System.out.println("Partitioner done" + executorService.getCompletedTaskCount());
     }
 
     private static class SynchronousCollector<OUT> implements Collector<OUT> {

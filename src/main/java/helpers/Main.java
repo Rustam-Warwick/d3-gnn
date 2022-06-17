@@ -59,18 +59,20 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
+
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
+
         String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
-        String jobName = String.format("%s| P-%s D-%s L-%s Par-%s MaxPar-%s ", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism());
+        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.noSlotSharingGroup?"no":"yes");
+
         // DataFlow
         Dataset dataset = Dataset.getDataset(gs.dataset);
         DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
         DataStream<GraphOp> partitioned = gs.partition(datasetStreamList[0]);
-        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true,
+        DataStream<GraphOp> embeddings = gs.gnnEmbeddings(partitioned, true, false,false,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
@@ -84,6 +86,7 @@ public class Main {
                 ),
                 null
         );
+
         // Latency Calculations
         partitioned
                 .process(new AddTimestamp()).setParallelism(5).name("Inputs").keyBy(GraphOp::getTimestamp)

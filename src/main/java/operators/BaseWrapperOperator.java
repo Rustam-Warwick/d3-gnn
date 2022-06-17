@@ -8,8 +8,6 @@ import helpers.MyOutputReflectionContext;
 import operators.events.IterableOperatorEvent;
 import operators.events.WatermarkEvent;
 import operators.events.WatermarkStatusEvent;
-import operators.iterations.FeedbackChannel;
-import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -17,7 +15,6 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.broadcast.OutputReflectionContext;
-import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -29,12 +26,7 @@ import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
-import org.apache.flink.runtime.state.CheckpointStreamFactory;
-import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
-import org.apache.flink.runtime.state.StateInitializationContext;
-import org.apache.flink.runtime.state.StateSnapshotContext;
-import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
-import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
+import org.apache.flink.runtime.state.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -66,7 +58,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @see UdfWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, Input<GraphOp>, BoundedOneInput, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
+        implements StreamOperator<GraphOp>, Input<GraphOp>,  OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
 
     /**
      * STATIC PROPS
@@ -109,7 +101,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short totalLayers; // Total horizontal layers
 
-    protected final IterationID iterationID;
+    protected final IterationID iterationID; // Id for the Iteration
 
     protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
@@ -130,9 +122,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
 
-    protected HashMap<IterableOperatorEvent, Short> events;
-
-    private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
+    protected HashMap<IterableOperatorEvent, Short> events; // Table of IterableOperatorEvents received by this operator
 
     // MAIN CONSTRUCTOR
     public BaseWrapperOperator(
@@ -164,12 +154,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.events = new HashMap<>();
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        this.addFeedbackConsumer();
         parameters
                 .getOperatorEventDispatcher()
                 .registerEventHandler(
                         getOperatorID(), this);
-        assignKeys(); // Should be before the context is initialized
+        calculateParts(); // Should be before the context is initialized
+        System.out.println(thisParts);
         this.context = new Context();
         try {
             createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
@@ -373,7 +363,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             } else {
                 if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                     // Process This Iteration
-                    System.out.println(ev.getCurrentIteration());
                     processActualElement(element);
                     events.remove(ev);
                     if (ev.currentIteration == 0) {
@@ -394,15 +383,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         } else {
             processActualElement(element);
         }
-    }
-
-    /**
-     * Blocking the finalization procedure untill all iteration requests have been processed
-     *
-     * @implNote See {@link this.processFeedback} to see when graceFullFinish is executed
-     */
-    @Override
-    public void endInput() throws Exception {
     }
 
     /**
@@ -433,24 +413,23 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     /**
      * Calculate and assign all the parts mapped to this physical operator
      */
-    private void assignKeys() {
-        List<Short> thisKeys = new ArrayList<>();
+    private void calculateParts() {
+        thisParts = new ArrayList<>();
         int index = operatorIndex;
         int maxParallelism = containingTask.getEnvironment().getTaskInfo().getMaxNumberOfParallelSubtasks();
         int parallelism = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
         for (short i = 0; i < maxParallelism; i++) {
-            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
+            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(PartNumber.of(i), maxParallelism, parallelism);
             if (operatorIndex == index) {
-                thisKeys.add(i);
+                thisParts.add(i);
             }
         }
-        if (thisKeys.isEmpty())
+        if (thisParts.isEmpty())
             throw new IllegalStateException("Make sure Partitioner keys are large enough to fill physical partitioning");
-        this.thisParts = thisKeys;
     }
 
     /**
-     * Finding and creating the individual outputs
+     * Finding and creating the individual outputs, broadcast outputs, parallelisms of our outputs
      */
     public void createIndividualOutputs(
             Output<StreamRecord<GraphOp>> output, Counter numRecordsOut) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
@@ -488,16 +467,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.internalOutputTags = rawOutputTags;
         this.numOutChannels = rawNumOutChannels;
         createInternalBroadcastOutput.setAccessible(false);
-    }
-
-    private void addFeedbackConsumer() {
-        int indexOfThisSubtask = this.containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(this.iterationID, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, this.containingTask.getEnvironment().getTaskInfo().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
     }
 
     private static class RecordingStreamTaskStateInitializer implements StreamTaskStateInitializer {
@@ -538,8 +507,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
-     * ProxyOutput are outputs of underlying operators in order to disable them from doing any watermarking and lower-level logic
-     * Those stuff should be handled by the operator implementing this class
+     * Passed on to the underlying operator, to make have some sort of middlewaring logic behind the scene
      */
     public class ProxyOutput implements Output<StreamRecord<GraphOp>> {
         Output<StreamRecord<GraphOp>> output;
@@ -560,6 +528,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             output.emitWatermarkStatus(watermarkStatus);
         }
 
+        /**
+         * Messages sent to a different part but hashed to the same operator is executed immediately
+         */
         @Override
         public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
             output.collect(outputTag, record);
@@ -586,30 +557,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     public class Context {
         StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null, null));
-
-        /**
-         * Send watermark exactly to one output channel
-         *
-         * @implNote if @param outputTag is null, will send it to forward channel
-         */
-        protected void emitWatermark(@Nullable OutputTag<?> outputTag, Watermark e) {
-            for (int i = 0; i < internalOutputTags.length; i++) {
-                if (Objects.equals(outputTag, internalOutputTags[i])) {
-                    internalOutputs[i].emitWatermark(e);
-                }
-            }
-        }
-
-        /**
-         * Emit watermark to all channels
-         */
-        protected void emitWatermark(Watermark e) {
-            output.emitWatermark(e);
-        }
-
-        protected void emitWatermarkStatus(WatermarkStatus s) {
-            output.emitWatermarkStatus(s);
-        }
 
         /**
          * Send event to operator
@@ -658,6 +605,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return totalLayers;
         }
 
+        /**
+         * Get parts hashed to this operator
+         */
+        public List<Short> getThisOperatorParts(){
+            return thisParts;
+        }
     }
 
 }

@@ -11,7 +11,9 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Output the latency and histogram of the stream
@@ -28,7 +30,9 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
 
     private transient MyGauge gauge; // Gauge Metric
 
-    private final HashMap<Long, Long> requestLatencies = new HashMap<>(10000); // HashMap for initial request timestamps
+    private transient HashMap<Long, Long> requestLatencies;
+
+    private transient List<Integer> latencies;
 
     public LatencyOutput() {
         this.movingAverageSize = 100;
@@ -51,14 +55,20 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
         if (requestLatencies.containsKey(value.getTimestamp())) {
             int latency = (int) (ctx.timerService().currentProcessingTime() - requestLatencies.get(value.getTimestamp()));
             gauge.add(latency);
-            Files.write(outputLatenciesFile.toPath(), String.format("%s,%s\n", value.getTimestamp(), latency).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+            latencies.add(latency);
         }
     }
 
     @Override
     public void open(Configuration parameters) throws Exception {
+        // 1. Data structures
+        requestLatencies = new HashMap<>(10000);
+        latencies = new ArrayList<>(100000);
+        // 2. Metrics
         gauge = new MyGauge(movingAverageSize);
         getRuntimeContext().getMetricGroup().gauge(String.format("%s-Maverage-latency", movingAverageSize), gauge);
+
+        // 3. File create
         String homePath = System.getenv("HOME");
         outputLatenciesFile = new File(String.format("%s/metrics/%s/latencies-%s.csv", homePath, jobName,getRuntimeContext().getIndexOfThisSubtask()));
         outputMovingAverageFile = new File(String.format("%s/metrics/%s/%s-Maverage-latency-%s.csv", homePath, jobName,movingAverageSize, getRuntimeContext().getIndexOfThisSubtask()));
@@ -70,13 +80,19 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
         } catch (IllegalStateException e) {
             e.printStackTrace();
         }
-
-
     }
+
 
     @Override
     public void close() throws Exception {
-        super.close();
+        StringBuilder a = new StringBuilder();
+        for (Integer latency : latencies) {
+            a.append(latency);
+            a.append('\n');
+        }
+        Files.write(outputLatenciesFile.toPath(), a.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+
+
     }
 
     public class MyGauge implements Gauge<Integer> {

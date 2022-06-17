@@ -3,6 +3,7 @@ package elements;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
+import org.apache.flink.runtime.state.PartNumber;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -168,7 +169,7 @@ public class Plugin extends ReplicableGraphElement {
             List<Short> thisReplicaKeys = new ArrayList<>(); // Keys of this operator
             List<Short> otherMasterKeys = new ArrayList<>(); // Replica master keys
             for (short i = 0; i < maxParallelism; i++) {
-                int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(String.valueOf(i), maxParallelism, parallelism);
+                int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(PartNumber.of(i), maxParallelism, parallelism);
                 if (operatorIndex == index) {
                     thisReplicaKeys.add(i);
                 } else if (!seen[operatorIndex]) {
