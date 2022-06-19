@@ -170,10 +170,10 @@ public class GraphStream {
     protected DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
         BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName);
         partitioner.parseCmdArgs(cmdArgs);
-        partitioner.partitions = (short) this.env.getMaxParallelism();
+        partitioner.partitions = (short) env.getMaxParallelism();
         SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream);
         if (!noSlotSharingGroup) {
-            partitionedOutput.slotSharingGroup("partitioner");
+            partitionedOutput.slotSharingGroup("partitioner"); // Need to have more resources so move to a separate slotSharingGroup
         }
         return partitionedOutput;
     }
@@ -241,7 +241,7 @@ public class GraphStream {
      * @param processFunctions     List of Storages with corresponding plugins
      * @param hasBackwardIteration Should backward iterations exist
      * @param hasLastLayerTopology Should the last layer receive full topology or no
-     * @return Last layer corresponding to vertex embeddings
+     * @return L+1 outputs corresponding to (Partitioned data, ... output of all the processFunctions)
      * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
      */
     public DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
@@ -249,7 +249,7 @@ public class GraphStream {
         assert layers == 0; // Untouched before
         assert position_index == 0; // Untouched before
         this.layers = (short) (processFunctions.length - 1); // First input is not counted as a layer
-        DataStream<GraphOp>[] layerOutputs = new DataStream[layers + 1]; // the final return value
+        DataStream<GraphOp>[] layerOutputs = new DataStream[processFunctions.length + 1]; // the final return value
         DataStream<GraphOp> topologyUpdates = null;
         DataStream<GraphOp> trainTestSplit = null;
         SingleOutputStreamOperator<GraphOp> previousLayerUpdates = null;
@@ -259,7 +259,7 @@ public class GraphStream {
         DataStream<GraphOp> allUpdates = partition(dataStreamMain);
         layerOutputs[0] = allUpdates; // First one is the partitioned data
         // 3. Execute the layers
-        for (int i=0; i < layers; i++) {
+        for (int i=0; i <= layers; i++) {
             KeyedProcessFunction processFn = processFunctions[i];
             if (Objects.isNull(processFn)){
                 layerOutputs[i + 1] = null;

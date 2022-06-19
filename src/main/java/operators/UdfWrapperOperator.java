@@ -13,7 +13,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNNLayerFunction> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     public UdfWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
-        super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 2);
+        super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 3);
         getWrappedOperator().getUserFunction().setWrapperContext(context);
     }
 

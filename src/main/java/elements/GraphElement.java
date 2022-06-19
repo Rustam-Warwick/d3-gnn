@@ -102,7 +102,6 @@ public class GraphElement implements Serializable {
         if (is_created) {
             if (features != null) {
                 for (Feature<?, ?> el : features) {
-                    el.setElement(this);
                     el.createElement();
                 }
             }
@@ -323,7 +322,7 @@ public class GraphElement implements Serializable {
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        this.partId = storage == null ? this.partId : storage.layerFunction.getCurrentPart();
+        this.partId = (partId==null && storage!=null) ? storage.layerFunction.getCurrentPart():partId;
         if (features != null) {
             for (Feature<?, ?> ft : this.features) {
                 ft.setStorage(storage);
@@ -344,8 +343,8 @@ public class GraphElement implements Serializable {
         Feature<?, ?> result = features != null ? features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null) : null;
         if (result == null && storage != null) {
             result = storage.getFeature(decodeFeatureId(name));
-            if (Objects.nonNull(result)) result.setElement(this);
         }
+        if (Objects.nonNull(result)) result.setElement(this);
         return result;
     }
 

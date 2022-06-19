@@ -5,6 +5,8 @@ import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
+import ai.djl.translate.Batchifier;
+import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
@@ -12,32 +14,48 @@ import features.Tensor;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Objects;
 
-public class StreamingGNNEmbeddingLayer extends Plugin {
+public class WindowedGNNEmbeddingLayer extends Plugin {
     public final String modelName; // Model name to identify the ParameterStore
 
     public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
 
+    public final int windowInterval; // Window Interval for graph element updates in milliseconds
+
     public transient ModelServer modelServer; // ParameterServer Plugin
 
-    public StreamingGNNEmbeddingLayer() {
-        super();
-        modelName = null;
-        externalFeatures = false;
+    public transient Batchifier batchifier;
+
+    public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
+        this(modelName, externalFeatures, 1000);
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
+    public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures, int windowInterval){
         super(String.format("%s-inferencer", modelName));
         this.externalFeatures = externalFeatures;
         this.modelName = modelName;
+        this.windowInterval = windowInterval;
     }
 
     @Override
     public void open() {
         super.open();
         assert storage != null;
+        batchifier = new StackBatchifier();
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
+        try {
+            storage.layerFunction.getWrapperContext().applyToAllKeys(()->{
+                Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(),true, storage.layerFunction.getCurrentPart());
+                elementUpdates.setStorage(storage);
+                elementUpdates.create();
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -78,10 +96,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo!=null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
-            } else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            } else if (feature.attachedTo!=null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -93,11 +111,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo!= null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -111,12 +129,43 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
-        NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-        NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
-        Vertex messageVertex = v.copy();
-        messageVertex.setFeature("feature", new Tensor(update));
-        storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
+        long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
+        long thisElementUpdateTime = currentProcessingTime + windowInterval;
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 1000.0) * 1000);
+        Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = (Feature<HashMap<String, Long>, HashMap<String, Long>>) storage.getFeature("elementUpdates");
+        elementUpdates.getValue().put(v.getId(), thisElementUpdateTime);
+        storage.updateElement(elementUpdates);
+        storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
+    }
+
+    @Override
+    public void onTimer(long timestamp) {
+        super.onTimer(timestamp);
+        Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = (Feature<HashMap<String, Long>, HashMap<String, Long>>) storage.getFeature("elementUpdates");
+        List<NDList> inputs = new ArrayList<>();
+        List<Vertex> vertices = new ArrayList<>();
+        elementUpdates.getValue().forEach((key, val)->{
+            if(val < timestamp){
+                // Send it
+                Vertex v = storage.getVertex(key);
+                if(updateReady(v)){
+                    NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+                    NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
+                    inputs.add(new NDList(ft, agg));
+                    vertices.add(v);
+                }
+            }
+        });
+        if(inputs.isEmpty())return;
+        NDList batch_inputs = batchifier.batchify(inputs.toArray(NDList[]::new));
+        NDList batch_updates = UPDATE(batch_inputs, false);
+        NDList[] updates = batchifier.unbatchify(batch_updates);
+        for (int i = 0; i < updates.length; i++) {
+            elementUpdates.getValue().remove(vertices.get(i).getId());
+            Vertex messageVertex = vertices.get(i).copy();
+            messageVertex.setFeature("feature", new Tensor(updates[i].get(0)));
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
+        }
     }
 
     /**

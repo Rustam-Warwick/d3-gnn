@@ -25,7 +25,6 @@ public class FlatInMemoryClassStorage extends BaseStorage {
 
     @Override
     public void open() throws Exception {
-        super.open();
         MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", String.class, Vertex.class);
         MapStateDescriptor<String, HashMap<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Edge>>() {
         }));
@@ -37,6 +36,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
         attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
         independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDeesc);
+        super.open();
     }
 
     @Override
@@ -47,12 +47,11 @@ public class FlatInMemoryClassStorage extends BaseStorage {
                 return true;
             } else {
                 GraphElement el = getElement(feature.attachedTo.f1, feature.attachedTo.f0);
-                feature.setElement(el);
                 if (feature.element == el) {
                     attachedFeatureTable.put(feature.getId(), feature);
                     return true;
                 } else {
-                    return false;
+                    throw new IllegalStateException("Could not attached element");
                 }
             }
         } catch (Exception e) {

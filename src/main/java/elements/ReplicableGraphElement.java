@@ -52,7 +52,7 @@ public class ReplicableGraphElement extends GraphElement {
     public Boolean create() {
         if (state() == ReplicaState.REPLICA) clearFeatures();
         boolean is_created = createElement();
-        if (is_created) {
+        if (is_created && !isHalo()) {
             if (state() == ReplicaState.MASTER) {
                 // Add setFeature
                 setFeature("parts", new Set<Short>(new ArrayList<>(), true));
@@ -102,10 +102,12 @@ public class ReplicableGraphElement extends GraphElement {
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
-            if (tmp.f0) syncReplicas(replicaParts());
+            if (tmp.f0 && !isHalo()) {
+                syncReplicas(replicaParts());
+            }
             return tmp;
         } else if (state() == ReplicaState.REPLICA) {
-            // Replica update, simply ignore it. SHold be MASTER
+            // Replica update, simply ignore it. SHold have been at MASTER
             return new Tuple2<>(false, this);
         } else return super.update(newElement);
     }
@@ -177,7 +179,7 @@ public class ReplicableGraphElement extends GraphElement {
                 cpy.setFeature(feature.getName(), tmp);
             }
         }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy, getTimestamp()), MessageDirection.ITERATE));
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
     }
 
     @Override

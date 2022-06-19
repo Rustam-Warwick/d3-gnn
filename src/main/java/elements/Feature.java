@@ -75,7 +75,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
-                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this, getTimestamp()), MessageDirection.ITERATE));
+                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this), MessageDirection.ITERATE));
             }
             return is_created;
         }
@@ -101,13 +101,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
                 if (Objects.nonNull(thisSubFeature)) {
                     Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
                     isUpdated |= tmp.f0;
-                    addCachedFeatureOrExists(memento, (Feature<?, ?>) tmp.f1);
+                    memento.setFeature(newSubFeature.getName(), (Feature<?, ?>) tmp.f1);
                 } else {
                     Feature<?, ?> featureCopy = newSubFeature.copy();
                     featureCopy.setElement(this);
                     featureCopy.setStorage(this.storage);
                     featureCopy.createElement();
-                    addCachedFeatureOrExists(this, featureCopy);
                     isUpdated = true;
                 }
             }

@@ -61,7 +61,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * STATIC PROPS
      */
 
-    protected static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
+    public static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
 
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
 
@@ -157,10 +157,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 .getOperatorEventDispatcher()
                 .registerEventHandler(
                         getOperatorID(), this);
-        this.calculateParts(); // Should be before the context is initialized
-        this.context = new Context();
         try {
             createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
+            calculateParts(); // Should be before the context is initialized
+            context = new Context();
         } catch (Exception e) {
             new RuntimeException("OutputTags cannot be properly set up").printStackTrace();
             throw new RuntimeException();
@@ -583,6 +583,17 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return otherMasterParts;
         }
 
+
+        public void applyToAllKeys(Runnable o) throws Exception {
+            Short tmp = element.getValue().getPartId();
+            for (Short thisPart : thisParts) {
+                element.getValue().setPartId(thisPart);
+                setKeyContextElement(element);
+                o.run();
+            }
+            element.getValue().setPartId(tmp);
+            setKeyContextElement(element);
+        }
     }
 
 }

@@ -40,6 +40,9 @@ public class EdgeList implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
+                if(value.element.getId().equals("193:31")){
+                    System.out.println(value.element);
+                }
                 GraphOp copy = value.copy();
                 copy.setElement(value.element.copy());
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);

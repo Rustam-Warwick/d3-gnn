@@ -20,7 +20,6 @@ import java.io.FileInputStream;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Pattern;
 
 public class CoraFull implements Dataset {
@@ -44,34 +43,34 @@ public class CoraFull implements Dataset {
             public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
                 Edge e = (Edge) value.element;
-                if (e.src.getFeature("label") != null) {
-                    Feature<?, ?> label = e.src.getFeature("label"); // Get label
-                    e.src.features.removeIf(item -> "label".equals(item.getName()));
-
-                    float p = ThreadLocalRandom.current().nextFloat();
-                    if (p < trainSplitProbability) {
-                        label.setId("trainLabel");
-                    } else {
-                        label.setId("testLabel");
-                    }
-
-                    GraphOp copyGraphOp = value.copy();
-                    copyGraphOp.setElement(label);
-//                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
-                }
-                if (e.dest.getFeature("label") != null) {
-                    Feature<?, ?> label = e.dest.getFeature("label"); // Get label
-                    e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
-                    float p = ThreadLocalRandom.current().nextFloat();
-                    if (p < trainSplitProbability) {
-                        label.setId("trainLabel");
-                    } else {
-                        label.setId("testLabel");
-                    }
-                    GraphOp copyGraphOp = value.copy();
-                    copyGraphOp.setElement(label);
-//                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
-                }
+//                if (e.src.getFeature("label") != null) {
+//                    Feature<?, ?> label = e.src.getFeature("label"); // Get label
+//                    e.src.features.removeIf(item -> "label".equals(item.getName()));
+//
+//                    float p = ThreadLocalRandom.current().nextFloat();
+//                    if (p < trainSplitProbability) {
+//                        label.setId("trainLabel");
+//                    } else {
+//                        label.setId("testLabel");
+//                    }
+//
+//                    GraphOp copyGraphOp = value.copy();
+//                    copyGraphOp.setElement(label);
+////                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp);
+//                }
+//                if (e.dest.getFeature("label") != null) {
+//                    Feature<?, ?> label = e.dest.getFeature("label"); // Get label
+//                    e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
+//                    float p = ThreadLocalRandom.current().nextFloat();
+//                    if (p < trainSplitProbability) {
+//                        label.setId("trainLabel");
+//                    } else {
+//                        label.setId("testLabel");
+//                    }
+//                    GraphOp copyGraphOp = value.copy();
+//                    copyGraphOp.setElement(label);
+////                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
+//                }
                 GraphOp copy = value.copy();
                 copy.setElement(value.element.copy());
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);

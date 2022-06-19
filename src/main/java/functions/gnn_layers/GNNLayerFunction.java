@@ -141,11 +141,12 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     default void process(GraphOp value) {
         try {
+            if(value.element!=null)value.element.setStorage(getStorage());
             switch (value.op) {
                 case COMMIT:
                     if (!getStorage().containsElement(value.element)) {
-                        value.element.setStorage(getStorage());
                         value.element.create();
+
                     } else {
                         GraphElement thisElement = getStorage().getElement(value.element);
                         thisElement.update(value.element);
@@ -155,6 +156,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     if (!getStorage().containsElement(value.element)) {
                         GraphElement el = value.element.copy();
                         el.setStorage(getStorage());
+                        el.setPartId(getCurrentPart());
                         if (el.state() == ReplicaState.MASTER) {
                             // Replicas should not be created by master since they are the first parties sending sync messages
                             el.create();
@@ -171,6 +173,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     break;
                 case OPERATOR_EVENT:
                     getStorage().onOperatorEvent(value.getOperatorEvent());
+                    break;
             }
         } catch (Exception | Error e) {
             System.out.println(value);

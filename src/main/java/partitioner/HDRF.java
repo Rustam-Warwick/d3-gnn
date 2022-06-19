@@ -10,17 +10,14 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
     public final float lambda = 1;
 
     public final float epsilon = 1;
-
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
@@ -29,9 +26,9 @@ public class HDRF extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        return inputDataStream.transform(String.format("%s-5Threads", getName()),
+        return inputDataStream.transform(String.format("%s-%sThreads", getName(), Math.min(5, inputDataStream.getParallelism())),
                         TypeInformation.of(GraphOp.class),
-                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), 5))
+                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), Math.min(5, inputDataStream.getParallelism())))
                 .setParallelism(1);
     }
 
@@ -41,20 +38,21 @@ public class HDRF extends BasePartitioner {
     }
 
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
-        public final short partitions;
+        public final short numPartitions;
         public final float lamb;
         public final float eps;
-        public Map<String, Integer> partialDegTable = new ConcurrentHashMap<>();
-        public Map<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
-        public Map<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
-        public transient double replicationFactor = 0f;
-        public transient int totalNumberOfVertices = 1;
-        public transient int totalNumberOfReplicas = 0;
-        public int maxSize = 0;
-        public int minSize = 0;
+        public ConcurrentHashMap<String, Integer> partialDegTable = new ConcurrentHashMap<>();
+        public ConcurrentHashMap<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
+        public ConcurrentHashMap<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
+        public Set<String> currentlyProcessing = Collections.synchronizedSet(new HashSet<String>());
+        public AtomicInteger maxSize = new AtomicInteger(0);
+        public AtomicInteger minSize = new AtomicInteger(0);
+        // Metrics proprs
+        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
+        public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
 
-        public HDRFProcessFunction(short partitions, float lambda, float eps) {
-            this.partitions = partitions;
+        public HDRFProcessFunction(short numPartitions, float lambda, float eps) {
+            this.numPartitions = numPartitions;
             this.lamb = lambda;
             this.eps = eps;
         }
@@ -65,13 +63,16 @@ public class HDRF extends BasePartitioner {
             getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    return (int) (replicationFactor * 1000);
+                    int totalVertices = totalNumberOfVertices.get();
+                    int totalReplicas = totalNumberOfReplicas.get();
+                    if(totalVertices==0)return 0;
+                    return (int) ((float) totalReplicas/totalVertices * 1000);
                 }
             });
         }
 
         public float G(String vertexId, float normalDeg, short partition) {
-            if (partitionTable.get(vertexId).contains(partition)) {
+            if (partitionTable.getOrDefault(vertexId, Collections.emptyList()).contains(partition)) {
                 return 2 - normalDeg; // 1 + (1 - \theta)
             } else return 0;
         }
@@ -85,23 +86,19 @@ public class HDRF extends BasePartitioner {
         }
 
         public float BAL(short partition) {
-            this.partitionsSize.putIfAbsent(partition, 0);
-            float res = (float) (maxSize - this.partitionsSize.get(partition)) / (eps + maxSize - minSize);
+            float res = (float) (maxSize.get() - this.partitionsSize.getOrDefault(partition,0)) / (eps + maxSize.get() - minSize.get());
             return lamb * res;
         }
 
         public short computePartition(Edge edge) {
-            // Initialize the tables if absent
-            partialDegTable.putIfAbsent(edge.src.getId(), 0);
-            partialDegTable.putIfAbsent(edge.dest.getId(), 0);
-            partitionTable.putIfAbsent(edge.src.getId(), Collections.synchronizedList(new ArrayList<>()));
-            partitionTable.putIfAbsent(edge.dest.getId(), Collections.synchronizedList(new ArrayList<>()));
-            // Increment Partial Degree
-            partialDegTable.compute(edge.src.getId(), (key, item) -> item + 1);
-            partialDegTable.compute(edge.dest.getId(), (key, item) -> item + 1);
+            // 1. Increment the node degrees seen so far
+            partialDegTable.merge(edge.src.getId(),1, Integer::sum);
+            partialDegTable.merge(edge.dest.getId(),1, Integer::sum);
+
+            // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
             short selected = 0;
-            for (short i = 0; i < this.partitions; i++) {
+            for (short i = 0; i < this.numPartitions; i++) {
                 float score = REP(edge, i) + BAL(i);
                 if (score > maxScore) {
                     maxScore = score;
@@ -109,22 +106,37 @@ public class HDRF extends BasePartitioner {
                 }
             }
             final short finalSelected = selected;
-            // Update the partition size and vertex partition tables
-            this.partitionsSize.compute(selected, (key, item) -> item + 1);
-            maxSize = Math.max(maxSize, this.partitionsSize.get(selected));
-            minSize = this.partitionsSize.values().stream().min(Integer::compareTo).get();
 
-            this.partitionTable.compute(edge.src.getId(), (key, val) -> {
-                if (!val.contains(finalSelected)) val.add(finalSelected);
-                return val;
-            });
-            this.partitionTable.compute(edge.dest.getId(), (key, val) -> {
-                if (!val.contains(finalSelected)) val.add(finalSelected);
-                return val;
+            // 3. Update the tables
+            int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
+
+            maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
+            minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
+            partitionTable.compute(edge.src.getId(), (key, val) -> {
+                if(val==null){
+                    totalNumberOfVertices.incrementAndGet();
+                    return new ArrayList(List.of(finalSelected));
+                }else{
+                    if (!val.contains(finalSelected)){
+                        totalNumberOfReplicas.incrementAndGet();
+                        val.add(finalSelected);
+                    }
+                    return val;
+                }
             });
 
-            if (this.partitionTable.get(edge.src.getId()).get(0) != selected) this.totalNumberOfReplicas++;
-            if (this.partitionTable.get(edge.dest.getId()).get(0) != selected) this.totalNumberOfReplicas++;
+            partitionTable.compute(edge.dest.getId(), (key, val) -> {
+                if(val==null){
+                    totalNumberOfVertices.incrementAndGet();
+                    return new ArrayList(List.of(finalSelected));
+                }else{
+                    if (!val.contains(finalSelected)){
+                        totalNumberOfReplicas.incrementAndGet();
+                        val.add(finalSelected);
+                    }
+                    return val;
+                }
+            });
 
             return selected;
         }
@@ -136,7 +148,7 @@ public class HDRF extends BasePartitioner {
                 // If no previously assigned partition for this vertex
                 float maxScore = Float.NEGATIVE_INFINITY;
                 short selected = 0;
-                for (short i = 0; i < this.partitions; i++) {
+                for (short i = 0; i < this.numPartitions; i++) {
                     float score = BAL(i);
                     if (score > maxScore) {
                         maxScore = score;
@@ -155,35 +167,21 @@ public class HDRF extends BasePartitioner {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             GraphElement elementToPartition = value.element;
-            if (elementToPartition.elementType() == ElementType.FEATURE) {
-                Feature<?, ?> feature = (Feature<?, ?>) elementToPartition;
-                if (feature.attachedTo.f0 == ElementType.VERTEX) {
-                    elementToPartition = new Vertex(feature.attachedTo.f1);
-                } else {
-                    String[] srcDestIds = feature.attachedTo.f1.split(":");
-                    Vertex src = new Vertex(srcDestIds[0]);
-                    Vertex dest = new Vertex(srcDestIds[1]);
-                    elementToPartition = new Edge(src, dest);
-                }
-            }
-
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
                 Edge edge = (Edge) elementToPartition;
-                if (!this.partitionTable.containsKey(edge.src.getId())) this.totalNumberOfVertices++;
-                if (!this.partitionTable.containsKey(edge.dest.getId())) this.totalNumberOfVertices++;
+                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
+                    // Wait for completion
+                }
+                currentlyProcessing.add(edge.src.getId());
+                currentlyProcessing.add(edge.dest.getId());
                 short partition = this.computePartition(edge);
                 edge.src.master = this.partitionTable.get(edge.src.getId()).get(0);
                 edge.dest.master = this.partitionTable.get(edge.dest.getId()).get(0);
-                value.partId = partition;
-            } else if (elementToPartition.elementType() == ElementType.VERTEX) {
-                Vertex vertex = (Vertex) elementToPartition;
-                if (!this.partitionTable.containsKey(vertex.getId())) this.totalNumberOfVertices++;
-                short partition = this.computePartition(vertex);
-                vertex.master = this.partitionTable.get(vertex.getId()).get(0);
+                currentlyProcessing.remove(edge.src.getId());
+                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;
             }
-            this.replicationFactor = (float) this.totalNumberOfReplicas / this.totalNumberOfVertices;
             out.collect(value);
         }
     }
