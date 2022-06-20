@@ -28,6 +28,8 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     private final int nThreads;
 
+    private final int throttlingThreshold;
+
     private transient ThreadPoolExecutor executorService;
 
     private transient ThreadLocal<SynchronousCollector<OUT>> collector;
@@ -39,7 +41,8 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     public MultiThreadedProcessOperator(ProcessFunction<IN, OUT> function, int nThreads) {
         super(function);
-        this.nThreads = nThreads;
+        this.nThreads = nThreads; // Number of threads to dispatch for the job
+        this.throttlingThreshold = nThreads * 3; // Max number of tasks after which no more will be accepted
         this.chainingStrategy = ChainingStrategy.HEAD; // When chaining is involved this operator does not close properly
     }
 
@@ -54,6 +57,9 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
+        while(workQueue.size() > throttlingThreshold){
+            // Busy wait, this will cause backpressure so network will buffer the incoming requests
+        }
         executorService.submit(() -> {
             try {
                 this.threadSafeProcessElement(element);

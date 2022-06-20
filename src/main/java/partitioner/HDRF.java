@@ -7,6 +7,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
@@ -15,21 +17,27 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
-    public final float lambda = 1;
+    public final float lambda = 1; // More means more balance constraint comes into play
 
-    public final float epsilon = 1;
+    public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
-
+        // Pass for now
     }
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        return inputDataStream.transform(String.format("%s-%sThreads", getName(), Math.min(5, inputDataStream.getParallelism())),
+        StreamExecutionEnvironment envThis = inputDataStream.getExecutionEnvironment();
+        boolean isLocal = envThis instanceof LocalStreamEnvironment;
+        int numThreats = envThis.getParallelism();
+        SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                         TypeInformation.of(GraphOp.class),
-                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), Math.min(5, inputDataStream.getParallelism())))
-                .setParallelism(1);
+                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon),numThreats)).setParallelism(1);
+        if(!isLocal){
+            res.slotSharingGroup(getName()); // Separate slotSharing Group for better parallelism
+        }
+        return res;
     }
 
     @Override

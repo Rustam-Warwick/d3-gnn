@@ -28,7 +28,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
 
     public transient ModelServer modelServer; // ParameterServer Plugin
 
-    public transient Batchifier batchifier;
+    public transient Batchifier batchifier; // Batchifier for the windowed data
 
     public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
         this(modelName, externalFeatures, 1000);
@@ -115,7 +115,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (storage.layerFunction.isFirst() && feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -138,6 +138,10 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
     }
 
+    /**
+     * Actually send the elements
+     * @param timestamp firing timestamp
+     */
     @Override
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
@@ -145,7 +149,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         List<NDList> inputs = new ArrayList<>();
         List<Vertex> vertices = new ArrayList<>();
         elementUpdates.getValue().forEach((key, val)->{
-            if(val < timestamp){
+            if(val <= timestamp){
                 // Send it
                 Vertex v = storage.getVertex(key);
                 if(updateReady(v)){
@@ -166,6 +170,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
             messageVertex.setFeature("feature", new Tensor(updates[i].get(0)));
             storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
         }
+        storage.updateFeature(elementUpdates);
     }
 
     /**

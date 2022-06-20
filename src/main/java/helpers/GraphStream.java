@@ -172,9 +172,6 @@ public class GraphStream {
         partitioner.parseCmdArgs(cmdArgs);
         partitioner.partitions = (short) env.getMaxParallelism();
         SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream);
-        if (!noSlotSharingGroup) {
-            partitionedOutput.slotSharingGroup("partitioner"); // Need to have more resources so move to a separate slotSharingGroup
-        }
         return partitionedOutput;
     }
 

@@ -22,14 +22,14 @@ public class EdgeList implements Dataset {
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
         return new DataStream[]{
-                env.readTextFile(edgeFileName).setParallelism(3)
-                        .map(new EdgeParser()).setParallelism(3)
+                env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
+                        .map(new EdgeParser()).setParallelism(Math.min(3, env.getParallelism()))
                         .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
                             @Override
                             public long extractTimestamp(GraphOp element, long recordTimestamp) {
                                 return element.getTimestamp();
                             }
-                        })).setParallelism(3)
+                        })).setParallelism(Math.min(3, env.getParallelism()))
 
         };
     }
@@ -40,9 +40,6 @@ public class EdgeList implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
-                if(value.element.getId().equals("193:31")){
-                    System.out.println(value.element);
-                }
                 GraphOp copy = value.copy();
                 copy.setElement(value.element.copy());
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
