@@ -3,14 +3,14 @@ package org.apache.flink.runtime.state;
 /**
  * A class Representing PartNumber, wrapper used to distinguish keys requiring murmurHash from this one
  */
-public class PartNumber{
+public class PartNumber {
     public short partId;
 
     public PartNumber(short partId) {
         this.partId = partId;
     }
 
-    public static PartNumber of(short number){
+    public static PartNumber of(short number) {
         return new PartNumber(number);
     }
 

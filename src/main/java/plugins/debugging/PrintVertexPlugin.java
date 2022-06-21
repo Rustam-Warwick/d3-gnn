@@ -12,6 +12,7 @@ import java.util.List;
  */
 public class PrintVertexPlugin extends Plugin {
     public List<String> registeredVertices = new ArrayList<String>();
+
     public PrintVertexPlugin(String... vertices) {
         Collections.addAll(registeredVertices, vertices);
     }
@@ -30,7 +31,7 @@ public class PrintVertexPlugin extends Plugin {
         }
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo!=null && registeredVertices.contains(feature.attachedTo.f1)) {
+            if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.info(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), element.getTimestamp(), feature.value));
             }
         }
@@ -41,7 +42,7 @@ public class PrintVertexPlugin extends Plugin {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
-            if (feature.attachedTo!=null && registeredVertices.contains(feature.attachedTo.f1)) {
+            if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.info(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp(), feature.value));
             }
         }

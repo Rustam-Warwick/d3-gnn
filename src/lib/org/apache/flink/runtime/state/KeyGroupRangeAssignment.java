@@ -32,7 +32,9 @@ public final class KeyGroupRangeAssignment {
      */
     public static final int DEFAULT_LOWER_BOUND_MAX_PARALLELISM = 1 << 7;
 
-    /** The (inclusive) upper bound for max parallelism. */
+    /**
+     * The (inclusive) upper bound for max parallelism.
+     */
     public static final int UPPER_BOUND_MAX_PARALLELISM =
             Transformation.UPPER_BOUND_MAX_PARALLELISM;
 
@@ -43,9 +45,9 @@ public final class KeyGroupRangeAssignment {
     /**
      * Assigns the given key to a parallel operator index.
      *
-     * @param key the key to assign
+     * @param key            the key to assign
      * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
-     * @param parallelism the current parallelism of the operator
+     * @param parallelism    the current parallelism of the operator
      * @return the index of the parallel operator to which the given key should be routed.
      */
     public static int assignKeyToParallelOperator(Object key, int maxParallelism, int parallelism) {
@@ -58,23 +60,23 @@ public final class KeyGroupRangeAssignment {
     /**
      * Assigns the given key to a key-group index.
      *
-     * @param key the key to assign
+     * @param key            the key to assign
      * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
      * @return the key-group to which the given key is assigned
      */
     public static int assignToKeyGroup(Object key, int maxParallelism) {
         Preconditions.checkNotNull(key, "Assigned key must not be null!");
-        if(key instanceof PartNumber){
+        if (key instanceof PartNumber) {
             return computeKeyGroupForKeyHash(key.hashCode(), maxParallelism);
-        }
-        else{
+        } else {
             return computeKeyGroupForKeyHash(MathUtils.murmurHash(key.hashCode()), maxParallelism);
         }
     }
+
     /**
      * Assigns the given key to a key-group index.
      *
-     * @param keyHash the hash of the key to assign
+     * @param keyHash        the hash of the key to assign
      * @param maxParallelism the maximum supported parallelism, aka the number of key-groups.
      * @return the key-group to which the given key is assigned
      */
@@ -91,9 +93,9 @@ public final class KeyGroupRangeAssignment {
      * long values.
      *
      * @param maxParallelism Maximal parallelism that the job was initially created with.
-     * @param parallelism The current parallelism under which the job runs. Must be <=
-     *     maxParallelism.
-     * @param operatorIndex Id of a key-group. 0 <= keyGroupID < maxParallelism.
+     * @param parallelism    The current parallelism under which the job runs. Must be <=
+     *                       maxParallelism.
+     * @param operatorIndex  Id of a key-group. 0 <= keyGroupID < maxParallelism.
      * @return the computed key-group range for the operator.
      */
     public static KeyGroupRange computeKeyGroupRangeForOperatorIndex(
@@ -120,12 +122,12 @@ public final class KeyGroupRangeAssignment {
      * long values.
      *
      * @param maxParallelism Maximal parallelism that the job was initially created with. 0 <
-     *     parallelism <= maxParallelism <= Short.MAX_VALUE must hold.
-     * @param parallelism The current parallelism under which the job runs. Must be <=
-     *     maxParallelism.
-     * @param keyGroupId Id of a key-group. 0 <= keyGroupID < maxParallelism.
+     *                       parallelism <= maxParallelism <= Short.MAX_VALUE must hold.
+     * @param parallelism    The current parallelism under which the job runs. Must be <=
+     *                       maxParallelism.
+     * @param keyGroupId     Id of a key-group. 0 <= keyGroupID < maxParallelism.
      * @return The index of the operator to which elements from the given key-group should be routed
-     *     under the given parallelism and maxParallelism.
+     * under the given parallelism and maxParallelism.
      */
     public static int computeOperatorIndexForKeyGroup(
             int maxParallelism, int parallelism, int keyGroupId) {

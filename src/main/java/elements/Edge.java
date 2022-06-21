@@ -20,8 +20,8 @@ public class Edge extends GraphElement {
 
     public Edge(Edge e, boolean deepCopy) {
         super(e, deepCopy);
-        this.src = e.src!=null?e.src.copy():null;
-        this.dest = e.dest!=null?e.dest.copy():null;
+        this.src = e.src != null ? e.src.copy() : null;
+        this.dest = e.dest != null ? e.dest.copy() : null;
     }
 
     @Override
@@ -58,12 +58,12 @@ public class Edge extends GraphElement {
         assert storage != null;
         if (!storage.containsVertex(src.getId())) {
             src.create();
-        }else{
+        } else {
             storage.getVertex(src.getId()).update(this.src);
         }
         if (!storage.containsVertex(dest.getId())) {
             dest.create();
-        }else{
+        } else {
             storage.getVertex(dest.getId()).update(this.dest);
         }
         return super.create();

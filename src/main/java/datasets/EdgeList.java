@@ -22,29 +22,28 @@ public class EdgeList implements Dataset {
 
     @Override
     public DataStream<GraphOp>[] build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-            DataStream<GraphOp> out;
-            if(fineGrainedResourceManagementEnabled){
-                env.registerSlotSharingGroup(SlotSharingGroup.newBuilder("edge-file").setCpuCores(1).setTaskHeapMemoryMB(10).build());
-                out = env.readTextFile(edgeFileName).setParallelism(1).slotSharingGroup("edge-file")
-                        .map(new EdgeParser()).setParallelism(1).slotSharingGroup("edge-file")
-                        .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
-                            @Override
-                            public long extractTimestamp(GraphOp element, long recordTimestamp) {
-                                return element.getTimestamp();
-                            }
-                        })).setParallelism(1).slotSharingGroup("edge-file");
-            }
-            else{
-                out = env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
-                        .map(new EdgeParser()).setParallelism(Math.min(3, env.getParallelism()))
-                        .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
-                            @Override
-                            public long extractTimestamp(GraphOp element, long recordTimestamp) {
-                                return element.getTimestamp();
-                            }
-                        })).setParallelism(Math.min(3, env.getParallelism()));
-            }
-            return new DataStream[]{out};
+        DataStream<GraphOp> out;
+        if (fineGrainedResourceManagementEnabled) {
+            env.registerSlotSharingGroup(SlotSharingGroup.newBuilder("edge-file").setCpuCores(1).setTaskHeapMemoryMB(10).build());
+            out = env.readTextFile(edgeFileName).setParallelism(1).slotSharingGroup("edge-file")
+                    .map(new EdgeParser()).setParallelism(1).slotSharingGroup("edge-file")
+                    .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
+                        @Override
+                        public long extractTimestamp(GraphOp element, long recordTimestamp) {
+                            return element.getTimestamp();
+                        }
+                    })).setParallelism(1).slotSharingGroup("edge-file");
+        } else {
+            out = env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
+                    .map(new EdgeParser()).setParallelism(Math.min(3, env.getParallelism()))
+                    .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
+                        @Override
+                        public long extractTimestamp(GraphOp element, long recordTimestamp) {
+                            return element.getTimestamp();
+                        }
+                    })).setParallelism(Math.min(3, env.getParallelism()));
+        }
+        return new DataStream[]{out};
     }
 
     @Override

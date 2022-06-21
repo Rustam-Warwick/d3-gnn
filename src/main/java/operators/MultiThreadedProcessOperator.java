@@ -24,6 +24,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Process Operator that distributes single parallelism across @link{nThreads} number of local threads.
  * Makes sure to close the operator once the Threads have stopped execution
+ *
  * @param <IN>
  * @param <OUT>
  * @implNote It is thread-safe until the userFunction is Thread Safe!!!
@@ -133,7 +134,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         }
     }
 
-    private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E>{
+    private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E> {
         public LimitedBlockingQueue() {
         }
 
@@ -150,7 +151,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
             try {
                 put(e);
                 return true;
-            } catch(InterruptedException ie) {
+            } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
             }
             return false;

@@ -5,7 +5,8 @@ import aggregators.MeanAggregator;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
-import ai.djl.serializers.NDArraySerializer;
+import ai.djl.serializers.NDArrayLZ4Serializer;
+import ai.djl.serializers.NDArrayRawSerializer;
 import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
 import datasets.Dataset;
@@ -41,15 +42,10 @@ public class GraphStream {
     public boolean fineGrainedResourceManagementEnabled = false; // Add custom slotSharingGroupsForOperators
 
     public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
-
-    private short layers;// Number of GNN Layers in the pipeline
-
-    private short position_index; // Counter of the Current GNN layer being generated
-
     public String partitionerName = "random";
-
     public String dataset = "cora";
-
+    private short layers;// Number of GNN Layers in the pipeline
+    private short position_index; // Counter of the Current GNN layer being generated
     private IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
 
     private IterationID fullLoopIterationId; // Iteration Id of 0 layer
@@ -58,12 +54,12 @@ public class GraphStream {
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
         this.env = env;
         this.cmdArgs = cmdArgs;
-        configureSerializers(this.env);
+        configureSerializers();
         parseCmdArgs();
     }
 
-    private static void configureSerializers(StreamExecutionEnvironment env) {
-        env.registerTypeWithKryoSerializer(PtNDArray.class, NDArraySerializer.class);
+    private void configureSerializers() {
+        env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayRawSerializer.class);
         env.registerTypeWithKryoSerializer(PtNDManager.class, NDManagerSerializer.class);
         env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
         env.registerType(GraphElement.class);
@@ -120,19 +116,28 @@ public class GraphStream {
                 .numberOfArgs(1)
                 .build();
 
-        Option slotSharingGroup = Option
+        Option fineGrainedResources = Option
                 .builder("f")
                 .longOpt("fineGrainedResource")
                 .required(false)
                 .desc("Fine Grained Resource Management Enabled")
                 .build();
+
+        Option tensorCompression = Option
+                .builder("tc")
+                .longOpt("tensorCompression")
+                .required(false)
+                .desc("Tensor Compression Enabled")
+                .build();
+
         Options options = new Options();
         CommandLineParser parser = new DefaultParser();
         options.addOption(explosionCoeff);
         options.addOption(dataset);
         options.addOption(objectReuse);
         options.addOption(partitioner);
-        options.addOption(slotSharingGroup);
+        options.addOption(fineGrainedResources);
+        options.addOption(tensorCompression);
         try {
             CommandLine commandLine = parser.parse(options, cmdArgs);
             if (commandLine.hasOption("l")) {
@@ -155,6 +160,9 @@ public class GraphStream {
             }
             if (commandLine.hasOption("f")) {
                 this.fineGrainedResourceManagementEnabled = !(env instanceof LocalStreamEnvironment);
+            }
+            if(commandLine.hasOption("tc")){
+                env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
             }
         } catch (ParseException e) {
             e.printStackTrace();
@@ -185,11 +193,11 @@ public class GraphStream {
      * @return output stream dependent on the plugin
      */
     protected SingleOutputStreamOperator<GraphOp> streamingGNNLayer(DataStream<GraphOp> inputData, KeyedProcessFunction<String, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
-        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1,0)));
+        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
         IterationID localIterationId = new IterationID();
         SingleOutputStreamOperator<GraphOp> forward;
-        if(fineGrainedResourceManagementEnabled && position_index > 0){
-                env.registerSlotSharingGroup(SlotSharingGroup
+        if (fineGrainedResourceManagementEnabled) {
+            env.registerSlotSharingGroup(SlotSharingGroup
                     .newBuilder("gnn-" + thisParallelism)
                     .setTaskHeapMemoryMB(600)
                     .setTaskOffHeapMemoryMB(600)
@@ -234,7 +242,7 @@ public class GraphStream {
             DataStream<GraphOp> fullLoopFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = fullLoopFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(env.getParallelism()).uid("FullLoopTail");
             backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + env.getParallelism());
-            if (fineGrainedResourceManagementEnabled) backwardIteration.slotSharingGroup("gnn-"+env.getParallelism());
+            if (fineGrainedResourceManagementEnabled) backwardIteration.slotSharingGroup("gnn-" + env.getParallelism());
         }
         this.position_index++;
         this.lastIterationID = localIterationId;
@@ -244,12 +252,13 @@ public class GraphStream {
 
     /**
      * Main method for invoking the GNN Chain
-     * @param dataStreamMain       External System queries
-     * @param processFunctions     List of Storages with corresponding plugins
-     * @param hasBackwardIteration Should backward iterations exist
-     * @param hasLastLayerTopology Should the last layer receive full topology or no
+     *
+     * @param dataStreamMain       External System queries datastream.
+     * @param processFunctions     List of Storages with corresponding plugins. It is assumed that the first one is a process that splits the data into several parts, TRAINING, TESTING, TOPOLOGY only and etc.
+     * @param hasBackwardIteration Should backward iterations exist in the GNN Chain. Backward iterations are useful if we are doing backprop in the graph
+     * @param hasLastLayerTopology Should the last layer receive full topology or no. Useful if we are doing some kind of autoregressive model.
      * @return L+1 outputs corresponding to (Partitioned data, ... output of all the processFunctions)
-     * @implNote First Process function will be replayable, and last one will be output with connection to first one(FullLoopIteration)
+     * @implNote First Process function will be replayable, and last one will be output with connection to first one(if FullLoopIteration is enabled)
      */
     public DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
         // 1. intilialize the variables
@@ -267,9 +276,9 @@ public class GraphStream {
         layerOutputs[0] = allUpdates; // First one is the partitioned data
 
         // 3. Execute the layers
-        for (int i=0; i <= layers; i++) {
+        for (int i = 0; i <= layers; i++) {
             KeyedProcessFunction processFn = processFunctions[i];
-            if (Objects.isNull(processFn)){
+            if (Objects.isNull(processFn)) {
                 layerOutputs[i + 1] = null;
                 continue;
             }

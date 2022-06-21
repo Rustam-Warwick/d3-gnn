@@ -293,8 +293,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
 
-
-
     /**
      * ABSTRACT FUNCTIONS
      */
@@ -303,8 +301,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Actually process the element, should be implemented by the sub operators
      */
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
-
-
 
 
     /**
@@ -387,9 +383,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             processActualElement(element);
         }
     }
-
-
-
 
 
     /**

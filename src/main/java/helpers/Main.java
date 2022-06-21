@@ -13,6 +13,7 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -22,6 +23,7 @@ import storage.FlatInMemoryClassStorage;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.function.Function;
 
@@ -58,6 +60,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
+
+        Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // Initializate the helper classes
@@ -76,8 +80,7 @@ public class Main {
                         .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
                 )
         );
-        String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
-        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s W-10000", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.fineGrainedResourceManagementEnabled ? "no" : "yes");
+        String jobName = String.format("%s W-10000", String.join(" ", args), env.getMaxParallelism());
 //        embeddings[embeddings.length - 1].process(new ProcessFunction<GraphOp, Object>() {
 //            @Override
 //            public void processElement(GraphOp value, ProcessFunction<GraphOp, Object>.Context ctx, Collector<Object> out) throws Exception {

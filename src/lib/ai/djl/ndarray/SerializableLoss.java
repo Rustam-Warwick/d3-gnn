@@ -3,7 +3,7 @@ package ai.djl.ndarray;
 import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
-import ai.djl.serializers.NDArraySerializer;
+import ai.djl.serializers.NDArrayLZ4Serializer;
 import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
 import ai.djl.training.loss.Loss;
@@ -31,7 +31,7 @@ public class SerializableLoss implements Externalizable {
     public static void configureSerializers(Kryo kryo) {
         kryo.setClassLoader(Thread.currentThread().getContextClassLoader());
         ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-        kryo.register(PtNDArray.class, new NDArraySerializer());
+        kryo.register(PtNDArray.class, new NDArrayLZ4Serializer());
         kryo.register(PtNDManager.class, new NDManagerSerializer());
         kryo.register(Parameter.class, new ParameterSerializer());
     }

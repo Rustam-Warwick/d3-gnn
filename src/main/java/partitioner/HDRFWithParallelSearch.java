@@ -19,9 +19,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 public class HDRFWithParallelSearch extends BasePartitioner {
-    public float lambda = 1; // More means more balance constraint comes into play
-
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
+    public float lambda = 1; // More means more balance constraint comes into play
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
@@ -35,8 +34,8 @@ public class HDRFWithParallelSearch extends BasePartitioner {
         SingleOutputStreamOperator<GraphOp> res = inputDataStream
                 .process(new HDRFProcessFunction(partitions, lambda, epsilon, numThreats))
                 .setParallelism(1)
-                .name(String.format("%s-%sThreads",getName(), numThreats));
-        if(fineGrainedResourceManagementEnabled){
+                .name(String.format("%s-%sThreads", getName(), numThreats));
+        if (fineGrainedResourceManagementEnabled) {
             envThis.registerSlotSharingGroup(
                     SlotSharingGroup
                             .newBuilder(getName())
@@ -80,12 +79,12 @@ public class HDRFWithParallelSearch extends BasePartitioner {
             getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    if(totalNumberOfVertices==0)return 0;
-                    return (int) ((float) totalNumberOfReplicas/totalNumberOfVertices * 1000);
+                    if (totalNumberOfVertices == 0) return 0;
+                    return (int) ((float) totalNumberOfReplicas / totalNumberOfVertices * 1000);
                 }
             });
             for (short i = 0; i < numPartitions; i++) {
-                partitionsSize.put(i,0);
+                partitionsSize.put(i, 0);
             }
         }
 
@@ -104,28 +103,28 @@ public class HDRFWithParallelSearch extends BasePartitioner {
         }
 
         public float BAL(short partition) {
-            float res = (float) (maxSize - this.partitionsSize.getOrDefault(partition,0)) / (eps + maxSize - minSize);
+            float res = (float) (maxSize - this.partitionsSize.getOrDefault(partition, 0)) / (eps + maxSize - minSize);
             return lamb * res;
         }
 
         public short computePartition(@Nonnull Edge edge) throws ExecutionException, InterruptedException {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(edge.src.getId(),1, Integer::sum);
-            partialDegTable.merge(edge.dest.getId(),1, Integer::sum);
+            partialDegTable.merge(edge.src.getId(), 1, Integer::sum);
+            partialDegTable.merge(edge.dest.getId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             final Tuple2<Float, Short> finalSelected =
-                            partitionsSize
-                                    .keySet()
-                                    .stream()
-                                    .map((part)->{
-                                        float score = REP(edge, part) + BAL(part);
-                                        return new Tuple2<Float, Short>(score, part);
-                                    })
-                                    .max((o1, o2) -> {
-                                        if(o1.f0 < o2.f0) return -1;
-                                        else if(o1.f0 > o2.f0) return 1;
-                                        return 0;
+                    partitionsSize
+                            .keySet()
+                            .stream()
+                            .map((part) -> {
+                                float score = REP(edge, part) + BAL(part);
+                                return new Tuple2<Float, Short>(score, part);
+                            })
+                            .max((o1, o2) -> {
+                                if (o1.f0 < o2.f0) return -1;
+                                else if (o1.f0 > o2.f0) return 1;
+                                return 0;
                             }).get();
 
             // 3. Update the tables
@@ -133,11 +132,11 @@ public class HDRFWithParallelSearch extends BasePartitioner {
             maxSize = (Math.max(maxSize, newSizeOfPartition));
             minSize = partitionsSize.values().stream().reduce(Integer.MAX_VALUE, Math::min);
             partitionTable.compute(edge.src.getId(), (key, val) -> {
-                if(val==null){
+                if (val == null) {
                     totalNumberOfVertices++;
                     return new ArrayList<Short>(List.of(finalSelected.f1));
-                }else{
-                    if (!val.contains(finalSelected.f1)){
+                } else {
+                    if (!val.contains(finalSelected.f1)) {
                         totalNumberOfReplicas++;
                         val.add(finalSelected.f1);
                     }
@@ -146,11 +145,11 @@ public class HDRFWithParallelSearch extends BasePartitioner {
             });
 
             partitionTable.compute(edge.dest.getId(), (key, val) -> {
-                if(val==null){
+                if (val == null) {
                     totalNumberOfVertices++;
                     return new ArrayList<Short>(List.of(finalSelected.f1));
-                }else{
-                    if (!val.contains(finalSelected.f1)){
+                } else {
+                    if (!val.contains(finalSelected.f1)) {
                         totalNumberOfReplicas++;
                         val.add(finalSelected.f1);
                     }

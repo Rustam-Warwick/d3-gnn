@@ -322,7 +322,7 @@ public class GraphElement implements Serializable {
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        this.partId = (partId==null && storage!=null) ? storage.layerFunction.getCurrentPart():partId;
+        this.partId = (partId == null && storage != null) ? storage.layerFunction.getCurrentPart() : partId;
         if (features != null) {
             for (Feature<?, ?> ft : this.features) {
                 ft.setStorage(storage);

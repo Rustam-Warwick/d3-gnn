@@ -45,7 +45,6 @@ public class ParameterSerializer extends Serializer<Parameter> {
         } else if (magic != 'P') {
             return null;
         }
-
         try {
             String name = input.readString();
             String id = input.readString();

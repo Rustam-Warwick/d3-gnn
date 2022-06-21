@@ -141,7 +141,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     default void process(GraphOp value) {
         try {
-            if(value.element!=null)value.element.setStorage(getStorage());
+            if (value.element != null) value.element.setStorage(getStorage());
             switch (value.op) {
                 case COMMIT:
                     if (!getStorage().containsElement(value.element)) {

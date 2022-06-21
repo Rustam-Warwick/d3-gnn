@@ -34,7 +34,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         this(modelName, externalFeatures, 1000);
     }
 
-    public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures, int windowInterval){
+    public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures, int windowInterval) {
         super(String.format("%s-inferencer", modelName));
         this.externalFeatures = externalFeatures;
         this.modelName = modelName;
@@ -48,8 +48,8 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         batchifier = new StackBatchifier();
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
         try {
-            storage.layerFunction.getWrapperContext().applyToAllKeys(()->{
-                Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(),true, storage.layerFunction.getCurrentPart());
+            storage.layerFunction.getWrapperContext().applyToAllKeys(() -> {
+                Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(), true, storage.layerFunction.getCurrentPart());
                 elementUpdates.setStorage(storage);
                 elementUpdates.create();
             });
@@ -96,10 +96,10 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo!=null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
-            } else if (feature.attachedTo!=null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -111,7 +111,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo!= null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
@@ -140,6 +140,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
 
     /**
      * Actually send the elements
+     *
      * @param timestamp firing timestamp
      */
     @Override
@@ -148,11 +149,11 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = (Feature<HashMap<String, Long>, HashMap<String, Long>>) storage.getFeature("elementUpdates");
         List<NDList> inputs = new ArrayList<>();
         List<Vertex> vertices = new ArrayList<>();
-        elementUpdates.getValue().forEach((key, val)->{
-            if(val <= timestamp){
+        elementUpdates.getValue().forEach((key, val) -> {
+            if (val <= timestamp) {
                 // Send it
                 Vertex v = storage.getVertex(key);
-                if(updateReady(v)){
+                if (updateReady(v)) {
                     NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
                     NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
                     inputs.add(new NDList(ft, agg));
@@ -160,7 +161,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                 }
             }
         });
-        if(inputs.isEmpty())return;
+        if (inputs.isEmpty()) return;
         NDList batch_inputs = batchifier.batchify(inputs.toArray(NDList[]::new));
         NDList batch_updates = UPDATE(batch_inputs, false);
         NDList[] updates = batchifier.unbatchify(batch_updates);

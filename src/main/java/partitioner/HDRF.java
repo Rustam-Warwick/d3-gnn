@@ -17,9 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
-    public float lambda = 0.8f; // More means more balance constraint comes into play
-
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
+    public float lambda = 0.8f; // More means more balance constraint comes into play
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
@@ -31,13 +30,13 @@ public class HDRF extends BasePartitioner {
         StreamExecutionEnvironment envThis = inputDataStream.getExecutionEnvironment();
         int numThreats = Math.min(16, envThis.getParallelism());
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
-                        TypeInformation.of(GraphOp.class),
-                        new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon),numThreats)).setParallelism(1);
-        if(fineGrainedResourceManagementEnabled){
+                TypeInformation.of(GraphOp.class),
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).setParallelism(1);
+        if (fineGrainedResourceManagementEnabled) {
             envThis.registerSlotSharingGroup(
                     SlotSharingGroup
                             .newBuilder(getName())
-                            .setCpuCores(1.0)
+                            .setCpuCores(2.0)
                             .setTaskHeapMemoryMB(100)
                             .build());
             res.slotSharingGroup(getName());
@@ -73,15 +72,17 @@ public class HDRF extends BasePartitioner {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {
+            getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
                     int totalVertices = totalNumberOfVertices.get();
                     int totalReplicas = totalNumberOfReplicas.get();
-                    if(totalVertices==0)return 0;
-                    return (int) ((float) totalReplicas/totalVertices * 1000);
+                    if (totalVertices == 0) return 0;
+                    return (int) ((float) totalReplicas / totalVertices * 1000);
                 }
             });
+
+            getRuntimeContext().getMetricGroup().getMetricIdentifier("Replication Factor");
         }
 
         public float G(String vertexId, float normalDeg, short partition) {
@@ -99,14 +100,14 @@ public class HDRF extends BasePartitioner {
         }
 
         public float BAL(short partition) {
-            float res = (float) (maxSize.get() - this.partitionsSize.getOrDefault(partition,0)) / (eps + maxSize.get() - minSize.get());
+            float res = (float) (maxSize.get() - this.partitionsSize.getOrDefault(partition, 0)) / (eps + maxSize.get() - minSize.get());
             return lamb * res;
         }
 
         public short computePartition(Edge edge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(edge.src.getId(),1, Integer::sum);
-            partialDegTable.merge(edge.dest.getId(),1, Integer::sum);
+            partialDegTable.merge(edge.src.getId(), 1, Integer::sum);
+            partialDegTable.merge(edge.dest.getId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
@@ -126,11 +127,11 @@ public class HDRF extends BasePartitioner {
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
             partitionTable.compute(edge.src.getId(), (key, val) -> {
-                if(val==null){
+                if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
                     return new ArrayList(List.of(finalSelected));
-                }else{
-                    if (!val.contains(finalSelected)){
+                } else {
+                    if (!val.contains(finalSelected)) {
                         totalNumberOfReplicas.incrementAndGet();
                         val.add(finalSelected);
                     }
@@ -139,11 +140,11 @@ public class HDRF extends BasePartitioner {
             });
 
             partitionTable.compute(edge.dest.getId(), (key, val) -> {
-                if(val==null){
+                if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
                     return new ArrayList(List.of(finalSelected));
-                }else{
-                    if (!val.contains(finalSelected)){
+                } else {
+                    if (!val.contains(finalSelected)) {
                         totalNumberOfReplicas.incrementAndGet();
                         val.add(finalSelected);
                     }
