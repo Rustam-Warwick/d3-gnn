@@ -2,16 +2,20 @@ package operators;
 
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
+import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.Collection;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -36,13 +40,13 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     private transient ThreadLocal<ContextImpl> context;
 
-    private transient LinkedBlockingDeque<Runnable> workQueue;
+    private transient LinkedBlockingQueue<Runnable> workQueue;
 
 
     public MultiThreadedProcessOperator(ProcessFunction<IN, OUT> function, int nThreads) {
         super(function);
         this.nThreads = nThreads; // Number of threads to dispatch for the job
-        this.throttlingThreshold = nThreads * 3; // Max number of tasks after which no more will be accepted
+        this.throttlingThreshold = (int) (nThreads * 1.5); // Max number of tasks after which no more will be accepted
         this.chainingStrategy = ChainingStrategy.HEAD; // When chaining is involved this operator does not close properly
     }
 
@@ -51,15 +55,17 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         super.open();
         collector = ThreadLocal.withInitial(() -> new SynchronousCollector<OUT>(output, this));
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
-        workQueue = new LinkedBlockingDeque<>();
+        workQueue = new LimitedBlockingQueue<>(throttlingThreshold);
         executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
     }
 
     @Override
+    public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
+        super.setup(containingTask, config, output);
+    }
+
+    @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        while(workQueue.size() > throttlingThreshold){
-            // Busy wait, this will cause backpressure so network will buffer the incoming requests
-        }
         executorService.submit(() -> {
             try {
                 this.threadSafeProcessElement(element);
@@ -127,6 +133,30 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         }
     }
 
+    private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E>{
+        public LimitedBlockingQueue() {
+        }
+
+        public LimitedBlockingQueue(int capacity) {
+            super(capacity);
+        }
+
+        public LimitedBlockingQueue(Collection<? extends E> c) {
+            super(c);
+        }
+
+        @Override
+        public boolean offer(@NotNull E e) {
+            try {
+                put(e);
+                return true;
+            } catch(InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            return false;
+        }
+    }
+
     private static class SynchronousCollector<OUT> implements Collector<OUT> {
         private final TimestampedCollector<OUT> innerCollector;
         private final Object lock;
@@ -189,7 +219,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
         @Override
         public long currentWatermark() {
-            return currentWatermark();
+            throw new UnsupportedOperationException(UNSUPPORTED_REGISTER_TIMER_MSG);
         }
 
         @Override

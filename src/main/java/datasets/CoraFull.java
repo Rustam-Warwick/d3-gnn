@@ -86,7 +86,7 @@ public class CoraFull implements Dataset {
      * @implNote trainLabel Feature is the trainlabel
      */
     @Override
-    public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
+    public DataStream<GraphOp>[] build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         try {
 //            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
             DataStream<String> edges = env.readTextFile(edgesFile.toString());

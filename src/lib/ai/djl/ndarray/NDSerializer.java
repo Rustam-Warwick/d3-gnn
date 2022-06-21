@@ -58,6 +58,8 @@ public final class NDSerializer {
         }
     }
 
+
+
     public static void encode(NDArray array, OutputStream os) throws IOException {
         DataOutputStream dos = new DataOutputStream(os);
         // magic string for version identification

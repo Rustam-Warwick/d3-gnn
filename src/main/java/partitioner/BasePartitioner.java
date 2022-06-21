@@ -22,7 +22,7 @@ abstract public class BasePartitioner {
         }
     }
 
-    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
+    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled);
 
     public abstract void parseCmdArgs(String[] cmdArgs);
 

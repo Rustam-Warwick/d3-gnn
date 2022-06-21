@@ -58,28 +58,26 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
-
         // DataFlow
         Dataset dataset = Dataset.getDataset(gs.dataset);
-        DataStream<GraphOp>[] datasetStreamList = dataset.build(env);
+        DataStream<GraphOp>[] datasetStreamList = dataset.build(env, gs.fineGrainedResourceManagementEnabled);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(datasetStreamList[0], true, false, false,
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 30000))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 30000))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
                 )
         );
         String date = new SimpleDateFormat("dd-MM HH:mm").format(Calendar.getInstance().getTime());
-        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.noSlotSharingGroup ? "no" : "yes");
+        String jobName = String.format("%s | P-%s D-%s L-%s Par-%s MaxPar-%s S-%s W-10000", date, gs.partitionerName, gs.dataset, gs.lambda, env.getParallelism(), env.getMaxParallelism(), gs.fineGrainedResourceManagementEnabled ? "no" : "yes");
 //        embeddings[embeddings.length - 1].process(new ProcessFunction<GraphOp, Object>() {
 //            @Override
 //            public void processElement(GraphOp value, ProcessFunction<GraphOp, Object>.Context ctx, Collector<Object> out) throws Exception {

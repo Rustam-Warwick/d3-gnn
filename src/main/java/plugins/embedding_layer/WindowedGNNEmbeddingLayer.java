@@ -115,7 +115,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
-            if (storage.layerFunction.isFirst() && feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }

@@ -4,6 +4,7 @@ import elements.*;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
+import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -20,18 +21,30 @@ public class EdgeList implements Dataset {
     }
 
     @Override
-    public DataStream<GraphOp>[] build(StreamExecutionEnvironment env) {
-        return new DataStream[]{
-                env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
+    public DataStream<GraphOp>[] build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
+            DataStream<GraphOp> out;
+            if(fineGrainedResourceManagementEnabled){
+                env.registerSlotSharingGroup(SlotSharingGroup.newBuilder("edge-file").setCpuCores(1).setTaskHeapMemoryMB(10).build());
+                out = env.readTextFile(edgeFileName).setParallelism(1).slotSharingGroup("edge-file")
+                        .map(new EdgeParser()).setParallelism(1).slotSharingGroup("edge-file")
+                        .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
+                            @Override
+                            public long extractTimestamp(GraphOp element, long recordTimestamp) {
+                                return element.getTimestamp();
+                            }
+                        })).setParallelism(1).slotSharingGroup("edge-file");
+            }
+            else{
+                out = env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
                         .map(new EdgeParser()).setParallelism(Math.min(3, env.getParallelism()))
                         .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
                             @Override
                             public long extractTimestamp(GraphOp element, long recordTimestamp) {
                                 return element.getTimestamp();
                             }
-                        })).setParallelism(Math.min(3, env.getParallelism()))
-
-        };
+                        })).setParallelism(Math.min(3, env.getParallelism()));
+            }
+            return new DataStream[]{out};
     }
 
     @Override
