@@ -34,14 +34,14 @@ public class EdgeList implements Dataset {
                         }
                     })).setParallelism(1).slotSharingGroup("edge-file");
         } else {
-            out = env.readTextFile(edgeFileName).setParallelism(Math.min(3, env.getParallelism()))
-                    .map(new EdgeParser()).setParallelism(Math.min(3, env.getParallelism()))
+            out = env.readTextFile(edgeFileName).setParallelism(1)
+                    .map(new EdgeParser()).setParallelism(1)
                     .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
                         @Override
                         public long extractTimestamp(GraphOp element, long recordTimestamp) {
                             return element.getTimestamp();
                         }
-                    })).setParallelism(Math.min(3, env.getParallelism()));
+                    })).setParallelism(1);
         }
         return new DataStream[]{out};
     }

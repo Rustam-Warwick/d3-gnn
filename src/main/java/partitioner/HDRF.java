@@ -36,7 +36,7 @@ public class HDRF extends BasePartitioner {
             envThis.registerSlotSharingGroup(
                     SlotSharingGroup
                             .newBuilder(getName())
-                            .setCpuCores(2.0)
+                            .setCpuCores(3.0)
                             .setTaskHeapMemoryMB(100)
                             .build());
             res.slotSharingGroup(getName());

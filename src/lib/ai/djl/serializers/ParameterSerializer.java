@@ -1,17 +1,19 @@
 package ai.djl.serializers;
 
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
+import ai.djl.pytorch.engine.PtNDArray;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 
+/**
+ * Serializer for model Parameters
+ */
 public class ParameterSerializer extends Serializer<Parameter> {
     private static Field idField;
 
@@ -28,33 +30,25 @@ public class ParameterSerializer extends Serializer<Parameter> {
     @Override
     public void write(Kryo kryo, Output output, Parameter object) {
         if (!object.isInitialized()) {
-            output.writeChar('N');
-            return;
+            throw new RuntimeException("Initialize the Parameter before sending it");
         }
-        output.writeChar('P');
         output.writeString(object.getName());
         output.writeString(object.getId());
-        output.write(object.getArray().encode());
+        kryo.writeObject(output, object.getArray());
     }
 
     @Override
     public Parameter read(Kryo kryo, Input input, Class<Parameter> type) {
-        char magic = input.readChar();
-        if (magic == 'N') {
-            return null;
-        } else if (magic != 'P') {
-            return null;
-        }
         try {
             String name = input.readString();
             String id = input.readString();
-            NDArray array = BaseNDManager.threadNDManager.get().decode(input);
+            NDArray array = kryo.readObject(input, PtNDArray.class);
             Shape shape = array.getShape();
             Parameter a = Parameter.builder().setName(name).optArray(array).optShape(shape).setType(Parameter.Type.OTHER).build();
             idField.set(a, id);
             return a;
 
-        } catch (IOException | IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
         return null;

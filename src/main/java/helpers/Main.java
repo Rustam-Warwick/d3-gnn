@@ -13,7 +13,6 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.api.common.RuntimeExecutionMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -21,10 +20,8 @@ import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.function.Function;
 
 public class Main {
@@ -64,6 +61,7 @@ public class Main {
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.getConfig().setLatencyTrackingInterval(20000);
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
         // DataFlow

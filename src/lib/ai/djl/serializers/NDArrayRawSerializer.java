@@ -12,7 +12,7 @@ import com.esotericsoftware.kryo.io.Output;
 import java.nio.ByteBuffer;
 
 /**
- * Kryo implementation of Tensor Serializer. Works with all Pt
+ * Kryo implementation of Tensor Serializer. Works with all NDArrays.
  */
 public class NDArrayRawSerializer extends Serializer<NDArray> {
     private static final transient DataType[] dataTypes = DataType.values();

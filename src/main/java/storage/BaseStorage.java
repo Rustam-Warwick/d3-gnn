@@ -28,10 +28,15 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * These are stored separately in operator state store
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
+
     /**
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
+
+    /**
+     * Plugins in the list state
+     */
     private transient ListState<HashMap<String, Plugin>> pluginListState;
 
     // -------- Abstract methods
@@ -80,6 +85,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract boolean containsEdge(String id);
 
     public abstract void cacheFeaturesOf(GraphElement e);
+
 
     // ----- Plugin Implementation and some common methods & CAllbacks
 

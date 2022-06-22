@@ -23,6 +23,7 @@ import org.apache.commons.cli.*;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
@@ -72,6 +73,7 @@ public class GraphStream {
         env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
+        env.registerType(PartNumber.class);
     }
 
     public void parseCmdArgs() {
@@ -145,16 +147,13 @@ public class GraphStream {
                 double r = Double.valueOf(lambdaValue);
                 this.lambda = r;
             }
-
             if (commandLine.hasOption("p")) {
                 String lambdaValue = commandLine.getOptionValue("p");
                 this.partitionerName = lambdaValue;
             }
-
             if (commandLine.hasOption("o")) {
                 this.env.getConfig().enableObjectReuse();
             }
-
             if (commandLine.hasOption("d")) {
                 this.dataset = commandLine.getOptionValue("d");
             }

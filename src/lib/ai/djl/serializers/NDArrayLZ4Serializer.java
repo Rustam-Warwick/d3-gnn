@@ -15,7 +15,7 @@ import net.jpountz.lz4.LZ4SafeDecompressor;
 import java.nio.ByteBuffer;
 
 /**
- * Kryo implementation of Tensor Serializer. Works with all Pt
+ * Kryo implementation of Tensor Serializer with LZ4 Compression. Works with all NDArrays
  */
 public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final transient DataType[] dataTypes = DataType.values();

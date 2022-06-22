@@ -7,6 +7,9 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 
+/**
+ * Kryo Serializer for NDManagers. Send nothing, retrieve the local BaseNDManager
+ */
 public class NDManagerSerializer extends Serializer<NDManager> {
 
     @Override
