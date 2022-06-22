@@ -13,10 +13,9 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import plugins.ModelServer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
@@ -62,6 +61,7 @@ public class Main {
 
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
+        TypeInformation.of(GraphOp.class);
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
@@ -82,12 +82,6 @@ public class Main {
                 )
         );
 
-        embeddings[3].process(new ProcessFunction<GraphOp, Object>() {
-            @Override
-            public void processElement(GraphOp value, ProcessFunction<GraphOp, Object>.Context ctx, Collector<Object> out) throws Exception {
-                System.out.format("%s %s\n", value, ctx.timestamp());
-            }
-        });
         String jobName = String.format("%s W-10000", String.join(" ", args), env.getMaxParallelism());
 //        embeddings[embeddings.length - 1].process(new ProcessFunction<GraphOp, Object>() {
 //            @Override
