@@ -11,6 +11,7 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -36,11 +37,11 @@ public class CoraFull implements Dataset {
     }
 
     @Override
-    public KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter() {
+    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
 
-        return new KeyedProcessFunction<String, GraphOp, GraphOp>() {
+        return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
             @Override
-            public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+            public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
                 Edge e = (Edge) value.element;
 //                if (e.src.getFeature("label") != null) {

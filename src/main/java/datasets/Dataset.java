@@ -2,6 +2,7 @@ package datasets;
 
 import elements.GraphOp;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -34,5 +35,5 @@ public interface Dataset extends Serializable {
      *
      * @return normal stream, but the label stream should be splitted into {@link{Dataset.TRAIN_TEST_DATA_OUTPUT}
      */
-    KeyedProcessFunction<String, GraphOp, GraphOp> trainTestSplitter();
+    KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter();
 }

@@ -15,6 +15,7 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -64,14 +65,23 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     void message(GraphOp op, MessageDirection direction);
 
     /**
+     * Message but also include the new timestmap as the timestmap of StreamRecord
+     */
+    void message(GraphOp op, MessageDirection direction, @Nonnull Long timestamp);
+
+    /**
      * Broadcast message in a specific direction
      */
     void broadcastMessage(GraphOp op, MessageDirection direction);
+
+    void broadcastMessage(GraphOp op, MessageDirection direction, @Nonnull Long timestamp);
 
     /**
      * Side outputs apart from those iterate, forward, backward messages
      */
     <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
+
+    <OUT> void sideMessage(OUT op, @Nonnull OutputTag<OUT> outputTag, @Nonnull Long timestamp);
 
     /**
      * Broadcast message to a specific side output

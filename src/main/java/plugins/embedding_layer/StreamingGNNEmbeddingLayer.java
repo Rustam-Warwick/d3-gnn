@@ -78,10 +78,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
-            } else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -93,11 +93,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
-            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }

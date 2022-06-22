@@ -7,7 +7,7 @@ import java.util.Objects;
 public class WatermarkEvent extends IterableOperatorEvent {
     public long timestamp;
 
-    public WatermarkEvent(long timestamp, Short currentIteration) {
+    public WatermarkEvent(long timestamp, Byte currentIteration) {
         super(currentIteration);
         this.timestamp = timestamp;
     }

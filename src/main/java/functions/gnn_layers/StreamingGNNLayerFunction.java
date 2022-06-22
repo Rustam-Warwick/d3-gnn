@@ -5,19 +5,21 @@ import elements.iterations.MessageCommunication;
 import elements.iterations.MessageDirection;
 import operators.BaseWrapperOperator;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
 /**
  * GNNLayerFunction that assumes batch is ready per each process element
  */
-public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, GraphOp, GraphOp> implements GNNLayerFunction {
+public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;
     public transient Collector<GraphOp> collector;
-    public transient KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx;
+    public transient KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx;
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
 
     public StreamingGNNLayerFunction(BaseStorage storage) {
@@ -53,13 +55,18 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
         op.setMessageCommunication(MessageCommunication.BROADCAST);
+        message(op, direction);
+    }
+
+    @Override
+    public void message(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
         try {
             if (direction == MessageDirection.BACKWARD) {
-                ctx.output(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
+                getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
             } else if (direction == MessageDirection.FORWARD) {
-                collector.collect(op);
+                getWrapperContext().outputWithTimestamp(op, timestamp);
             } else {
-                ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
+                getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -67,8 +74,19 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
+    public void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
+        op.setMessageCommunication(MessageCommunication.BROADCAST);
+        message(op, direction, timestamp);
+    }
+
+    @Override
+    public <OUT> void sideMessage(OUT op, @NotNull OutputTag<OUT> outputTag, @NotNull Long timestamp) {
+        getWrapperContext().outputWithTimestamp(op, outputTag, timestamp);
+    }
+
+    @Override
     public <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag) {
-        System.out.println("FAKE");
+        throw new IllegalStateException("Side BroadCast Messages not implemented yet!");
     }
 
     @Override
@@ -104,7 +122,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void onTimer(long timestamp, KeyedProcessFunction<String, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
+    public void onTimer(long timestamp, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.OnTimerContext ctx, Collector<GraphOp> out) throws Exception {
         super.onTimer(timestamp, ctx, out);
         getStorage().onTimer(timestamp);
     }
@@ -115,9 +133,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<String, Grap
     }
 
     @Override
-    public void processElement(GraphOp value, KeyedProcessFunction<String, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+    public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
         if (this.collector == null) this.collector = out;
         if (this.ctx == null) this.ctx = ctx;
         process(value);
     }
+
+
 }

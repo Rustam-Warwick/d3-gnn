@@ -1,19 +1,25 @@
 package elements;
 
 import elements.iterations.MessageCommunication;
+import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.jetbrains.annotations.NotNull;
+import typeinfo.GraphOpTypeInfoFactory;
 
+import javax.annotation.Nonnull;
 import java.util.Objects;
 
 /**
  * Main message object that gets passed around the system
  */
-public class GraphOp {
+@TypeInfo(GraphOpTypeInfoFactory.class)
+public final class GraphOp {
     /**
      * @see Op
      * Op represents the operation that is happening in the GraphElement
      */
-    public Op op;
+    public @Nonnull
+    Op op = Op.NONE;
     /**
      * The part number where this record should be sent to
      */
@@ -29,15 +35,16 @@ public class GraphOp {
     /**
      * Type of communication message Part-to-Part or Broadcast
      */
-    public MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
+    public @Nonnull
+    MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
      */
-    public Long ts = null;
+    public Long ts;
 
     public GraphOp() {
-        this.op = Op.COMMIT;
+
     }
 
     public GraphOp(Op op, GraphElement element) {
@@ -60,7 +67,7 @@ public class GraphOp {
         this(op, partId, element, null, communication, ts);
     }
 
-    public GraphOp(Op op, Short partId, GraphElement element, OperatorEvent operatorEvent, MessageCommunication messageCommunication, Long ts) {
+    public GraphOp(@NotNull Op op, Short partId, GraphElement element, OperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;
@@ -69,11 +76,11 @@ public class GraphOp {
         this.ts = ts;
     }
 
-    public Op getOp() {
+    public @NotNull Op getOp() {
         return op;
     }
 
-    public void setOp(Op op) {
+    public void setOp(@NotNull Op op) {
         this.op = op;
     }
 
@@ -101,11 +108,11 @@ public class GraphOp {
         this.ts = ts;
     }
 
-    public MessageCommunication getMessageCommunication() {
+    public @NotNull MessageCommunication getMessageCommunication() {
         return messageCommunication;
     }
 
-    public void setMessageCommunication(MessageCommunication messageCommunication) {
+    public void setMessageCommunication(@NotNull MessageCommunication messageCommunication) {
         this.messageCommunication = messageCommunication;
     }
 

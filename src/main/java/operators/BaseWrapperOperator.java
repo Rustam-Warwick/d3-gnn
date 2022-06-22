@@ -12,10 +12,6 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
-import org.apache.flink.iteration.broadcast.BroadcastOutput;
-import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
-import org.apache.flink.iteration.broadcast.OutputReflectionContext;
-import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
@@ -41,17 +37,16 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Operator that Wraps around another operator and implements some common logic
- * This common logic is Edge-to-Edge broadcast, triple-all-reduce Watermarking strategy
+ * This common logic is triple-all-reduce Watermarking strategy
  *
- * @implNote This operator is also acting as HeadOperator for the feedback streams
+ * @implNote Assumes that the input is GraphOp
+ * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
  * @see UdfWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
@@ -100,7 +95,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final IterationID iterationID; // Id for the Iteration
 
-    protected short ITERATION_COUNT; // How many times elements are expected to iterate in this stream
+    protected byte ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
@@ -109,11 +104,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
 
-    protected transient Output[] internalOutputs; // All of operator-to-operator outputs
-
-    protected transient BroadcastOutput[] internalBroadcastOutputs; // All of operator-to-operator broadcast outputs
-
-    protected transient OutputTag[] internalOutputTags; // All the existing output tags. In other words connected to this operator
+    protected transient OutputTag<?>[] internalOutputTags; // All the existing output tags. In other words connected to this operator
 
     protected transient int[] numOutChannels; // number of output channels per each operator
 
@@ -130,7 +121,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             IterationID iterationID,
             short position,
             short totalLayers,
-            short iterationCount) {
+            byte iterationCount) {
         this.position = position;
         this.iterationID = iterationID;
         this.totalLayers = totalLayers;
@@ -155,21 +146,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters
                 .getOperatorEventDispatcher()
-                .registerEventHandler(
-                        getOperatorID(), this);
-        try {
-            createIndividualOutputs(output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
-            calculateParts(); // Should be before the context is initialized
-            context = new Context();
-        } catch (Exception e) {
-            new RuntimeException("OutputTags cannot be properly set up").printStackTrace();
-            throw new RuntimeException();
-        }
+                .registerEventHandler(getOperatorID(), this);
+        createIndividualOutputs(output);
+        calculateParts(); // Should be before the context is initialized
+        context = new Context();
     }
 
 
     /**
-     * GENERAL WRAPPER FUNCTIONS
+     * GENERAL WRAPPER DELEGATION FUNCTIONS
      */
 
     /**
@@ -222,14 +207,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     public T getWrappedOperator() {
         return wrappedOperator;
-    }
-
-    /**
-     * Subclasses should implement the wrapper logic
-     */
-    @Override
-    public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
-        context.element = record;
     }
 
     @Override
@@ -314,9 +291,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public final void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
         WatermarkStatusEvent e = new WatermarkStatusEvent(watermarkStatus.status, ITERATION_COUNT);
         GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-        StreamRecord<GraphOp> tmp = new StreamRecord<>(op, context.element.getTimestamp());
+        context.element.replace(op);
         events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-        processElement(tmp);
+        setKeyContextElement(context.element);
+        processElement(context.element);
     }
 
     /**
@@ -326,9 +304,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public final void processWatermark(Watermark mark) throws Exception {
         WatermarkEvent e = new WatermarkEvent(mark.getTimestamp(), ITERATION_COUNT);
         GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-        StreamRecord<GraphOp> tmp = new StreamRecord<>(op, mark.getTimestamp());
+        context.element.replace(op, mark.getTimestamp());
         events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-        processElement(tmp);
+        setKeyContextElement(context.element);
+        processElement(context.element);
     }
 
     /**
@@ -342,8 +321,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if (evt instanceof IterableOperatorEvent)
                 ((IterableOperatorEvent) evt).setCurrentIteration(ITERATION_COUNT);
             GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, evt, MessageCommunication.BROADCAST, null);
-            StreamRecord<GraphOp> tmp = new StreamRecord<>(op, context.element.getTimestamp());
-            processElement(tmp);
+            context.element.replace(op);
+            setKeyContextElement(context.element);
+            processElement(context.element);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -354,17 +334,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
-        setKeyContextElement(element);
+        context.element = element;
         if (element.getValue().getOp() == Op.OPERATOR_EVENT && element.getValue().getOperatorEvent() instanceof IterableOperatorEvent) {
             IterableOperatorEvent ev = (IterableOperatorEvent) element.getValue().getOperatorEvent();
             if (Objects.isNull(ev.getCurrentIteration())) {
                 // This event is received from previous operator, not iteration messages nor generated using above functions
+                throw new IllegalStateException("Operator Event propagation not yet implemented");
             } else {
                 if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
                     // Process This Iteration
                     processActualElement(element);
                     events.remove(ev);
-                    if (ev.currentIteration == 0) {
+                    if (ev.getCurrentIteration() == 0) {
                         // pass, do not do anymore iterations
                         if (ev instanceof WatermarkEvent) {
                             Watermark mark = ((WatermarkEvent) ev).getWatermark();
@@ -420,8 +401,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         int maxParallelism = containingTask.getEnvironment().getTaskInfo().getMaxNumberOfParallelSubtasks();
         int parallelism = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
         boolean[] seen = new boolean[parallelism];
+        PartNumber reuse = PartNumber.of((short) 0);
         for (short i = 0; i < maxParallelism; i++) {
-            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(PartNumber.of(i), maxParallelism, parallelism);
+            reuse.setPartId(i);
+            int operatorIndex = KeyGroupRangeAssignment.assignKeyToParallelOperator(reuse, maxParallelism, parallelism);
             if (operatorIndex == index) {
                 thisParts.add(i);
             } else if (!seen[operatorIndex]) {
@@ -437,33 +420,28 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Finding and creating the individual outputs, broadcast outputs, parallelisms of our outputs
      */
     public void createIndividualOutputs(
-            Output<StreamRecord<GraphOp>> output, Counter numRecordsOut) throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
-        Method createInternalBroadcastOutput = BroadcastOutputFactory.class.getDeclaredMethod("createInternalBroadcastOutput", Output.class, OutputReflectionContext.class);
-        createInternalBroadcastOutput.setAccessible(true);
+            Output<StreamRecord<GraphOp>> output) {
         MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
-
+        Output<?>[] internalOutputs;
         if (myOutputReflectionContext.isBroadcastingOutput(output)) {
             internalOutputs =
                     myOutputReflectionContext.getBroadcastingInternalOutputs(output);
         } else {
             internalOutputs = new Output[]{output};
         }
-        internalBroadcastOutputs = new BroadcastOutput[internalOutputs.length];
         internalOutputTags = new OutputTag[internalOutputs.length];
         numOutChannels = new int[internalOutputs.length];
         for (int i = 0; i < internalOutputs.length; i++) {
             if (myOutputReflectionContext.isRecordWriterOutput(internalOutputs[i])) {
-                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
+                OutputTag<?> outputTag = myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
                 internalOutputTags[i] = outputTag;
                 numOutChannels[i] = myOutputReflectionContext.getNumChannels(internalOutputs[i]);
             } else {
-                OutputTag<GraphOp> outputTag = (OutputTag<GraphOp>) myOutputReflectionContext.getChainingOutputTag(internalOutputs[i]);
+                OutputTag<?> outputTag = myOutputReflectionContext.getChainingOutputTag(internalOutputs[i]);
                 numOutChannels[i] = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
                 internalOutputTags[i] = outputTag;
             }
-            internalBroadcastOutputs[i] = (BroadcastOutput<GraphOp>) createInternalBroadcastOutput.invoke(null, internalOutputs[i], myOutputReflectionContext);
         }
-        createInternalBroadcastOutput.setAccessible(false);
     }
 
     /**
@@ -536,10 +514,55 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         }
 
         /**
+         * Emits the record with custom timestamp to a different outputTag
+         */
+        public <E> void outputWithTimestamp(E value, @Nonnull OutputTag<E> tag, @Nullable Long timestamp) {
+            Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
+            GraphOp tmpVal = element.getValue();
+            StreamRecord<E> replaced;
+            if (timestamp == null) {
+                replaced = element.replace(value);
+                replaced.eraseTimestamp();
+            } else {
+                replaced = element.replace(value, timestamp);
+            }
+            output.collect(tag, replaced);
+            if (tmpTs != null) {
+                element.replace(tmpVal, tmpTs);
+            } else {
+                element.replace(tmpVal);
+                element.eraseTimestamp();
+            }
+        }
+
+        /**
+         * Emits the records with custom timestamp to the next operator
+         */
+        public void outputWithTimestamp(GraphOp value, @Nullable Long timestamp) {
+            Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
+            GraphOp tmpVal = element.getValue();
+            StreamRecord<GraphOp> replaced;
+            if (timestamp == null) {
+                replaced = element.replace(value);
+                replaced.eraseTimestamp();
+            } else {
+                replaced = element.replace(value, timestamp);
+            }
+            output.collect(replaced);
+            if (tmpTs != null) {
+                element.replace(tmpVal, tmpTs);
+            } else {
+                element.replace(tmpVal);
+                element.eraseTimestamp();
+            }
+        }
+
+        /**
          * Get the current part of this operator
          */
         public Short currentPart() {
             return element.getValue().getPartId();
+
         }
 
         /**
@@ -569,15 +592,17 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Master parts are defined as the first parts that are mapped to other operators
-         *
-         * @return
          */
         public List<Short> getOtherOperatorMasterParts() {
             return otherMasterParts;
         }
 
-
-        public void applyToAllKeys(Runnable o) throws Exception {
+        /**
+         * Run the Runnable on all parts that are hashed to this operator
+         *
+         * @param o Runnable Function
+         */
+        public void runForAllKeys(Runnable o) throws Exception {
             Short tmp = element.getValue().getPartId();
             for (Short thisPart : thisParts) {
                 element.getValue().setPartId(thisPart);
@@ -587,6 +612,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             element.getValue().setPartId(tmp);
             setKeyContextElement(element);
         }
+
     }
 
 }

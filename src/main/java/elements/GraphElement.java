@@ -138,7 +138,7 @@ public class GraphElement implements Serializable {
      */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
         assert storage != null;
-        GraphElement memento = this.copy(); // No features to storage
+        GraphElement memento = this.copy(); // No features no storage
         boolean is_updated = false;
         if (newElement.features != null) {
             for (Feature<?, ?> feature : newElement.features) {

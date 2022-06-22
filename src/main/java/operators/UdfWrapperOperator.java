@@ -13,7 +13,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNNLayerFunction> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     public UdfWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
-        super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 2);
+        super(parameters, operatorFactory, iterationID, position, totalLayers, (byte) 2);
         getWrappedOperator().getUserFunction().setWrapperContext(context);
     }
 
@@ -34,7 +34,13 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
         }
     }
 
-//    /**
+    @Override
+    public void finish() throws Exception {
+
+        super.finish();
+    }
+
+    //    /**
 //     * Watermark came with some iteration number
 //     *
 //     * @param mark Watermark
@@ -73,7 +79,6 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
-        super.setKeyContextElement(record);
         getWrappedOperator().setKeyContextElement(record);
     }
 

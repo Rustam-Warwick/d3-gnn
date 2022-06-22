@@ -15,6 +15,8 @@ import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.util.Collector;
 import plugins.ModelServer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
@@ -61,7 +63,6 @@ public class Main {
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setLatencyTrackingInterval(20000);
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
         // DataFlow
@@ -72,12 +73,21 @@ public class Main {
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
                 )
         );
+
+        embeddings[3].process(new ProcessFunction<GraphOp, Object>() {
+            @Override
+            public void processElement(GraphOp value, ProcessFunction<GraphOp, Object>.Context ctx, Collector<Object> out) throws Exception {
+                System.out.format("%s %s\n", value, ctx.timestamp());
+            }
+        });
         String jobName = String.format("%s W-10000", String.join(" ", args), env.getMaxParallelism());
 //        embeddings[embeddings.length - 1].process(new ProcessFunction<GraphOp, Object>() {
 //            @Override

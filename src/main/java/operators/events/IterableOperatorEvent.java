@@ -5,17 +5,21 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import java.util.Objects;
 
 public class IterableOperatorEvent implements OperatorEvent {
-    public Short currentIteration;
+    public Byte currentIteration = 0;
 
-    public IterableOperatorEvent(Short currentIteration) {
+    public IterableOperatorEvent(Byte currentIteration) {
         this.currentIteration = currentIteration;
     }
 
-    public Short getCurrentIteration() {
+    public IterableOperatorEvent() {
+
+    }
+
+    public Byte getCurrentIteration() {
         return currentIteration;
     }
 
-    public void setCurrentIteration(Short currentIteration) {
+    public void setCurrentIteration(Byte currentIteration) {
         this.currentIteration = currentIteration;
     }
 

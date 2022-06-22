@@ -160,7 +160,7 @@ public class GraphStream {
             if (commandLine.hasOption("f")) {
                 this.fineGrainedResourceManagementEnabled = !(env instanceof LocalStreamEnvironment);
             }
-            if(commandLine.hasOption("tc")){
+            if (commandLine.hasOption("tc")) {
                 env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
             }
         } catch (ParseException e) {
@@ -191,7 +191,7 @@ public class GraphStream {
      * @param processFunction ProcessFunction for this operator at this layer
      * @return output stream dependent on the plugin
      */
-    protected SingleOutputStreamOperator<GraphOp> streamingGNNLayer(DataStream<GraphOp> inputData, KeyedProcessFunction<String, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
+    protected SingleOutputStreamOperator<GraphOp> streamingGNNLayer(DataStream<GraphOp> inputData, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
         IterationID localIterationId = new IterationID();
         SingleOutputStreamOperator<GraphOp> forward;
@@ -259,7 +259,7 @@ public class GraphStream {
      * @return L+1 outputs corresponding to (Partitioned data, ... output of all the processFunctions)
      * @implNote First Process function will be replayable, and last one will be output with connection to first one(if FullLoopIteration is enabled)
      */
-    public DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<String, GraphOp, GraphOp>... processFunctions) {
+    public DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
         // 1. intilialize the variables
         assert layers == 0; // Untouched before
         assert position_index == 0; // Untouched before

@@ -11,6 +11,7 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
@@ -48,8 +49,8 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         batchifier = new StackBatchifier();
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
         try {
-            storage.layerFunction.getWrapperContext().applyToAllKeys(() -> {
-                Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(), true, storage.layerFunction.getCurrentPart());
+            storage.layerFunction.getWrapperContext().runForAllKeys(() -> {
+                Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(), true, storage.layerFunction.getCurrentPart());
                 elementUpdates.setStorage(storage);
                 elementUpdates.create();
             });
@@ -132,8 +133,8 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + windowInterval;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 1000.0) * 1000);
-        Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = (Feature<HashMap<String, Long>, HashMap<String, Long>>) storage.getFeature("elementUpdates");
-        elementUpdates.getValue().put(v.getId(), thisElementUpdateTime);
+        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
+        elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
         storage.updateElement(elementUpdates);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
     }
@@ -146,11 +147,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
     @Override
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
-        Feature<HashMap<String, Long>, HashMap<String, Long>> elementUpdates = (Feature<HashMap<String, Long>, HashMap<String, Long>>) storage.getFeature("elementUpdates");
+        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
         List<NDList> inputs = new ArrayList<>();
         List<Vertex> vertices = new ArrayList<>();
+        List<Long> timestamps = new ArrayList<>();
         elementUpdates.getValue().forEach((key, val) -> {
-            if (val <= timestamp) {
+            if (val.f0 <= timestamp) {
                 // Send it
                 Vertex v = storage.getVertex(key);
                 if (updateReady(v)) {
@@ -158,6 +160,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                     NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
                     inputs.add(new NDList(ft, agg));
                     vertices.add(v);
+                    timestamps.add(val.f1);
                 }
             }
         });
@@ -169,7 +172,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
             elementUpdates.getValue().remove(vertices.get(i).getId());
             Vertex messageVertex = vertices.get(i).copy();
             messageVertex.setFeature("feature", new Tensor(updates[i].get(0)));
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD, timestamps.get(i));
         }
         storage.updateFeature(elementUpdates);
     }

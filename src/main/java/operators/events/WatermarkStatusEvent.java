@@ -5,7 +5,7 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 public class WatermarkStatusEvent extends IterableOperatorEvent {
     public int status;
 
-    public WatermarkStatusEvent(int status, Short currentIteration) {
+    public WatermarkStatusEvent(int status, Byte currentIteration) {
         super(currentIteration);
         this.status = status;
     }

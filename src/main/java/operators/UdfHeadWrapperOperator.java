@@ -46,7 +46,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
 
     public UdfHeadWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
-        super(parameters, operatorFactory, iterationID, position, totalLayers, (short) 0);
+        super(parameters, operatorFactory, iterationID, position, totalLayers, (byte) 0);
         try {
             basePath =
                     OperatorUtils.getDataCachePath(
@@ -130,7 +130,6 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
-        super.setKeyContextElement(record);
         getWrappedOperator().setKeyContextElement(record);
     }
 

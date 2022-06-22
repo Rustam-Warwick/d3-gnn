@@ -1,10 +1,16 @@
 package org.apache.flink.runtime.state;
 
+import java.io.Serializable;
+
 /**
  * A class Representing PartNumber, wrapper used to distinguish keys requiring murmurHash from this one
  */
-public class PartNumber {
-    public short partId;
+public class PartNumber implements Serializable {
+    public Short partId;
+
+    public PartNumber() {
+
+    }
 
     public PartNumber(short partId) {
         this.partId = partId;
@@ -12,6 +18,14 @@ public class PartNumber {
 
     public static PartNumber of(short number) {
         return new PartNumber(number);
+    }
+
+    public short getPartId() {
+        return partId;
+    }
+
+    public void setPartId(short partId) {
+        this.partId = partId;
     }
 
     @Override
