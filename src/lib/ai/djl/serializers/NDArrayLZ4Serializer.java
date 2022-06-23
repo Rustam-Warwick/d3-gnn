@@ -46,7 +46,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         byte[] actualData = new byte[lens[0]];
         byte[] compressedData = input.readBytes(lens[1]);
         lz4DeCompressor.decompress(compressedData, actualData);
-        return NDHelper.threadNDManager.get().create(ByteBuffer.wrap(actualData), shape, dataType);
+        return NDHelper.globalNDManager.create(ByteBuffer.wrap(actualData), shape, dataType);
     }
 
     @Override

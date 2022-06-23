@@ -18,7 +18,6 @@ import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
-import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.ParameterList;
@@ -28,9 +27,6 @@ import ai.djl.training.TrainingConfig;
 import ai.djl.training.initializer.Initializer;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
-import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Input;
-import com.esotericsoftware.kryo.io.Output;
 
 import java.io.*;
 import java.lang.reflect.Field;
@@ -42,7 +38,8 @@ import java.util.stream.Collectors;
 
 /**
  * {@code PtModel} is the PyTorch implementation of {@link Model}.
- *
+ * @implNote Changes are added loadModel method with numpy parameters
+ * Read and Write External which falls back to kryo
  * <p>PtModel contains all the methods in Model to load and process a model. In addition, it
  * provides PyTorch Specific functionality
  */
@@ -59,7 +56,7 @@ public class PtModel extends BaseModel {
      */
     PtModel(String name, Device device) {
         super(name);
-        manager = PtNDManager.getSystemManager().newSubManager(device);
+        manager = NDHelper.globalNDManager;
         manager.setName("ptModel");
         dataType = DataType.FLOAT32;
     }
@@ -259,40 +256,40 @@ public class PtModel extends BaseModel {
         });
     }
 
-    @Override
-    public void writeExternal(ObjectOutput out) {
-        Kryo a = new Kryo();
-        SerializableLoss.configureSerializers(a);
-        OutputStream tmp = new OutputStream() {
-            @Override
-            public void write(int b) throws IOException {
-                out.write(b);
-            }
-        };
-        Output output = new Output(tmp);
-        a.writeObject(output, this);
-        output.flush();
-    }
+//    @Override
+//    public void writeExternal(ObjectOutput out) {
+//        Kryo a = new Kryo();
+//        SerializableLoss.configureSerializers(a);
+//        OutputStream tmp = new OutputStream() {
+//            @Override
+//            public void write(int b) throws IOException {
+//                out.write(b);
+//            }
+//        };
+//        Output output = new Output(tmp);
+//        a.writeObject(output, this);
+//        output.flush();
+//    }
 
-    @Override
-    public void readExternal(ObjectInput in) {
-        Kryo a = new Kryo();
-        SerializableLoss.configureSerializers(a);
-        InputStream tmp = new InputStream() {
-            @Override
-            public int read() throws IOException {
-                return in.read();
-            }
-        };
-        Input input = new Input(tmp);
-        PtModel res = a.readObject(input, PtModel.class);
-        this.artifacts = res.artifacts;
-        this.dataType = res.dataType;
-        this.inputData = res.inputData;
-        this.modelDir = res.modelDir;
-        this.modelName = res.modelName;
-        this.properties = res.properties;
-        this.manager = res.manager;
-        this.block = res.block;
-    }
+//    @Override
+//    public void readExternal(ObjectInput in) {
+//        Kryo a = new Kryo();
+//        SerializableLoss.configureSerializers(a);
+//        InputStream tmp = new InputStream() {
+//            @Override
+//            public int read() throws IOException {
+//                return in.read();
+//            }
+//        };
+//        Input input = new Input(tmp);
+//        PtModel res = a.readObject(input, PtModel.class);
+//        this.artifacts = res.artifacts;
+//        this.dataType = res.dataType;
+//        this.inputData = res.inputData;
+//        this.modelDir = res.modelDir;
+//        this.modelName = res.modelName;
+//        this.properties = res.properties;
+//        this.manager = res.manager;
+//        this.block = res.block;
+//    }
 }

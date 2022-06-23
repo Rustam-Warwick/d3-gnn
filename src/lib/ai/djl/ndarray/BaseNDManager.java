@@ -16,20 +16,24 @@ import ai.djl.Device;
 import ai.djl.engine.Engine;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
+import ai.djl.util.PtNDArrayFinalizeTask;
 import ai.djl.util.RandomUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.Cleaner;
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** {@code BaseNDManager} is the default implementation of {@link NDManager}. */
+/** {@code BaseNDManager} is the default implementation of {@link NDManager}.
+ * It is not managing any closing logic, instead registes all NDArrays with a Cleaner
+ * */
 public abstract class BaseNDManager implements NDManager {
 
     private static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
@@ -39,15 +43,12 @@ public abstract class BaseNDManager implements NDManager {
     protected String uid;
     protected String name;
     protected Device device;
-    protected ConcurrentHashMap<String, AutoCloseable> resources;
-    protected ConcurrentHashMap<String, TempResource> tempResources;
     protected AtomicBoolean closed = new AtomicBoolean(false);
+    protected final transient static Cleaner cleaner = Cleaner.create();
 
     protected BaseNDManager(NDManager parent, Device device) {
         this.parent = parent;
         this.device = device == null ? defaultDevice() : device;
-        resources = new ConcurrentHashMap<>();
-        tempResources = new ConcurrentHashMap<>();
         uid = UUID.randomUUID().toString();
         Engine engine = getEngine().getAlternativeEngine();
         if (engine != null) {
@@ -257,60 +258,34 @@ public abstract class BaseNDManager implements NDManager {
                 + " Parent Name: "
                 + parentName
                 + " isOpen: "
-                + isOpen()
-                + " Resource size: "
-                + resources.size();
+                + isOpen();
     }
+
+
+    /**
+     * Main NDArray Logic Implemented here
+     */
+
 
     /** {@inheritDoc} */
     @Override
     public synchronized void attachInternal(String resourceId, AutoCloseable resource) {
-        if (closed.get()) {
-            throw new IllegalStateException("NDManager has been closed already.");
+        if(resource instanceof PtNDArray){
+            cleaner.register(resource, new PtNDArrayFinalizeTask((PtNDArray) resource));
         }
-        tempResources.compute(
-                resourceId,
-                (key, tempResource) -> {
-                    if (tempResource != null) {
-                        // This state occurs when this manager (manA) tempAttaches a resource that
-                        // is later
-                        // tempAttached to another manager (manB)
-                        // When manB is closed, it will use attach to return the resource to this
-                        // (manA)
-                        // In that case, it should stay as a tempResource in this (manA)
-                        tempResource.detached = false;
-                    } else {
-                        resources.put(resourceId, resource);
-                    }
-                    return tempResource;
-                });
     }
+
 
     /** {@inheritDoc} */
     @Override
     public void tempAttachInternal(
             NDManager originalManager, String resourceId, NDResource resource) {
-        if (closed.get()) {
-            throw new IllegalStateException("NDManager has been closed already.");
-        }
-        tempResources.put(resourceId, new TempResource(resource, originalManager));
+        // Since it is just transfering from one NDArray to next one, use this instead
     }
 
     /** {@inheritDoc} */
     @Override
-    public synchronized void detachInternal(String resourceId) {
-        if (closed.get()) {
-            // This may happen in the middle of BaseNDManager.close()
-            return;
-        }
-        tempResources.computeIfPresent(
-                resourceId,
-                (key, tempResource) -> {
-                    tempResource.detached = true;
-                    return tempResource;
-                });
-        resources.remove(resourceId);
-    }
+    public synchronized void detachInternal(String resourceId) {}
 
     /** {@inheritDoc} */
     @Override
@@ -328,28 +303,8 @@ public abstract class BaseNDManager implements NDManager {
     /** {@inheritDoc} */
     @Override
     public void close() {
-        if (!closed.getAndSet(true)) {
-            for (AutoCloseable closeable : resources.values()) {
-                try {
-                    closeable.close();
-                } catch (Exception e) {
-                    logger.error("Resource close failed.", e);
-                }
-            }
-            for (TempResource resource : tempResources.values()) {
-                resource.returnResource();
-            }
-            parent.detachInternal(uid);
-            resources.clear();
-            tempResources.clear();
-        }
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-        System.out.println("NDMANAGER CLOSE");
-        close();
-        super.finalize();
+        this.closed.set(true);
+        System.gc();
     }
 
     /**
@@ -358,21 +313,7 @@ public abstract class BaseNDManager implements NDManager {
      * @param level the level of this {@link NDManager} in the hierarchy
      */
     public void debugDump(int level) {
-        StringBuilder sb = new StringBuilder(100);
-        for (int i = 0; i < level; ++i) {
-            sb.append("    ");
-        }
-        sb.append("\\--- NDManager(")
-                .append(uid.substring(24))
-                .append(") resource count: ")
-                .append(resources.size());
 
-        System.out.println(sb); // NOPMD
-        for (AutoCloseable c : resources.values()) {
-            if (c instanceof BaseNDManager) {
-                ((BaseNDManager) c).debugDump(level + 1);
-            }
-        }
     }
 
     NDManager getAlternativeManager() {

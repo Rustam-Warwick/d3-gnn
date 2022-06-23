@@ -33,9 +33,9 @@ public class NDArrayRawSerializer extends Serializer<NDArray> {
         long[] shapes = input.readLongs(input.readByte(), true);
         Shape shape = new Shape(shapes); // Shape
         int bufferSize = input.readInt();
-        ByteBuffer data = NDHelper.threadNDManager.get().allocateDirect(bufferSize);
+        ByteBuffer data = NDHelper.globalNDManager.allocateDirect(bufferSize);
         data.put(input.readBytes(data.capacity()));
-        return NDHelper.threadNDManager.get().create(data.rewind(), shape, dataType);
+        return NDHelper.globalNDManager.create(data.rewind(), shape, dataType);
     }
 
     @Override

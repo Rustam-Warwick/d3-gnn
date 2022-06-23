@@ -127,11 +127,11 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = NDHelper.threadNDManager.get().zeros(modelServer.getInputShape().get(0).getValue());
+            NDArray aggStart = NDHelper.globalNDManager.zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true));
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = NDHelper.threadNDManager.get().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                NDArray embeddingRandom = NDHelper.globalNDManager.randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom));
             }

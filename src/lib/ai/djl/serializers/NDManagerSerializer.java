@@ -19,6 +19,6 @@ public class NDManagerSerializer extends Serializer<NDManager> {
 
     @Override
     public NDManager read(Kryo kryo, Input input, Class<NDManager> type) {
-        return NDHelper.threadNDManager.get();
+        return NDHelper.globalNDManager;
     }
 }

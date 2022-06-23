@@ -149,8 +149,8 @@ public class CoraFull implements Dataset {
             super.open(parameters);
             FileInputStream vertexFeaturesIn = new FileInputStream(vertexFeaturesFile);
             FileInputStream vertexLabelsIn = new FileInputStream(vertexLabelsFile);
-            this.vertexFeatures = NDHelper.decodeNumpy(NDHelper.threadNDManager.get(), vertexFeaturesIn);
-            this.vertexLabels = NDHelper.decodeNumpy(NDHelper.threadNDManager.get(), vertexLabelsIn);
+            this.vertexFeatures = NDHelper.decodeNumpy(NDHelper.globalNDManager, vertexFeaturesIn);
+            this.vertexLabels = NDHelper.decodeNumpy(NDHelper.globalNDManager, vertexLabelsIn);
             this.seenVertices = new ArrayList<>();
             this.timestamp = 0;
 

@@ -12,7 +12,7 @@ public abstract class ParameterStore {
     abstract public NDArray getValue(Parameter parameter, Device device, boolean training);
 
     public NDManager getManager() {
-        return NDHelper.threadNDManager.get();
+        return NDHelper.globalNDManager;
     }
 
     abstract public void sync();
