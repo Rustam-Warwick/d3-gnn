@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-@TypeInfo(GraphElementTypeInfoFactory.class)
 public class GraphElement implements Serializable {
     @Nullable
     public String id;

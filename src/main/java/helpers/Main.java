@@ -11,6 +11,7 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
+import elements.Feature;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -61,7 +62,6 @@ public class Main {
 
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
-        TypeInformation.of(GraphOp.class);
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);

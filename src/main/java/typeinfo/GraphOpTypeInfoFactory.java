@@ -14,14 +14,13 @@ import java.util.Map;
 
 public class GraphOpTypeInfoFactory extends TypeInfoFactory<GraphOp> {
 
-
     @Override
     public TypeInformation<GraphOp> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
         List<Field> fields = TypeExtractor.getAllDeclaredFields(TypeExtractionUtils.typeToClass(t), false);
-        TypeExtractor.createTypeInfo(t);
         PojoField[] pojoFields = new PojoField[fields.size()];
         for (int i = 0; i < fields.size(); i++) {
-            pojoFields[i] = new PojoField(fields.get(i), TypeInformation.of(fields.get(i).getType()));
+            Type fieldType = fields.get(i).getGenericType();
+            pojoFields[i] = new PojoField(fields.get(i), TypeExtractor.createTypeInfo(fieldType));
         }
         return new GraphOpTypeInfo(GraphOp.class, List.of(pojoFields));
     }
