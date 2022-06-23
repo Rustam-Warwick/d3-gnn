@@ -107,8 +107,8 @@ sourceSets {
     main.compileClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar  + main.compileClasspath
     main.runtimeClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar + main.runtimeClasspath
 
-    test.compileClasspath += (lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar)
-    test.runtimeClasspath += (lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar)
+//    test.compileClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar  + test.compileClasspath
+//    test.runtimeClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar + test.runtimeClasspath
 
     javadoc.classpath += (lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar )
 

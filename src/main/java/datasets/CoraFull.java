@@ -1,8 +1,7 @@
 package datasets;
 
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDSerializer;
+import ai.djl.ndarray.NDHelper;
 import elements.*;
 import features.Tensor;
 import org.apache.flink.api.common.eventtime.WatermarkGenerator;
@@ -150,8 +149,8 @@ public class CoraFull implements Dataset {
             super.open(parameters);
             FileInputStream vertexFeaturesIn = new FileInputStream(vertexFeaturesFile);
             FileInputStream vertexLabelsIn = new FileInputStream(vertexLabelsFile);
-            this.vertexFeatures = NDSerializer.decodeNumpy(BaseNDManager.threadNDManager.get(), vertexFeaturesIn);
-            this.vertexLabels = NDSerializer.decodeNumpy(BaseNDManager.threadNDManager.get(), vertexLabelsIn);
+            this.vertexFeatures = NDHelper.decodeNumpy(NDHelper.threadNDManager.get(), vertexFeaturesIn);
+            this.vertexLabels = NDHelper.decodeNumpy(NDHelper.threadNDManager.get(), vertexLabelsIn);
             this.seenVertices = new ArrayList<>();
             this.timestamp = 0;
 

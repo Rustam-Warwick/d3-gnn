@@ -130,6 +130,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
+        super.setKeyContextElement(record);
         getWrappedOperator().setKeyContextElement(record);
     }
 

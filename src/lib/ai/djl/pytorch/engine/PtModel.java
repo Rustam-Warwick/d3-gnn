@@ -17,7 +17,7 @@ import ai.djl.Device;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDSerializer;
+import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.nn.Parameter;
@@ -249,7 +249,7 @@ public class PtModel extends BaseModel {
             try {
                 System.out.println(numpyParameterFiles.get(0));
                 InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
-                NDArray tmp = NDSerializer.decodeNumpy(getNDManager(), in);
+                NDArray tmp = NDHelper.decodeNumpy(getNDManager(), in);
                 param.getValue().setArray(tmp);
             } catch (FileNotFoundException e) {
                 e.printStackTrace();

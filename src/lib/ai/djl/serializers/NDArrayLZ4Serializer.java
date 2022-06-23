@@ -1,7 +1,7 @@
 package ai.djl.serializers;
 
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import com.esotericsoftware.kryo.Kryo;
@@ -46,7 +46,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         byte[] actualData = new byte[lens[0]];
         byte[] compressedData = input.readBytes(lens[1]);
         lz4DeCompressor.decompress(compressedData, actualData);
-        return BaseNDManager.threadNDManager.get().create(ByteBuffer.wrap(actualData), shape, dataType);
+        return NDHelper.threadNDManager.get().create(ByteBuffer.wrap(actualData), shape, dataType);
     }
 
     @Override

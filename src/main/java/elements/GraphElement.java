@@ -4,7 +4,6 @@ import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 import typeinfo.GraphElementTypeInfoFactory;
-import typeinfo.ListTypeInformationFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -13,6 +12,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+@TypeInfo(GraphElementTypeInfoFactory.class)
 public class GraphElement implements Serializable {
     @Nullable
     public String id;
@@ -27,7 +27,6 @@ public class GraphElement implements Serializable {
     public transient BaseStorage storage;
 
     @Nullable
-    @TypeInfo(ListTypeInformationFactory.class)
     public List<Feature<?, ?>> features;
 
     public GraphElement() {

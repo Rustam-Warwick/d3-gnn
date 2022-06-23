@@ -43,10 +43,15 @@ public class GraphStream {
     public boolean fineGrainedResourceManagementEnabled = false; // Add custom slotSharingGroupsForOperators
 
     public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
+
     public String partitionerName = "random";
+
     public String dataset = "cora";
+
     private short layers;// Number of GNN Layers in the pipeline
+
     private short position_index; // Counter of the Current GNN layer being generated
+
     private IterationID lastIterationID; // Previous Layer Iteration Id used for backward message sending
 
     private IterationID fullLoopIterationId; // Iteration Id of 0 layer

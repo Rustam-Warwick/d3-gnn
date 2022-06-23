@@ -1,7 +1,7 @@
 package ai.djl.serializers;
 
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import com.esotericsoftware.kryo.Kryo;
@@ -33,9 +33,9 @@ public class NDArrayRawSerializer extends Serializer<NDArray> {
         long[] shapes = input.readLongs(input.readByte(), true);
         Shape shape = new Shape(shapes); // Shape
         int bufferSize = input.readInt();
-        ByteBuffer data = BaseNDManager.threadNDManager.get().allocateDirect(bufferSize);
+        ByteBuffer data = NDHelper.threadNDManager.get().allocateDirect(bufferSize);
         data.put(input.readBytes(data.capacity()));
-        return BaseNDManager.threadNDManager.get().create(data.rewind(), shape, dataType);
+        return NDHelper.threadNDManager.get().create(data.rewind(), shape, dataType);
     }
 
     @Override

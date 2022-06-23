@@ -1,6 +1,6 @@
 package ai.djl.serializers;
 
-import ai.djl.ndarray.BaseNDManager;
+import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.NDManager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
@@ -19,6 +19,6 @@ public class NDManagerSerializer extends Serializer<NDManager> {
 
     @Override
     public NDManager read(Kryo kryo, Input input, Class<NDManager> type) {
-        return BaseNDManager.threadNDManager.get();
+        return NDHelper.threadNDManager.get();
     }
 }

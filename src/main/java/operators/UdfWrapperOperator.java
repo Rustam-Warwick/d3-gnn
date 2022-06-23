@@ -34,12 +34,6 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
         }
     }
 
-    @Override
-    public void finish() throws Exception {
-
-        super.finish();
-    }
-
     //    /**
 //     * Watermark came with some iteration number
 //     *
@@ -79,6 +73,7 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
+        super.setKeyContextElement(record);
         getWrappedOperator().setKeyContextElement(record);
     }
 

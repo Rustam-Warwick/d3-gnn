@@ -186,6 +186,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     @Override
+    public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
+        if (record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+            if (record.getValue().getPartId() == null || !thisParts.contains(record.getValue().getPartId())) {
+                record.getValue().setPartId(thisParts.get(0));
+            }
+        }
+    }
+
+    @Override
     public OperatorMetricGroup getMetricGroup() {
         return wrappedOperator.getMetricGroup();
     }
@@ -213,7 +222,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public final void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
         wrappedOperator.processLatencyMarker(latencyMarker);
     }
-
 
     /**
      * SNAPSHOTTING AND CHECKPOINTING

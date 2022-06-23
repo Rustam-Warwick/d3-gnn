@@ -10,33 +10,38 @@ import org.apache.flink.api.java.typeutils.TypeExtractor;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.isClassType;
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClass;
 
+/**
+ * Special Factory that ignore the recursive Features field
+ */
 public class GraphElementTypeInfoFactory extends TypeInfoFactory<GraphElement> {
     @Override
     public TypeInformation<GraphElement> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
-        try{
-        Class clazz = TypeExtractionUtils.typeToClass(t);
-        List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
-        PojoField[] pojoFields = new PojoField[fields.size()];
-        for (int i = 0; i < fields.size(); i++) {
-            if(fields.get(i).getName().equals("features"))continue;
-            Type fieldType = fields.get(i).getGenericType();
-            try{
-                pojoFields[i] = new PojoField(fields.get(i),TypeExtractor.createTypeInfo(fieldType));
-            }catch (Exception e){
-                Class<?> genericClass = Object.class;
-                if (isClassType(fieldType)) {
-                    genericClass = typeToClass(fieldType);
+        try {
+            Class clazz = TypeExtractionUtils.typeToClass(t);
+            List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
+            List<PojoField> pojoFields = new ArrayList<>();
+
+            for (int i = 0; i < fields.size(); i++) {
+                if (fields.get(i).getName().equals("features")) continue; // Ignore the recursive field
+                Type fieldType = fields.get(i).getGenericType();
+                try {
+                    pojoFields.add(new PojoField(fields.get(i), TypeExtractor.createTypeInfo(fieldType)));
+                } catch (Exception e) {
+                    Class<?> genericClass = Object.class;
+                    if (isClassType(fieldType)) {
+                        genericClass = typeToClass(fieldType);
+                    }
+                    pojoFields.add(new PojoField(fields.get(i), new GenericTypeInfo<>(genericClass)));
                 }
-                pojoFields[i] = new PojoField(fields.get(i), new GenericTypeInfo<>(genericClass));
             }
-        }
-            return new GraphElementTypeInfo<>(clazz, List.of(pojoFields));
+            return new GraphElementTypeInfo<>(clazz, pojoFields);
         } catch (Exception e) {
             e.printStackTrace();
             return null;

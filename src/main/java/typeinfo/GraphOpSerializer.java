@@ -37,7 +37,7 @@ import java.util.Arrays;
  * Efficient Serialization of GraphOp taking into account the max enum sizes
  *
  * @implNote Ops Enum size should be <= 8
- * Assuming that the GraphOp class is not evolving
+ * Assuming that the GraphOp class is not evolving a.k.a final
  */
 public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
     private static final Op[] OPS = Op.values();

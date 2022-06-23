@@ -11,10 +11,8 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
-import elements.Feature;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -59,10 +57,10 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.getConfig().setLatencyTrackingInterval(30000);
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
         // DataFlow
@@ -96,6 +94,7 @@ public class Main {
 //                .process(new LatencyOutput(jobName, 10000)).setParallelism(embeddings[embeddings.length - 1].getParallelism());
 
         env.execute(jobName);
+        System.gc();
 
 //        Thread.sleep(20000);
 //        System.out.println("Triggered savepoint");
