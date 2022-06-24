@@ -13,6 +13,8 @@ import ai.djl.pytorch.engine.PtModel;
 import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.helpers.AddTimestamp;
+import functions.helpers.LatencyOutput;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -42,8 +44,6 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-//        model.load(Path.of("/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/jupyter/models/GraphSageBias-2022-05-15"));
-//        model.load(Path.of("/dcs/pg21/u2154598/GraphSageBias-2022-05-15"));
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -74,22 +74,15 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 40000))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
 //                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
                 )
         );
         String jobName = String.format("%s W-10000", String.join(" ", args), env.getMaxParallelism());
-//        embeddings[embeddings.length - 1].process(new ProcessFunction<GraphOp, Object>() {
-//            @Override
-//            public void processElement(GraphOp value, ProcessFunction<GraphOp, Object>.Context ctx, Collector<Object> out) throws Exception {
-//                System.out.println(ctx.timestamp());
-//            }
-//        });
-        // Latency Calculations
-//        embeddings[0]
-//                .process(new AddTimestamp()).setParallelism(2).name("Inputs").keyBy(GraphOp::getTimestamp)
-//                .connect(embeddings[embeddings.length - 1].process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism() - 1).name("Embeddings").keyBy(GraphOp::getTimestamp))
-//                .process(new LatencyOutput(jobName, 10000)).setParallelism(embeddings[embeddings.length - 1].getParallelism());
+        embeddings[0]
+                .process(new AddTimestamp()).setParallelism(1).name("Inputs").keyBy(GraphOp::getTimestamp)
+                .connect(embeddings[embeddings.length - 1].process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings").keyBy(GraphOp::getTimestamp))
+                .process(new LatencyOutput(jobName, 10000)).setParallelism(embeddings[embeddings.length - 1].getParallelism());
 
         env.execute(jobName);
 
