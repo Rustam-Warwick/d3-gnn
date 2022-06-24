@@ -69,12 +69,12 @@ public class Main {
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 20000))
 //                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 40000))
 //                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
                 )
         );
