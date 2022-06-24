@@ -16,11 +16,8 @@ import ai.djl.BaseModel;
 import ai.djl.Device;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.nn.Parameter;
-import ai.djl.nn.ParameterList;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
@@ -28,24 +25,26 @@ import ai.djl.training.initializer.Initializer;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
 
-import java.io.*;
-import java.lang.reflect.Field;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
  * {@code PtModel} is the PyTorch implementation of {@link Model}.
- * @implNote Changes are added loadModel method with numpy parameters
- * Read and Write External which falls back to kryo
+ *
  * <p>PtModel contains all the methods in Model to load and process a model. In addition, it
  * provides PyTorch Specific functionality
  */
 public class PtModel extends BaseModel {
     public PtModel() {
-        super("");
+        this(null, null);
     }
 
     /**
@@ -56,7 +55,7 @@ public class PtModel extends BaseModel {
      */
     PtModel(String name, Device device) {
         super(name);
-        manager = NDHelper.globalNDManager;
+        manager = PtNDManager.getSystemManager().newSubManager(device);
         manager.setName("ptModel");
         dataType = DataType.FLOAT32;
     }
@@ -207,89 +206,4 @@ public class PtModel extends BaseModel {
             throw new AssertionError("Failed list files", e);
         }
     }
-
-    /**
-     * Remove the randoom ids from the parameters of this block
-     *
-     * @implNote Do this before sending the model to the operator
-     */
-    public PtModel canonizeModel() {
-        String modelName = getName();
-        ParameterList params = getBlock().getParameters();
-        try {
-            Field idField = Parameter.class.getDeclaredField("id");
-            idField.setAccessible(true);
-            int i = 0;
-            for (Pair<String, Parameter> param : params) {
-                idField.set(param.getValue(), String.format("{%s}%s:%s", ++i, modelName, param.getKey()));
-            }
-            idField.setAccessible(false);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            e.printStackTrace();
-        }
-        return this;
-    }
-
-    /**
-     * Load the model parameter from ndArray
-     *
-     * @param modelPath the directory or file path of the model location
-     */
-    @Override
-    public void load(Path modelPath) {
-        File folder = new File(String.valueOf(modelPath));
-        FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
-        List<File> numpyParameterFiles = new ArrayList<>();
-        Collections.addAll(numpyParameterFiles, folder.listFiles(onlyNumpy));
-        numpyParameterFiles.sort(Comparator.comparing(File::toString));
-        getBlock().getParameters().forEach(param -> {
-            try {
-                System.out.println(numpyParameterFiles.get(0));
-                InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
-                NDArray tmp = NDHelper.decodeNumpy(getNDManager(), in);
-                param.getValue().setArray(tmp);
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
-    }
-
-//    @Override
-//    public void writeExternal(ObjectOutput out) {
-//        Kryo a = new Kryo();
-//        SerializableLoss.configureSerializers(a);
-//        OutputStream tmp = new OutputStream() {
-//            @Override
-//            public void write(int b) throws IOException {
-//                out.write(b);
-//            }
-//        };
-//        Output output = new Output(tmp);
-//        a.writeObject(output, this);
-//        output.flush();
-//    }
-
-//    @Override
-//    public void readExternal(ObjectInput in) {
-//        Kryo a = new Kryo();
-//        SerializableLoss.configureSerializers(a);
-//        InputStream tmp = new InputStream() {
-//            @Override
-//            public int read() throws IOException {
-//                return in.read();
-//            }
-//        };
-//        Input input = new Input(tmp);
-//        PtModel res = a.readObject(input, PtModel.class);
-//        this.artifacts = res.artifacts;
-//        this.dataType = res.dataType;
-//        this.inputData = res.inputData;
-//        this.modelDir = res.modelDir;
-//        this.modelName = res.modelName;
-//        this.properties = res.properties;
-//        this.manager = res.manager;
-//        this.block = res.block;
-//    }
 }

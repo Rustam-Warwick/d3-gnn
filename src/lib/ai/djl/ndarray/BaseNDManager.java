@@ -21,6 +21,7 @@ import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
 import ai.djl.util.PtNDArrayFinalizeTask;
 import ai.djl.util.RandomUtils;
+import org.apache.flink.shaded.guava30.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,20 +32,19 @@ import java.nio.file.Path;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** {@code BaseNDManager} is the default implementation of {@link NDManager}.
+/**
+ * {@code BaseNDManager} is the default implementation of {@link NDManager}.
  * It is not managing any closing logic, instead registes all NDArrays with a Cleaner
- * */
+ */
 public abstract class BaseNDManager implements NDManager {
-
+    protected final transient static Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder().setDaemon(true).setThreadFactory(Thread::new).setNameFormat("%s").setUncaughtExceptionHandler(Thread::).setPriority(1).build());
     private static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
-
     protected NDManager parent;
     protected NDManager alternativeManager;
     protected String uid;
     protected String name;
     protected Device device;
     protected AtomicBoolean closed = new AtomicBoolean(false);
-    protected final transient static Cleaner cleaner = Cleaner.create();
 
     protected BaseNDManager(NDManager parent, Device device) {
         this.parent = parent;
@@ -56,61 +56,140 @@ public abstract class BaseNDManager implements NDManager {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * Checks if the input buffer size is match expected data type.
+     *
+     * @param buffer   the input buffer
+     * @param dataType the desired {@code DataType}
+     * @param expected the expected size
+     * @throws IllegalArgumentException if buffer size is invalid
+     */
+    public static void validateBufferSize(Buffer buffer, DataType dataType, int expected) {
+        int remaining = buffer.remaining();
+        int expectedSize =
+                buffer instanceof ByteBuffer ? dataType.getNumOfBytes() * expected : expected;
+        if (remaining < expectedSize) {
+            throw new IllegalArgumentException(
+                    "The NDArray size is: " + expected + ", but buffer size is: " + remaining);
+        }
+        if (remaining > expectedSize) {
+            logger.warn(
+                    "Input buffer size is greater than the NDArray size, please set limit explicitly.");
+            buffer.limit(expectedSize);
+        }
+    }
+
+    /**
+     * Copies data from the source {@code Buffer} to the target {@code ByteBuffer}.
+     *
+     * @param src    the source {@code Buffer}
+     * @param target the target {@code ByteBuffer}
+     */
+    public static void copyBuffer(Buffer src, ByteBuffer target) {
+        target.rewind();
+        DataType inputType = DataType.fromBuffer(src);
+        switch (inputType) {
+            case FLOAT16:
+                target.asShortBuffer().put((ShortBuffer) src);
+                break;
+            case FLOAT32:
+                target.asFloatBuffer().put((FloatBuffer) src);
+                break;
+            case FLOAT64:
+                target.asDoubleBuffer().put((DoubleBuffer) src);
+                break;
+            case UINT8:
+            case INT8:
+            case BOOLEAN:
+                target.put((ByteBuffer) src);
+                break;
+            case INT32:
+                target.asIntBuffer().put((IntBuffer) src);
+                break;
+            case INT64:
+                target.asLongBuffer().put((LongBuffer) src);
+                break;
+            default:
+                throw new AssertionError("Unsupported datatype: " + inputType);
+        }
+        target.rewind();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public final Device defaultDevice() {
         return getEngine().defaultDevice();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray create(String[] data, Charset charset, Shape shape) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray create(Shape shape, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray createCSR(Buffer data, long[] indptr, long[] indices, Shape shape) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray createRowSparse(Buffer data, Shape dataShape, long[] indices, Shape shape) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray createCoo(Buffer data, long[][] indices, Shape shape) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDList load(Path path) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
-    @Override
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getName() {
         return this.name == null ? uid : this.name;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray zeros(Shape shape, DataType dataType) {
         int size = (int) shape.size();
@@ -118,7 +197,9 @@ public abstract class BaseNDManager implements NDManager {
         return create(bb, shape, dataType);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray ones(Shape shape, DataType dataType) {
         int size = (int) shape.size();
@@ -153,49 +234,65 @@ public abstract class BaseNDManager implements NDManager {
         return create(bb, shape, dataType);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray full(Shape shape, float value, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray arange(float start, float stop, float step, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray eye(int rows, int cols, int k, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray linspace(float start, float stop, int num, boolean endpoint) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray randomInteger(long low, long high, Shape shape, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray randomUniform(float low, float high, Shape shape, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray randomNormal(float loc, float scale, Shape shape, DataType dataType) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray truncatedNormal(float loc, float scale, Shape shape, DataType dataType) {
         int sampleSize = (int) shape.size();
@@ -213,43 +310,62 @@ public abstract class BaseNDManager implements NDManager {
         return create(dist).muli(scale).addi(loc).reshape(shape).toType(dataType, false);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray randomMultinomial(int n, NDArray pValues) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray randomMultinomial(int n, NDArray pValues, Shape shape) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isOpen() {
         return !closed.get();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDManager getParentManager() {
         return parent;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDManager newSubManager() {
         return newSubManager(device);
     }
 
-    /** {@inheritDoc} */
+
+    /**
+     * Main NDArray Logic Implemented here
+     */
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Device getDevice() {
         return device;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         String parentName = parent == null ? "No Parent" : parent.getName();
@@ -261,50 +377,55 @@ public abstract class BaseNDManager implements NDManager {
                 + isOpen();
     }
 
-
     /**
-     * Main NDArray Logic Implemented here
+     * {@inheritDoc}
      */
-
-
-    /** {@inheritDoc} */
     @Override
     public synchronized void attachInternal(String resourceId, AutoCloseable resource) {
-        if(resource instanceof PtNDArray){
+        if (resource instanceof PtNDArray) {
             cleaner.register(resource, new PtNDArrayFinalizeTask((PtNDArray) resource));
         }
     }
 
-
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void tempAttachInternal(
             NDManager originalManager, String resourceId, NDResource resource) {
         // Since it is just transfering from one NDArray to next one, use this instead
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public synchronized void detachInternal(String resourceId) {}
+    public synchronized void detachInternal(String resourceId) {
+    }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void invoke(
             String operation, NDArray[] src, NDArray[] dest, PairList<String, ?> params) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDList invoke(String operation, NDList src, PairList<String, ?> params) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void close() {
         this.closed.set(true);
-        System.gc();
     }
 
     /**
@@ -320,70 +441,11 @@ public abstract class BaseNDManager implements NDManager {
         return alternativeManager;
     }
 
-    /**
-     * Checks if the input buffer size is match expected data type.
-     *
-     * @param buffer the input buffer
-     * @param dataType the desired {@code DataType}
-     * @param expected the expected size
-     * @throws IllegalArgumentException if buffer size is invalid
-     */
-    public static void validateBufferSize(Buffer buffer, DataType dataType, int expected) {
-        int remaining = buffer.remaining();
-        int expectedSize =
-                buffer instanceof ByteBuffer ? dataType.getNumOfBytes() * expected : expected;
-        if (remaining < expectedSize) {
-            throw new IllegalArgumentException(
-                    "The NDArray size is: " + expected + ", but buffer size is: " + remaining);
-        }
-        if (remaining > expectedSize) {
-            logger.warn(
-                    "Input buffer size is greater than the NDArray size, please set limit explicitly.");
-            buffer.limit(expectedSize);
-        }
-    }
-
-    /**
-     * Copies data from the source {@code Buffer} to the target {@code ByteBuffer}.
-     *
-     * @param src the source {@code Buffer}
-     * @param target the target {@code ByteBuffer}
-     */
-    public static void copyBuffer(Buffer src, ByteBuffer target) {
-        target.rewind();
-        DataType inputType = DataType.fromBuffer(src);
-        switch (inputType) {
-            case FLOAT16:
-                target.asShortBuffer().put((ShortBuffer) src);
-                break;
-            case FLOAT32:
-                target.asFloatBuffer().put((FloatBuffer) src);
-                break;
-            case FLOAT64:
-                target.asDoubleBuffer().put((DoubleBuffer) src);
-                break;
-            case UINT8:
-            case INT8:
-            case BOOLEAN:
-                target.put((ByteBuffer) src);
-                break;
-            case INT32:
-                target.asIntBuffer().put((IntBuffer) src);
-                break;
-            case INT64:
-                target.asLongBuffer().put((LongBuffer) src);
-                break;
-            default:
-                throw new AssertionError("Unsupported datatype: " + inputType);
-        }
-        target.rewind();
-    }
-
     protected static final class TempResource {
 
-        private NDResource resource;
-        private NDManager manager;
-        private boolean detached;
+        private final NDResource resource;
+        private final NDManager manager;
+        private final boolean detached;
 
         public TempResource(NDResource resource, NDManager manager) {
             this.resource = resource;

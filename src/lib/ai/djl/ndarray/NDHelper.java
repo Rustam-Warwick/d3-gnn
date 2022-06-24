@@ -16,13 +16,13 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class NDHelper {
-    public static final transient NDManager globalNDManager = NDManager.newBaseManager(); // Just use this NDManager to not
+    public static final transient PtNDManager globalNDManager = (PtNDManager) NDManager.newBaseManager(); // Just use this NDManager to not
 
     public static NDArray decodeNumpy(NDManager manager, InputStream is) throws IOException {
         return NDSerializer.decodeNumpy(manager, is);
     }
 
-    public static ExecutionConfig addSerializers(ExecutionConfig config){
+    public static ExecutionConfig addSerializers(ExecutionConfig config) {
         config.addDefaultKryoSerializer(NDArray.class, NDArrayLZ4Serializer.class);
         config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
         config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
@@ -47,7 +47,8 @@ public class NDHelper {
             }
         }
     }
-    public static void loadModel(Path modelPath, Model model){
+
+    public static void loadModel(Path modelPath, Model model) {
         File folder = new File(String.valueOf(modelPath));
         FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
         List<File> numpyParameterFiles = new ArrayList<>();

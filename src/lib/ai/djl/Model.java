@@ -16,7 +16,6 @@ import ai.djl.engine.Engine;
 import ai.djl.inference.Predictor;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
@@ -24,7 +23,6 @@ import ai.djl.training.Trainer;
 import ai.djl.training.TrainingConfig;
 import ai.djl.translate.Translator;
 import ai.djl.util.PairList;
-import com.esotericsoftware.kryo.Kryo;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -386,8 +384,6 @@ public interface Model extends AutoCloseable, Externalizable {
         try {
             ExecutionConfig config = NDHelper.addSerializers(new ExecutionConfig());
             TypeSerializer<Model> serializer = (TypeSerializer<Model>) TypeInformation.of(this.getClass()).createSerializer(config);
-            Kryo a = new Kryo();
-            SerializableLoss.configureSerializers(a);
             InputStream tmp = new InputStream() {
                 @Override
                 public int read() throws IOException {
@@ -396,18 +392,9 @@ public interface Model extends AutoCloseable, Externalizable {
             };
             Model tmpModel = serializer.deserialize(new DataInputViewStreamWrapper(tmp));
             NDHelper.copyFields(tmpModel, this);
-        }catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException("Count not deserialize the model");
         }
-//        PtModel res = a.readObject(input, PtModel.class);
-//        this.artifacts = res.artifacts;
-//        this.dataType = res.dataType;
-//        this.inputData = res.inputData;
-//        this.modelDir = res.modelDir;
-//        this.modelName = res.modelName;
-//        this.properties = res.properties;
-//        this.manager = res.manager;
-//        this.block = res.block;
     }
 }
