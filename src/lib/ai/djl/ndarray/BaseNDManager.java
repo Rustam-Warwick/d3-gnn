@@ -21,7 +21,6 @@ import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
 import ai.djl.util.PtNDArrayFinalizeTask;
 import ai.djl.util.RandomUtils;
-import org.apache.flink.shaded.guava30.com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * It is not managing any closing logic, instead registes all NDArrays with a Cleaner
  */
 public abstract class BaseNDManager implements NDManager {
-    protected final transient static Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder().setDaemon(true).setThreadFactory(Thread::new).setNameFormat("%s").setUncaughtExceptionHandler(Thread::).setPriority(1).build());
+    protected final transient static Cleaner cleaner = Cleaner.create();
     private static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
     protected NDManager parent;
     protected NDManager alternativeManager;

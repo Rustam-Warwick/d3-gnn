@@ -38,7 +38,6 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         int actualSize = thisReuse.position();
         thisReuse.position(0);
         thisReuse.limit(actualSize);
-        System.out.println(actualSize);
         output.writeInts(new int[]{bb.capacity(), actualSize}, true); // Raw Len, Actual Len
         while (thisReuse.hasRemaining()){
             output.write(thisReuse.get());

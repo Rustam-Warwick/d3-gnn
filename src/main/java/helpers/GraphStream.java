@@ -2,13 +2,9 @@ package helpers;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
-import ai.djl.nn.Parameter;
+import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.serializers.NDArrayLZ4Serializer;
-import ai.djl.serializers.NDArrayRawSerializer;
-import ai.djl.serializers.NDManagerSerializer;
-import ai.djl.serializers.ParameterSerializer;
 import datasets.Dataset;
 import elements.*;
 import elements.iterations.Rmi;
@@ -44,9 +40,9 @@ public class GraphStream {
 
     public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
 
-    public String partitionerName = "random";
+    public String partitionerName = "random"; // Partitioner Name
 
-    public String dataset = "cora";
+    public String dataset = "cora"; // Dataset to process
 
     private short layers;// Number of GNN Layers in the pipeline
 
@@ -65,9 +61,7 @@ public class GraphStream {
     }
 
     private void configureSerializers() {
-        env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayRawSerializer.class);
-        env.registerTypeWithKryoSerializer(PtNDManager.class, NDManagerSerializer.class);
-        env.registerTypeWithKryoSerializer(Parameter.class, ParameterSerializer.class);
+        NDHelper.addSerializers(env.getConfig());
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);

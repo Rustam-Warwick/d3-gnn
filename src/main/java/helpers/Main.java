@@ -16,7 +16,7 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
+import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
@@ -60,7 +60,6 @@ public class Main {
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setLatencyTrackingInterval(30000);
         // Initializate the helper classes
         GraphStream gs = new GraphStream(env, args);
         // DataFlow
@@ -70,13 +69,13 @@ public class Main {
                 dataset.trainTestSplitter(),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-//                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-//                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
+                        .withPlugin(new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, 20000))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), true))
                 )
         );
         String jobName = String.format("%s W-10000", String.join(" ", args), env.getMaxParallelism());
@@ -93,10 +92,6 @@ public class Main {
 //                .process(new LatencyOutput(jobName, 10000)).setParallelism(embeddings[embeddings.length - 1].getParallelism());
 
         env.execute(jobName);
-        System.gc();
 
-//        Thread.sleep(20000);
-//        System.out.println("Triggered savepoint");
-//        c.triggerSavepoint("file:///Users/rustamwarwick/Documents/Projects/Flink-Partitioning/checkpoints", SavepointFormatType.NATIVE);
     }
 }
