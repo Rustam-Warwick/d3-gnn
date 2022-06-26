@@ -36,7 +36,7 @@ public class EdgeList implements Dataset {
         format.setCharsetName("UTF-8");
 
         if (fineGrainedResourceManagementEnabled) {
-            env.registerSlotSharingGroup(SlotSharingGroup.newBuilder("edge-file").setCpuCores(1).setTaskHeapMemoryMB(10).build());
+//            env.registerSlotSharingGroup(SlotSharingGroup.newBuilder("edge-file").setCpuCores(1).setTaskHeapMemoryMB(10).build());
             out = env.readFile(format, edgeFileName, FileProcessingMode.PROCESS_ONCE, Long.MAX_VALUE).setParallelism(1).slotSharingGroup("edge-file")
                     .map(new EdgeParser()).setParallelism(1).slotSharingGroup("edge-file")
                     .assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {

@@ -51,6 +51,7 @@ public class Main {
         model.setBlock(sb);
 //        NDHelper.loadModel(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"), model);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
+        model.getBlock().getParameters().forEach(item->item.getValue().getArray().detach());
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name

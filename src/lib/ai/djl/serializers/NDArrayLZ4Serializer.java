@@ -21,7 +21,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final transient DataType[] dataTypes = DataType.values();
     private static final transient LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
     private static final transient LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
-    private final transient ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
+    private static final transient ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {

@@ -1453,7 +1453,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             if (pointer != null) {
                 JniUtils.deleteNDArray(pointer);
             }
-            if(dataRef!=null && dataRef.length > 0)dataRef[0] = null;
+            if(dataRef!=null && dataRef.length > 0){
+                    dataRef[0] = null;
+            }
         }
     }
 

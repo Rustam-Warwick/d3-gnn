@@ -33,12 +33,12 @@ public class HDRF extends BasePartitioner {
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
-            envThis.registerSlotSharingGroup(
-                    SlotSharingGroup
-                            .newBuilder(getName())
-                            .setCpuCores(1.0)
-                            .setTaskHeapMemoryMB(100)
-                            .build());
+//            envThis.registerSlotSharingGroup(
+//                    SlotSharingGroup
+//                            .newBuilder(getName())
+//                            .setCpuCores(1.0)
+//                            .setTaskHeapMemoryMB(100)
+//                            .build());
             res.slotSharingGroup(getName());
         }
         return res;

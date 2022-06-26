@@ -189,14 +189,14 @@ public class GraphStream {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
         IterationID localIterationId = new IterationID();
         SingleOutputStreamOperator<GraphOp> forward;
-        if (fineGrainedResourceManagementEnabled) {
-            env.registerSlotSharingGroup(SlotSharingGroup
-                    .newBuilder("gnn-" + thisParallelism)
-                    .setTaskHeapMemoryMB(600)
-                    .setTaskOffHeapMemoryMB(700)
-                    .setCpuCores(1)
-                    .build());
-        }
+//        if (fineGrainedResourceManagementEnabled) {
+//            env.registerSlotSharingGroup(SlotSharingGroup
+//                    .newBuilder("gnn-" + thisParallelism)
+//                    .setTaskHeapMemoryMB(600)
+//                    .setTaskOffHeapMemoryMB(700)
+//                    .setCpuCores(1)
+//                    .build());
+//        }
 
         if (position_index > 0 || hasFoolLoopIteration) {
             // Iteration Heads should always exist here
