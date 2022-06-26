@@ -16,7 +16,6 @@ import operators.IterationHeadOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
 import org.apache.commons.cli.*;
-import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
@@ -193,8 +192,8 @@ public class GraphStream {
         if (fineGrainedResourceManagementEnabled) {
             env.registerSlotSharingGroup(SlotSharingGroup
                     .newBuilder("gnn-" + thisParallelism)
-                    .setTaskHeapMemoryMB(530)
-                    .setTaskOffHeapMemoryMB(840)
+                    .setTaskHeapMemoryMB(600)
+                    .setTaskOffHeapMemoryMB(700)
                     .setCpuCores(1)
                     .build());
         }
@@ -207,7 +206,6 @@ public class GraphStream {
             forward.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
             if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);
             if (fineGrainedResourceManagementEnabled) iterationHead.slotSharingGroup("gnn-" + thisParallelism);
-            forward.getTransformation().setResources(ResourceSpec.ZERO, ResourceSpec.ZERO);
         } else {
             forward = inputData.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
             if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);

@@ -45,3 +45,15 @@ cp -R "${FLINK_MASTER_CONF}"/* "${FLINK_CONF_DIR}" # Copy master configurations 
 # 2. Taskmanager specific configurations
 sed -i "/taskmanager\.rpc\.address/c\taskmanager.rpc.address: $(hostname)" "${FLINK_CONF_DIR}"/flink-conf.yaml
 "${FLINK_HOME}"/bin/taskmanager.sh start # Start the jobmanager on this Master machine
+if [[ -z ${SLURM_JOB_ID} ]]; then
+  #This is first submission
+  srun ./script.slurm
+else
+  # This is in the slurm nodes
+  if [[ $(SLURM_NODEID) = 0 ]]; then
+        jobmanager_config
+  else
+        taskmanager_config
+  fi
+
+fi
