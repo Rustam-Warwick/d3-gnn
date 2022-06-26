@@ -28,7 +28,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
+ * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}
+ * @implNote Makes sure that only 1 NDManager exists per thread.
  */
 public class PtNDManager extends BaseNDManager {
 

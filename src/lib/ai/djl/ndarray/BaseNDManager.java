@@ -16,15 +16,12 @@ import ai.djl.Device;
 import ai.djl.engine.Engine;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
-import ai.djl.util.PtNDArrayFinalizeTask;
 import ai.djl.util.RandomUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.ref.Cleaner;
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
@@ -33,10 +30,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * {@code BaseNDManager} is the default implementation of {@link NDManager}.
- * It is not managing any closing logic, instead registes all NDArrays with a Cleaner
+ * It is not managing any closing logic
  */
 public abstract class BaseNDManager implements NDManager {
-    protected final transient static Cleaner cleaner = Cleaner.create();
     private static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
     protected NDManager parent;
     protected NDManager alternativeManager;
@@ -381,9 +377,9 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public synchronized void attachInternal(String resourceId, AutoCloseable resource) {
-        if (resource instanceof PtNDArray) {
-            cleaner.register(resource, new PtNDArrayFinalizeTask((PtNDArray) resource));
-        }
+//        if (resource instanceof PtNDArray) {
+//            cleaner.register(resource, new PtNDArrayFinalizeTask((PtNDArray) resource));
+//        }
     }
 
     /**

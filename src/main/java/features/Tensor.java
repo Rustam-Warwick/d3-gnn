@@ -40,5 +40,4 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return this.value;
     }
 
-
 }
