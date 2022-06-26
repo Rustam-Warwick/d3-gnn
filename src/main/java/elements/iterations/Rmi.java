@@ -3,13 +3,15 @@ package elements.iterations;
 import elements.ElementType;
 import elements.GraphElement;
 
-import java.lang.reflect.InvocationTargetException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Rmi extends GraphElement {
-    public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, Method>> classRemoteMethods = new ConcurrentHashMap<>(15);
-
+    public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(15);
+    public static transient MethodHandles.Lookup globalLookup = MethodHandles.lookup();
     public Object[] args;
     public ElementType elemType;
     public Boolean hasUpdate = true;
@@ -30,31 +32,48 @@ public class Rmi extends GraphElement {
 
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
-            ConcurrentHashMap<String, Method> thisClassMethods = new ConcurrentHashMap<>(10);
+            ConcurrentHashMap<String, MethodHandle> thisClassMethods = new ConcurrentHashMap<>(5);
             Method[] methods = clazz.getMethods();
             for (Method method : methods) {
-                if (method.isAnnotationPresent(RemoteFunction.class)) thisClassMethods.put(method.getName(), method);
+                if (method.isAnnotationPresent(RemoteFunction.class)) {
+                    try {
+                        MethodType mt = MethodType.methodType(method.getReturnType(), method.getParameterTypes());
+                        MethodHandle mtHandle = globalLookup.findVirtual(clazz, method.getName(), mt);
+                        thisClassMethods.put(method.getName(), mtHandle);
+                    } catch (NoSuchMethodException | IllegalAccessException e) {
+                        e.printStackTrace();
+                    }
+                }
             }
             classRemoteMethods.put(clazz, thisClassMethods);
         }
     }
 
+    public static Object[] generateVarargs(Object[] args, GraphElement el) {
+        Object[] newArgs = new Object[args.length + 1];
+        newArgs[0] = el;
+        System.arraycopy(args, 0, newArgs, 1, args.length);
+        return newArgs;
+    }
+
     public static void execute(GraphElement element, Rmi message) {
         try {
-            cacheClassIfNotExists(element.getClass()); // Add cache to the concurrent map
+            cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
             if (message.hasUpdate) {
-                GraphElement deepCopyElement = element.deepCopy();
+                GraphElement deepCopyElement = element.deepCopy(); // Creates a full copy of the element
                 deepCopyElement.setTimestamp(message.getTimestamp()); // Replace element timestamp with model timestamp
-                Method method = classRemoteMethods.get(element.getClass()).get(message.methodName);
-                method.invoke(deepCopyElement, message.args);
+                MethodHandle method = classRemoteMethods.get(element.getClass()).get(message.methodName);
+                Object[] args = generateVarargs(message.args, deepCopyElement);
+                method.invokeWithArguments(args);
                 element.update(deepCopyElement);
 
             } else {
-                Method method = classRemoteMethods.get(element.getClass()).get(message.methodName);
-                method.invoke(element, message.args);
+                MethodHandle method = classRemoteMethods.get(element.getClass()).get(message.methodName);
+                Object[] args = generateVarargs(message.args, element);
+                method.invokeWithArguments(args);
             }
 
-        } catch (InvocationTargetException | IllegalAccessException e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
     }

@@ -424,7 +424,7 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public void close() {
-        this.closed.set(true);
+//        this.closed.set(true);
     }
 
     /**

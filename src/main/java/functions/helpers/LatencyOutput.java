@@ -91,8 +91,6 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
             a.append('\n');
         }
         Files.write(outputLatenciesFile.toPath(), a.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
-
-
     }
 
     public class MyGauge implements Gauge<Integer> {

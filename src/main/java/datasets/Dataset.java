@@ -28,7 +28,7 @@ public interface Dataset extends Serializable {
     /**
      * Build the stream of dataset, returns array of output streams
      */
-    DataStream<GraphOp>[] build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled);
+    DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled);
 
     /**
      * Split the label into testLabel and trainLabel

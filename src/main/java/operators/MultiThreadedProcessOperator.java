@@ -1,21 +1,21 @@
 package operators;
 
-import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
-import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.NotNull;
 
+import java.util.Collection;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -32,17 +32,15 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     private final int nThreads;
 
-//    private transient ThreadPoolExecutor executorService;
-
-    private transient MailboxExecutor[] executors;
-
-    private transient int currentMailbox; // Round robin counter
+    private transient ThreadPoolExecutor executorService;
 
     private transient ThreadLocal<SynchronousCollector> collector;
 
     private transient ThreadLocal<ContextImpl> context;
 
     private transient LinkedBlockingQueue<Runnable> workQueue;
+
+    private final transient int count = 0;
 
 
     public MultiThreadedProcessOperator(ProcessFunction<IN, OUT> function, int nThreads) {
@@ -56,55 +54,58 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         super.open();
         collector = ThreadLocal.withInitial(() -> new SynchronousCollector(output));
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
-        workQueue = new LinkedBlockingQueue<>(nThreads);
-        executors = new MailboxExecutor[nThreads];
-        for (int i = 0; i < nThreads; i++) {
-            executors[i] = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
-        }
-
-//        executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
-    }
-
-    @Override
-    public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<OUT>> output) {
-        super.setup(containingTask, config, output);
+        workQueue = new LimitedBlockingQueue<>((int) (nThreads * 1.2));
+        executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
     }
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        workQueue.put(() -> {
+        executorService.submit(() -> {
             try {
                 this.threadSafeProcessElement(element);
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        });
-        executors[currentMailbox].submit(()->workQueue.poll().run(),"Process Element");
-        currentMailbox = (currentMailbox + 1) % nThreads;
+        }); // Waiting if the buffer is full
     }
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        for (int i = 0; i < executors.length; i++) {
-            executors[i].tryYield();
-        }
-        super.processWatermark(mark);
+        executorService.submit(() -> {
+            try {
+                synchronized (this) {
+                    super.processWatermark(mark);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        for (int i = 0; i < executors.length; i++) {
-            executors[i].tryYield();
-        }
-        super.processLatencyMarker(latencyMarker);
+        executorService.submit(() -> {
+            try {
+                synchronized (this) {
+                    super.processLatencyMarker(latencyMarker);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        for (int i = 0; i < executors.length; i++) {
-            executors[i].tryYield();
-        }
-        super.processWatermarkStatus(watermarkStatus);
+        executorService.submit(() -> {
+            try {
+                synchronized (this) {
+                    super.processWatermarkStatus(watermarkStatus);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     private void threadSafeProcessElement(StreamRecord<IN> element) throws Exception {
@@ -116,8 +117,33 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void endInput() throws Exception {
-        for (int i = 0; i < executors.length; i++) {
-            executors[i].tryYield();
+        executorService.shutdown();
+        while (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
+            Thread.onSpinWait();
+        }
+    }
+
+    private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E> {
+        public LimitedBlockingQueue() {
+        }
+
+        public LimitedBlockingQueue(int capacity) {
+            super(capacity);
+        }
+
+        public LimitedBlockingQueue(Collection<? extends E> c) {
+            super(c);
+        }
+
+        @Override
+        public boolean offer(@NotNull E e) {
+            try {
+                put(e);
+                return true;
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            return false;
         }
     }
 
@@ -171,7 +197,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
             if (outputTag == null) {
                 throw new IllegalArgumentException("OutputTag must not be null.");
             }
-            synchronized (MultiThreadedProcessOperator.this){
+            synchronized (MultiThreadedProcessOperator.this) {
                 output.collect(outputTag, new StreamRecord<>(value, element.getTimestamp()));
             }
         }

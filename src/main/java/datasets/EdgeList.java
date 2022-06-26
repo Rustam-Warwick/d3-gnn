@@ -28,7 +28,7 @@ public class EdgeList implements Dataset {
     }
 
     @Override
-    public DataStream<GraphOp>[] build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
+    public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         DataStream<GraphOp> out;
         TextInputFormat format = new TextInputFormat(new Path(edgeFileName));
         format.setFilesFilter(FilePathFilter.createDefaultFilter());
@@ -55,7 +55,7 @@ public class EdgeList implements Dataset {
                         }
                     })).setParallelism(1);
         }
-        return new DataStream[]{out};
+        return out;
     }
 
     @Override

@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
-    public float lambda = 0.8f; // More means more balance constraint comes into play
+    public float lambda = 0.6f; // More means more balance constraint comes into play
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
@@ -28,15 +28,15 @@ public class HDRF extends BasePartitioner {
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
         StreamExecutionEnvironment envThis = inputDataStream.getExecutionEnvironment();
-        int numThreats = Math.min(16, envThis.getParallelism());
+        int numThreats = 3;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).setParallelism(1);
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             envThis.registerSlotSharingGroup(
                     SlotSharingGroup
                             .newBuilder(getName())
-                            .setCpuCores(3.0)
+                            .setCpuCores(1.0)
                             .setTaskHeapMemoryMB(100)
                             .build());
             res.slotSharingGroup(getName());

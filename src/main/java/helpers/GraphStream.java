@@ -4,7 +4,7 @@ import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.serializers.NDArrayLZ4Serializer;
+import ai.djl.serializers.NDArrayRawSerializer;
 import datasets.Dataset;
 import elements.*;
 import elements.iterations.Rmi;
@@ -16,6 +16,7 @@ import operators.IterationHeadOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
 import org.apache.commons.cli.*;
+import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
@@ -35,14 +36,11 @@ public class GraphStream {
     private final StreamExecutionEnvironment env; // Stream environment
 
     private final String[] cmdArgs; // Command Line Arguments for the job
-
-    public boolean fineGrainedResourceManagementEnabled = false; // Add custom slotSharingGroupsForOperators
-
     public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
+    private boolean fineGrainedResourceManagementEnabled = false; // Add custom slotSharingGroupsForOperators
+    private String partitionerName = "random"; // Partitioner Name
 
-    public String partitionerName = "random"; // Partitioner Name
-
-    public String dataset = "cora"; // Dataset to process
+    private String dataset = "cora"; // Dataset to process
 
     private short layers;// Number of GNN Layers in the pipeline
 
@@ -125,10 +123,10 @@ public class GraphStream {
                 .build();
 
         Option tensorCompression = Option
-                .builder("tc")
-                .longOpt("tensorCompression")
+                .builder("dc")
+                .longOpt("disableCompression")
                 .required(false)
-                .desc("Tensor Compression Enabled")
+                .desc("Tensor Compression Disabled")
                 .build();
 
         Options options = new Options();
@@ -159,14 +157,13 @@ public class GraphStream {
             if (commandLine.hasOption("f")) {
                 this.fineGrainedResourceManagementEnabled = !(env instanceof LocalStreamEnvironment);
             }
-            if (commandLine.hasOption("tc")) {
-                env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
+            if (commandLine.hasOption("dc")) {
+                env.registerTypeWithKryoSerializer(PtNDArray.class, NDArrayRawSerializer.class);
             }
         } catch (ParseException e) {
             e.printStackTrace();
         }
     }
-
 
     /**
      * Partition the incoming GraphOp Stream into getMaxParallelism() number of parts
@@ -182,7 +179,6 @@ public class GraphStream {
         return partitionedOutput;
     }
 
-
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()
      *
@@ -197,8 +193,8 @@ public class GraphStream {
         if (fineGrainedResourceManagementEnabled) {
             env.registerSlotSharingGroup(SlotSharingGroup
                     .newBuilder("gnn-" + thisParallelism)
-                    .setTaskHeapMemoryMB(600)
-                    .setTaskOffHeapMemoryMB(600)
+                    .setTaskHeapMemoryMB(530)
+                    .setTaskOffHeapMemoryMB(840)
                     .setCpuCores(1)
                     .build());
         }
@@ -211,6 +207,7 @@ public class GraphStream {
             forward.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
             if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);
             if (fineGrainedResourceManagementEnabled) iterationHead.slotSharingGroup("gnn-" + thisParallelism);
+            forward.getTransformation().setResources(ResourceSpec.ZERO, ResourceSpec.ZERO);
         } else {
             forward = inputData.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
             if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);
@@ -247,7 +244,6 @@ public class GraphStream {
         return forward;
     }
 
-
     /**
      * Main method for invoking the GNN Chain
      *
@@ -258,7 +254,7 @@ public class GraphStream {
      * @return L+1 outputs corresponding to (Partitioned data, ... output of all the processFunctions)
      * @implNote First Process function will be replayable, and last one will be output with connection to first one(if FullLoopIteration is enabled)
      */
-    public DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
+    protected DataStream<GraphOp>[] gnnEmbeddings(DataStream<GraphOp> dataStreamMain, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
         // 1. intilialize the variables
         assert layers == 0; // Untouched before
         assert position_index == 0; // Untouched before
@@ -299,4 +295,15 @@ public class GraphStream {
         return layerOutputs;
     }
 
+    /**
+     * Wrapper that enfoernces the use of Dataset from the dataset name
+     */
+    public DataStream<GraphOp>[] gnnEmbeddings(boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
+        Dataset concreteDataset = Dataset.getDataset(dataset);
+        DataStream<GraphOp> dataStreamMain = concreteDataset.build(env, fineGrainedResourceManagementEnabled);
+        KeyedProcessFunction<PartNumber, GraphOp, GraphOp>[] processFunctionAndTrainTest = new KeyedProcessFunction[processFunctions.length + 1];
+        processFunctionAndTrainTest[0] = concreteDataset.trainTestSplitter();
+        System.arraycopy(processFunctions, 0, processFunctionAndTrainTest, 1, processFunctions.length);
+        return gnnEmbeddings(dataStreamMain, hasLastLayerTopology, hasBackwardIteration, hasFullLoopIteration, processFunctionAndTrainTest);
+    }
 }

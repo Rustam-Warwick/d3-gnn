@@ -31,6 +31,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
+import org.apache.flink.streaming.util.LatencyStats;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,6 +100,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
+    protected transient LatencyStats latencyStats; // Use this for tracking latency instead
 
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
@@ -140,6 +142,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                                 output,
                                 parameters.getOperatorEventDispatcher())
                                 .f0;
+
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.events = new HashMap<>();
@@ -163,6 +166,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void open() throws Exception {
         wrappedOperator.open();
+        System.gc();
     }
 
     @Override
@@ -173,6 +177,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void close() throws Exception {
         wrappedOperator.close();
+        System.gc();
     }
 
     @Override
