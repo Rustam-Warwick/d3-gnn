@@ -2,8 +2,8 @@ package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.translate.Batchifier;
@@ -127,11 +127,11 @@ public class MixedGNNEmbeddingLayer extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = NDHelper.globalNDManager.zeros(modelServer.getInputShape().get(0).getValue());
+            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true));
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = NDHelper.globalNDManager.randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom));
             }

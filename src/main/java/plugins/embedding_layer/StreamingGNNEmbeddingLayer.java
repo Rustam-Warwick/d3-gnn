@@ -2,9 +2,9 @@ package plugins.embedding_layer;
 
 import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
@@ -47,11 +47,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = NDHelper.globalNDManager.zeros(modelServer.getInputShape().get(0).getValue());
+            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true));
 
             if (!externalFeatures && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = NDHelper.globalNDManager.ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                NDArray embeddingRandom = LifeCycleNDManager.getInstance().ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom));
             }
@@ -182,7 +182,14 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDList UPDATE(NDList feature, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+        try(LifeCycleNDManager.Tracker tracker = LifeCycleNDManager.getInstance().startTracker()){
+            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+            res.forEach(NDArray::detach);
+            return res;
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**
@@ -193,7 +200,14 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDList MESSAGE(NDList features, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+        try(LifeCycleNDManager.Tracker tracker = LifeCycleNDManager.getInstance().startTracker()){
+            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+            res.forEach(NDArray::detach);
+            return res;
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**

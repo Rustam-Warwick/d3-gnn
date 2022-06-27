@@ -46,12 +46,6 @@ public class GraphElement implements Serializable {
         this.id = element.id;
         this.partId = element.partId;
         this.ts = element.ts;
-        if (deepCopy) {
-            this.storage = element.storage;
-            if (element.features != null) {
-                this.features = new ArrayList<>(element.features);
-            }
-        }
     }
 
     /**

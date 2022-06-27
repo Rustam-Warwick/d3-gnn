@@ -32,7 +32,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-/** {@code PtNDArray} is the PyTorch implementation of {@link NDArray}. */
+/** {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
+ * Added extra cleaner for this NDArray, works with explicit call as well as Cleaner for GC
+ * */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
     private static final transient Cleaner cleaner = Cleaner.create();
     private transient final Cleaner.Cleanable cleanable;
@@ -1451,6 +1453,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         public void run() {
             Long pointer = handle.getAndSet(null);
             if (pointer != null) {
+                LifeCycleNDManager.counter.decrementAndGet();
                 JniUtils.deleteNDArray(pointer);
             }
             if(dataRef!=null && dataRef.length > 0){

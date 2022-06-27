@@ -166,7 +166,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void open() throws Exception {
         wrappedOperator.open();
-        System.gc();
     }
 
     @Override
@@ -177,7 +176,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void close() throws Exception {
         wrappedOperator.close();
-        System.gc();
     }
 
     @Override

@@ -28,9 +28,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
         super(f, deepCopy);
         this.attachedTo = f.attachedTo;
         this.value = f.value;
-        if (deepCopy) {
-            this.element = f.element;
-        }
     }
 
     public Feature(T value) {

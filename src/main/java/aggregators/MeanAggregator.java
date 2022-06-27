@@ -1,6 +1,7 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
@@ -54,16 +55,22 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-        NDArray newValue = this.value.f0.mul(this.value.f1).add(newElement).div(this.value.f1 + count);
-        int newCount = this.value.f1 + count;
-        this.value = new Tuple2<>(newValue, newCount);
+        try(LifeCycleNDManager.Tracker ignored = LifeCycleNDManager.getInstance().startTracker()){
+            this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
+            this.value.f1 += count;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        NDArray newValue = value.f0.add((newElement.sub(oldElement)).div(value.f1));
-        this.value = new Tuple2<>(newValue, value.f1);
+        try(LifeCycleNDManager.Tracker ignored = LifeCycleNDManager.getInstance().startTracker()){
+            value.f0.addi((newElement.subi(oldElement)).divi(value.f1));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

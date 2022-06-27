@@ -43,6 +43,9 @@ import java.util.stream.Collectors;
  * provides PyTorch Specific functionality
  */
 public class PtModel extends BaseModel {
+    /**
+     * Added this for serialization
+     */
     public PtModel() {
         this(null, null);
     }

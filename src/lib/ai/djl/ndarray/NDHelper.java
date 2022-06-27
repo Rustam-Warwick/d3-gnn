@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.util.*;
 
 public class NDHelper {
-    public static final transient PtNDManager globalNDManager = (PtNDManager) NDManager.newBaseManager(); // Just use this NDManager to not
 
     public static NDArray decodeNumpy(NDManager manager, InputStream is) throws IOException {
         return NDSerializer.decodeNumpy(manager, is);

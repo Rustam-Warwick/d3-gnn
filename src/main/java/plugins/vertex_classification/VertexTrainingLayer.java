@@ -1,7 +1,7 @@
 package plugins.vertex_classification;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.Shape;
@@ -117,7 +117,7 @@ public class VertexTrainingLayer extends Plugin {
                 NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
                 NDList predictions = outputLayer.output(batchedInputs, true);
                 NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-                JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) NDHelper.globalNDManager.ones(new Shape()), false, false);
+                JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
 
                 // 2. Prepare the HashMap for Each Vertex and send to previous layer
                 HashMap<String, NDArray> backwardGrads = new HashMap<>();

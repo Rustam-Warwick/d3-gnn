@@ -1,7 +1,7 @@
 package ai.djl.serializers;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDHelper;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import com.esotericsoftware.kryo.Kryo;
@@ -57,7 +57,9 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         byte[] compressedData = input.readBytes(lens[1]);
         lz4DeCompressor.decompress(ByteBuffer.wrap(compressedData), 0, compressedData.length, thisReuse, 0, lens[0]);
         thisReuse.position(0);
-        return NDHelper.globalNDManager.create(thisReuse, shape, dataType);
+        NDArray tmp = LifeCycleNDManager.getInstance().create(shape,dataType);
+        tmp.set(thisReuse);
+        return LifeCycleNDManager.getInstance().create(thisReuse, shape, dataType);
     }
 
     private void increaseBufferIfNeeded(int capacity) {

@@ -40,9 +40,6 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     private transient LinkedBlockingQueue<Runnable> workQueue;
 
-    private final transient int count = 0;
-
-
     public MultiThreadedProcessOperator(ProcessFunction<IN, OUT> function, int nThreads) {
         super(function);
         this.nThreads = nThreads; // Number of threads to dispatch for the job
