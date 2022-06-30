@@ -2,7 +2,6 @@ package partitioner;
 
 import elements.*;
 import operators.MultiThreadedProcessOperator;
-import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
@@ -18,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
-    public float lambda = 0.6f; // More means more balance constraint comes into play
+    public float lambda = 1f; // More means more balance constraint comes into play
 
     @Override
     public void parseCmdArgs(String[] cmdArgs) {
@@ -28,17 +27,11 @@ public class HDRF extends BasePartitioner {
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
         StreamExecutionEnvironment envThis = inputDataStream.getExecutionEnvironment();
-        int numThreats = 3;
+        int numThreats = 10;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
-//            envThis.registerSlotSharingGroup(
-//                    SlotSharingGroup
-//                            .newBuilder(getName())
-//                            .setCpuCores(1.0)
-//                            .setTaskHeapMemoryMB(100)
-//                            .build());
             res.slotSharingGroup(getName());
         }
         return res;
@@ -67,6 +60,7 @@ public class HDRF extends BasePartitioner {
             this.numPartitions = numPartitions;
             this.lamb = lambda;
             this.eps = eps;
+
         }
 
         @Override
@@ -128,17 +122,19 @@ public class HDRF extends BasePartitioner {
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
             partitionTable.compute(edge.src.getId(), (key, val) -> {
                 if (val == null) {
+                    // This is the first part of this vertex hence the master
                     totalNumberOfVertices.incrementAndGet();
                     return new ArrayList(List.of(finalSelected));
                 } else {
                     if (!val.contains(finalSelected)) {
+                        // Seocond or more part hence the replica
                         totalNumberOfReplicas.incrementAndGet();
                         val.add(finalSelected);
                     }
                     return val;
                 }
             });
-
+            // Same as previous
             partitionTable.compute(edge.dest.getId(), (key, val) -> {
                 if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
@@ -180,6 +176,7 @@ public class HDRF extends BasePartitioner {
 
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+//            getRuntimeContext().getMetricGroup().getIOMetricGroup().numRecordsInRate.currentRate
             GraphElement elementToPartition = value.element;
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges

@@ -1,5 +1,6 @@
-package functions.helpers;
+package functions.filewriters;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
 import org.apache.flink.configuration.Configuration;
@@ -18,7 +19,7 @@ import java.util.List;
 /**
  * Output the latency and histogram of the stream
  */
-public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void> {
+public class LatencyFileWriter extends KeyedCoProcessFunction<Long, GraphOp, GraphOp, Void> {
 
     private final int movingAverageSize; // Size of the moving average latency
 
@@ -34,12 +35,14 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
 
     private transient List<Integer> latencies;
 
-    public LatencyOutput() {
+    private transient long taskStartTimems;
+
+    public LatencyFileWriter() {
         this.movingAverageSize = 100;
         this.jobName = null;
     }
 
-    public LatencyOutput(String jobName, int movingAverageSize) {
+    public LatencyFileWriter(String jobName, int movingAverageSize) {
         this.movingAverageSize = movingAverageSize;
         this.jobName = jobName;
 
@@ -57,6 +60,7 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
             gauge.add(latency);
             latencies.add(latency);
         }
+        LifeCycleNDManager.getInstance().clean();
     }
 
     @Override
@@ -80,16 +84,21 @@ public class LatencyOutput extends KeyedCoProcessFunction<Long, GraphOp, GraphOp
         } catch (IllegalStateException e) {
             e.printStackTrace();
         }
+
+        taskStartTimems = System.currentTimeMillis();
     }
 
 
     @Override
     public void close() throws Exception {
+        long runningTimeMs = System.currentTimeMillis() - taskStartTimems;
         StringBuilder a = new StringBuilder();
         for (Integer latency : latencies) {
             a.append(latency);
             a.append('\n');
         }
+        a.append(String.format("Task Runtime(ms) = %s", runningTimeMs));
+
         Files.write(outputLatenciesFile.toPath(), a.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
     }
 

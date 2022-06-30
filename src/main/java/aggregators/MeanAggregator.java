@@ -1,7 +1,9 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
+import elements.GraphElement;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
@@ -55,7 +57,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-        try(LifeCycleNDManager.Tracker ignored = LifeCycleNDManager.getInstance().startTracker()){
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0))) {
             this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
             this.value.f1 += count;
         } catch (Exception e) {
@@ -66,7 +68,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        try(LifeCycleNDManager.Tracker ignored = LifeCycleNDManager.getInstance().startTracker()){
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0))) {
             value.f0.addi((newElement.subi(oldElement)).divi(value.f1));
         } catch (Exception e) {
             e.printStackTrace();
@@ -86,5 +88,18 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void reset() {
         value = new Tuple2<>(value.f0.zerosLike(), 0);
+    }
+
+    @Override
+    public Boolean createElement() {
+        this.value.f0.detach();
+        return super.createElement();
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+        MeanAggregator newAgg = (MeanAggregator) newElement;
+        newAgg.value.f0.detach();
+        return super.updateElement(newElement);
     }
 }

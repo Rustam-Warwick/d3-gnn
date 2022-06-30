@@ -1,10 +1,10 @@
 package plugins.vertex_classification;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.translate.StackBatchifier;

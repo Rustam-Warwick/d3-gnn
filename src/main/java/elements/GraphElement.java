@@ -18,6 +18,7 @@ public class GraphElement implements Serializable {
     @Nullable
     public String id;
 
+    @OmitStorage
     @Nullable
     public Short partId;
 
@@ -27,6 +28,7 @@ public class GraphElement implements Serializable {
     @Nullable
     public transient BaseStorage storage;
 
+    @OmitStorage
     @TypeInfo(ListTypeInformationFactory.class)
     @Nullable
     public List<Feature<?, ?>> features;

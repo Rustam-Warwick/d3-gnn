@@ -16,7 +16,6 @@ import operators.IterationHeadOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
 import org.apache.commons.cli.*;
-import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.state.PartNumber;
@@ -35,8 +34,11 @@ public class GraphStream {
     private final StreamExecutionEnvironment env; // Stream environment
 
     private final String[] cmdArgs; // Command Line Arguments for the job
+
     public double lambda = 1; // GNN operator explosion coefficient. 1 means no explosion
+
     private boolean fineGrainedResourceManagementEnabled = false; // Add custom slotSharingGroupsForOperators
+
     private String partitionerName = "random"; // Partitioner Name
 
     private String dataset = "cora"; // Dataset to process
@@ -49,6 +51,17 @@ public class GraphStream {
 
     private IterationID fullLoopIterationId; // Iteration Id of 0 layer
 
+    public boolean isFineGrainedResourceManagementEnabled() {
+        return fineGrainedResourceManagementEnabled;
+    }
+
+    public String getPartitionerName() {
+        return partitionerName;
+    }
+
+    public String getDataset() {
+        return dataset;
+    }
 
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
         this.env = env;
@@ -177,6 +190,7 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream, fineGrainedResourceManagementEnabled);
         return partitionedOutput;
     }
+
 
     /**
      * Helper function to add a new layer of GNN Iteration, explicitly used to trainer. Otherwise chain starts from @gnnEmbeddings()

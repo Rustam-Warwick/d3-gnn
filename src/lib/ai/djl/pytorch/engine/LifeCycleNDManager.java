@@ -1,11 +1,12 @@
 package ai.djl.pytorch.engine;
 
 import ai.djl.Device;
+import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
 
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A special Singleton NDManager that is direct child of the SystemNDManager.
@@ -14,31 +15,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Internally one can create a child of this NDManager if DJL normal NDManager is needed
  * Try to avoid NDManager if it is not going to be closed again
  */
-public class LifeCycleNDManager  extends PtNDManager {
-    public static final AtomicInteger counter = new AtomicInteger(0);
-    private static transient LifeCycleNDManager object;
-    private static final ThreadLocal<Tracker> TRACKERS = ThreadLocal.withInitial(Tracker::new);
+public class LifeCycleNDManager extends PtNDManager {
+    private final transient HashMap<String, WeakReference<AutoCloseable>> registrations = new HashMap<>(10000); // Thread Local
+    
+    private final transient Scope scope = new Scope();
+
+    private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(()-> {
+        System.out.println(Thread.currentThread().getName());
+            return new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice());}); // Attached to the life cycle of the
+
     public LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
     public static LifeCycleNDManager getInstance() {
-        if (object == null) object = new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice());
-        return object;
+        return instances.get();
+    }
+
+    public Scope getScope() {
+        return scope;
     }
 
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
-        int val = counter.incrementAndGet();
-        if(val % 10000 == 0) System.out.println(val);
-        Tracker tmp = TRACKERS.get();
-        if(tmp.isOpen()){
-            tmp.attach(resourceId, resource);
-        }
-    }
-
-    public void attachToTracker(String resourceId, AutoCloseable resource){
-        TRACKERS.get().attach(resourceId, resource);
+        registrations.putIfAbsent(resourceId, new WeakReference<>(resource));
     }
 
     @Override
@@ -47,18 +47,9 @@ public class LifeCycleNDManager  extends PtNDManager {
     }
 
 
-    public Tracker startTracker(){
-        Tracker tmp = TRACKERS.get();
-        tmp.setOpen(true);
-        return tmp;
-    }
-
     @Override
     public void detachInternal(String resourceId) {
-        Tracker tmp = TRACKERS.get();
-        if(tmp.isOpen()){
-            tmp.detach(resourceId);
-        }
+        registrations.remove(resourceId);
     }
 
     @Override
@@ -66,40 +57,43 @@ public class LifeCycleNDManager  extends PtNDManager {
         // Not closing explicitely
     }
 
-    public static class Tracker implements AutoCloseable{
-        protected Tracker(){
-
+    public void clean(){
+        if(registrations.size() > 500) {
+            registrations.forEach((key, val) -> {
+                AutoCloseable tmp = val.get();
+                if (tmp != null) {
+                    try {
+                        tmp.close();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            registrations.clear();
         }
+    }
 
-        private final HashMap<String, AutoCloseable> trackedEntities = new HashMap<String, AutoCloseable>(101);
-
-        private boolean open = false;
-
-        public boolean isOpen() {
-            return open;
-        }
-
-        public void setOpen(boolean open) {
-            this.open = open;
-        }
-
-        public void attach(String resourceId, AutoCloseable resource){
-            trackedEntities.put(resourceId, resource);
-        }
-
-        public void detach(String resourceId){
-            trackedEntities.remove(resourceId);
+    /**
+     * Context for doing ND operations so that input elements will be returned to their original managers after closing
+     * Everything extra will be attached to this LifeCycleNDManager
+     */
+    public class Scope implements AutoCloseable{
+        private transient NDList inputs;
+        private final transient NDManager[] originalManagers = new NDManager[10];
+        public Scope start(NDList inputs){
+            this.inputs = inputs;
+            for (int i = 0; i < this.inputs.size(); i++) {
+                originalManagers[i] = inputs.get(i).getManager();
+                inputs.get(i).attach(LifeCycleNDManager.this);
+            }
+            return this;
         }
 
         @Override
         public void close() throws Exception {
-            if(trackedEntities.size() > 100) {
-                for (AutoCloseable autoCloseable : trackedEntities.values()) {
-                    autoCloseable.close();
-                }
-                trackedEntities.clear();
+            for (int i = 0; i < inputs.size(); i++) {
+                inputs.get(i).attach(originalManagers[i]);
             }
-            open = false;
         }
     }
 

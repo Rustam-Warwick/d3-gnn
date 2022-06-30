@@ -140,13 +140,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
-        StreamRecord<GraphOp> copyRecord = record.copy(record.getValue().copy());
-        feedbackChannel.put(copyRecord, operatorID);
+        feedbackChannel.put(record, operatorID);
     }
 
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
-        feedbackChannel.put(new StreamRecord<>(record.getValue(), record.getTimestamp()), operatorID);
+        feedbackChannel.put(record, operatorID);
     }
 
     @Override

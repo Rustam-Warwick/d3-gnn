@@ -1,10 +1,10 @@
 package ai.djl.training;
 
 import ai.djl.Device;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 
 public abstract class ParameterStore {
     abstract public void updateAllParameters();

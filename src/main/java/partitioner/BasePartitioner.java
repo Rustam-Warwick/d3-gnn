@@ -17,6 +17,8 @@ abstract public class BasePartitioner {
         switch (name) {
             case "hdrf":
                 return new HDRF();
+            case "windowed-hdrf":
+                return new WindowedHDRF();
             default:
                 return new RandomPartitioner();
         }

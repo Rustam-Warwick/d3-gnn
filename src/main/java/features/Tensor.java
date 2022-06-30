@@ -2,6 +2,8 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
+import elements.GraphElement;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions
@@ -40,4 +42,16 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return this.value;
     }
 
+    @Override
+    public Boolean createElement() {
+        this.value.detach();
+        return super.createElement();
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+        Tensor newAgg = (Tensor) newElement;
+        newAgg.value.detach();
+        return super.updateElement(newElement);
+    }
 }

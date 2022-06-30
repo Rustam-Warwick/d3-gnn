@@ -4,19 +4,23 @@ import elements.*;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
+import typeinfo.OmittingPojoTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
+/**
+ * @implNote Only use if using InMemoryState backend
+ */
 public class FlatInMemoryClassStorage extends BaseStorage {
     protected MapState<String, Vertex> vertexTable;
     protected MapState<String, Feature<?, ?>> attachedFeatureTable;
     protected MapState<String, Feature<?, ?>> independentFeatureTable;
-    protected MapState<String, HashMap<String, Edge>> edgeTable;
+    protected MapState<String, Map<String, Edge>> edgeTable;
 
     public FlatInMemoryClassStorage() {
 
@@ -25,17 +29,15 @@ public class FlatInMemoryClassStorage extends BaseStorage {
 
     @Override
     public void open() throws Exception {
-        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", String.class, Vertex.class);
-        MapStateDescriptor<String, HashMap<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Edge>>() {
-        }));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Feature<?, ?>>() {
-        }));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDeesc = new MapStateDescriptor<>("independentFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Feature<?, ?>>() {
-        }));
+        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new OmittingPojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null));
+        MapStateDescriptor<String, Map<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, Types.MAP(Types.STRING, new OmittingPojoTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null)));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?,?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?,?>>().createTypeInfo(Feature.class, null));
+
         vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
         attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
-        independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDeesc);
+        independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
         super.open();
     }
 
@@ -44,16 +46,10 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         try {
             if (feature.attachedTo == null) {
                 independentFeatureTable.put(feature.getId(), feature);
-                return true;
             } else {
-                GraphElement el = getElement(feature.attachedTo.f1, feature.attachedTo.f0);
-                if (feature.element == el) {
-                    attachedFeatureTable.put(feature.getId(), feature);
-                    return true;
-                } else {
-                    throw new IllegalStateException("Could not attached element");
-                }
+                attachedFeatureTable.put(feature.getId(), feature);
             }
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -88,7 +84,12 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public boolean updateFeature(Feature<?, ?> feature) {
         try {
-            return true; // Feature updates happening on elements will be reflected here
+            if (feature.attachedTo == null) {
+                independentFeatureTable.put(feature.getId(), feature);
+            } else {
+                attachedFeatureTable.put(feature.getId(), feature);
+            }
+            return true;
         } catch (Exception e) {
             e.printStackTrace();
             return false;

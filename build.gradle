@@ -111,8 +111,6 @@ sourceSets {
 //    test.runtimeClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar + test.runtimeClasspath
 
     javadoc.classpath += (lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar )
-
-
 }
 
 run.classpath = sourceSets.main.runtimeClasspath

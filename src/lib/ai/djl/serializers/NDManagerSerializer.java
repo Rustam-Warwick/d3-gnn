@@ -1,7 +1,7 @@
 package ai.djl.serializers;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDManager;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;

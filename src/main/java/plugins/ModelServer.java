@@ -60,6 +60,7 @@ public class ModelServer extends Plugin {
 
     public void open() {
         super.open();
+        model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         inputShape = model.describeInput();
         optimizer = Adam.builder().optLearningRateTracker(Tracker.fixed(0.01f)).build();
         parameterStore = new ParameterStoreWrapper();

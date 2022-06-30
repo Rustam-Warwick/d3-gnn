@@ -3,7 +3,9 @@ package elements;
 import storage.BaseStorage;
 
 public class Edge extends GraphElement {
+    @OmitStorage
     public Vertex src;
+    @OmitStorage
     public Vertex dest;
 
     public Edge() {

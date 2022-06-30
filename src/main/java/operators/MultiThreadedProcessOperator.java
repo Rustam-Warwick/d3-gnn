@@ -53,6 +53,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
         workQueue = new LimitedBlockingQueue<>((int) (nThreads * 1.2));
         executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
+        Thread.sleep(1000);
     }
 
     @Override

@@ -2,10 +2,10 @@ package plugins.embedding_layer;
 
 import aggregators.BaseAggregator;
 import aggregators.MeanAggregator;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
 import elements.*;

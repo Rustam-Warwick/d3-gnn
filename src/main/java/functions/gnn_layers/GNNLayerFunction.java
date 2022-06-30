@@ -1,5 +1,6 @@
 package functions.gnn_layers;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.ReplicaState;
@@ -190,6 +191,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
             e.printStackTrace();
         } finally {
             getStorage().getPlugins().forEach(GraphElement::clearFeatures); // Clear the features since it may come later
+            LifeCycleNDManager.getInstance().clean();
         }
     }
 
