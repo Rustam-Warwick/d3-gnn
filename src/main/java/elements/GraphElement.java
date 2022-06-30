@@ -1,5 +1,6 @@
 package elements;
 
+import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -66,7 +67,10 @@ public class GraphElement implements Serializable {
             for (Feature<?, ?> feature1 : el.features) {
                 if (feature1 == feature1) return true; // This is here as a reference object
             }
-            return false;
+            System.out.println("Warning you are replacing a Feature, check you code");
+            el.features.remove(feature);
+            el.features.add(feature);
+            return true;
         }
     }
 
@@ -338,7 +342,7 @@ public class GraphElement implements Serializable {
     @Nullable
     public Feature<?, ?> getFeature(String name) {
         Feature<?, ?> result = features != null ? features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null) : null;
-        if (result == null && storage != null) {
+        if (result == null && storage != null && storage.containsFeature(decodeFeatureId(name))) {
             result = storage.getFeature(decodeFeatureId(name));
         }
         if (Objects.nonNull(result)) result.setElement(this);
@@ -415,6 +419,16 @@ public class GraphElement implements Serializable {
             }
         }
 
+    }
+
+    /**
+     * Swtiches NDManager for all tensors of this GraphElement
+     * @param manager new NDmanager
+     */
+    public void switchNDManagerIfNotDetached(NDManager manager){
+        if(features!=null){
+            features.forEach(item->item.switchNDManagerIfNotDetached(manager));
+        }
     }
 
     @Override

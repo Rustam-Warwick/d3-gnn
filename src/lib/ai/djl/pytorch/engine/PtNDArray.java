@@ -59,6 +59,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
+    private Boolean marked = false; // Marked means that this tensor should be cleaned eventually during the deserialization
     private PtNDManager manager;
     private final PtNDArrayEx ptNDArrayEx;
 
@@ -1792,6 +1793,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public int hashCode() {
         return 0;
+    }
+
+    public Boolean getMarked() {
+        return marked;
+    }
+
+    public void setMarked(Boolean marked) {
+        this.marked = marked;
     }
 
     /**

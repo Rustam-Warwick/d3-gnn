@@ -63,6 +63,7 @@ dependencies {
     implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
     implementation 'org.jetbrains:annotations:20.1.0'
+    implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
 
 
     // --------------------------------------------------------------

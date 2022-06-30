@@ -83,6 +83,15 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
         registerFeedbackWriter();
+
+    }
+
+    @Override
+    public void open() throws Exception {
+        super.open();
+        while(!feedbackChannel.hasConsumer()){
+            Thread.sleep(200);
+        }
     }
 
     @Override
@@ -102,6 +111,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
             }
         }
     }
+
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {

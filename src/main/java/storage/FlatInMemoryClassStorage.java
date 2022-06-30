@@ -125,7 +125,9 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public Vertex getVertex(String id) {
         try {
-            return vertexTable.get(id);
+            Vertex v = vertexTable.get(id);
+            if(v.storage == null)v.setStorage(this);
+            return v;
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -135,7 +137,11 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public Iterable<Vertex> getVertices() {
         try {
-            return vertexTable.values();
+            Iterator<Vertex> iterator = vertexTable.values().iterator();
+            return ()->IteratorUtils.transformedIterator(iterator, item->{
+                ((Vertex) item).setStorage(this);
+                return item;
+            });
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
@@ -146,7 +152,9 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public Edge getEdge(String src, String dest) {
         try {
-            return edgeTable.get(src).get(dest);
+            Edge tmp = edgeTable.get(src).get(dest);
+            if(tmp.storage==null)tmp.setStorage(this);
+            return tmp;
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -157,17 +165,17 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
-            switch (edge_type) {
-                case IN:
-                    throw new IllegalStateException("In Edges not suported");
-                case OUT:
-                    return edgeTable.contains(vertex.getId()) ? edgeTable.get(vertex.getId()).values() : Collections.emptyList();
-                case BOTH:
-                    Iterator<Edge> finalIterator = IteratorUtils.chainedIterator(getIncidentEdges(vertex, EdgeType.IN).iterator(), getIncidentEdges(vertex, EdgeType.OUT).iterator());
-                    return () -> finalIterator;
-                default:
-                    return Collections.emptyList();
-            }
+            assert edge_type != EdgeType.IN;
+            Iterator<Map.Entry<String, Edge>> outIterator = edgeTable.contains(vertex.getId())&&(edge_type==EdgeType.OUT || edge_type==EdgeType.BOTH)?edgeTable.get(vertex.getId()).entrySet().iterator():IteratorUtils.emptyIterator();
+            return ()->IteratorUtils.transformedIterator(outIterator, obj->{
+                Map.Entry<String, Edge> val = (Map.Entry<String, Edge>)obj;
+                if(val.getValue().src==null){
+                    val.getValue().src = vertex;
+                    val.getValue().dest = this.getVertex(val.getKey());
+                    val.getValue().setStorage(this);
+                }
+                return val.getValue();
+            });
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
@@ -180,10 +188,14 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         try {
             if (id.contains(":")) {
                 // This is attached feature
-                return attachedFeatureTable.get(id);
+                Feature<?,?> tmp = attachedFeatureTable.get(id);
+                if(tmp.storage == null)tmp.setStorage(this);
+                return tmp;
             } else {
                 // This is independent Feature
-                return independentFeatureTable.get(id);
+                Feature<?,?> tmp = independentFeatureTable.get(id);
+                if(tmp.storage == null)tmp.setStorage(this);
+                return tmp;
             }
         } catch (Exception e) {
             e.printStackTrace();

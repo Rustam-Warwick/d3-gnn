@@ -240,7 +240,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDList UPDATE(NDList feature, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(feature)) {
+            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+            return res;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -251,7 +256,13 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDList MESSAGE(NDList features, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(features)) {
+            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+            return res;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**

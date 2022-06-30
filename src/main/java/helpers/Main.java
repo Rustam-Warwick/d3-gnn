@@ -62,7 +62,12 @@ public class Main {
         // Configuration
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
+//        Configuration confg = new Configuration();
+//        confg.set(RocksDBConfigurableOptions.WRITE_BUFFER_SIZE, MemorySize.ofMebiBytes(256));
+//        confg.set(RocksDBConfigurableOptions.MAX_WRITE_BUFFER_NUMBER,3);
+//        confg.set(RocksDBConfigurableOptions.BLOCK_CACHE_SIZE, MemorySize.ofMebiBytes(50));
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+//        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // Initializate the helper classes
         // DataFlow
 

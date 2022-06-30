@@ -52,6 +52,9 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
         Tensor newAgg = (Tensor) newElement;
         newAgg.value.detach();
+        if(this.value != newAgg.value){
+            this.value.setMarked(true);
+        }
         return super.updateElement(newElement);
     }
 }

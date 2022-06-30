@@ -40,7 +40,7 @@ public class PtNDManager extends BaseNDManager {
         super(parent, device);
     }
 
-    static PtNDManager getSystemManager() {
+    public static PtNDManager getSystemManager() {
         return SYSTEM_MANAGER;
     }
 
