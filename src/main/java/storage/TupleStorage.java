@@ -16,7 +16,7 @@ public class TupleStorage extends BaseStorage {
     public transient MapState<String, Tuple4<Object, Boolean, ElementType, String>> attachedFeatureTable;
     public transient MapState<String, Tuple3<Object, Boolean, Short>> independentFeatureTable;
     public transient MapState<String, HashMap<String, Byte>> edges;
-    public transient HashMap<String,TypeInformation<? extends Feature<?,?>>> fieldNames = new HashMap<>();
+    public transient HashMap<String, TypeInformation<? extends Feature<?, ?>>> fieldNames = new HashMap<>();
 
 
     @Override
@@ -25,27 +25,29 @@ public class TupleStorage extends BaseStorage {
         MapStateDescriptor<String, Short> vertexTableDesc = new MapStateDescriptor<String, Short>("vertexTable", String.class, Short.class);
         MapStateDescriptor<String, Tuple4<Object, Boolean, ElementType, String>> attachedFeatureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Tuple4<Object, Boolean, ElementType, String>>() {
         }));
-        MapStateDescriptor<String, Tuple3<Object, Boolean, Short>> independentFeatureTableDesc = new MapStateDescriptor<String, Tuple3<Object, Boolean, Short>>("independentFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Tuple3<Object, Boolean, Short>>(){}));
-        MapStateDescriptor<String, HashMap<String, Byte>> edgesDesc = new MapStateDescriptor("edges", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Byte>>(){}));
+        MapStateDescriptor<String, Tuple3<Object, Boolean, Short>> independentFeatureTableDesc = new MapStateDescriptor<String, Tuple3<Object, Boolean, Short>>("independentFeatureTable", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<Tuple3<Object, Boolean, Short>>() {
+        }));
+        MapStateDescriptor<String, HashMap<String, Byte>> edgesDesc = new MapStateDescriptor("edges", TypeInformation.of(String.class), TypeInformation.of(new TypeHint<HashMap<String, Byte>>() {
+        }));
 
         this.vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
-        this.attachedFeatureTable= layerFunction.getRuntimeContext().getMapState(attachedFeatureTableDesc);
-        this.independentFeatureTable= layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
+        this.attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(attachedFeatureTableDesc);
+        this.independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
         this.edges = layerFunction.getRuntimeContext().getMapState(edgesDesc);
 
     }
 
     @Override
     public boolean addFeature(Feature<?, ?> feature) {
-        try{
-            if(feature.attachedTo == null){
+        try {
+            if (feature.attachedTo == null) {
                 // Not attached Feature
                 independentFeatureTable.put(feature.getId(), Tuple3.of(feature.value, feature.halo, feature.master));
-            }else{
+            } else {
                 attachedFeatureTable.put(feature.getId(), Tuple4.of(feature.value, feature.halo, feature.attachedTo.f0, feature.attachedTo.f1));
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -65,9 +67,9 @@ public class TupleStorage extends BaseStorage {
     public boolean addEdge(Edge edge) {
         try {
             HashMap<String, Byte> entries;
-            if(edges.contains(edge.src.getId()))entries = edges.get(edge.src.getId());
+            if (edges.contains(edge.src.getId())) entries = edges.get(edge.src.getId());
             else entries = new HashMap<>(3);
-            entries.put(edge.dest.getId(), (byte)1);
+            entries.put(edge.dest.getId(), (byte) 1);
             edges.put(edge.src.getId(), entries);
             return true;
         } catch (Exception e) {
@@ -77,12 +79,12 @@ public class TupleStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateFeature(Feature<?,?> feature) {
+    public boolean updateFeature(Feature<?, ?> feature) {
         try {
-            if(feature.attachedTo == null){
+            if (feature.attachedTo == null) {
                 // Not attached Feature
                 independentFeatureTable.put(feature.getId(), Tuple3.of(feature.value, feature.halo, feature.master));
-            }else{
+            } else {
                 attachedFeatureTable.put(feature.getId(), Tuple4.of(feature.value, feature.halo, feature.attachedTo.f0, feature.attachedTo.f1));
             }
             return true;
@@ -112,11 +114,11 @@ public class TupleStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteFeature(Feature<?,?> feature) {
+    public boolean deleteFeature(Feature<?, ?> feature) {
         try {
-            if(feature.attachedTo == null){
+            if (feature.attachedTo == null) {
                 independentFeatureTable.remove(feature.getId());
-            }else{
+            } else {
                 attachedFeatureTable.remove(feature.getId());
             }
             return true;
@@ -140,7 +142,7 @@ public class TupleStorage extends BaseStorage {
         try {
             HashMap<String, Byte> val = edges.get(edge.src.getId());
             val.remove(edge.dest.getId());
-            if(val.isEmpty()) edges.remove(edge.src.getId());
+            if (val.isEmpty()) edges.remove(edge.src.getId());
             else edges.put(edge.src.getId(), val);
             return true;
         } catch (Exception e) {

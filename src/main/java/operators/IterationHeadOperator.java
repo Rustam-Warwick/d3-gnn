@@ -80,6 +80,8 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        if (element.getValue().getElement() != null)
+            element.getValue().getElement().switchNDManagerIfNotThis(feedbackChannel.getFeedbackManager(), LifeCycleNDManager.getInstance());
         processElement(element);
     }
 

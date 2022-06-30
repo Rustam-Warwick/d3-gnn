@@ -18,6 +18,7 @@
 
 package operators;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
@@ -89,9 +90,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void open() throws Exception {
         super.open();
-        while(!feedbackChannel.hasConsumer()){
-            Thread.sleep(200);
-        }
     }
 
     @Override
@@ -115,6 +113,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
+        if (streamRecord.getValue().getElement() != null)
+            streamRecord.getValue().getElement().switchNDManagerIfNotThis(LifeCycleNDManager.getInstance(), feedbackChannel.getFeedbackManager());
         recordConsumer.accept(streamRecord);
     }
 
@@ -156,11 +156,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
         feedbackChannel.put(record, operatorID);
-    }
-
-    @Override
-    public void finish() throws Exception {
-        super.finish();
     }
 
     @Override

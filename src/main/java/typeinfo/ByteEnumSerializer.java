@@ -152,7 +152,33 @@ public final class ByteEnumSerializer<T extends Enum<T>> extends TypeSerializer<
         return new ByteEnumSerializerSnapshot(enumClass, values);
     }
 
-    /** {@link TypeSerializerSnapshot} for {@link org.apache.flink.api.common.typeutils.base.EnumSerializer}. */
+    @VisibleForTesting
+    T[] getValues() {
+        return values;
+    }
+
+    // --------------------------------------------------------------------------------------------
+    // Test utilities
+    // --------------------------------------------------------------------------------------------
+
+    @VisibleForTesting
+    Map<T, Integer> getValueToOrdinal() {
+        return valueToOrdinal;
+    }
+
+    @Override
+    public String toString() {
+        return "EnumSerializer{"
+                + "enumClass="
+                + enumClass
+                + ", values="
+                + Arrays.toString(values)
+                + '}';
+    }
+
+    /**
+     * {@link TypeSerializerSnapshot} for {@link org.apache.flink.api.common.typeutils.base.EnumSerializer}.
+     */
     public static final class ByteEnumSerializerSnapshot<T extends Enum<T>>
             implements TypeSerializerSnapshot<T> {
         private static final int CURRENT_VERSION = 3;
@@ -247,30 +273,6 @@ public final class ByteEnumSerializer<T extends Enum<T>> extends TypeSerializer<
             return TypeSerializerSchemaCompatibility.compatibleWithReconfiguredSerializer(
                     reconfiguredSerializer);
         }
-    }
-
-    // --------------------------------------------------------------------------------------------
-    // Test utilities
-    // --------------------------------------------------------------------------------------------
-
-    @VisibleForTesting
-    T[] getValues() {
-        return values;
-    }
-
-    @VisibleForTesting
-    Map<T, Integer> getValueToOrdinal() {
-        return valueToOrdinal;
-    }
-
-    @Override
-    public String toString() {
-        return "EnumSerializer{"
-                + "enumClass="
-                + enumClass
-                + ", values="
-                + Arrays.toString(values)
-                + '}';
     }
 }
 

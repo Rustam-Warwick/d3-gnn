@@ -422,12 +422,11 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Swtiches NDManager for all tensors of this GraphElement
-     * @param manager new NDmanager
+     * Swtiches NDManager for all tensors of this GraphElement to switchTo if it is currently attached to checkManager
      */
-    public void switchNDManagerIfNotDetached(NDManager manager){
-        if(features!=null){
-            features.forEach(item->item.switchNDManagerIfNotDetached(manager));
+    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
+        if (features != null) {
+            features.forEach(item -> item.switchNDManagerIfNotThis(checkManager, switchTo));
         }
     }
 

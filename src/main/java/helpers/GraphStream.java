@@ -51,6 +51,13 @@ public class GraphStream {
 
     private IterationID fullLoopIterationId; // Iteration Id of 0 layer
 
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
+        this.env = env;
+        this.cmdArgs = cmdArgs;
+        configureSerializers();
+        parseCmdArgs();
+    }
+
     public boolean isFineGrainedResourceManagementEnabled() {
         return fineGrainedResourceManagementEnabled;
     }
@@ -61,13 +68,6 @@ public class GraphStream {
 
     public String getDataset() {
         return dataset;
-    }
-
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
-        this.env = env;
-        this.cmdArgs = cmdArgs;
-        configureSerializers();
-        parseCmdArgs();
     }
 
     private void configureSerializers() {

@@ -1,6 +1,8 @@
 package features;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.Feature;
 import elements.GraphElement;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -50,11 +52,20 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        Tensor newAgg = (Tensor) newElement;
-        newAgg.value.detach();
-        if(this.value != newAgg.value){
-            this.value.setMarked(true);
+        Tensor newTensor = (Tensor) newElement;
+        if (newTensor.value != this.value) {
+            newTensor.value.detach();
+            this.value.attach(LifeCycleNDManager.getInstance());
         }
         return super.updateElement(newElement);
+    }
+
+    @Override
+    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
+        super.switchNDManagerIfNotThis(checkManager, switchTo);
+        if (value.getManager() != checkManager) {
+            // Not detached
+            value.attach(switchTo);
+        }
     }
 }

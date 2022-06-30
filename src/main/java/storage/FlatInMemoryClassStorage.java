@@ -31,8 +31,8 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public void open() throws Exception {
         MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new OmittingPojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null));
         MapStateDescriptor<String, Map<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, Types.MAP(Types.STRING, new OmittingPojoTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null)));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?,?>>().createTypeInfo(Feature.class, null));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?,?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
 
         vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
@@ -126,7 +126,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Vertex getVertex(String id) {
         try {
             Vertex v = vertexTable.get(id);
-            if(v.storage == null)v.setStorage(this);
+            if (v.storage == null) v.setStorage(this);
             return v;
         } catch (Exception e) {
             e.printStackTrace();
@@ -138,7 +138,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Iterable<Vertex> getVertices() {
         try {
             Iterator<Vertex> iterator = vertexTable.values().iterator();
-            return ()->IteratorUtils.transformedIterator(iterator, item->{
+            return () -> IteratorUtils.transformedIterator(iterator, item -> {
                 ((Vertex) item).setStorage(this);
                 return item;
             });
@@ -153,7 +153,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Edge getEdge(String src, String dest) {
         try {
             Edge tmp = edgeTable.get(src).get(dest);
-            if(tmp.storage==null)tmp.setStorage(this);
+            if (tmp.storage == null) tmp.setStorage(this);
             return tmp;
         } catch (Exception e) {
             e.printStackTrace();
@@ -166,10 +166,10 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
             assert edge_type != EdgeType.IN;
-            Iterator<Map.Entry<String, Edge>> outIterator = edgeTable.contains(vertex.getId())&&(edge_type==EdgeType.OUT || edge_type==EdgeType.BOTH)?edgeTable.get(vertex.getId()).entrySet().iterator():IteratorUtils.emptyIterator();
-            return ()->IteratorUtils.transformedIterator(outIterator, obj->{
-                Map.Entry<String, Edge> val = (Map.Entry<String, Edge>)obj;
-                if(val.getValue().src==null){
+            Iterator<Map.Entry<String, Edge>> outIterator = edgeTable.contains(vertex.getId()) && (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) ? edgeTable.get(vertex.getId()).entrySet().iterator() : IteratorUtils.emptyIterator();
+            return () -> IteratorUtils.transformedIterator(outIterator, obj -> {
+                Map.Entry<String, Edge> val = (Map.Entry<String, Edge>) obj;
+                if (val.getValue().src == null) {
                     val.getValue().src = vertex;
                     val.getValue().dest = this.getVertex(val.getKey());
                     val.getValue().setStorage(this);
@@ -188,13 +188,13 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         try {
             if (id.contains(":")) {
                 // This is attached feature
-                Feature<?,?> tmp = attachedFeatureTable.get(id);
-                if(tmp.storage == null)tmp.setStorage(this);
+                Feature<?, ?> tmp = attachedFeatureTable.get(id);
+                if (tmp.storage == null) tmp.setStorage(this);
                 return tmp;
             } else {
                 // This is independent Feature
-                Feature<?,?> tmp = independentFeatureTable.get(id);
-                if(tmp.storage == null)tmp.setStorage(this);
+                Feature<?, ?> tmp = independentFeatureTable.get(id);
+                if (tmp.storage == null) tmp.setStorage(this);
                 return tmp;
             }
         } catch (Exception e) {

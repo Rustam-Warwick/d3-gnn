@@ -1,5 +1,7 @@
 package elements.iterations;
 
+import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
 import elements.ElementType;
 import elements.GraphElement;
 
@@ -75,6 +77,19 @@ public class Rmi extends GraphElement {
 
         } catch (Throwable e) {
             e.printStackTrace();
+        }
+    }
+
+    @Override
+    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
+        super.switchNDManagerIfNotThis(checkManager, switchTo);
+        for (Object arg : args) {
+            if (arg instanceof NDArray) {
+                NDArray tmp = (NDArray) arg;
+                if (tmp.getManager() != checkManager) {
+                    tmp.attach(switchTo);
+                }
+            }
         }
     }
 

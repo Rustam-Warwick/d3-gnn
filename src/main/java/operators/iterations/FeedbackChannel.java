@@ -19,6 +19,7 @@ package operators.iterations;
 
 import ai.djl.ndarray.NDManager;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.pytorch.engine.PtNDManager;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
@@ -51,25 +52,29 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>();
     /**
+     * NDManager that temporarily stores the NDArrays while they are still in the queue
+     */
+    private final transient NDManager feedbackChannelManager = new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice());
+
+    /**
      * NDManager of the consumer
      */
-    private transient NDManager consumerManager;
 
     FeedbackChannel(SubtaskFeedbackKey<T> key) {
         this.key = Objects.requireNonNull(key);
         this.queues = new ConcurrentHashMap<>();
     }
 
-    public boolean hasConsumer(){
-        return consumerRef.getPlain()!=null;
+    public boolean hasConsumer() {
+        return consumerRef.getPlain() != null;
     }
 
-    public boolean hasProducer(){
+    public boolean hasProducer() {
         return !queues.isEmpty();
     }
 
-    public NDManager getConsumerManager() {
-        return consumerManager;
+    public NDManager getFeedbackManager() {
+        return feedbackChannelManager;
     }
 
     /**
@@ -110,8 +115,6 @@ public final class FeedbackChannel<T> implements Closeable {
         if (!this.consumerRef.compareAndSet(null, consumerTask)) {
             throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
         }
-
-        consumerManager = LifeCycleNDManager.getInstance();
 
         consumerTask.scheduleDrainAll();
     }

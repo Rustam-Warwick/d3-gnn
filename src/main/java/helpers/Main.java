@@ -71,7 +71,7 @@ public class Main {
         // Initializate the helper classes
         // DataFlow
 
-        Integer window = 1000;
+        Integer window = 2000;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()

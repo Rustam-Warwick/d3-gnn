@@ -23,7 +23,7 @@ public class OmittingPojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
             List<PojoField> pojoFields = new ArrayList<>();
 
             for (int i = 0; i < fields.size(); i++) {
-                if(fields.get(i).isAnnotationPresent(OmitStorage.class))continue;
+                if (fields.get(i).isAnnotationPresent(OmitStorage.class)) continue;
                 Type fieldType = fields.get(i).getGenericType();
                 try {
                     pojoFields.add(new PojoField(fields.get(i), TypeExtractor.createTypeInfo(fieldType)));

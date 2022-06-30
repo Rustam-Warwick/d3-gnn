@@ -16,18 +16,19 @@ import java.util.HashMap;
  * Try to avoid NDManager if it is not going to be closed again
  */
 public class LifeCycleNDManager extends PtNDManager {
+    private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(() ->
+            new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice())
+    ); // Attached to the life cycle of the
     private final transient HashMap<String, WeakReference<AutoCloseable>> registrations = new HashMap<>(10000); // Thread Local
-    
     private final transient Scope scope = new Scope();
-
-    private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(()-> {
-        System.out.println(Thread.currentThread().getName());
-            return new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice());}); // Attached to the life cycle of the
 
     public LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
+    /**
+     * Get NDManager for this Thread
+     */
     public static LifeCycleNDManager getInstance() {
         return instances.get();
     }
@@ -57,8 +58,8 @@ public class LifeCycleNDManager extends PtNDManager {
         // Not closing explicitely
     }
 
-    public void clean(){
-        if(registrations.size() > 500) {
+    public void clean() {
+        if (registrations.size() > 500) {
             registrations.forEach((key, val) -> {
                 AutoCloseable tmp = val.get();
                 if (tmp != null) {
@@ -77,10 +78,11 @@ public class LifeCycleNDManager extends PtNDManager {
      * Context for doing ND operations so that input elements will be returned to their original managers after closing
      * Everything extra will be attached to this LifeCycleNDManager
      */
-    public class Scope implements AutoCloseable{
-        private transient NDList inputs;
+    public class Scope implements AutoCloseable {
         private final transient NDManager[] originalManagers = new NDManager[10];
-        public Scope start(NDList inputs){
+        private transient NDList inputs;
+
+        public Scope start(NDList inputs) {
             this.inputs = inputs;
             for (int i = 0; i < this.inputs.size(); i++) {
                 originalManagers[i] = inputs.get(i).getManager();

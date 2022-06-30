@@ -1,6 +1,5 @@
 package functions.filewriters;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
@@ -35,7 +34,6 @@ public class ThroughputMetricsOutput extends ProcessFunction<GraphOp, Void> {
             }
             count = 0;
         }
-        LifeCycleNDManager.getInstance().clean();
     }
 
     private void writeToFile() throws Exception {

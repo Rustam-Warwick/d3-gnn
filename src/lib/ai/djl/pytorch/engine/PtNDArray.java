@@ -39,7 +39,9 @@ import java.util.stream.IntStream;
  * Added extra cleaner for this NDArray, works with explicit call as well as Cleaner for GC
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
+    private static final transient Cleaner cleaner = Cleaner.create();
     private static transient Unsafe UNSAFE;
+
     static {
         try {
             Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
@@ -50,8 +52,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    private static final transient Cleaner cleaner = Cleaner.create();
     private transient final Cleaner.Cleanable cleanable;
+    private final PtNDArrayEx ptNDArrayEx;
     private String name;
     private Device device;
     private DataType dataType;
@@ -59,10 +61,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
-    private Boolean marked = false; // Marked means that this tensor should be cleaned eventually during the deserialization
     private PtNDManager manager;
-    private final PtNDArrayEx ptNDArrayEx;
-
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
@@ -1793,14 +1792,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public int hashCode() {
         return 0;
-    }
-
-    public Boolean getMarked() {
-        return marked;
-    }
-
-    public void setMarked(Boolean marked) {
-        this.marked = marked;
     }
 
     /**

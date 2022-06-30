@@ -15,17 +15,17 @@ import java.nio.file.StandardOpenOption;
  * Write the partitioned graph data to a CSV File
  */
 public class PartitionerCsvFileWriter extends ProcessFunction<GraphOp, Void> {
-    private transient File outputFile;
     private final String jobName;
+    private transient File outputFile;
 
-    public PartitionerCsvFileWriter(String jobName){
+    public PartitionerCsvFileWriter(String jobName) {
         this.jobName = jobName;
     }
 
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-        Edge e = (Edge)value.getElement();
-        Files.write(outputFile.toPath(),String.format("%s,%s,%s,%s,%s,%s\n", ctx.timestamp(), e.src.getId(), e.src.masterPart(), e.dest.getId(), e.dest.masterPart(), value.getPartId()).getBytes(StandardCharsets.UTF_8),StandardOpenOption.APPEND);
+        Edge e = (Edge) value.getElement();
+        Files.write(outputFile.toPath(), String.format("%s,%s,%s,%s,%s,%s\n", ctx.timestamp(), e.src.getId(), e.src.masterPart(), e.dest.getId(), e.dest.masterPart(), value.getPartId()).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
     }
 
     @Override

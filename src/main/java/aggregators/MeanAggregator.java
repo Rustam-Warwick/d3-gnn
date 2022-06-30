@@ -69,7 +69,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0))) {
-            value.f0.addi((newElement.subi(oldElement)).divi(value.f1));
+            value.f0.addi((newElement.sub(oldElement)).divi(value.f1));
         } catch (Exception e) {
             e.printStackTrace();
         }
