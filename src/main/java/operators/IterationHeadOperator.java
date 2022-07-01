@@ -45,7 +45,9 @@ import java.util.concurrent.Executor;
 /**
  * Feedback consumer operator
  * It also handles the checkpointing of the data @todo enable checkpointing
+ * @Deprecated use @see{IterationSourceOperator}
  */
+@Deprecated
 public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
         implements OneInputStreamOperator<GraphOp, GraphOp>, BoundedOneInput, FeedbackConsumer<StreamRecord<GraphOp>> {
 
@@ -81,7 +83,7 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void open() throws Exception {
-        while(!feedbackChannel.hasProducer()){
+        while (!feedbackChannel.hasProducer()) {
             Thread.sleep(200);
         }
         super.open();
@@ -113,10 +115,7 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void endInput() throws Exception {
-        while (!feedbackChannel.allChannelsEmpty()) {
-            mailboxExecutor.tryYield();
-            Thread.sleep(800);
-        }
+
     }
 
     @Override

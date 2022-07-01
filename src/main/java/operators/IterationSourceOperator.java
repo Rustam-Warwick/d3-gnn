@@ -33,7 +33,6 @@ import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.BoundedOneInput;
 import org.apache.flink.streaming.api.operators.ChainingStrategy;
 import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.api.operators.StreamSource;
@@ -44,12 +43,10 @@ import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
 /**
  * Feedback consumer operator as a source operator
- * It also handles the checkpointing of the data @todo enable checkpointing
  */
 public class IterationSourceOperator extends StreamSource<GraphOp, IterationSourceOperator.MySourceFunction>
         implements FeedbackConsumer<StreamRecord<GraphOp>> {
@@ -64,8 +61,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     private transient BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
 
-    private transient CountDownLatch latch;
-
     private transient int numberOfElementsReceived;
 
     public IterationSourceOperator(IterationID iterationId, short position) {
@@ -75,7 +70,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         this.chainingStrategy = ChainingStrategy.HEAD;
     }
 
-
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
         super.setup(containingTask, config, output);
@@ -83,23 +77,27 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
                 BroadcastOutputFactory.createBroadcastOutput(
                         output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
         mailboxExecutor = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
+
+    }
+
+    @Override
+    public void open() throws Exception {
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
                 });
-        latch = new CountDownLatch(3);
-        getUserFunction().setLatch(latch);
         getUserFunction().setFeedbackChannel(feedbackChannel);
-    }
-
-
-    @Override
-    public void open() throws Exception {
-        while(!feedbackChannel.hasProducer()){
-            Thread.onSpinWait();
+        while (!feedbackChannel.hasProducer()) {
+            Thread.sleep(800);
         }
         super.open();
         getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 50000, 20000);
+    }
+
+    @Override
+    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+        feedbackChannel.addSnapshot(checkpointId); // Stop all the iterations from being consumed
+        super.prepareSnapshotPreBarrier(checkpointId);
     }
 
     @Override
@@ -115,15 +113,10 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 //                element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
 //            }
         } catch (Exception e) {
-            e.printStackTrace();
+            System.out.println("Error processing the Head");
         }
     }
 
-    @Override
-    public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
-        feedbackChannel.addSnapshot(checkpointId); // Stop all the iterations from being consumed
-        super.prepareSnapshotPreBarrier(checkpointId);
-    }
 
     @Override
     public void close() throws Exception {
@@ -131,35 +124,19 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         super.close();
     }
 
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationId, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
-    }
+
 
     protected static class MySourceFunction implements SourceFunction<GraphOp> {
-        private transient CountDownLatch latch;
         private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
-        public void setLatch(CountDownLatch latch) {
-            this.latch = latch;
-        }
+
 
         public void setFeedbackChannel(FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel) {
-            this.feedbackChannel = feedbackChannel;
+            this.feedbackChannel = feedbackChannel; // Reference to the outer FeedBack Channel
         }
 
         @Override
         public void run(SourceContext<GraphOp> ctx) throws Exception {
-            latch.await(); // Await latch termination decision
-            ctx.emitWatermark(new Watermark(Long.MAX_VALUE));
-            while(!feedbackChannel.allChannelsEmpty()){
-                Thread.onSpinWait();
-            }
+            feedbackChannel.getPhaser().arriveAndAwaitAdvance();
         }
 
         @Override
@@ -171,8 +148,21 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
         @Override
         public void onProcessingTime(long time) throws Exception {
-            if (numberOfElementsReceived == 0) latch.countDown();
+            if(numberOfElementsReceived == 0){
+                output.emitWatermark(new Watermark(Long.MAX_VALUE));
+            }
             numberOfElementsReceived = 0;
         }
+    }
+
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 }

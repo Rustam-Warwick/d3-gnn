@@ -31,7 +31,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
-import org.apache.flink.streaming.util.LatencyStats;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,6 +87,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final OperatorEventGateway operatorEventGateway; // Event gateway
 
+    /**
+     * My additions for GNN
+     */
+
     protected final short position; // Horizontal position
 
     protected final short operatorIndex; // Vertical position
@@ -100,8 +103,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
-    protected transient LatencyStats latencyStats; // Use this for tracking latency instead
-
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
@@ -112,7 +113,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
 
-    protected transient List<Short> otherMasterParts; // Parts that are mapped to other operators
+    protected transient List<Short> otherMasterParts; // Master Parts that are mapped to other operators
 
     protected transient Map<IterableOperatorEvent, Short> events; // Table of IterableOperatorEvents received by this operator
 

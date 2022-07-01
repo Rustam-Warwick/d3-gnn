@@ -29,6 +29,7 @@ import java.util.Deque;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -36,18 +37,13 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class FeedbackChannel<T> implements Closeable {
 
-    /**
-     * Map from the iteration sink operators to their respective queues
-     */
-    private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Producers in this channel
-    /**
-     * The key that used to identify this channel.
-     */
-    private final SubtaskFeedbackKey<T> key;
-    /**
-     * A single registered consumer
-     */
-    private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>();
+    private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Multi-Producers
+
+    private final SubtaskFeedbackKey<T> key; // Key of this FeedbackChannel
+
+    private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>(); // Referenceof the ConsumerTask
+
+    private final Phaser phaser = new Phaser(); // Phaser used for coordinating the finishing of the input
 
     FeedbackChannel(SubtaskFeedbackKey<T> key) {
         this.key = Objects.requireNonNull(key);
@@ -55,7 +51,7 @@ public final class FeedbackChannel<T> implements Closeable {
     }
 
     public boolean hasConsumer() {
-        return consumerRef.getPlain() != null;
+        return consumerRef.get() != null;
     }
 
     public boolean hasProducer() {
@@ -66,20 +62,20 @@ public final class FeedbackChannel<T> implements Closeable {
      * Adds a feedback result to this channel.
      */
     public void put(T value, OperatorID publisherId) {
-        try{
+        if(queues.containsKey(publisherId)){
             queues.get(publisherId).addAndCheckIfWasEmpty(value);
             @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
             if (Objects.nonNull(consumer)) {
                 consumer.scheduleDrainAll();
             }
-        }catch (NullPointerException e){
-            e.printStackTrace();
-            // Channel Publisher is down
+        }else{
+            System.out.println("Such channel Does not exist");
         }
     }
 
     /**
      * Registers one publisher with the given operatorId to this Channel
+     *
      * @param publisherId OperatorId of the published operator
      */
     public void registerPublisher(OperatorID publisherId) {
@@ -87,6 +83,7 @@ public final class FeedbackChannel<T> implements Closeable {
         if (queues.containsKey(publisherId)) {
             throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
         }
+        phaser.register();
         queues.putIfAbsent(publisherId, new LockFreeBatchFeedbackQueue<>());
     }
 
@@ -98,16 +95,12 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     public void registerConsumer(final FeedbackConsumer<T> consumer, Executor executor) {
         Preconditions.checkNotNull(consumer);
-
         ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues);
-
         if (!this.consumerRef.compareAndSet(null, consumerTask)) {
             throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
         }
-
-        consumerTask.scheduleDrainAll();
+        phaser.register();
     }
-
 
     /**
      * Registers snapshot in all queues
@@ -127,33 +120,38 @@ public final class FeedbackChannel<T> implements Closeable {
 
     /**
      * Get the buffer of the queue without the lockm only use if the buffer is not being modified
+     * @implNote Unsafe, use single threaded
      */
     public ArrayDeque<T> getUnsafeBuffer(OperatorID operatorID) {
         return queues.get(operatorID).queue.getUnsafeBuffer();
     }
 
     /**
-     * Finish a specific chanel
+     * Finish a specific producer
      */
-    public void finishChannel(OperatorID operatorID) {
-        queues.remove(operatorID);
+    public void finishProducer(OperatorID operatorID) {
+        if(queues.containsKey(operatorID)){
+            queues.remove(operatorID); // Remove so that no new elements are accepted
+            phaser.arrive();
+        }
+    }
+
+    public Phaser getPhaser() {
+        return phaser;
     }
 
     /**
-     * All channels have been finished
-     */
-    public boolean allChannelsEmpty() {
-        return queues.isEmpty();
-    }
-    /**
-     * Closes this channel.
+     * Closes this channel. Use it from the consumer side
      */
     @Override
     public void close() {
+        if(!queues.isEmpty()){
+            System.out.println("Make sure all producers are closed");
+            return;
+        }
         ConsumerTask<T> consumer = consumerRef.getAndSet(null);
         IOUtils.closeQuietly(consumer);
         queues.clear();
-        // remove this channel.
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         broker.removeChannel(key);
     }

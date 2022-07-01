@@ -20,8 +20,7 @@ package operators.iterations;
 import org.apache.flink.statefun.flink.core.queue.Locks;
 
 import java.util.Deque;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashSet;
 
 /**
  * One implementation of FeedbackQueue
@@ -34,7 +33,7 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
 
     protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
 
-    private final ConcurrentHashMap<Long, Boolean> pendingSnapshots = new ConcurrentHashMap<>(); // Snapshot
+    private final HashSet<Long> pendingSnapshots = new HashSet<>(4); // Snapshot
 
     public boolean addAndCheckIfWasEmpty(ElementT element) {
         final int size = queue.add(element);
@@ -42,9 +41,7 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
     }
 
     public synchronized void addSnapshot(long snapshotId) {
-        if (!pendingSnapshots.containsKey(snapshotId)) {
-            pendingSnapshots.put(snapshotId, false);
-        }
+        pendingSnapshots.add(snapshotId);
     }
 
     public synchronized void snapshotFinalize(long snapshotId) {

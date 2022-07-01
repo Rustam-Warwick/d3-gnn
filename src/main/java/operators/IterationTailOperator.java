@@ -41,7 +41,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.util.IOUtils;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -66,7 +65,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private transient TypeSerializer<StreamElement> recordSerializer; // StreamElement serializer
 
-    private transient ListState<StreamRecord<GraphOp>> bufferedRecords; // Buffered records for the checkpoint
+    private transient ListState<StreamRecord<GraphOp>> bufferedRecords; // Buffered records for the checkpointing the state
 
     public IterationTailOperator(IterationID iterationId) {
         this.iterationId = Objects.requireNonNull(iterationId);
@@ -82,28 +81,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
-        registerFeedbackWriter();
-
     }
 
     @Override
     public void open() throws Exception {
-        while (!feedbackChannel.hasConsumer()) {
-            Thread.sleep(100);
-        }
+        registerFeedbackWriter();
         super.open();
-    }
-
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-        if(mark.getTimestamp() == Long.MAX_VALUE) feedbackChannel.finishChannel(operatorID);
-        super.processWatermark(mark);
-    }
-
-    @Override
-    public void close() throws Exception {
-        feedbackChannel.finishChannel(operatorID);
-        super.close();
     }
 
     @Override
@@ -124,6 +107,22 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         }
     }
 
+    @Override
+    public void snapshotState(StateSnapshotContext context) throws Exception {
+        ArrayDeque<StreamRecord<GraphOp>> buffer = feedbackChannel.getUnsafeBuffer(operatorID);
+        List<StreamRecord<GraphOp>> tmp = new ArrayList<>(buffer);
+        bufferedRecords.update(tmp);
+        super.snapshotState(context);
+        feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if (mark.getTimestamp() == Long.MAX_VALUE) feedbackChannel.finishProducer(operatorID);
+        super.processWatermark(mark);
+    }
+
+
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
@@ -133,14 +132,20 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     }
 
 
+    private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
+        // Since the record would be reused, we have to clone a new one
+        feedbackChannel.put(record.copy(record.getValue()), operatorID);
+    }
+
+    private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
+        // Since the record would not be reused, we could modify it in place.
+        feedbackChannel.put(record, operatorID);
+    }
 
     @Override
-    public void snapshotState(StateSnapshotContext context) throws Exception {
-        ArrayDeque<StreamRecord<GraphOp>> buffer = feedbackChannel.getUnsafeBuffer(operatorID);
-        List<StreamRecord<GraphOp>> tmp = new ArrayList<>(buffer);
-        bufferedRecords.update(tmp);
-        super.snapshotState(context);
-        feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
+    public void close() throws Exception {
+        feedbackChannel.finishProducer(operatorID);
+        super.close();
     }
 
     private void registerFeedbackWriter() {
@@ -153,15 +158,5 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         feedbackChannel = broker.getChannel(realKey);
         feedbackChannel.registerPublisher(operatorID);
-    }
-
-    private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
-        // Since the record would be reused, we have to clone a new one
-        feedbackChannel.put(record.copy(record.getValue()), operatorID);
-    }
-
-    private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
-        // Since the record would not be reused, we could modify it in place.
-        feedbackChannel.put(record, operatorID);
     }
 }
