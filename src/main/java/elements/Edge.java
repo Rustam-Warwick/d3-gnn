@@ -2,6 +2,8 @@ package elements;
 
 import storage.BaseStorage;
 
+import java.util.function.Function;
+
 public class Edge extends GraphElement {
     @OmitStorage
     public Vertex src;
@@ -69,6 +71,13 @@ public class Edge extends GraphElement {
             storage.getVertex(dest.getId()).update(this.dest);
         }
         return super.create();
+    }
+
+    @Override
+    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
+        super.modifyNDArrayPossessionCounter(operation);
+        src.modifyNDArrayPossessionCounter(operation);
+        dest.modifyNDArrayPossessionCounter(operation);
     }
 
     @Override

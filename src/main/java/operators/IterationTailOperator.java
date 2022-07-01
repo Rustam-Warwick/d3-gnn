@@ -88,7 +88,22 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void open() throws Exception {
+        while (!feedbackChannel.hasConsumer()) {
+            Thread.sleep(100);
+        }
         super.open();
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if(mark.getTimestamp() == Long.MAX_VALUE) feedbackChannel.finishChannel(operatorID);
+        super.processWatermark(mark);
+    }
+
+    @Override
+    public void close() throws Exception {
+        feedbackChannel.finishChannel(operatorID);
+        super.close();
     }
 
     @Override
@@ -112,10 +127,12 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-        if (streamRecord.getValue().getElement() != null)
-            streamRecord.getValue().getElement().modifyNDArrayPossessionCounter(item->item + 1);
+//        if (streamRecord.getValue().getElement() != null)
+//            streamRecord.getValue().getElement().modifyNDArrayPossessionCounter(item->item + 1);
         recordConsumer.accept(streamRecord);
     }
+
+
 
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
@@ -125,15 +142,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         super.snapshotState(context);
         feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
     }
-
-    @Override
-    public void processWatermark(Watermark mark) throws Exception {
-        if (mark.getTimestamp() == Long.MAX_VALUE) {
-            feedbackChannel.finishChannel(operatorID); // Terminate the channel for HEAD
-        }
-        super.processWatermark(mark);
-    }
-
 
     private void registerFeedbackWriter() {
         int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
@@ -149,18 +157,11 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
         // Since the record would be reused, we have to clone a new one
-        feedbackChannel.put(record, operatorID);
+        feedbackChannel.put(record.copy(record.getValue()), operatorID);
     }
 
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
         // Since the record would not be reused, we could modify it in place.
         feedbackChannel.put(record, operatorID);
     }
-
-    @Override
-    public void close() throws Exception {
-        IOUtils.closeQuietly(feedbackChannel);
-        super.close();
-    }
-
 }

@@ -13,9 +13,12 @@ import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import functions.filewriters.ThroughputMetricsOutput;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.util.Collector;
 import plugins.ModelServer;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
@@ -67,10 +70,11 @@ public class Main {
 //        confg.set(RocksDBConfigurableOptions.MAX_WRITE_BUFFER_NUMBER,3);
 //        confg.set(RocksDBConfigurableOptions.BLOCK_CACHE_SIZE, MemorySize.ofMebiBytes(50));
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+//        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 //        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // Initializate the helper classes
         // DataFlow
-        Integer window = null;
+        Integer window = 2000;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
@@ -92,7 +96,12 @@ public class Main {
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
 
-        SingleOutputStreamOperator<Void> outputStream = embeddings[embeddings.length - 1].forward().process(new ThroughputMetricsOutput(jobName)).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
+        SingleOutputStreamOperator<Void> outputStream = embeddings[embeddings.length - 1].forward().process(new ProcessFunction<GraphOp, Void>() {
+            @Override
+            public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
+                // Do nothing just here to collect the metrics from previous operator
+            }
+        }).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
 //        SingleOutputStreamOperator<GraphOp> partitionedStream = embeddings[0].forward().process(new AddTimestamp()).setParallelism(1).name("Inputs");
 //        SingleOutputStreamOperator<GraphOp> outputStream = embeddings[embeddings.length - 1].forward().process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
 //        SingleOutputStreamOperator<Void> resultLatencies = partitionedStream.keyBy(GraphOp::getTimestamp).connect(outputStream.keyBy(GraphOp::getTimestamp)).process(new LatencyOutput(jobName, 10000)).name("Latencies").setParallelism(embeddings[embeddings.length - 1].getParallelism());

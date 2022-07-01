@@ -8,6 +8,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -89,6 +90,17 @@ public class Rmi extends GraphElement {
                 tmp.setTaskPossession(operation.apply(tmp.getTaskPossession()));
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        return "Rmi{" +
+                "id='" + id + '\'' +
+                ", args=" + Arrays.toString(args) +
+                ", elemType=" + elemType +
+                ", hasUpdate=" + hasUpdate +
+                ", methodName='" + methodName + '\'' +
+                '}';
     }
 
     @Override

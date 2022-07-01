@@ -66,16 +66,20 @@ public final class FeedbackChannel<T> implements Closeable {
      * Adds a feedback result to this channel.
      */
     public void put(T value, OperatorID publisherId) {
-        queues.get(publisherId).addAndCheckIfWasEmpty(value);
-        @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
-        if (Objects.nonNull(consumer)) {
-            consumer.scheduleDrainAll();
+        try{
+            queues.get(publisherId).addAndCheckIfWasEmpty(value);
+            @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
+            if (Objects.nonNull(consumer)) {
+                consumer.scheduleDrainAll();
+            }
+        }catch (NullPointerException e){
+            e.printStackTrace();
+            // Channel Publisher is down
         }
     }
 
     /**
      * Registers one publisher with the given operatorId to this Channel
-     *
      * @param publisherId OperatorId of the published operator
      */
     public void registerPublisher(OperatorID publisherId) {
@@ -104,6 +108,7 @@ public final class FeedbackChannel<T> implements Closeable {
         consumerTask.scheduleDrainAll();
     }
 
+
     /**
      * Registers snapshot in all queues
      */
@@ -131,25 +136,15 @@ public final class FeedbackChannel<T> implements Closeable {
      * Finish a specific chanel
      */
     public void finishChannel(OperatorID operatorID) {
-        queues.get(operatorID).setChannelFinished(true);
+        queues.remove(operatorID);
     }
 
     /**
      * All channels have been finished
      */
-    public boolean allChannelsFinished() {
-        if (queues.isEmpty()) return false; // Feedback channels should have iteration tails
-        boolean finished = true;
-        for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
-            finished &= value.getChannelFinished();
-        }
-        return finished;
+    public boolean allChannelsEmpty() {
+        return queues.isEmpty();
     }
-
-    public boolean channelFinished(OperatorID operatorID) {
-        return queues.get(operatorID).getChannelFinished();
-    }
-
     /**
      * Closes this channel.
      */
@@ -157,6 +152,7 @@ public final class FeedbackChannel<T> implements Closeable {
     public void close() {
         ConsumerTask<T> consumer = consumerRef.getAndSet(null);
         IOUtils.closeQuietly(consumer);
+        queues.clear();
         // remove this channel.
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         broker.removeChannel(key);
@@ -193,11 +189,11 @@ public final class FeedbackChannel<T> implements Closeable {
                     throw new RuntimeException(e);
                 }
             }
-
         }
 
         @Override
         public void close() {
+
         }
     }
 }

@@ -423,7 +423,7 @@ public class GraphElement implements Serializable {
 
     /**
      * Whenever another task posses this element increment the task posession counter for NDArrays,
-     * This is will delay their close() method untill it is back to 0 again
+     * This is will delay their close() method untill it is back to 0 again. Used for state handling in Feedback streams.
      */
     public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
         if (features != null) {

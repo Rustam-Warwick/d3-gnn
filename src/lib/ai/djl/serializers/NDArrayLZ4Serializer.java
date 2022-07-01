@@ -5,7 +5,6 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
@@ -48,7 +47,6 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     @Override
     public NDArray read(Kryo kryo, Input input, Class aClass) {
         int ordinal = input.readByte();
-        if (ordinal == -1) throw new KryoException("This tensor was unititialized");
         DataType dataType = dataTypes[ordinal]; // Data Type
         long[] shapes = input.readLongs(input.readByte(), true);
         Shape shape = new Shape(shapes); // Shape

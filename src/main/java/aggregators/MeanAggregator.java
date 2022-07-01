@@ -57,7 +57,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0))) {
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0, newElement))) {
             this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
             this.value.f1 += count;
         } catch (Exception e) {
@@ -68,7 +68,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0))) {
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0, newElement, oldElement))) {
             value.f0.addi((newElement.sub(oldElement)).divi(value.f1));
         } catch (Exception e) {
             e.printStackTrace();
@@ -98,8 +98,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
-        MeanAggregator newAgg = (MeanAggregator) newElement;
-        newAgg.value.f0.detach();
+        MeanAggregator newTensor = (MeanAggregator) newElement;
+        newTensor.value.f0.detach();
         return super.updateElement(newElement);
     }
 }

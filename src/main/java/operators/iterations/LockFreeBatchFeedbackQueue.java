@@ -36,8 +36,6 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
 
     private final ConcurrentHashMap<Long, Boolean> pendingSnapshots = new ConcurrentHashMap<>(); // Snapshot
 
-    private final AtomicBoolean channelFinished = new AtomicBoolean(false);
-
     public boolean addAndCheckIfWasEmpty(ElementT element) {
         final int size = queue.add(element);
         return size == 1;
@@ -51,14 +49,6 @@ public final class LockFreeBatchFeedbackQueue<ElementT> {
 
     public synchronized void snapshotFinalize(long snapshotId) {
         pendingSnapshots.remove(snapshotId);
-    }
-
-    public boolean getChannelFinished() {
-        return channelFinished.getOpaque();
-    }
-
-    public void setChannelFinished(boolean f) {
-        channelFinished.set(f);
     }
 
     public boolean hasPendingSnapshots() {

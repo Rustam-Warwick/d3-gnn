@@ -64,15 +64,15 @@ public class LifeCycleNDManager extends PtNDManager {
      * Cleans the registrations
      */
     public void clean() {
-        if (registrations.size() > 500) {
-            registrations.values().removeIf(val ->{
-               NDArray tmp = val.get();
-               if(tmp == null) return true;
-               if(tmp.getTaskPossession() == 0){
-                   tmp.close();
-                   return true;
-               }
-               return false;
+        if (registrations.size() > 10) {
+            registrations.values().removeIf(val -> {
+                NDArray tmp = val.get();
+                if (tmp == null) return true;
+                if (tmp.getTaskPossession() == 0) {
+                    tmp.close();
+                    return true;
+                }
+                return false;
             });
         }
     }

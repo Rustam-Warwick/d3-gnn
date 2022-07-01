@@ -18,12 +18,12 @@
 
 package operators;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
+import org.apache.flink.api.common.operators.ProcessingTimeService;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
@@ -31,23 +31,28 @@ import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
+import org.apache.flink.streaming.api.functions.source.SourceFunction;
 import org.apache.flink.streaming.api.graph.StreamConfig;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.BoundedOneInput;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.StreamSource;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
-import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 
 /**
- * Feedback consumer operator
+ * Feedback consumer operator as a source operator
  * It also handles the checkpointing of the data @todo enable checkpointing
  */
-public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
-        implements OneInputStreamOperator<GraphOp, GraphOp>, BoundedOneInput, FeedbackConsumer<StreamRecord<GraphOp>> {
+public class IterationSourceOperator extends StreamSource<GraphOp, IterationSourceOperator.MySourceFunction>
+        implements FeedbackConsumer<StreamRecord<GraphOp>> {
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
@@ -59,7 +64,12 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     private transient BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
 
-    public IterationHeadOperator(IterationID iterationId, short position) {
+    private transient CountDownLatch latch;
+
+    private transient int numberOfElementsReceived;
+
+    public IterationSourceOperator(IterationID iterationId, short position) {
+        super(new MySourceFunction());
         this.iterationId = Objects.requireNonNull(iterationId);
         this.position = position;
         this.chainingStrategy = ChainingStrategy.HEAD;
@@ -77,32 +87,36 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
                 });
+        latch = new CountDownLatch(3);
+        getUserFunction().setLatch(latch);
+        getUserFunction().setFeedbackChannel(feedbackChannel);
     }
+
 
     @Override
     public void open() throws Exception {
         while(!feedbackChannel.hasProducer()){
-            Thread.sleep(200);
+            Thread.onSpinWait();
         }
         super.open();
+        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 50000, 20000);
     }
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        processElement(element); // Wait for process to finish
-        if (element.getValue().getElement() != null)
-            element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
-    }
-
-    @Override
-    public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
-            output.collect(element);
-        } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-            broadcastOutput.broadcastEmit(element);
+        try {
+            numberOfElementsReceived++;
+            if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
+                output.collect(element);
+            } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+                broadcastOutput.broadcastEmit(element);
+            }
+//            if(element.getValue().getElement() != null){
+//                element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
+//            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-
-        LifeCycleNDManager.getInstance().clean();
     }
 
     @Override
@@ -112,24 +126,9 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
     }
 
     @Override
-    public void endInput() throws Exception {
-        while (!feedbackChannel.allChannelsEmpty()) {
-            mailboxExecutor.tryYield();
-            Thread.sleep(800);
-        }
-    }
-
-    @Override
     public void close() throws Exception {
         IOUtils.closeQuietly(feedbackChannel);
         super.close();
-    }
-
-    @Override
-    public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        if (position == 0)
-            return; // Do not process watermark status from external streams since it is vital in training
-        super.processWatermarkStatus(watermarkStatus);
     }
 
     private void registerFeedbackConsumer(Executor mailboxExecutor) {
@@ -143,4 +142,37 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
         feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 
+    protected static class MySourceFunction implements SourceFunction<GraphOp> {
+        private transient CountDownLatch latch;
+        private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
+        public void setLatch(CountDownLatch latch) {
+            this.latch = latch;
+        }
+
+        public void setFeedbackChannel(FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel) {
+            this.feedbackChannel = feedbackChannel;
+        }
+
+        @Override
+        public void run(SourceContext<GraphOp> ctx) throws Exception {
+            latch.await(); // Await latch termination decision
+            ctx.emitWatermark(new Watermark(Long.MAX_VALUE));
+            while(!feedbackChannel.allChannelsEmpty()){
+                Thread.onSpinWait();
+            }
+        }
+
+        @Override
+        public void cancel() {
+
+        }
+    }
+
+    protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
+        @Override
+        public void onProcessingTime(long time) throws Exception {
+            if (numberOfElementsReceived == 0) latch.countDown();
+            numberOfElementsReceived = 0;
+        }
+    }
 }
