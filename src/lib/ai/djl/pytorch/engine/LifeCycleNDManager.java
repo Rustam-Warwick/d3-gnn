@@ -1,6 +1,7 @@
 package ai.djl.pytorch.engine;
 
 import ai.djl.Device;
+import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
@@ -18,11 +19,12 @@ import java.util.HashMap;
 public class LifeCycleNDManager extends PtNDManager {
     private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(() ->
             new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice())
-    ); // Attached to the life cycle of the
-    private final transient HashMap<String, WeakReference<AutoCloseable>> registrations = new HashMap<>(10000); // Thread Local
+    );
+    private final transient HashMap<String, WeakReference<NDArray>> registrations = new HashMap<>(4000); // Thread Local
+
     private final transient Scope scope = new Scope();
 
-    public LifeCycleNDManager(NDManager parent, Device device) {
+    private LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
@@ -39,7 +41,7 @@ public class LifeCycleNDManager extends PtNDManager {
 
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
-        registrations.putIfAbsent(resourceId, new WeakReference<>(resource));
+        registrations.putIfAbsent(resourceId, new WeakReference<>((NDArray) resource));
     }
 
     @Override
@@ -58,19 +60,20 @@ public class LifeCycleNDManager extends PtNDManager {
         // Not closing explicitely
     }
 
+    /**
+     * Cleans the registrations
+     */
     public void clean() {
         if (registrations.size() > 500) {
-            registrations.forEach((key, val) -> {
-                AutoCloseable tmp = val.get();
-                if (tmp != null) {
-                    try {
-                        tmp.close();
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
-                }
+            registrations.values().removeIf(val ->{
+               NDArray tmp = val.get();
+               if(tmp == null) return true;
+               if(tmp.getTaskPossession() == 0){
+                   tmp.close();
+                   return true;
+               }
+               return false;
             });
-            registrations.clear();
         }
     }
 

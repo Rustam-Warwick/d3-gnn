@@ -1,11 +1,12 @@
 package features;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.Feature;
 import elements.GraphElement;
 import org.apache.flink.api.java.tuple.Tuple2;
+
+import java.util.function.Function;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions
@@ -61,11 +62,8 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
-        super.switchNDManagerIfNotThis(checkManager, switchTo);
-        if (value.getManager() != checkManager) {
-            // Not detached
-            value.attach(switchTo);
-        }
+    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
+        super.modifyNDArrayPossessionCounter(operation);
+        value.setTaskPossession(operation.apply(value.getTaskPossession()));
     }
 }

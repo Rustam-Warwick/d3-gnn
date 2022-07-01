@@ -70,8 +70,7 @@ public class Main {
 //        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // Initializate the helper classes
         // DataFlow
-
-        Integer window = 2000;
+        Integer window = null;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()

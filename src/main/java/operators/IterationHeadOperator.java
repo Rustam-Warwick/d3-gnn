@@ -65,6 +65,7 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
         this.chainingStrategy = ChainingStrategy.HEAD;
     }
 
+
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
         super.setup(containingTask, config, output);
@@ -80,9 +81,9 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        processElement(element); // Wait for process to finish
         if (element.getValue().getElement() != null)
-            element.getValue().getElement().switchNDManagerIfNotThis(feedbackChannel.getFeedbackManager(), LifeCycleNDManager.getInstance());
-        processElement(element);
+            element.getValue().getElement().modifyNDArrayPossessionCounter(item->item-1);
     }
 
     @Override

@@ -1,6 +1,5 @@
 package elements;
 
-import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -13,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 @TypeInfo(GraphElementTypeInfoFactory.class)
 public class GraphElement implements Serializable {
@@ -422,11 +422,12 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Swtiches NDManager for all tensors of this GraphElement to switchTo if it is currently attached to checkManager
+     * Whenever another task posses this element increment the task posession counter for NDArrays,
+     * This is will delay their close() method untill it is back to 0 again
      */
-    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
+    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
         if (features != null) {
-            features.forEach(item -> item.switchNDManagerIfNotThis(checkManager, switchTo));
+            features.forEach(item -> item.modifyNDArrayPossessionCounter(operation));
         }
     }
 

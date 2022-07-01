@@ -62,6 +62,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
     private PtNDManager manager;
+    private byte taskPossession = 0;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
@@ -1756,6 +1757,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public PtNDArrayEx getNDArrayInternal() {
         return ptNDArrayEx;
+    }
+
+    public int getTaskPossession() {
+        return taskPossession;
+    }
+
+    public void setTaskPossession(int taskPossession) {
+        this.taskPossession = (byte) taskPossession;
     }
 
     /**

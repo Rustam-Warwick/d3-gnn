@@ -1,7 +1,6 @@
 package elements.iterations;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDManager;
 import elements.ElementType;
 import elements.GraphElement;
 
@@ -10,6 +9,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public class Rmi extends GraphElement {
     public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(15);
@@ -81,14 +81,12 @@ public class Rmi extends GraphElement {
     }
 
     @Override
-    public void switchNDManagerIfNotThis(NDManager checkManager, NDManager switchTo) {
-        super.switchNDManagerIfNotThis(checkManager, switchTo);
+    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
+        super.modifyNDArrayPossessionCounter(operation);
         for (Object arg : args) {
             if (arg instanceof NDArray) {
                 NDArray tmp = (NDArray) arg;
-                if (tmp.getManager() != checkManager) {
-                    tmp.attach(switchTo);
-                }
+                tmp.setTaskPossession(operation.apply(tmp.getTaskPossession()));
             }
         }
     }
