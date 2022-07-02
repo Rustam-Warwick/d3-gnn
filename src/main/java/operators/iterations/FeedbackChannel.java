@@ -83,7 +83,6 @@ public final class FeedbackChannel<T> implements Closeable {
         if (queues.containsKey(publisherId)) {
             throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
         }
-        phaser.register();
         queues.putIfAbsent(publisherId, new LockFreeBatchFeedbackQueue<>());
     }
 
@@ -145,13 +144,9 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     @Override
     public void close() {
-        if(!queues.isEmpty()){
-            System.out.println("Make sure all producers are closed");
-            return;
-        }
         ConsumerTask<T> consumer = consumerRef.getAndSet(null);
+        queues.values().clear();
         IOUtils.closeQuietly(consumer);
-        queues.clear();
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         broker.removeChannel(key);
     }
@@ -191,7 +186,7 @@ public final class FeedbackChannel<T> implements Closeable {
 
         @Override
         public void close() {
-
+            queues.clear();
         }
     }
 }

@@ -44,6 +44,7 @@ import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Phaser;
 
 /**
  * Feedback consumer operator as a source operator
@@ -77,21 +78,20 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
                 BroadcastOutputFactory.createBroadcastOutput(
                         output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
         mailboxExecutor = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
-
-    }
-
-    @Override
-    public void open() throws Exception {
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
                 });
+    }
+
+    @Override
+    public void open() throws Exception {
         getUserFunction().setFeedbackChannel(feedbackChannel);
         while (!feedbackChannel.hasProducer()) {
             Thread.sleep(800);
         }
         super.open();
-        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 50000, 20000);
+        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 15000, 15000);
     }
 
     @Override
@@ -113,22 +113,21 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 //                element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
 //            }
         } catch (Exception e) {
-            System.out.println("Error processing the Head");
+            // Errors can happen here
         }
     }
 
-
     @Override
-    public void close() throws Exception {
+    public void finish() throws Exception {
+        while(mailboxExecutor.tryYield()){
+            Thread.sleep(300);
+        };
         IOUtils.closeQuietly(feedbackChannel);
-        super.close();
+        super.finish();
     }
-
-
 
     protected static class MySourceFunction implements SourceFunction<GraphOp> {
         private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
-
 
         public void setFeedbackChannel(FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel) {
             this.feedbackChannel = feedbackChannel; // Reference to the outer FeedBack Channel
@@ -136,7 +135,13 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
         @Override
         public void run(SourceContext<GraphOp> ctx) throws Exception {
-            feedbackChannel.getPhaser().arriveAndAwaitAdvance();
+            feedbackChannel.getPhaser().register();
+            try{
+                feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
+            }catch (InterruptedException e){
+                System.out.println("Interrupted Closing the channel");
+                IOUtils.closeQuietly(feedbackChannel);
+            }
         }
 
         @Override

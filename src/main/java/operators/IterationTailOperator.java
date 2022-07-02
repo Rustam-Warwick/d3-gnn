@@ -81,12 +81,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                 getExecutionConfig().isObjectReuseEnabled()
                         ? this::processIfObjectReuseEnabled
                         : this::processIfObjectReuseNotEnabled;
-    }
-
-    @Override
-    public void open() throws Exception {
         registerFeedbackWriter();
-        super.open();
     }
 
     @Override
