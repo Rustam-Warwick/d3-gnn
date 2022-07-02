@@ -12,7 +12,9 @@ import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.core.execution.JobClient;
+import org.apache.flink.configuration.ConfigConstants;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.reporter.FileOutputMetricReporter;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -64,11 +66,16 @@ public class Main {
         // Configuration
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
-//        Configuration confg = new Configuration();
 //        confg.set(RocksDBConfigurableOptions.WRITE_BUFFER_SIZE, MemorySize.ofMebiBytes(256));
 //        confg.set(RocksDBConfigurableOptions.MAX_WRITE_BUFFER_NUMBER,3);
 //        confg.set(RocksDBConfigurableOptions.BLOCK_CACHE_SIZE, MemorySize.ofMebiBytes(50));
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration a = new Configuration();
+        a.setString(
+                ConfigConstants.METRICS_REPORTER_PREFIX +
+                        "FileOutputMetricReporter." +
+                        ConfigConstants.METRICS_REPORTER_CLASS_SUFFIX,
+                FileOutputMetricReporter.class.getName());
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(a);
 //        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
 //        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // Initializate the helper classes

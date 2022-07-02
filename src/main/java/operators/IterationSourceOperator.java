@@ -44,7 +44,6 @@ import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Phaser;
 
 /**
  * Feedback consumer operator as a source operator
@@ -91,7 +90,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             Thread.sleep(800);
         }
         super.open();
-        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 15000, 15000);
+        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 45000, 45000);
     }
 
     @Override

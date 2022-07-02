@@ -64,6 +64,7 @@ dependencies {
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
     implementation 'org.jetbrains:annotations:20.1.0'
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
+    implementation 'com.alibaba.blink:flink-metrics-datadog:1.5.1'
 
 
     // --------------------------------------------------------------
