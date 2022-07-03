@@ -81,14 +81,11 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
                 });
+        getUserFunction().setFeedbackChannel(feedbackChannel);
     }
 
     @Override
     public void open() throws Exception {
-        getUserFunction().setFeedbackChannel(feedbackChannel);
-        while (!feedbackChannel.hasProducer()) {
-            Thread.sleep(800);
-        }
         super.open();
         getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 45000, 45000);
     }
@@ -134,9 +131,14 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
         @Override
         public void run(SourceContext<GraphOp> ctx) throws Exception {
+            while (!feedbackChannel.hasProducer()) {
+                Thread.onSpinWait();
+            }
             feedbackChannel.getPhaser().register();
             try{
+                System.out.println("Enter register phase");
                 feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
+                System.out.println("Existing register phase");
             }catch (InterruptedException e){
                 System.out.println("Interrupted Closing the channel");
                 IOUtils.closeQuietly(feedbackChannel);
@@ -153,6 +155,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         @Override
         public void onProcessingTime(long time) throws Exception {
             if(numberOfElementsReceived == 0){
+                System.out.println("Emitting Watermark");
                 output.emitWatermark(new Watermark(Long.MAX_VALUE));
             }
             numberOfElementsReceived = 0;

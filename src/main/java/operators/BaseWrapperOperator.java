@@ -318,12 +318,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
-        WatermarkEvent e = new WatermarkEvent(mark.getTimestamp(), ITERATION_COUNT);
-        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-        context.element.replace(op, mark.getTimestamp());
-        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-        setKeyContextElement(context.element);
-        processElement(context.element);
+        wrappedOperator.processWatermark(mark);
+//        WatermarkEvent e = new WatermarkEvent(mark.getTimestamp(), ITERATION_COUNT);
+//        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
+//        context.element.replace(op, mark.getTimestamp());
+//        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
+//        setKeyContextElement(context.element);
+//        processElement(context.element);
     }
 
     /**
@@ -380,7 +381,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             processActualElement(element);
         }
     }
-
 
     /**
      * SETUP OF: BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
@@ -578,7 +578,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public Short currentPart() {
             return element.getValue().getPartId();
-
         }
 
         /**

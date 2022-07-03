@@ -28,7 +28,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @param <OUT>
  * @implNote It is thread-safe until the userFunction is Thread Safe!!!
  */
-public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, OUT> implements BoundedOneInput {
+public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, OUT> {
 
     private final int nThreads;
 
@@ -69,6 +69,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
+        if(executorService.isShutdown())super.processWatermark(mark);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -82,6 +83,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
+        if(executorService.isShutdown())super.processLatencyMarker(latencyMarker);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -95,6 +97,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
+        if(executorService.isShutdown())super.processWatermarkStatus(watermarkStatus);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -114,11 +117,15 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
     }
 
     @Override
-    public void endInput() throws Exception {
+    public void finish() throws Exception {
+        System.out.println("Finishing Mutli Threaded");
         executorService.shutdown();
         while (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
             Thread.onSpinWait();
         }
+
+        System.out.println("Finished Mutli Threaded");
+        super.finish();
     }
 
     private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E> {

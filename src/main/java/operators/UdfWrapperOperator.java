@@ -31,7 +31,6 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNN
             getWrappedOperator().processElement(element);
         }
     }
-
     //    /**
 //     * Watermark came with some iteration number
 //     *
