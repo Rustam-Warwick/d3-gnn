@@ -6,12 +6,10 @@ import org.apache.flink.metrics.MetricGroup;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class FileOutputMetricReporter extends AbstractReporter implements  Scheduled {
     public HashMap<Metric, File> fileHashMap;
-    public HashMap<Metric, List<String>> values;
 
     @Override
     public String filterCharacters(String input) {
