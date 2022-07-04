@@ -87,7 +87,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     @Override
     public void open() throws Exception {
         super.open();
-        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 45000, 45000);
+        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 200000, 45000);
     }
 
     @Override
@@ -115,11 +115,22 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     @Override
     public void finish() throws Exception {
-        while(mailboxExecutor.tryYield()){
+        while (mailboxExecutor.tryYield()) {
             Thread.sleep(300);
-        };
+        }
         IOUtils.closeQuietly(feedbackChannel);
         super.finish();
+    }
+
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 
     protected static class MySourceFunction implements SourceFunction<GraphOp> {
@@ -135,11 +146,9 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
                 Thread.onSpinWait();
             }
             feedbackChannel.getPhaser().register();
-            try{
-                System.out.println("Enter register phase");
+            try {
                 feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
-                System.out.println("Existing register phase");
-            }catch (InterruptedException e){
+            } catch (InterruptedException e) {
                 System.out.println("Interrupted Closing the channel");
                 IOUtils.closeQuietly(feedbackChannel);
             }
@@ -154,22 +163,10 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
         @Override
         public void onProcessingTime(long time) throws Exception {
-            if(numberOfElementsReceived == 0){
-                System.out.println("Emitting Watermark");
+            if (numberOfElementsReceived == 0) {
                 output.emitWatermark(new Watermark(Long.MAX_VALUE));
             }
             numberOfElementsReceived = 0;
         }
-    }
-
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationId, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 }

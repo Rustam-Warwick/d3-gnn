@@ -2,7 +2,10 @@ package operators;
 
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.ChainingStrategy;
+import org.apache.flink.streaming.api.operators.Output;
+import org.apache.flink.streaming.api.operators.ProcessOperator;
+import org.apache.flink.streaming.api.operators.TimestampedCollector;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
@@ -69,7 +72,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(executorService.isShutdown())super.processWatermark(mark);
+        if (executorService.isShutdown()) super.processWatermark(mark);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -83,7 +86,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        if(executorService.isShutdown())super.processLatencyMarker(latencyMarker);
+        if (executorService.isShutdown()) super.processLatencyMarker(latencyMarker);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -97,7 +100,7 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        if(executorService.isShutdown())super.processWatermarkStatus(watermarkStatus);
+        if (executorService.isShutdown()) super.processWatermarkStatus(watermarkStatus);
         executorService.submit(() -> {
             try {
                 synchronized (this) {
@@ -118,13 +121,10 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void finish() throws Exception {
-        System.out.println("Finishing Mutli Threaded");
         executorService.shutdown();
         while (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
             Thread.onSpinWait();
         }
-
-        System.out.println("Finished Mutli Threaded");
         super.finish();
     }
 

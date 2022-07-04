@@ -113,13 +113,11 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if (mark.getTimestamp() == Long.MAX_VALUE){
-            System.out.println("Watermar received");
+        if (mark.getTimestamp() == Long.MAX_VALUE) {
             feedbackChannel.finishProducer(operatorID);
         }
         super.processWatermark(mark);
     }
-
 
 
     @Override
@@ -142,7 +140,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
 
     @Override
     public void close() throws Exception {
-        System.out.println("Finishing processing");
         feedbackChannel.finishProducer(operatorID);
         super.close();
     }

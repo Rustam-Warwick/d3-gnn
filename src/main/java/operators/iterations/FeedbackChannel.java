@@ -62,13 +62,13 @@ public final class FeedbackChannel<T> implements Closeable {
      * Adds a feedback result to this channel.
      */
     public void put(T value, OperatorID publisherId) {
-        if(queues.containsKey(publisherId)){
+        if (queues.containsKey(publisherId)) {
             queues.get(publisherId).addAndCheckIfWasEmpty(value);
             @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
             if (Objects.nonNull(consumer)) {
                 consumer.scheduleDrainAll();
             }
-        }else{
+        } else {
 //            ("Such channel Does not exist");
         }
     }
@@ -119,6 +119,7 @@ public final class FeedbackChannel<T> implements Closeable {
 
     /**
      * Get the buffer of the queue without the lockm only use if the buffer is not being modified
+     *
      * @implNote Unsafe, use single threaded
      */
     public ArrayDeque<T> getUnsafeBuffer(OperatorID operatorID) {
@@ -129,7 +130,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * Finish a specific producer
      */
     public void finishProducer(OperatorID operatorID) {
-        if(queues.containsKey(operatorID)){
+        if (queues.containsKey(operatorID)) {
             queues.remove(operatorID); // Remove so that no new elements are accepted
             phaser.arrive();
         }

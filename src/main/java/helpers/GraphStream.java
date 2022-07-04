@@ -11,7 +11,10 @@ import elements.iterations.Rmi;
 import features.Set;
 import features.Tensor;
 import functions.selectors.PartKeySelector;
-import operators.*;
+import operators.BaseWrapperOperator;
+import operators.IterationSourceOperator;
+import operators.IterationTailOperator;
+import operators.WrapperOperatorFactory;
 import org.apache.commons.cli.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.connector.source.Boundedness;
@@ -290,10 +293,17 @@ public class GraphStream {
             } else if (position_index < layers) {
                 previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
             } else {
-                if (hasLastLayerTopology)
+                if (hasLastLayerTopology && hasBackwardIteration)
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
-                else
+                else if(hasLastLayerTopology && !hasBackwardIteration){
+                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
+                }
+                else if(!hasLastLayerTopology && hasBackwardIteration){
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
+                }
+                else {
+                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
+                }
             }
             layerOutputs[i + 1] = previousLayerUpdates;
         }

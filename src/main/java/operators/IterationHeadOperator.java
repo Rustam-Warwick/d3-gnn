@@ -45,6 +45,7 @@ import java.util.concurrent.Executor;
 /**
  * Feedback consumer operator
  * It also handles the checkpointing of the data @todo enable checkpointing
+ *
  * @Deprecated use @see{IterationSourceOperator}
  */
 @Deprecated
