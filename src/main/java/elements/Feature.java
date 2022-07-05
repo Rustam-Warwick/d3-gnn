@@ -4,6 +4,7 @@ import elements.iterations.MessageDirection;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -85,36 +86,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         assert storage != null;
-        Feature<T, V> memento = copy();
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
-        boolean isUpdated = !this.valuesEqual(newFeature.value, this.value);
-        if (isUpdated) value = newFeature.value;
-        if (attachedTo == null && newElement.features != null) {
-            // If none sub-features may exist
-            for (Feature<?, ?> newSubFeature : newElement.features) {
-                Feature<?, ?> thisSubFeature = this.getFeature(newSubFeature.getName());
-                if (Objects.nonNull(thisSubFeature)) {
-                    Tuple2<Boolean, GraphElement> tmp = thisSubFeature.updateElement(newSubFeature);
-                    isUpdated |= tmp.f0;
-                    memento.setFeature(newSubFeature.getName(), (Feature<?, ?>) tmp.f1);
-                } else {
-                    Feature<?, ?> featureCopy = newSubFeature.copy();
-                    featureCopy.setElement(this);
-                    featureCopy.setStorage(this.storage);
-                    featureCopy.createElement();
-                    isUpdated = true;
-                }
-            }
+        if (!valuesEqual(newFeature.value, this.value)){
+            memento = this.copy();
+            value = newFeature.value;
         }
-
-        if (isUpdated) {
-            resolveTimestamp(newElement.getTimestamp());
-            storage.updateFeature(this);
-            storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
-        }
-        return new Tuple2<>(isUpdated, memento);
+        return super.updateElement(newElement, memento);
     }
 
 
@@ -200,43 +179,42 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return element;
     }
 
+    @Override
+    public void setFeature(String name, Feature<?, ?> feature) {
+        if(attachedTo != null) throw new IllegalStateException("Instead of using nested Features, go with flat design");
+        super.setFeature(name, feature);
+    }
+
+    @Nullable
+    @Override
+    public Feature<?, ?> getFeature(String name) {
+        if(attachedTo != null) return null;
+        return super.getFeature(name);
+    }
+
     /**
-     * Caches the given element, adds current feature to feature of the element if that does not exist
-     *
+     * Caches the given element, adds current feature to feature of the element if that does not exist there.
+     * Removes reference from other variable if already attached
+     * @implNote Make sure to properly track the change of references from Graph Elements
      * @param attachingElement element that want to attach itself to this feature
      * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
      * between element.features <--> feature.element.
      */
     public void setElement(GraphElement attachingElement) {
-        if (element == null && attachingElement != null && addCachedFeatureOrExists(attachingElement, this)) {
-            attachedTo = new Tuple2<>(attachingElement.elementType(), attachingElement.getId());
+        if (attachingElement != null) {
+            if(element == attachingElement) return; // Already attached
+            if(element != null && element.features.contains(this)) {
+                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
+            }
+            attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()): attachedTo;
             element = attachingElement;
+            if(attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
+            if(attachingElement.features.stream().anyMatch(item-> item==this)) return;
+            if(attachingElement.features.contains(this)) {
+                throw new IllegalStateException("This Element already has a similar feature, use updateFeature instead");
+            }
+            attachingElement.features.add(this);
         }
-    }
-
-    /**
-     * Attached Features cannot have subFeatures otherwise behaves as usual
-     *
-     * @param name name of the feature
-     * @return Feature
-     */
-    @Override
-    @Nullable
-    public Feature<?, ?> getFeature(String name) {
-        if (attachedTo == null) return super.getFeature(name);
-        return null;
-    }
-
-    /**
-     * Attached Features cannot have subFeatures otherwise begaves as usual
-     *
-     * @param name    name of the feature to be added
-     * @param feature feature itself
-     */
-    @Override
-    public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo == null) super.setFeature(name, feature);
-        throw new IllegalStateException("Nested features not allowed");
     }
 
     @Override

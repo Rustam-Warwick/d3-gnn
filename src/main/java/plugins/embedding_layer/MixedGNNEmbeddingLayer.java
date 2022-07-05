@@ -194,7 +194,8 @@ public class MixedGNNEmbeddingLayer extends Plugin {
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Vertex messageVertex = v.copy();
         Long timestamp = v.getFeature("agg").getTimestamp();
-        messageVertex.setFeature("feature", new Tensor(update), timestamp);
+        messageVertex.setFeature("feature", new Tensor(update));
+        messageVertex.getFeature("feature").setTimestamp(timestamp);
         storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
     }
 

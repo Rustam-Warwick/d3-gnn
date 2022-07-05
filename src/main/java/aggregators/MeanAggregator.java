@@ -97,9 +97,9 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         MeanAggregator newTensor = (MeanAggregator) newElement;
         newTensor.value.f0.detach();
-        return super.updateElement(newElement);
+        return super.updateElement(newElement, memento);
     }
 }

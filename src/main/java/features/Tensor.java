@@ -51,10 +51,10 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tensor newTensor = (Tensor) newElement;
         newTensor.value.detach();
-        return super.updateElement(newElement);
+        return super.updateElement(newElement, memento);
     }
 
     @Override

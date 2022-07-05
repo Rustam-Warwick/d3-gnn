@@ -57,7 +57,7 @@ public class ReplicableGraphElement extends GraphElement {
                 // Add setFeature
                 setFeature("parts", new Set<Short>(new ArrayList<>(), true));
             } else if (state() == ReplicaState.REPLICA) {
-                // Send Query
+                // Send Query to sync
                 storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
             }
         }
@@ -85,7 +85,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
-            return updateElement(newElement);
+            return updateElement(newElement, null);
         }
 
         return super.sync(this); // Do nothing
@@ -101,15 +101,15 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement);
+            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
             if (tmp.f0 && !isHalo()) {
                 syncReplicas(replicaParts());
             }
             return tmp;
         } else if (state() == ReplicaState.REPLICA) {
             // Replica update, simply ignore it. SHold have been at MASTER
-            return new Tuple2<>(false, this);
-        } else return super.update(newElement);
+            return reuse;
+        } else throw new IllegalStateException("Replicable element but don't know if master or repica");
     }
 
     /**

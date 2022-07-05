@@ -8,14 +8,17 @@ import typeinfo.ListTypeInformationFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
 @TypeInfo(GraphElementTypeInfoFactory.class)
 public class GraphElement implements Serializable {
+
+    protected static final transient Tuple2<Boolean, GraphElement> reuse = Tuple2.of(false, null);
+
     @Nullable
     public String id;
 
@@ -51,28 +54,6 @@ public class GraphElement implements Serializable {
         this.ts = element.ts;
     }
 
-    /**
-     * Helper method to add feature if it does not exist
-     *
-     * @param el      Element to add Feature to
-     * @param feature feature we are willing to add
-     * @return could we add it
-     */
-    public static boolean addCachedFeatureOrExists(GraphElement el, Feature<?, ?> feature) {
-        if (el.features == null) el.features = new ArrayList<>(3);
-        if (!el.features.contains(feature)) {
-            el.features.add(feature);
-            return true;
-        } else {
-            for (Feature<?, ?> feature1 : el.features) {
-                if (feature1 == feature1) return true; // This is here as a reference object
-            }
-            System.out.println("Warning you are replacing a Feature, check you code");
-            el.features.remove(feature);
-            el.features.add(feature);
-            return true;
-        }
-    }
 
     /**
      * Copy bare element, without storage and features
@@ -93,8 +74,8 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Element creation logic
-     *
+     * Creates element and all attached Features
+     * @implNote Does not rollback if some Feature is not created
      * @return Was element created
      */
     public Boolean createElement() {
@@ -112,8 +93,8 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Element deletion logic
-     *
+     * Deletes element and all attached Features
+     * @implNote Does not rollback after deletion
      * @return Was element deleted
      */
     public Boolean deleteElement() {
@@ -132,37 +113,42 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Element update logic
-     *
+     * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
+     * If memnto is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your sub-class has some additional data that should be updated.
+     * Memento stores the different between the updated value of this element vs the old value.
      * @param newElement newElement to update with
-     * @return (is updated, previous values)
+     * @return (is updated, previous value)
      */
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
-        GraphElement memento = this.copy(); // No features no storage
-        boolean is_updated = false;
-        if (newElement.features != null) {
-            for (Feature<?, ?> feature : newElement.features) {
+        if (newElement.features != null && !newElement.features.isEmpty()) {
+            for (Iterator<Feature<?,?>> iterator = newElement.features.iterator(); iterator.hasNext();) {
+                Feature<?,?> feature = iterator.next();
                 Feature<?, ?> thisFeature = this.getFeature(feature.getName());
                 if (Objects.nonNull(thisFeature)) {
-                    Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature);
-                    is_updated |= tmp.f0;
-                    memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
+                    Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature, null);
+                    if(tmp.f0){
+                        memento = memento==null ? this.copy():memento;
+                        memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
+                    }
                 } else {
-                    Feature<?, ?> featureCopy = feature.copy();
-                    featureCopy.setStorage(storage);
-                    featureCopy.setElement(this);
-                    featureCopy.createElement();
-                    is_updated = true;
+                    memento = memento==null ? this.copy():memento;
+                    iterator.remove();
+                    feature.setStorage(storage);
+                    feature.setElement(this);
+                    feature.createElement();
                 }
             }
-            if (is_updated) {
-                resolveTimestamp(newElement.getTimestamp());
-                this.storage.updateElement(this);
-                this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, memento));
-            }
         }
-        return new Tuple2<>(is_updated, memento);
+
+        if (memento !=null) {
+            resolveTimestamp(newElement.getTimestamp());
+            this.storage.updateElement(this);
+            GraphElement finalMemento = memento;
+            this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, finalMemento));
+            return Tuple2.of(true, memento);
+        }
+        return reuse;
     }
 
     /**
@@ -190,7 +176,7 @@ public class GraphElement implements Serializable {
      * @return (isSynced, previous element)
      */
     public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
-        return new Tuple2<>(false, this);
+        return reuse;
     }
 
     /**
@@ -200,7 +186,7 @@ public class GraphElement implements Serializable {
      * @return (isUpdated, previous element)
      */
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
-        return updateElement(newElement);
+        return updateElement(newElement, null);
     }
 
     /**
@@ -219,7 +205,6 @@ public class GraphElement implements Serializable {
 
     /**
      * Master part of this element, default is current part
-     *
      * @return master part of this element
      */
     @Nullable
@@ -323,7 +308,7 @@ public class GraphElement implements Serializable {
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        this.partId = (partId == null && storage != null) ? storage.layerFunction.getCurrentPart() : partId;
+        this.partId = (partId == null && storage != null) ? storage.layerFunction.getCurrentPart() : partId; // Do not override part id if already exists, means came from another part
         if (features != null) {
             for (Feature<?, ?> ft : this.features) {
                 ft.setStorage(storage);
@@ -349,6 +334,11 @@ public class GraphElement implements Serializable {
         return result;
     }
 
+    public Boolean hasFeature(String name){
+        boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
+        return hasLocallyAvailable || (storage!=null && storage.containsFeature(decodeFeatureId(name)));
+    }
+
     /**
      * If the feature already exists this will not do anything
      * Otherwise it will try to create the feature in storage or at least append to feature list
@@ -357,7 +347,7 @@ public class GraphElement implements Serializable {
      * @param feature feature itself
      */
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (Objects.isNull(getFeature(name))) {
+        if (!hasFeature(name)) {
             feature.setId(name);
             feature.setStorage(storage);
             feature.setElement(this); // This also adds this feature to my element
@@ -365,18 +355,6 @@ public class GraphElement implements Serializable {
                 feature.create();
             }
         }
-    }
-
-    /**
-     * Helper to setFeature with a specific timestamp
-     *
-     * @param name      Feature name
-     * @param feature   Feature object
-     * @param timestamp Timestamp
-     */
-    public void setFeature(String name, Feature<?, ?> feature, Long timestamp) {
-        feature.setTimestamp(timestamp);
-        setFeature(name, feature);
     }
 
     /**

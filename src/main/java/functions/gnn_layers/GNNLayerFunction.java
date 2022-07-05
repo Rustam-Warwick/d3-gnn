@@ -75,6 +75,9 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     void broadcastMessage(GraphOp op, MessageDirection direction);
 
+    /**
+     * Broadcast message with the specified timestamp
+     */
     void broadcastMessage(GraphOp op, MessageDirection direction, @Nonnull Long timestamp);
 
     /**

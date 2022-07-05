@@ -4,6 +4,7 @@ import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
@@ -148,7 +149,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         ListStateDescriptor<HashMap<String, Plugin>> descriptor =
                 new ListStateDescriptor(
                         "plugins",
-                        TypeInformation.of(HashMap.class));
+                        TypeInformation.of(new TypeHint<HashMap<String, Plugin>>() {}));
         pluginListState = context.getOperatorStateStore().getListState(descriptor);
         if (context.isRestored()) {
             plugins.clear();
