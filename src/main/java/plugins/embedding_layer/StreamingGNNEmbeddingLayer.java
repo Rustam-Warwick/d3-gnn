@@ -213,7 +213,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Is the Edge ready to pass on the message
      */
     public boolean messageReady(Edge edge) {
-        return edge.src.hasFeature("feature");
+        return edge.src.containsFeature("feature");
     }
 
     /**
@@ -221,7 +221,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Is the Vertex ready to be updated
      */
     public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER &&  vertex.hasFeature("feature") && vertex.hasFeature("agg");
+        return vertex != null && vertex.state() == ReplicaState.MASTER &&  vertex.containsFeature("feature") && vertex.containsFeature("agg");
     }
 
     public boolean usingExternalFeatures(){
