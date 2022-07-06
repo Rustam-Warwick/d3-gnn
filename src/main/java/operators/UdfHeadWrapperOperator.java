@@ -2,6 +2,8 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
+import operators.events.StartTraining;
+import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.FileSystem;
@@ -10,6 +12,7 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheReader;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheWriter;
 import org.apache.flink.iteration.operator.OperatorUtils;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -18,6 +21,7 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.function.SupplierWithException;
@@ -40,6 +44,8 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
     private TypeSerializer<StreamElement> typeSerializer;
 
     private DataCacheWriter<StreamElement> dataCacheWriter;
+
+    private boolean TRAINING = false;
 
     @Nullable
     private DataCacheReader<StreamElement> currentDataCacheReader;
@@ -86,7 +92,7 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT) return;
+        if (element.getValue().getOp() == Op.OPERATOR_EVENT) return; // Should not be in splitter
         if (false) {
             dataCacheWriter.addRecord(element);
         } else {
@@ -94,29 +100,25 @@ public class UdfHeadWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
         }
     }
 
-//
-//    @Override
-//    public void handleOperatorEvent(OperatorEvent evt) {
-//        if (evt instanceof StartTraining) {
-//            try {
-//                processWatermarkStatus(WatermarkStatus.IDLE); // Mark the subsequent watermarks as idle
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        } else if (evt instanceof StopTraining) {
-//            try {
-//                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
-//                dataCacheWriter.finishCurrentSegment();
-//                currentDataCacheReader =
-//                        new DataCacheReader<>(
-//                                typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
-//                replayRecords(currentDataCacheReader);
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        if (evt instanceof StartTraining) {
+            TRAINING = true;
+        } else if (evt instanceof StopTraining) {
+            try {
+                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
+                dataCacheWriter.finishCurrentSegment();
+                currentDataCacheReader =
+                        new DataCacheReader<>(
+                                typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
+                replayRecords(currentDataCacheReader);
 //                acknowledgeIfWatermarkIsReady();
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//            }
-//        }
-//    }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     private void replayRecords(DataCacheReader<StreamElement> dataCacheReader) throws Exception {
         while (dataCacheReader.hasNext()) {

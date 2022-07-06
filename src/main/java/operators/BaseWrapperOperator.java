@@ -305,12 +305,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        WatermarkStatusEvent e = new WatermarkStatusEvent(watermarkStatus.status, ITERATION_COUNT);
-        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-        context.element.replace(op);
-        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-        setKeyContextElement(context.element);
-        processElement(context.element);
+        wrappedOperator.processWatermarkStatus(watermarkStatus);
+//        WatermarkStatusEvent e = new WatermarkStatusEvent(watermarkStatus.status, ITERATION_COUNT);
+//        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
+//        context.element.replace(op);
+//        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
+//        setKeyContextElement(context.element);
+//        processElement(context.element);
     }
 
     /**
@@ -333,7 +334,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * @param evt Coordinator event
      */
     @Override
-    public final void handleOperatorEvent(OperatorEvent evt) {
+    public void handleOperatorEvent(OperatorEvent evt) {
         try {
             if (evt instanceof IterableOperatorEvent)
                 ((IterableOperatorEvent) evt).setCurrentIteration(ITERATION_COUNT);
