@@ -5,8 +5,6 @@ import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
 import features.Tensor;
-import org.apache.flink.api.common.eventtime.WatermarkGenerator;
-import org.apache.flink.api.common.eventtime.WatermarkOutput;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
@@ -90,7 +88,7 @@ public class CoraFull implements Dataset {
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         try {
 //            env.setRuntimeMode(RuntimeExecutionMode.BATCH);
-            DataStream<String> edges = env.readTextFile(edgesFile.toString());
+            DataStream<String> edges = env.readTextFile(edgesFile.toString()).setParallelism(1);
 //            DataStream<String> edges = env.fromSource(FileSource.forRecordStreamFormat(
 //                    new TextLineInputFormat(), org.apache.flink.core.fs.Path.fromLocalFile(edgesFile.toFile())
 //            ).build(), WatermarkStrategy.noWatermarks(), "file").setParallelism(1);
@@ -107,21 +105,10 @@ public class CoraFull implements Dataset {
         }
     }
 
-    protected static class PunctuatedWatermarks implements WatermarkGenerator<GraphOp> {
-
-        @Override
-        public void onEvent(GraphOp event, long eventTimestamp, WatermarkOutput output) {
-        }
-
-        @Override
-        public void onPeriodicEmit(WatermarkOutput output) {
-
-        }
-    }
-
     protected static class EdgeParser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
+            System.out.println(value);
             String[] edges = value.split(",");
             Edge e = new Edge(new Vertex(edges[0]), new Vertex(edges[1]));
             return new GraphOp(Op.COMMIT, e, null);
@@ -152,9 +139,8 @@ public class CoraFull implements Dataset {
             FileInputStream vertexLabelsIn = new FileInputStream(vertexLabelsFile);
             this.vertexFeatures = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexFeaturesIn);
             this.vertexLabels = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexLabelsIn);
-            this.seenVertices = new ArrayList<>();
+            this.seenVertices = new ArrayList<>(5000);
             this.timestamp = 0;
-
         }
 
         @Override

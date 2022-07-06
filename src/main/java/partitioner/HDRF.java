@@ -7,7 +7,6 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
@@ -26,7 +25,6 @@ public class HDRF extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        StreamExecutionEnvironment envThis = inputDataStream.getExecutionEnvironment();
         int numThreats = 10;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                 TypeInformation.of(GraphOp.class),

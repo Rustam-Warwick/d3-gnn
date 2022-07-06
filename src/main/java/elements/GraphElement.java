@@ -334,7 +334,10 @@ public class GraphElement implements Serializable {
         return result;
     }
 
-    public Boolean hasFeature(String name){
+    /**
+     * Returns if Feature with this name is available either here or in storage
+     */
+    public Boolean containsFeature(String name){
         boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
         return hasLocallyAvailable || (storage!=null && storage.containsFeature(decodeFeatureId(name)));
     }
@@ -347,7 +350,7 @@ public class GraphElement implements Serializable {
      * @param feature feature itself
      */
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (!hasFeature(name)) {
+        if (!containsFeature(name)) {
             feature.setId(name);
             feature.setStorage(storage);
             feature.setElement(this); // This also adds this feature to my element

@@ -196,6 +196,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * Caches the given element, adds current feature to feature of the element if that does not exist there.
      * Removes reference from other variable if already attached
      * @implNote Make sure to properly track the change of references from Graph Elements
+     * @implNote If this element is already attached to some other element, it should be removed from that elements feature list before attaching this to other element
+     * @implNote Attaching element cannot contain a Feature with the same id.
      * @param attachingElement element that want to attach itself to this feature
      * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
      * between element.features <--> feature.element.

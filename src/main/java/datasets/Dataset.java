@@ -17,11 +17,10 @@ public interface Dataset extends Serializable {
 
 
     static Dataset getDataset(String name) {
-        switch (name) {
-            case "cora":
-                return new CoraFull(Path.of(System.getenv("DATASET_DIR"), "cora"));
-            default:
-                return new EdgeList(Path.of(System.getenv("DATASET_DIR"), "edge-list", name).toString());
+        if(name.contains("signed")){
+            return new SignedNetworkDataset(Path.of(System.getenv("DATASET_DIR"), name).toString());
+        }else{
+            return new EdgeList(Path.of(System.getenv("DATASET_DIR"), "edge-list", name).toString());
         }
     }
 

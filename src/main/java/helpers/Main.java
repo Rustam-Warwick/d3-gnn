@@ -3,6 +3,7 @@ package helpers;
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
@@ -10,16 +11,15 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import plugins.ModelServer;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
+import plugins.vertex_classification.VertexTrainingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
@@ -74,7 +74,7 @@ public class Main {
         // DataFlow
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(
@@ -88,28 +88,32 @@ public class Main {
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), true, 2 * window) :
                                         new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                ),
+                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
+                        .withPlugin(new ModelServer(models.get(2)))
+                        .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(Loss.softmaxCrossEntropyLoss())))
                 )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
 
-        SingleOutputStreamOperator<Void> outputStream = embeddings[embeddings.length - 1].forward().process(new ProcessFunction<GraphOp, Void>() {
-            @Override
-            public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-                // Do nothing just here to collect the metrics from previous operator
-            }
-        }).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
-//        SingleOutputStreamOperator<GraphOp> partitionedStream = embeddings[0].forward().process(new AddTimestamp()).setParallelism(1).name("Inputs");
-//        SingleOutputStreamOperator<GraphOp> outputStream = embeddings[embeddings.length - 1].forward().process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
-//        SingleOutputStreamOperator<Void> resultLatencies = partitionedStream.keyBy(GraphOp::getTimestamp).connect(outputStream.keyBy(GraphOp::getTimestamp)).process(new LatencyOutput(jobName, 10000)).name("Latencies").setParallelism(embeddings[embeddings.length - 1].getParallelism());
-        if (embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().isPresent()) {
-            outputStream.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
-//            resultLatencies.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
-        }
-//        if (embeddings[0].getTransformation().getSlotSharingGroup().isPresent()) {
-//            partitionedStream.slotSharingGroup(embeddings[0].getTransformation().getSlotSharingGroup().get());
+//        SingleOutputStreamOperator<Void> outputStream = embeddings[embeddings.length - 1].forward().process(new ProcessFunction<GraphOp, Void>() {
+//            @Override
+//            public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
+//                // Do nothing just here to collect the metrics from previous operator
+//            }
+//        }).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
+////        SingleOutputStreamOperator<GraphOp> partitionedStream = embeddings[0].forward().process(new AddTimestamp()).setParallelism(1).name("Inputs");
+////        SingleOutputStreamOperator<GraphOp> outputStream = embeddings[embeddings.length - 1].forward().process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
+////        SingleOutputStreamOperator<Void> resultLatencies = partitionedStream.keyBy(GraphOp::getTimestamp).connect(outputStream.keyBy(GraphOp::getTimestamp)).process(new LatencyOutput(jobName, 10000)).name("Latencies").setParallelism(embeddings[embeddings.length - 1].getParallelism());
+//        if (embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().isPresent()) {
+//            outputStream.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
+////            resultLatencies.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
 //        }
+////        if (embeddings[0].getTransformation().getSlotSharingGroup().isPresent()) {
+////            partitionedStream.slotSharingGroup(embeddings[0].getTransformation().getSlotSharingGroup().get());
+////        }
 
         env.execute(jobName);
     }

@@ -29,8 +29,6 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
 
-import java.util.Objects;
-
 public class GraphStream {
 
     private final StreamExecutionEnvironment env; // Stream environment
@@ -87,7 +85,7 @@ public class GraphStream {
         env.registerType(PartNumber.class);
     }
 
-    public void parseCmdArgs() {
+    private void parseCmdArgs() {
         Option explosionCoeff = Option
                 .builder("l")
                 .required(false)
@@ -270,27 +268,23 @@ public class GraphStream {
         DataStream<GraphOp>[] layerOutputs = new DataStream[processFunctions.length + 1]; // the final return value
         DataStream<GraphOp> topologyUpdates = null;
         DataStream<GraphOp> trainTestSplit = null;
-        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = null;
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
 
         // 2. Partitiong the incoming stream
-        DataStream<GraphOp> allUpdates = partition(dataStreamMain);
-        layerOutputs[0] = allUpdates; // First one is the partitioned data
+        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = (SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain);
+        layerOutputs[0] = previousLayerUpdates; // First one is the partitioned data
 
         // 3. Execute the layers
         for (int i = 0; i <= layers; i++) {
             KeyedProcessFunction processFn = processFunctions[i];
-            if (Objects.isNull(processFn)) {
-                layerOutputs[i + 1] = null;
-                continue;
-            }
-            if (position_index == 0) {
-                previousLayerUpdates = streamingGNNLayerAsSource(allUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
+            assert processFn != null;
+            if (i == 0) {
+                previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
                 topologyUpdates = previousLayerUpdates.getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
                 trainTestSplit = previousLayerUpdates.getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);
-            } else if (position_index == 1) {
+            } else if (i == 1) {
                 previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
-            } else if (position_index < layers) {
+            } else if (i < layers) {
                 previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
             } else {
                 if (hasLastLayerTopology && hasBackwardIteration)
