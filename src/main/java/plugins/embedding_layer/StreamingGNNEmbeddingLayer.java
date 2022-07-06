@@ -19,7 +19,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
 
     public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
 
-    public transient ModelServer modelServer; // ParameterServer Plugin
+    private transient ModelServer modelServer; // ParameterServer Plugin
 
     public StreamingGNNEmbeddingLayer() {
         super();
@@ -213,7 +213,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Is the Edge ready to pass on the message
      */
     public boolean messageReady(Edge edge) {
-        return edge.src.containsFeature("feature");
+        return edge.src.hasFeature("feature");
     }
 
     /**
@@ -221,6 +221,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Is the Vertex ready to be updated
      */
     public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("feature") && vertex.containsFeature("agg");
+        return vertex != null && vertex.state() == ReplicaState.MASTER &&  vertex.hasFeature("feature") && vertex.hasFeature("agg");
     }
+
+    public boolean usingExternalFeatures(){
+        return externalFeatures;
+    }
+
 }
