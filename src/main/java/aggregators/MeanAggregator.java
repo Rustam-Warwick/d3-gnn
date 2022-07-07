@@ -88,6 +88,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void reset() {
         value = new Tuple2<>(value.f0.zerosLike(), 0);
+        value.f0.detach();
+        storage.updateFeature(this);
     }
 
     @Override

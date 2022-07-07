@@ -1,6 +1,9 @@
 package datasets;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import features.Tensor;
+import functions.helpers.Throttler;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -36,7 +39,7 @@ public class SignedNetworkDataset implements Dataset {
                 element.setTimestamp(null);
                 return ts==null?Long.MIN_VALUE:ts;
             }
-        })).setParallelism(1);
+        })).setParallelism(1).process(new Throttler(1000)).setParallelism(1);
 
 
         if (fineGrainedResourceManagementEnabled) {
@@ -75,7 +78,7 @@ public class SignedNetworkDataset implements Dataset {
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
             Edge e = new Edge(new Vertex(values[0]), new Vertex(values[1]));
-            e.setFeature("sign", new Feature<Integer, Integer>(Integer.valueOf(values[2])));
+            e.setFeature("sign", new Tensor(LifeCycleNDManager.getInstance().create(Integer.valueOf(values[2]))));
             return new GraphOp(Op.COMMIT, e, Float.valueOf(values[3]).longValue());
         }
     }

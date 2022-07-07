@@ -83,21 +83,27 @@ public class LifeCycleNDManager extends PtNDManager {
      */
     public class Scope implements AutoCloseable {
         private final transient NDManager[] originalManagers = new NDManager[10];
-        private transient NDList inputs;
+        private transient NDList[] inputs;
 
-        public Scope start(NDList inputs) {
+        public Scope start(NDList ...inputs) {
             this.inputs = inputs;
-            for (int i = 0; i < this.inputs.size(); i++) {
-                originalManagers[i] = inputs.get(i).getManager();
-                inputs.get(i).attach(LifeCycleNDManager.this);
+            int k = 0;
+            for (int i = 0; i < inputs.length; i++) {
+                for (int j = 0; j < inputs[i].size(); j++) {
+                    originalManagers[k++] = inputs[i].get(j).getManager();
+                    inputs[i].get(j).attach(LifeCycleNDManager.this);
+                }
             }
             return this;
         }
 
         @Override
         public void close() throws Exception {
-            for (int i = 0; i < inputs.size(); i++) {
-                inputs.get(i).attach(originalManagers[i]);
+            int k=0;
+            for (int i = 0; i < inputs.length; i++) {
+                for (int j = 0; j < inputs[i].size(); j++) {
+                    inputs[i].get(j).attach(originalManagers[k++]);
+                }
             }
         }
     }

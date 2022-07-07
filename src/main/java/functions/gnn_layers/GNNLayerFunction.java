@@ -89,15 +89,6 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     <OUT> void sideMessage(OUT op, @Nonnull OutputTag<OUT> outputTag, @Nonnull Long timestamp);
 
     /**
-     * Broadcast message to a specific side output
-     *
-     * @param op        Operation
-     * @param outputTag OutputTag to broadcast to
-     * @param <OUT>     Type of the message to be broadcasted
-     */
-    <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag);
-
-    /**
      * Send some event to the operator coordinator
      *
      * @param operatorEvent OperatorEvent

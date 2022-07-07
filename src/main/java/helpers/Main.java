@@ -6,7 +6,6 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
@@ -18,6 +17,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.edge_classification.EdgeClassificationTrainingPlugin;
+import plugins.embedding_layer.GNNEmbeddingLayerTrainingPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
@@ -35,14 +35,17 @@ public class Main {
         sb.add(new SAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
-                        .add(Linear.builder().setUnits(64).optBias(true).build())
-                        .add(Linear.builder().setUnits(70).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return Activation.softmax(ndArrays);
+                                if(ndArrays.size() == 1){
+                                    return new NDList(ndArrays.get(0).concat(ndArrays.get(0),-1));
+                                }
+                                return new NDList(ndArrays.get(0).concat(ndArrays.get(1),-1));
                             }
                         })
+                        .add(Linear.builder().setUnits(16).optBias(true).build())
+                        .add(Linear.builder().setUnits(1).optBias(true).build())
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
@@ -70,6 +73,7 @@ public class Main {
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, true, true,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
+                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, window) :
@@ -77,6 +81,7 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
+                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), true, 2 * window) :

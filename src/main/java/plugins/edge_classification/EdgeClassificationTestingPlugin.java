@@ -10,6 +10,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
+import elements.iterations.RemoteInvoke;
 import operators.events.InferenceBarrier;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
@@ -23,7 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
-public class EdgeClassificationTrainingPlugin extends Plugin {
+public class EdgeClassificationTestingPlugin extends Plugin {
 
     public final String modelName;
 
@@ -40,14 +41,14 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
     public int BATCH_COUNT = 0;
 
 
-    public EdgeClassificationTrainingPlugin(String modelName, SerializableLoss loss, int MAX_BATCH_SIZE) {
+    public EdgeClassificationTestingPlugin(String modelName, SerializableLoss loss, int MAX_BATCH_SIZE) {
         super(String.format("%s-trainer", modelName));
         this.MAX_BATCH_SIZE = MAX_BATCH_SIZE;
         this.loss = loss;
         this.modelName = modelName;
     }
 
-    public EdgeClassificationTrainingPlugin(String modelName, SerializableLoss loss) {
+    public EdgeClassificationTestingPlugin(String modelName, SerializableLoss loss) {
         this(modelName, loss, 1024);
     }
 
@@ -202,47 +203,43 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs, batchedLabels)){
                 NDList predictions = ( modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
                 NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-                if(meanLoss.isNaN().getBoolean(0)){
-                    System.out.println("s");
-                }
-                System.out.println(meanLoss);
                 JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
 
                 // 3. Collect Vertex Gradients
                 HashMap<Short, HashMap<String, NDArray>> backwardPartGrads = new HashMap<>();
-//                edges.forEach(item->{
-//                    backwardPartGrads.compute(item.src.masterPart(), (part, value)->{
-//                        if(value == null) value = new HashMap<>();
-//                        value.compute(item.src.getId(), (srcId, gradient)->{
-//                            if(gradient == null) return ((NDArray) item.src.getFeature("feature").getValue()).getGradient();
-//                            else gradient.addi( ((NDArray) item.src.getFeature("feature").getValue()).getGradient());
-//                            return gradient;
-//                        });
-//                        return value;
-//                    });
-//
-//                    backwardPartGrads.compute(item.dest.masterPart(), (part, value)->{
-//                        if(value == null) value = new HashMap<>();
-//                        value.compute(item.dest.getId(), (destId, gradient)->{
-//                            if(gradient == null) return ((NDArray) item.dest.getFeature("feature").getValue()).getGradient();
-//                            else gradient.addi( ((NDArray) item.dest.getFeature("feature").getValue()).getGradient());
-//                            return gradient;
-//                        });
-//                        return value;
-//                    });
-//                });
-//
-//                // 4. Send Vertex Gradients
-//                backwardPartGrads.forEach((key,grads)->{
-//                    new RemoteInvoke()
-//                            .addDestination(key) // Only masters will be here anyway
-//                            .noUpdate()
-//                            .method("collect")
-//                            .toElement(getId(), elementType())
-//                            .where(MessageDirection.BACKWARD)
-//                            .withArgs(grads)
-//                            .buildAndRun(storage);
-//                });
+                edges.forEach(item->{
+                    backwardPartGrads.compute(item.src.masterPart(), (part, value)->{
+                        if(value == null) value = new HashMap<>();
+                        value.compute(item.src.getId(), (srcId, gradient)->{
+                            if(gradient == null) return ((NDArray) item.src.getFeature("feature").getValue()).getGradient();
+                            else gradient.addi( ((NDArray) item.src.getFeature("feature").getValue()).getGradient());
+                            return gradient;
+                        });
+                        return value;
+                    });
+
+                    backwardPartGrads.compute(item.dest.masterPart(), (part, value)->{
+                        if(value == null) value = new HashMap<>();
+                        value.compute(item.dest.getId(), (destId, gradient)->{
+                            if(gradient == null) return ((NDArray) item.dest.getFeature("feature").getValue()).getGradient();
+                            else gradient.addi( ((NDArray) item.dest.getFeature("feature").getValue()).getGradient());
+                            return gradient;
+                        });
+                        return value;
+                    });
+                });
+
+                // 4. Send Vertex Gradients
+                backwardPartGrads.forEach((key,grads)->{
+                    new RemoteInvoke()
+                            .addDestination(key) // Only masters will be here anyway
+                            .noUpdate()
+                            .method("collect")
+                            .toElement(getId(), elementType())
+                            .where(MessageDirection.BACKWARD)
+                            .withArgs(grads)
+                            .buildAndRun(storage);
+                });
             }catch (Exception e){
                 e.printStackTrace();
             }finally {
@@ -263,7 +260,6 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
         try{
             if(event instanceof StartTraining){
                 storage.layerFunction.runForAllLocalParts(this::startTraining);
-                BATCH_COUNT = 0;
                 modelServer.getParameterStore().sync();
                 storage.layerFunction.broadcastMessage(new GraphOp(new TrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.BACKWARD);
             }else if(event instanceof InferenceBarrier){

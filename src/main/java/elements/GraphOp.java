@@ -1,8 +1,8 @@
 package elements;
 
 import elements.iterations.MessageCommunication;
+import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.jetbrains.annotations.NotNull;
 import typeinfo.GraphOpTypeInfoFactory;
 
@@ -31,7 +31,7 @@ public final class GraphOp {
     /**
      * Operator Event for the plugins communicated through this channel
      */
-    public OperatorEvent operatorEvent;
+    public BaseOperatorEvent operatorEvent;
     /**
      * Type of communication message Part-to-Part or Broadcast
      */
@@ -63,11 +63,14 @@ public final class GraphOp {
         this(op, partId, element, ts, MessageCommunication.P2P);
     }
 
+    public GraphOp(BaseOperatorEvent evt){
+        this(Op.OPERATOR_EVENT, null, null, evt, MessageCommunication.BROADCAST, null);
+    }
+
     public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
         this(op, partId, element, null, communication, ts);
     }
-
-    public GraphOp(@NotNull Op op, Short partId, GraphElement element, OperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
+    public GraphOp(@NotNull Op op, Short partId, GraphElement element, BaseOperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;
@@ -116,11 +119,11 @@ public final class GraphOp {
         this.messageCommunication = messageCommunication;
     }
 
-    public OperatorEvent getOperatorEvent() {
+    public BaseOperatorEvent getOperatorEvent() {
         return operatorEvent;
     }
 
-    public void setOperatorEvent(OperatorEvent operatorEvent) {
+    public void setOperatorEvent(BaseOperatorEvent operatorEvent) {
         this.operatorEvent = operatorEvent;
     }
 
@@ -132,6 +135,7 @@ public final class GraphOp {
         return
                 new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
+
 
 
     @Override

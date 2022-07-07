@@ -19,9 +19,7 @@
 package operators;
 
 import elements.GraphOp;
-import elements.Op;
 import elements.iterations.MessageCommunication;
-import operators.events.FlowingOperatorEvent;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
@@ -102,9 +100,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
                 output.collect(element);
             } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-                if(element.getValue().getOp() == Op.OPERATOR_EVENT && element.getValue().getOperatorEvent() instanceof FlowingOperatorEvent){
-                    ((FlowingOperatorEvent) element.getValue().getOperatorEvent()).setBroadcastCount((short) getRuntimeContext().getNumberOfParallelSubtasks());
-                }
                 broadcastOutput.broadcastEmit(element);
             }
 //            if(element.getValue().getElement() != null){

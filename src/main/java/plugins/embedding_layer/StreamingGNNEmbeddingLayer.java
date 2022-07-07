@@ -21,6 +21,8 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
 
     private transient ModelServer modelServer; // ParameterServer Plugin
 
+    private boolean RUNNING = true;
+
     public StreamingGNNEmbeddingLayer() {
         super();
         modelName = null;
@@ -64,6 +66,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
+        if(!RUNNING) return;
         if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.elementType() == ElementType.EDGE) {
@@ -93,6 +96,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
+        if(!RUNNING) return;
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -240,5 +244,15 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     @Override
     public boolean usingBatchingOutput() {
         return false;
+    }
+
+    @Override
+    public void stop() {
+        RUNNING = false;
+    }
+
+    @Override
+    public void start() {
+        RUNNING = true;
     }
 }

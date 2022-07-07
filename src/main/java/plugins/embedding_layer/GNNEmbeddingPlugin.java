@@ -13,6 +13,10 @@ public interface GNNEmbeddingPlugin {
 
     NDList UPDATE(NDList inputs, boolean training);
 
+    void stop();
+
+    void start();
+
     boolean usingTrainableEmbeddings();
 
     boolean usingBatchingOutput();

@@ -54,9 +54,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
-        op.setPartId(null);
-        op.setMessageCommunication(MessageCommunication.BROADCAST);
-        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastToNextLayer(op);
+        assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
+        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastForward(op);
         else message(op, direction);
     }
 
@@ -66,7 +65,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
             if (direction == MessageDirection.BACKWARD) {
                 getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
             } else if (direction == MessageDirection.FORWARD) {
-                getWrapperContext().outputWithTimestamp(op, timestamp);
+                getWrapperContext().outputWithTimestamp(op, null, timestamp);
             } else {
                 getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
             }
@@ -77,8 +76,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
-        op.setPartId(null);
-        op.setMessageCommunication(MessageCommunication.BROADCAST);
+        assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
         if(direction == MessageDirection.FORWARD){
             throw new IllegalStateException("Not implemented");
         }
@@ -88,11 +86,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     @Override
     public <OUT> void sideMessage(OUT op, @NotNull OutputTag<OUT> outputTag, @NotNull Long timestamp) {
         getWrapperContext().outputWithTimestamp(op, outputTag, timestamp);
-    }
-
-    @Override
-    public <OUT> void sideBroadcastMessage(OUT op, OutputTag<OUT> outputTag) {
-        throw new IllegalStateException("Side BroadCast Messages not implemented yet!");
     }
 
     @Override

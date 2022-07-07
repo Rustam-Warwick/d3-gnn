@@ -22,12 +22,12 @@ import elements.GraphElement;
 import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
+import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.TypeSerializerSnapshot;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -45,7 +45,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
     private final TypeSerializer[] fieldSerializers;
     private final ExecutionConfig config;
     private TypeSerializer<GraphElement> graphElementTypeSerializer;
-    private TypeSerializer<OperatorEvent> operatorEventTypeSerializer;
+    private TypeSerializer<BaseOperatorEvent> operatorEventTypeSerializer;
     private TypeSerializer<Short> partIdTypeSerializer;
     private TypeSerializer<Long> timestampTypeSerializer;
 
@@ -59,7 +59,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
             if (fields[i].getName().equals("element"))
                 graphElementTypeSerializer = (TypeSerializer<GraphElement>) fieldSerializers[i];
             if (fields[i].getName().equals("operatorEvent"))
-                operatorEventTypeSerializer = (TypeSerializer<OperatorEvent>) fieldSerializers[i];
+                operatorEventTypeSerializer = (TypeSerializer<BaseOperatorEvent>) fieldSerializers[i];
             if (fields[i].getName().equals("ts")) timestampTypeSerializer = (TypeSerializer<Long>) fieldSerializers[i];
         }
 
@@ -156,7 +156,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
         Short partId = null;
         GraphElement el = null;
         Long ts = null;
-        OperatorEvent event = null;
+        BaseOperatorEvent event = null;
         if (hasPartId) partId = partIdTypeSerializer.deserialize(source);
         if (hasElement) el = graphElementTypeSerializer.deserialize(source);
         if (hasTs) ts = timestampTypeSerializer.deserialize(source);
@@ -178,7 +178,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
         Short partId = null;
         GraphElement el = null;
         Long ts = null;
-        OperatorEvent event = null;
+        BaseOperatorEvent event = null;
         if (hasPartId) partId = partIdTypeSerializer.deserialize(source);
         if (hasElement) el = graphElementTypeSerializer.deserialize(source);
         if (hasTs) ts = timestampTypeSerializer.deserialize(source);

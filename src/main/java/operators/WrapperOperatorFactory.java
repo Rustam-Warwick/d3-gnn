@@ -34,7 +34,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
             if(((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction){
                 return (T) new GNNLayerWrapperOperator(parameters, factory, iterationId, position, totalLayers);
             }
-            return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+            return (T) new HeadUdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
         }
 
         return null;
@@ -46,7 +46,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
             if(((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction){
                 return GNNLayerWrapperOperator.class;
             }
-            return UdfWrapperOperator.class;
+            return HeadUdfWrapperOperator.class;
         }
         return BaseWrapperOperator.class;
     }

@@ -27,7 +27,7 @@ import elements.Plugin;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
-import operators.events.StopTraining;
+import features.GradientCollector;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -39,13 +39,9 @@ import java.util.Objects;
  */
 public class ModelServer extends Plugin {
 
-    public boolean IS_DIRTY = false; // Has the model been updated just now. Notes that it is currently dirty
-
     protected Model model; // Model attached
 
     protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
-
-    protected HashMap<String, NDArray> collectedGradients; // HashMap of the collected gradients so far
 
     protected Optimizer optimizer; // Optimizer
 
@@ -89,9 +85,8 @@ public class ModelServer extends Plugin {
             parameter.getValue().close();
             parameter.getValue().setShape(null);
             parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
+            parameter.getValue().getArray().detach();
         });
-        IS_DIRTY = true;
-        storage.layerFunction.operatorEventMessage(new StopTraining());
     }
 
     /**
@@ -102,16 +97,18 @@ public class ModelServer extends Plugin {
      */
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients) {
-        if (Objects.isNull(collectedGradients)) {
-            collectedGradients = gradients;
-        } else {
-            gradients.forEach((key, gradient) -> {
-                collectedGradients.compute(key, (a, value) -> value.addi(gradient));
-            });
+        if(!containsFeature("collectedGradients")){
+            setFeature("collectedGradients", new GradientCollector(new HashMap<>(), true, null));
         }
+        GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
+        feature.merge(gradients);
+        feature.getValue().values().forEach(item->{
+            System.out.println(item);
+        });
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
+            feature.clean();
         }
     }
 
@@ -119,8 +116,9 @@ public class ModelServer extends Plugin {
         @Override
         public void updateAllParameters() {
             HashMap<String, NDArray> parameters = new HashMap<>();
+            GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
             model.getBlock().getParameters().forEach(parameter -> {
-                optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
+                optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), feature.getValue().get(parameter.getValue().getId()));
                 parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
             });
             new RemoteInvoke()
@@ -131,9 +129,6 @@ public class ModelServer extends Plugin {
                     .withArgs(parameters)
                     .addDestinations(othersMasterParts())
                     .buildAndRun(storage);
-            IS_DIRTY = true;
-            collectedGradients = null;
-            storage.layerFunction.operatorEventMessage(new StopTraining());
         }
 
         @Override

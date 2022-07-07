@@ -2,7 +2,6 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
-import elements.iterations.MessageCommunication;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
@@ -13,7 +12,6 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheReader;
 import org.apache.flink.iteration.datacache.nonkeyed.DataCacheWriter;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -22,7 +20,6 @@ import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
-import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.flink.util.function.SupplierWithException;
@@ -32,11 +29,11 @@ import java.io.IOException;
 import java.util.Collections;
 
 /**
- * Head Operator that receives all external inputs to the graph. Handles buffering while training and splitting messages
+ * Wrapper around any other operator
  *
  * @param <T> Internal operator
  */
-public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
+public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     private Path basePath;
 
@@ -52,8 +49,8 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? e
     private DataCacheReader<StreamElement> currentDataCacheReader;
 
 
-    public UdfWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
-        super(parameters, operatorFactory, iterationID, position, totalLayers, (byte) 0);
+    public HeadUdfWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
+        super(parameters, operatorFactory, iterationID, position, totalLayers);
         try {
             basePath =
                     OperatorUtils.getDataCachePath(
@@ -95,11 +92,12 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? e
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.getValue().getOp() == Op.OPERATOR_EVENT){
             if (element.getValue().getOperatorEvent() instanceof StartTraining) {
-            TRAINING = true;
-            ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount((short) containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks());
-            context.broadcastToNextLayer(new GraphOp(Op.OPERATOR_EVENT, null,null, element.getValue().getOperatorEvent(), MessageCommunication.BROADCAST, null));
+                TRAINING = true;
+                ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount(parallelism);
+                context.broadcastForward(new GraphOp(element.getValue().getOperatorEvent()));
             } else if (element.getValue().getOperatorEvent() instanceof StopTraining) {
                 try {
+                    TRAINING = false;
                     dataCacheWriter.finishCurrentSegment();
                     currentDataCacheReader =
                             new DataCacheReader<>(

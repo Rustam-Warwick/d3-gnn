@@ -1,14 +1,17 @@
 package operators.events;
 
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-
 import java.util.Objects;
 
 /**
  * Operator Events that can also flow in the pipeline through broadcast calls
+ * If this event is flowing need to also set the broadcastCount, as we need to know how many of such events are expected to arrive
  */
-public class FlowingOperatorEvent implements OperatorEvent {
+public class FlowingOperatorEvent extends BaseOperatorEvent {
     public Short broadcastCount;
+
+    public FlowingOperatorEvent(Short broadcastCount) {
+        this.broadcastCount = broadcastCount;
+    }
 
     public FlowingOperatorEvent() {
 

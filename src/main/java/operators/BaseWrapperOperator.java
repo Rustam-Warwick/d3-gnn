@@ -5,9 +5,8 @@ import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
 import helpers.MyOutputReflectionContext;
+import operators.events.BaseOperatorEvent;
 import operators.events.FlowingOperatorEvent;
-import operators.events.WatermarkEvent;
-import operators.events.WatermarkStatusEvent;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -44,14 +43,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.Flow;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Operator that Wraps around another operator and implements some common logic
- * This common logic is triple-all-reduce Watermarking strategy
- *
  * @implNote Assumes that the input is GraphOp
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
  * @see GNNLayerWrapperOperator manages wrapping around single operators
@@ -102,11 +98,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short operatorIndex; // Vertical position
 
+    protected final short parallelism;
+
     protected final short totalLayers; // Total horizontal layers
 
     protected final IterationID iterationID; // Id for the Iteration
-
-    protected byte ITERATION_COUNT; // How many times elements are expected to iterate in this stream
 
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
@@ -132,12 +128,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             StreamOperatorFactory<GraphOp> operatorFactory,
             IterationID iterationID,
             short position,
-            short totalLayers,
-            byte iterationCount) {
+            short totalLayers) {
         this.position = position;
         this.iterationID = iterationID;
         this.totalLayers = totalLayers;
-        this.ITERATION_COUNT = iterationCount;
         this.parameters = Objects.requireNonNull(parameters);
         this.streamConfig = Objects.requireNonNull(parameters.getStreamConfig());
         this.containingTask = Objects.requireNonNull(parameters.getContainingTask());
@@ -155,6 +149,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
+        this.parallelism = (short) containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
         this.events = new HashMap<>();
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters
@@ -206,6 +201,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
         if (record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
             if (record.getValue().getPartId() == null) {
+                // Broadcast messages should be sent with null id, this will assign the first part id to it
                 record.getValue().setPartId(thisParts.get(0));
             }
         }
@@ -315,12 +311,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
         wrappedOperator.processWatermarkStatus(watermarkStatus);
-//        WatermarkStatusEvent e = new WatermarkStatusEvent(watermarkStatus.status, ITERATION_COUNT);
-//        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-//        context.element.replace(op);
-//        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-//        setKeyContextElement(context.element);
-//        processElement(context.element);
     }
 
     /**
@@ -329,23 +319,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
         wrappedOperator.processWatermark(mark);
-//        WatermarkEvent e = new WatermarkEvent(mark.getTimestamp(), ITERATION_COUNT);
-//        GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, e, MessageCommunication.BROADCAST, null);
-//        context.element.replace(op, mark.getTimestamp());
-//        events.put(e, (short) (containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks() - 1));
-//        setKeyContextElement(context.element);
-//        processElement(context.element);
     }
 
     /**
-     * Process events from coordinator. Some might be iterable hence will need iteration
+     * Operator Events in a Wrapper Operator are treated like broadcast events
+     * This means that
      *
      * @param evt Coordinator event
      */
     @Override
     public final void handleOperatorEvent(OperatorEvent evt) {
+        assert evt instanceof BaseOperatorEvent; // Only send BaseOperatorEvents
         try {
-            GraphOp op = new GraphOp(Op.OPERATOR_EVENT, null, null, evt, MessageCommunication.BROADCAST, null);
+            GraphOp op = new GraphOp(Op.OPERATOR_EVENT, null, null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null);
             context.element.replace(op);
             setKeyContextElement(context.element);
             processElement(context.element);
@@ -355,7 +341,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
-     * Record acknowledges watermark/watermarkStatus or else just process it normally
+     * If processed element in FlowingOperatorEvent which actually came from the pipeline, need to aggregate its count and trigger only if all broadcasts have been received
      */
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
@@ -365,6 +351,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= ev.getBroadcastCount()) {
                 // Process This Iteration
                 processActualElement(element);
+                events.remove(ev);
             }
         } else {
             processActualElement(element);
@@ -442,7 +429,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 OutputTag<?> outputTag = myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
                 if(outputTag == null){
                     // This is meant for the next layer
-
                     RecordWriter<SerializationDelegate<StreamElement>> recordWriter =
                             myOutputReflectionContext.getRecordWriter(internalOutputs[i]);
                     TypeSerializer<StreamElement> typeSerializer =
@@ -529,7 +515,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return -1;
         }
 
-        public void broadcastToNextLayer(GraphOp el){
+        /**
+         * Broadcasts this message to the forward chain, identified with null outputTag
+         * All other broadcasts should be done via IterationSource -> Tails that is only sent as regular events
+         */
+        public void broadcastForward(GraphOp el){
             GraphOp old = element.getValue();
             try {
                 element.replace(el);
@@ -543,8 +533,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Emits the record with custom timestamp to a different outputTag
+         * Returns the current timestamp after emitting the event
          */
-        public <E> void outputWithTimestamp(E value, @Nonnull OutputTag<E> tag, @Nullable Long timestamp) {
+        public <E> void outputWithTimestamp(E value, OutputTag<E> tag, @Nullable Long timestamp) {
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;
@@ -554,29 +545,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             } else {
                 replaced = element.replace(value, timestamp);
             }
-            output.collect(tag, replaced);
-            if (tmpTs != null) {
-                element.replace(tmpVal, tmpTs);
+            if (tag == null) {
+                output.collect((StreamRecord<GraphOp>) replaced);
             } else {
-                element.replace(tmpVal);
-                element.eraseTimestamp();
+                output.collect(tag, replaced);
             }
-        }
-
-        /**
-         * Emits the records with custom timestamp to the next operator
-         */
-        public void outputWithTimestamp(GraphOp value, @Nullable Long timestamp) {
-            Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
-            GraphOp tmpVal = element.getValue();
-            StreamRecord<GraphOp> replaced;
-            if (timestamp == null) {
-                replaced = element.replace(value);
-                replaced.eraseTimestamp();
-            } else {
-                replaced = element.replace(value, timestamp);
-            }
-            output.collect(replaced);
             if (tmpTs != null) {
                 element.replace(tmpVal, tmpTs);
             } else {
