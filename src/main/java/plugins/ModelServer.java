@@ -102,9 +102,6 @@ public class ModelServer extends Plugin {
         }
         GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
         feature.merge(gradients);
-        feature.getValue().values().forEach(item->{
-            System.out.println(item);
-        });
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
@@ -145,11 +142,12 @@ public class ModelServer extends Plugin {
         public void sync() {
             HashMap<String, NDArray> thisGradients = new HashMap<>();
             model.getBlock().getParameters().forEach((parameter) -> {
-                if (parameter.getValue().getArray().hasGradient()) {
+                if (parameter.getValue().getArray().hasGradient() && !parameter.getValue().getArray().getGradient().isInfinite().any().getBoolean() && !parameter.getValue().getArray().getGradient().isNaN().any().getBoolean()) {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
                 } else {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().zerosLike());
                 }
+                parameter.getValue().getArray().setRequiresGradient(false);
             });
             new RemoteInvoke()
                     .withArgs(thisGradients)

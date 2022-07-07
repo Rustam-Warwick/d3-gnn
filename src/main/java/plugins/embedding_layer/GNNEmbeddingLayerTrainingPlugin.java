@@ -174,7 +174,8 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
      */
     public void trainSecondPartStart() {
         GradientCollector<BaseAggregator<?>> collectedAggregators = (GradientCollector<BaseAggregator<?>>) getFeature("collectedAggregators");
-        if (false && !collectedAggregators.getValue().isEmpty()) {
+        if (!collectedAggregators.getValue().isEmpty()) {
+            System.out.println("INSIDE");
 //            // 1. Compute the gradients
 //            // 1.1 Fill up those 2 data structures
             HashMap<BaseAggregator<?>, List<Vertex>> reverseEdgeList = new HashMap<>(); // Agg -> All in Vertices with Features

@@ -10,6 +10,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
+import elements.iterations.RemoteInvoke;
 import operators.events.InferenceBarrier;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
@@ -187,9 +188,12 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             List<NDList> inputs = new ArrayList<>();
             List<NDList> labels = new ArrayList<>();
             List<Edge> edges = new ArrayList<>();
+            HashMap<String, NDArray> vertices = new HashMap<>();
             for (String eId : readyEdges.getValue()) {
                 Edge e = storage.getEdge(eId);
-                ((NDArray) e.src.getFeature("feature").getValue()).setRequiresGradient(true);
+                vertices.computeIfAbsent(e.src.getId(), (vId, val)->{
+                    ((NDArray) e.src.getFeature("feature").getValue()).setRequiresGradient(true);
+                })
                 ((NDArray) e.dest.getFeature("feature").getValue()).setRequiresGradient(true);
                 inputs.add(new NDList((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue()));
                 labels.add(new NDList((NDArray) e.getFeature("trainLabel").getValue()));
@@ -200,39 +204,36 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
 
             try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs, batchedLabels)){
-                NDList predictions = ( modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
+                NDList predictions = (modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
                 NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-                if(meanLoss.isNaN().getBoolean(0)){
-                    System.out.println("s");
-                }
                 System.out.println(meanLoss);
                 JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
 
+//                modelServer.getModel().getBlock().getParameters().forEach(item-> System.out.println(item.getValue().getArray().getGradient()));
                 // 3. Collect Vertex Gradients
                 HashMap<Short, HashMap<String, NDArray>> backwardPartGrads = new HashMap<>();
-//                edges.forEach(item->{
-//                    backwardPartGrads.compute(item.src.masterPart(), (part, value)->{
-//                        if(value == null) value = new HashMap<>();
-//                        value.compute(item.src.getId(), (srcId, gradient)->{
-//                            if(gradient == null) return ((NDArray) item.src.getFeature("feature").getValue()).getGradient();
-//                            else gradient.addi( ((NDArray) item.src.getFeature("feature").getValue()).getGradient());
-//                            return gradient;
-//                        });
-//                        return value;
-//                    });
-//
-//                    backwardPartGrads.compute(item.dest.masterPart(), (part, value)->{
-//                        if(value == null) value = new HashMap<>();
-//                        value.compute(item.dest.getId(), (destId, gradient)->{
-//                            if(gradient == null) return ((NDArray) item.dest.getFeature("feature").getValue()).getGradient();
-//                            else gradient.addi( ((NDArray) item.dest.getFeature("feature").getValue()).getGradient());
-//                            return gradient;
-//                        });
-//                        return value;
-//                    });
-//                });
-//
-//                // 4. Send Vertex Gradients
+                edges.forEach(item->{
+                    backwardPartGrads.compute(item.src.masterPart(), (part, value)->{
+                        if(value == null) value = new HashMap<>();
+                        value.compute(item.src.getId(), (srcId, gradient)->{
+                            if(gradient == null) return ((NDArray) item.src.getFeature("feature").getValue()).getGradient();
+                            else gradient.addi( ((NDArray) item.src.getFeature("feature").getValue()).getGradient());
+                            return gradient;
+                        });
+                        return value;
+                    });
+
+                    backwardPartGrads.compute(item.dest.masterPart(), (part, value)->{
+                        if(value == null) value = new HashMap<>();
+                        value.compute(item.dest.getId(), (destId, gradient)->{
+                            if(gradient == null) return ((NDArray) item.dest.getFeature("feature").getValue()).getGradient();
+                            else gradient.addi( ((NDArray) item.dest.getFeature("feature").getValue()).getGradient());
+                            return gradient;
+                        });
+                        return value;
+                    });
+                });
+                // 4. Send Vertex Gradients
 //                backwardPartGrads.forEach((key,grads)->{
 //                    new RemoteInvoke()
 //                            .addDestination(key) // Only masters will be here anyway

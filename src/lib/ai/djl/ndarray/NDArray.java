@@ -4743,5 +4743,9 @@ public interface NDArray extends NDResource, BytesSupplier {
 
     int getTaskPossession();
 
+    default boolean isValid(){
+        return !isNaN().any().getBoolean() && !isInfinite().any().getBoolean();
+    }
+
     void setTaskPossession(int taskPossession);
 }
