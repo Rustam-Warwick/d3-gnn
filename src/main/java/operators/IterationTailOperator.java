@@ -93,7 +93,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                         recordSerializer); // Make sure the typeserializer works
 
         bufferedRecords = context.getOperatorStateStore().getListState(descriptor);
-        if (Objects.nonNull(bufferedRecords)) {
+        if (context.isRestored()) {
             // Re-stream the iteration messages
             Iterable<StreamRecord<GraphOp>> tmp = bufferedRecords.get();
             for (StreamRecord<GraphOp> record : tmp) {

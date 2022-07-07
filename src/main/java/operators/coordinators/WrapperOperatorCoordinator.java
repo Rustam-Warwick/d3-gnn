@@ -6,8 +6,10 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Operator coordinator for all the wrapper operators
@@ -18,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
-    protected static final HashMap<Short, SubtaskGateway[]> subtaskGateways = new HashMap<>(); // Subtask gateway for all operators in the chain
+    protected static final Map<Short, SubtaskGateway[]> subtaskGateways = new ConcurrentHashMap<>(); // Subtask gateway for all operators in the chain
     protected final Context context;
     protected final short position;
     protected final short layers;
@@ -29,30 +31,22 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
         this.context = context;
         this.position = position;
         this.layers = layers;
+        this.handlers = new HashMap(10);
         subtaskGateways.put(position, new SubtaskGateway[context.currentParallelism()]);
-        handlers = new HashMap();
     }
 
     @Override
     public void start() throws Exception {
-        handlers.values().forEach(item -> {
-            try {
-                item.start();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        for (WrapperOperatorEventHandler value : handlers.values()) {
+            value.start();
+        }
     }
 
     @Override
     public void close() throws Exception {
-        handlers.values().forEach(item -> {
-            try {
-                item.close();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        for (WrapperOperatorEventHandler value : handlers.values()) {
+            value.close();
+        }
     }
 
     @Override
@@ -120,6 +114,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
      */
     public void subscribe(WrapperOperatorEventHandler e) {
         e.getEventClasses().forEach(aClass -> {
+            if(handlers.containsKey(aClass)) throw new IllegalStateException("EventHandler cannot share the same event class");
             handlers.put(aClass, e);
         });
         e.setCoordinator(this);

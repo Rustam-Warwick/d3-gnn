@@ -17,9 +17,9 @@ public interface Dataset extends Serializable {
 
 
     static Dataset getDataset(String name) {
-        if(name.contains("signed")){
+        if (name.contains("signed")) {
             return new SignedNetworkDataset(Path.of(System.getenv("DATASET_DIR"), name).toString());
-        }else{
+        } else {
             return new EdgeList(Path.of(System.getenv("DATASET_DIR"), "edge-list", name).toString());
         }
     }

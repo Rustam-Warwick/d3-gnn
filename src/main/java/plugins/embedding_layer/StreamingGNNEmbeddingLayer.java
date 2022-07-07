@@ -34,7 +34,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         assert storage != null;
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
@@ -221,10 +221,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @return Is the Vertex ready to be updated
      */
     public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER &&  vertex.containsFeature("feature") && vertex.containsFeature("agg");
+        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("feature") && vertex.containsFeature("agg");
     }
 
-    public boolean usingExternalFeatures(){
+    public boolean usingExternalFeatures() {
         return externalFeatures;
     }
 

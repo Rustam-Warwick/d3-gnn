@@ -36,7 +36,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
-    public Feature(T value, boolean halo, short master) {
+    public Feature(T value, boolean halo, Short master) {
         super(null, halo, master);
         this.value = value;
     }
@@ -46,7 +46,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
-    public Feature(String id, T value, boolean halo, short master) {
+    public Feature(String id, T value, boolean halo, Short master) {
         super(id, halo, master);
         this.value = value;
     }
@@ -89,13 +89,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
-        if (!valuesEqual(newFeature.value, this.value)){
+        if (!valuesEqual(newFeature.value, this.value)) {
             memento = this.copy();
             value = newFeature.value;
         }
         return super.updateElement(newElement, memento);
     }
-
 
     /**
      * Gets the value of the interface V that is stored here
@@ -144,6 +143,11 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.replicaParts();
     }
 
+    @Override
+    public void setId(@Nullable String id) {
+        throw new IllegalStateException("Use .setName() for Features");
+    }
+
     /**
      * If this element is an attached feature, id = attachedId + this.id
      *
@@ -166,6 +170,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
+     * Set the name(actually id). SetId is made private to not have confusion
+     */
+    public void setName(@Nullable String name){
+        this.id = name;
+    }
+    /**
      * If element is cached here return it, otherwise ask the DB to retrieve the element
      *
      * @return GraphElement
@@ -179,44 +189,46 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return element;
     }
 
+    /**
+     * Caches the given element, adds current feature to feature of the element if that does not exist there.
+     * Removes reference from other variable if already attached
+     *
+     * @param attachingElement element that want to attach itself to this feature
+     * @implNote Make sure to properly track the change of references from Graph Elements
+     * @implNote If this element is already attached to some other element, it should be removed from that elements feature list before attaching this to other element
+     * @implNote Attaching element cannot contain a Feature with the same id.
+     * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
+     * between element.features <--> feature.element.
+     */
+    public void setElement(GraphElement attachingElement) {
+        if (attachingElement != null) {
+            if (element == attachingElement) return; // Already attached
+            if (element != null && element.features.contains(this)) {
+                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
+            }
+            attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()) : attachedTo;
+            element = attachingElement;
+            if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
+            if (attachingElement.features.stream().anyMatch(item -> item == this)) return;
+            if (attachingElement.features.contains(this)) {
+                throw new IllegalStateException("This Element already has a similar feature, use updateFeature instead");
+            }
+            attachingElement.features.add(this);
+        }
+    }
+
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if(attachedTo != null) throw new IllegalStateException("Instead of using nested Features, go with flat design");
+        if (attachedTo != null)
+            throw new IllegalStateException("Instead of using nested Features, go with flat design");
         super.setFeature(name, feature);
     }
 
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String name) {
-        if(attachedTo != null) return null;
+        if (attachedTo != null) return null;
         return super.getFeature(name);
-    }
-
-    /**
-     * Caches the given element, adds current feature to feature of the element if that does not exist there.
-     * Removes reference from other variable if already attached
-     * @implNote Make sure to properly track the change of references from Graph Elements
-     * @implNote If this element is already attached to some other element, it should be removed from that elements feature list before attaching this to other element
-     * @implNote Attaching element cannot contain a Feature with the same id.
-     * @param attachingElement element that want to attach itself to this feature
-     * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
-     * between element.features <--> feature.element.
-     */
-    public void setElement(GraphElement attachingElement) {
-        if (attachingElement != null) {
-            if(element == attachingElement) return; // Already attached
-            if(element != null && element.features.contains(this)) {
-                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
-            }
-            attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()): attachedTo;
-            element = attachingElement;
-            if(attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
-            if(attachingElement.features.stream().anyMatch(item-> item==this)) return;
-            if(attachingElement.features.contains(this)) {
-                throw new IllegalStateException("This Element already has a similar feature, use updateFeature instead");
-            }
-            attachingElement.features.add(this);
-        }
     }
 
     @Override

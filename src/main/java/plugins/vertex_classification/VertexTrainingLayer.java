@@ -28,17 +28,13 @@ public class VertexTrainingLayer extends Plugin {
     public final String modelName;
 
     public final int MAX_BATCH_SIZE; // Overall batch size across output layers
-
-    public int LOCAL_BATCH_SIZE; // Estimate batch size for this operator
-
     public final SerializableLoss loss;
-
+    public int LOCAL_BATCH_SIZE; // Estimate batch size for this operator
     public transient VertexOutputLayer outputLayer;
 
     public transient StackBatchifier batchifier; // Helper for batching data
 
     public int BATCH_COUNT = 0;
-
 
 
     public VertexTrainingLayer(String modelName, SerializableLoss loss, int MAX_BATCH_SIZE) {
@@ -53,7 +49,7 @@ public class VertexTrainingLayer extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         outputLayer = (VertexOutputLayer) storage.getPlugin(String.format("%s-inferencer", modelName));
         LOCAL_BATCH_SIZE = MAX_BATCH_SIZE / storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks();
@@ -76,7 +72,7 @@ public class VertexTrainingLayer extends Plugin {
         super.addElementCallback(element);
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo !=null && feature.attachedTo.f0 == ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && ("feature".equals(feature.getName()) || "trainLabel".equals(feature.getName())) && feature.getElement() != null) {
                 if (isTrainReady((Vertex) feature.getElement())) {
                     incrementBatchCount();
                     Feature<List<String>, List<String>> trainVertices = (Feature<List<String>, List<String>>) getFeature("trainVertices");

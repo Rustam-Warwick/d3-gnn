@@ -18,7 +18,7 @@ public class VertexOutputLayer extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.add();
         this.modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
     }

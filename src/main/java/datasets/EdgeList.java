@@ -63,7 +63,7 @@ public class EdgeList implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
-                GraphOp copy = value.copy();
+                GraphOp copy = value.shallowCopy();
                 copy.setElement(value.element.copy());
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
                 out.collect(value);

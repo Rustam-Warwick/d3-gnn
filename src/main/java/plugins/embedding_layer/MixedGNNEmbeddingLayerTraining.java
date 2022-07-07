@@ -32,7 +32,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         embeddingLayer = (MixedGNNEmbeddingLayer) this.storage.getPlugin(String.format("%s-inferencer", modelName));
         numOutputChannels = storage.layerFunction.getNumberOfOutChannels(null); // Number of expect sync messages from the next layer operator

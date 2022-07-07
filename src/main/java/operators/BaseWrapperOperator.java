@@ -47,7 +47,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @implNote Assumes that the input is GraphOp
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
- * @see UdfWrapperOperator manages wrapping around single operators
+ * @see GNNLayerWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
@@ -196,7 +196,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
         if (record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-            if (record.getValue().getPartId() == null || !thisParts.contains(record.getValue().getPartId())) {
+            if (record.getValue().getPartId() == null) {
                 record.getValue().setPartId(thisParts.get(0));
             }
         }
@@ -615,7 +615,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Run the Runnable on all parts that are hashed to this operator
-         *
          * @param o Runnable Function
          */
         public void runForAllKeys(Runnable o) throws Exception {
@@ -629,6 +628,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             setKeyContextElement(element);
         }
 
+        /**
+         * Registeringey change listener
+         */
+        public void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+            getWrappedOperator().getKeyedStateBackend().registerKeySelectionListener(listener);
+        }
+
+        /**
+         * De-Registeringey change listener
+         */
+        public void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+            getWrappedOperator().getKeyedStateBackend().deregisterKeySelectionListener(listener);
+        }
     }
 
 }

@@ -21,7 +21,7 @@ public class ReportReplicationFactor extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         ReportReplicationFactor el = this;
         this.storage.layerFunction.getRuntimeContext().getMetricGroup().gauge("Replication Factor", new Gauge<Integer>() {

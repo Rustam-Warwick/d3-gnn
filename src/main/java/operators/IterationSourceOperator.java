@@ -87,7 +87,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     @Override
     public void open() throws Exception {
         super.open();
-        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 200000, 45000);
+        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 2000000, 450000);
     }
 
     @Override

@@ -289,13 +289,11 @@ public class GraphStream {
             } else {
                 if (hasLastLayerTopology && hasBackwardIteration)
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
-                else if(hasLastLayerTopology && !hasBackwardIteration){
+                else if (hasLastLayerTopology) {
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
-                }
-                else if(!hasLastLayerTopology && hasBackwardIteration){
+                } else if (hasBackwardIteration) {
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
-                }
-                else {
+                } else {
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
                 }
             }

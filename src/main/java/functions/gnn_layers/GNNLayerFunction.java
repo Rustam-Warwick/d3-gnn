@@ -11,6 +11,7 @@ import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.runtime.state.KeyedStateBackend;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.OutputTag;
@@ -150,6 +151,18 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
         return getWrapperContext().getNumberOfOutChannels(tag);
     }
 
+    default void runForAllLocalParts(Runnable o) throws Exception{
+        getWrapperContext().runForAllKeys(o);
+    }
+
+    default void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+        getWrapperContext().registerKeyChangeListener(listener);
+    }
+
+    default void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+        getWrapperContext().deRegisterKeyChangeListener(listener);
+    }
+
     /**
      * @param value Process The Incoming Value
      */
@@ -193,7 +206,6 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
             System.out.println(value);
             e.printStackTrace();
         } finally {
-            getStorage().getPlugins().forEach(GraphElement::clearFeatures); // Clear the features since it may come later
             LifeCycleNDManager.getInstance().clean();
         }
     }

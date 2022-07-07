@@ -3,8 +3,8 @@ package elements;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
-import typeinfo.GraphElementTypeInfoFactory;
 import typeinfo.ListTypeInformationFactory;
+import typeinfo.RecursiveListFieldsTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-@TypeInfo(GraphElementTypeInfoFactory.class)
+@TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
 public class GraphElement implements Serializable {
 
     protected static final transient Tuple2<Boolean, GraphElement> reuse = Tuple2.of(false, null);
@@ -33,8 +33,8 @@ public class GraphElement implements Serializable {
     public transient BaseStorage storage;
 
     @OmitStorage
-    @TypeInfo(ListTypeInformationFactory.class)
     @Nullable
+    @TypeInfo(ListTypeInformationFactory.class)
     public List<Feature<?, ?>> features;
 
     public GraphElement() {
@@ -75,8 +75,9 @@ public class GraphElement implements Serializable {
 
     /**
      * Creates element and all attached Features
-     * @implNote Does not rollback if some Feature is not created
+     *
      * @return Was element created
+     * @implNote Does not rollback if some Feature is not created
      */
     public Boolean createElement() {
         assert storage != null;
@@ -94,8 +95,9 @@ public class GraphElement implements Serializable {
 
     /**
      * Deletes element and all attached Features
-     * @implNote Does not rollback after deletion
+     *
      * @return Was element deleted
+     * @implNote Does not rollback after deletion
      */
     public Boolean deleteElement() {
         assert storage != null;
@@ -116,23 +118,24 @@ public class GraphElement implements Serializable {
      * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
      * If memnto is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your sub-class has some additional data that should be updated.
      * Memento stores the different between the updated value of this element vs the old value.
+     *
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
-            for (Iterator<Feature<?,?>> iterator = newElement.features.iterator(); iterator.hasNext();) {
-                Feature<?,?> feature = iterator.next();
+            for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
+                Feature<?, ?> feature = iterator.next();
                 Feature<?, ?> thisFeature = this.getFeature(feature.getName());
                 if (Objects.nonNull(thisFeature)) {
                     Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature, null);
-                    if(tmp.f0){
-                        memento = memento==null ? this.copy():memento;
+                    if (tmp.f0) {
+                        memento = memento == null ? this.copy() : memento;
                         memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
                     }
                 } else {
-                    memento = memento==null ? this.copy():memento;
+                    memento = memento == null ? this.copy() : memento;
                     iterator.remove();
                     feature.setStorage(storage);
                     feature.setElement(this);
@@ -141,7 +144,7 @@ public class GraphElement implements Serializable {
             }
         }
 
-        if (memento !=null) {
+        if (memento != null) {
             resolveTimestamp(newElement.getTimestamp());
             this.storage.updateElement(this);
             GraphElement finalMemento = memento;
@@ -205,6 +208,7 @@ public class GraphElement implements Serializable {
 
     /**
      * Master part of this element, default is current part
+     *
      * @return master part of this element
      */
     @Nullable
@@ -337,9 +341,9 @@ public class GraphElement implements Serializable {
     /**
      * Returns if Feature with this name is available either here or in storage
      */
-    public Boolean containsFeature(String name){
+    public Boolean containsFeature(String name) {
         boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
-        return hasLocallyAvailable || (storage!=null && storage.containsFeature(decodeFeatureId(name)));
+        return hasLocallyAvailable || (storage != null && storage.containsFeature(decodeFeatureId(name)));
     }
 
     /**
@@ -351,7 +355,7 @@ public class GraphElement implements Serializable {
      */
     public void setFeature(String name, Feature<?, ?> feature) {
         if (!containsFeature(name)) {
-            feature.setId(name);
+            feature.setName(name);
             feature.setStorage(storage);
             feature.setElement(this); // This also adds this feature to my element
             if (Objects.nonNull(storage)) {

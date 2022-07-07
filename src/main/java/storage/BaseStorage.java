@@ -9,6 +9,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.runtime.state.KeyedStateBackend;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 
 import javax.annotation.Nullable;
@@ -38,7 +39,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * Plugins in the list state
      */
-    private transient ListState<HashMap<String, Plugin>> pluginListState;
+    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
+
+    private transient RemoveCachedFeatures removeCachedFeatures;
 
     // -------- Abstract methods
 
@@ -99,6 +102,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public BaseStorage withPlugin(Plugin plugin) {
+        assert plugin.getId() != null;
         plugins.put(plugin.getId(), plugin);
         plugin.storage = this;
         plugin.add();
@@ -109,15 +113,22 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Operator opened
      */
     public void open() throws Exception {
+        removeCachedFeatures = new RemoveCachedFeatures();
+        layerFunction.registerKeyChangeListener(removeCachedFeatures);
         this.plugins.values().forEach(plugin -> plugin.setStorage(this));
-        this.plugins.values().forEach(Plugin::open);
+        for (Plugin value : plugins.values()) {
+            value.open();
+        }
     }
 
     /**
      * Operator Closed
      */
     public void close() throws Exception {
-        this.plugins.values().forEach(Plugin::close);
+        for (Plugin value : plugins.values()) {
+            value.close();
+        }
+        layerFunction.deRegisterKeyChangeListener(removeCachedFeatures);
     }
 
     /**
@@ -131,9 +142,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * On OperatorEvent
      */
     public void onOperatorEvent(OperatorEvent event) {
-        plugins.values().forEach(plugin -> {
-            plugin.onOperatorEvent(event);
-        });
+        for (Plugin value : plugins.values()) {
+            value.onOperatorEvent(event);
+        }
     }
 
 
@@ -149,7 +160,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         ListStateDescriptor<HashMap<String, Plugin>> descriptor =
                 new ListStateDescriptor(
                         "plugins",
-                        TypeInformation.of(new TypeHint<HashMap<String, Plugin>>() {}));
+                        TypeInformation.of(new TypeHint<HashMap<String, Plugin>>() {
+                        }));
         pluginListState = context.getOperatorStateStore().getListState(descriptor);
         if (context.isRestored()) {
             plugins.clear();
@@ -230,6 +242,13 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.getPlugin(id);
             default:
                 return null;
+        }
+    }
+
+    private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object>{
+        @Override
+        public void keySelected(Object newKey) {
+            plugins.values().forEach(Plugin::clearFeatures);
         }
     }
 

@@ -17,9 +17,9 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.edge_classification.EdgeClassificationTrainingPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
-import plugins.vertex_classification.VertexTrainingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
@@ -63,18 +63,12 @@ public class Main {
         // Configuration
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
-//        confg.set(RocksDBConfigurableOptions.WRITE_BUFFER_SIZE, MemorySize.ofMebiBytes(256));
-//        confg.set(RocksDBConfigurableOptions.MAX_WRITE_BUFFER_NUMBER,3);
-//        confg.set(RocksDBConfigurableOptions.BLOCK_CACHE_SIZE, MemorySize.ofMebiBytes(50));
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-//        env.setRuntimeMode(RuntimeExecutionMode.BATCH);
-//        env.setStateBackend(new EmbeddedRocksDBStateBackend());
-        // Initializate the helper classes
         // DataFlow
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, false, false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, true, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(
@@ -91,7 +85,7 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(2)))
-                        .withPlugin(new VertexTrainingLayer(models.get(2).getName(), new SerializableLoss(Loss.softmaxCrossEntropyLoss())))
+                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l2Loss())))
                 )
         );
 

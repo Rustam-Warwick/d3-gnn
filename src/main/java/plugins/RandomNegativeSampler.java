@@ -27,7 +27,7 @@ public class RandomNegativeSampler extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
     }
 

@@ -58,7 +58,7 @@ public class ModelServer extends Plugin {
         this.model = m;
     }
 
-    public void open() {
+    public void open() throws Exception {
         super.open();
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         inputShape = model.describeInput();

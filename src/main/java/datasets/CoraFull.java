@@ -70,7 +70,7 @@ public class CoraFull implements Dataset {
 //                    copyGraphOp.setElement(label);
 ////                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
 //                }
-                GraphOp copy = value.copy();
+                GraphOp copy = value.shallowCopy();
                 copy.setElement(value.element.copy());
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
                 out.collect(value);

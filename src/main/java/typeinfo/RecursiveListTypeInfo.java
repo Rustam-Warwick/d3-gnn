@@ -29,7 +29,9 @@ import java.util.List;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
- * A {@link TypeInformation} for the list types of the Java API.
+ * A {@link TypeInformation} for the list types of the Java API where the inner element is recursive.
+ * That is inner element contains List fields of the same type that refers to the same elementTypeInfo
+ * Modified createSerializer, equals, hashCode logic to support nesting
  *
  * @param <T> The type of the elements in the list.
  */

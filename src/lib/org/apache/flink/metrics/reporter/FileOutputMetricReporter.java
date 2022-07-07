@@ -26,13 +26,13 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
 
     @Override
     public void notifyOfRemovedMetric(Metric metric, String metricName, MetricGroup group) {
-        if(fileHashMap.containsKey(metric)){
+        if (fileHashMap.containsKey(metric)) {
             Tuple2<File, StringBuilder> file = fileHashMap.get(metric);
             try {
                 Files.write(file.f0.toPath(), file.f1.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
             } catch (IOException e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 fileHashMap.remove(metric);
             }
         }

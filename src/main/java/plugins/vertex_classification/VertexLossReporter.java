@@ -32,7 +32,7 @@ public class VertexLossReporter extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         output = (VertexOutputLayer) storage.getPlugin(String.format("%s-inferencer", modelName));
         storage.layerFunction

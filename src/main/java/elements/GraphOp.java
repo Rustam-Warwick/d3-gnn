@@ -128,10 +128,11 @@ public final class GraphOp {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }
 
-    public GraphOp copy() {
+    public GraphOp shallowCopy() {
         return
                 new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
+
 
     @Override
     public String toString() {

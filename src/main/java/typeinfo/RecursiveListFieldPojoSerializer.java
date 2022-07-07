@@ -11,38 +11,34 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class RecursiveListWrapperPojoSerializer<T> extends TypeSerializer<T> {
-    public final PojoSerializer<T> actualSerializer;
-    public final int recursiveFieldIndex;
+public class RecursiveListFieldPojoSerializer<T> extends TypeSerializer<T> {
+    private final PojoSerializer<T> actualSerializer;
     private final Class<T> clazz;
-    private final TypeSerializer<Object>[] fieldSerializers;
-    private final TypeSerializer<Object>[] nonRecursiveFieldSerializers;
+    private final TypeSerializer<?>[] fieldSerializers;
+    private final TypeSerializer<?>[] fieldSerializerswithNullRecursive;
     private final ExecutionConfig executionConfig;
 
 
-    public RecursiveListWrapperPojoSerializer(
+    public RecursiveListFieldPojoSerializer(
             Class<T> clazz,
             TypeSerializer<?>[] fieldSerializers,
             Field[] fields,
-            ExecutionConfig executionConfig,
-            int recursiveFieldIndex) {
-        fieldSerializers[recursiveFieldIndex] = new ListSerializer<>(this);
-        nonRecursiveFieldSerializers = new TypeSerializer[fieldSerializers.length - 1];
-        int i = 0;
-        for (TypeSerializer<?> fieldSerializer : fieldSerializers) {
-            if (fieldSerializer == fieldSerializers[recursiveFieldIndex]) continue;
-            nonRecursiveFieldSerializers[i++] = (TypeSerializer<Object>) fieldSerializer;
+            ExecutionConfig executionConfig
+    ) {
+        fieldSerializerswithNullRecursive = Arrays.copyOf(fieldSerializers, fieldSerializers.length);
+        for (int i = 0; i < fieldSerializers.length; i++) {
+            if (fieldSerializers[i] == null) {
+                // Meant to be recursive
+                fieldSerializers[i] = new ListSerializer<>(this);
+            }
         }
-
         actualSerializer = new PojoSerializer<>(clazz, fieldSerializers, fields, executionConfig);
         this.clazz = checkNotNull(clazz);
-        this.fieldSerializers = (TypeSerializer<Object>[]) checkNotNull(fieldSerializers);
+        this.fieldSerializers = checkNotNull(fieldSerializers);
         this.executionConfig = checkNotNull(executionConfig);
-        this.recursiveFieldIndex = recursiveFieldIndex;
     }
 
 
@@ -54,23 +50,23 @@ public class RecursiveListWrapperPojoSerializer<T> extends TypeSerializer<T> {
     @Override
     public TypeSerializer<T> duplicate() {
         try {
-            TypeSerializer<Object>[] duplicateFieldSerializers = duplicateSerializers(fieldSerializers);
+            TypeSerializer<?>[] duplicateFieldSerializers = duplicateSerializers(fieldSerializerswithNullRecursive);
             Field fieldsField = PojoSerializer.class.getDeclaredField("fields");
             fieldsField.setAccessible(true);
             Field[] fields = (Field[]) fieldsField.get(actualSerializer);
-            return new RecursiveListWrapperPojoSerializer<>(clazz, duplicateFieldSerializers, fields, executionConfig, recursiveFieldIndex);
+            return new RecursiveListFieldPojoSerializer<>(clazz, duplicateFieldSerializers, fields, executionConfig);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             e.printStackTrace();
         }
         return null;
     }
 
-    private TypeSerializer<Object>[] duplicateSerializers(TypeSerializer<?>[] serializers) {
+    private TypeSerializer<?>[] duplicateSerializers(TypeSerializer<?>[] serializers) {
         boolean stateful = false;
         TypeSerializer<?>[] duplicateSerializers = new TypeSerializer[serializers.length];
 
         for (int i = 0; i < serializers.length; i++) {
-            if (i == recursiveFieldIndex) continue;
+            if (serializers[i] == null) continue;
             duplicateSerializers[i] = serializers[i].duplicate();
             if (duplicateSerializers[i] != serializers[i]) {
                 // at least one of them is stateful
@@ -82,7 +78,7 @@ public class RecursiveListWrapperPojoSerializer<T> extends TypeSerializer<T> {
             // as a small memory optimization, we can share the same object between instances
             duplicateSerializers = serializers;
         }
-        return (TypeSerializer<Object>[]) duplicateSerializers;
+        return duplicateSerializers;
     }
 
 
@@ -128,19 +124,13 @@ public class RecursiveListWrapperPojoSerializer<T> extends TypeSerializer<T> {
 
     @Override
     public int hashCode() {
-        return 31
-                * (31 * Arrays.hashCode(nonRecursiveFieldSerializers)
-                + Objects.hash(clazz));
+        return actualSerializer.hashCode();
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof RecursiveListWrapperPojoSerializer) {
-            RecursiveListWrapperPojoSerializer<?> other = (RecursiveListWrapperPojoSerializer<?>) obj;
-
-            return clazz == other.clazz
-                    && Arrays.equals(fieldSerializers, other.fieldSerializers)
-                    && Arrays.equals(nonRecursiveFieldSerializers, other.nonRecursiveFieldSerializers);
+        if (obj instanceof RecursiveListFieldPojoSerializer) {
+            return actualSerializer.equals(((RecursiveListFieldPojoSerializer<?>) obj).actualSerializer);
         } else {
             return false;
         }

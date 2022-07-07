@@ -43,7 +43,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
     }
 
     @Override
-    public void open() {
+    public void open() throws Exception {
         super.open();
         assert storage != null;
         batchifier = new StackBatchifier();

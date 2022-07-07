@@ -130,14 +130,14 @@ public class Plugin extends ReplicableGraphElement {
     /**
      * Callback when the system closes. Perform all the clean-up
      */
-    public void close() {
+    public void close() throws Exception {
         // pass
     }
 
     /**
      * Callback when the system closes. Perform all the initialization
      */
-    public void open() {
+    public void open() throws Exception {
         // pass
     }
 

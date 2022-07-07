@@ -103,7 +103,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
 
     @Override
     public GraphOp copy(GraphOp from) {
-        GraphOp copy = from.copy();
+        GraphOp copy = from.shallowCopy();
         if (copy.element != null) graphElementTypeSerializer.copy(copy.element);
         if (copy.operatorEvent != null) operatorEventTypeSerializer.copy(copy.operatorEvent);
         return copy;

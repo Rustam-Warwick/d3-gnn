@@ -1,6 +1,7 @@
 package operators;
 
 import elements.GraphOp;
+import functions.gnn_layers.GNNLayerFunction;
 import operators.coordinators.WrapperOperatorCoordinator;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -30,9 +31,10 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            if (position == 0)
-                return (T) new UdfHeadWrapperOperator(parameters, factory, iterationId, position, totalLayers);
-            else return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+            if(((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction){
+                return (T) new GNNLayerWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+            }
+            return (T) new UdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
         }
 
         return null;
@@ -41,9 +43,10 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            if (position == 0)
-                return UdfHeadWrapperOperator.class;
-            else return UdfWrapperOperator.class;
+            if(((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction){
+                return GNNLayerWrapperOperator.class;
+            }
+            return UdfWrapperOperator.class;
         }
         return BaseWrapperOperator.class;
     }
