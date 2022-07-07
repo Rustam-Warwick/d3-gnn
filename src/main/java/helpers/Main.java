@@ -63,25 +63,24 @@ public class Main {
         // Configuration
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
-
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, true, false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, true, true,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, window) :
-                                        new StreamingGNNEmbeddingLayer(models.get(0).getName(), false))
+                                        new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), true, 2 * window) :
-                                        new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                                        new StreamingGNNEmbeddingLayer(models.get(0).getName()))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(2)))

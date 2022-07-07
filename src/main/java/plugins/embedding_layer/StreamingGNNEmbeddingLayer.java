@@ -14,22 +14,26 @@ import plugins.ModelServer;
 
 import java.util.Objects;
 
-public class StreamingGNNEmbeddingLayer extends Plugin {
+public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPlugin {
     public final String modelName; // Model name to identify the ParameterStore
 
-    public final boolean externalFeatures; // Do we expect external features or have to initialize features on the first layer
+    public final boolean createVertexEmbeddings; // Do we feed external features or should this generate by itself
 
     private transient ModelServer modelServer; // ParameterServer Plugin
 
     public StreamingGNNEmbeddingLayer() {
         super();
         modelName = null;
-        externalFeatures = false;
+        createVertexEmbeddings = false;
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
+    public StreamingGNNEmbeddingLayer(String modelName){
+        this(modelName, false);
+    }
+
+    public StreamingGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings) {
         super(String.format("%s-inferencer", modelName));
-        this.externalFeatures = externalFeatures;
+        this.createVertexEmbeddings = createVertexEmbeddings;
         this.modelName = modelName;
     }
 
@@ -49,7 +53,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true));
-            if (!externalFeatures && storage.layerFunction.isFirst()) {
+            if (createVertexEmbeddings && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = LifeCycleNDManager.getInstance().ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("feature", new Tensor(embeddingRandom));
@@ -182,6 +186,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @param training training enabled
      * @return Next layer feature
      */
+    @Override
     public NDList UPDATE(NDList feature, boolean training) {
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(feature)) {
             NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
@@ -198,6 +203,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @param training Should we construct the training graph
      * @return Message Tensor to be send to the aggregator
      */
+    @Override
     public NDList MESSAGE(NDList features, boolean training) {
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(features)) {
             NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
@@ -212,6 +218,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @param edge Edge
      * @return Is the Edge ready to pass on the message
      */
+    @Override
     public boolean messageReady(Edge edge) {
         return edge.src.containsFeature("feature");
     }
@@ -220,12 +227,18 @@ public class StreamingGNNEmbeddingLayer extends Plugin {
      * @param vertex Vertex
      * @return Is the Vertex ready to be updated
      */
+    @Override
     public boolean updateReady(Vertex vertex) {
         return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("feature") && vertex.containsFeature("agg");
     }
 
-    public boolean usingExternalFeatures() {
-        return externalFeatures;
+    @Override
+    public boolean usingTrainableEmbeddings() {
+        return createVertexEmbeddings;
     }
 
+    @Override
+    public boolean usingBatchingOutput() {
+        return false;
+    }
 }

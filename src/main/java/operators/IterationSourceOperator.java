@@ -19,7 +19,9 @@
 package operators;
 
 import elements.GraphOp;
+import elements.Op;
 import elements.iterations.MessageCommunication;
+import operators.events.FlowingOperatorEvent;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
@@ -53,8 +55,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
-    private final short position; // Position in the GNN Chain
-
     private transient MailboxExecutor mailboxExecutor; // Mailbox for consuming iteration events
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
@@ -63,10 +63,9 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     private transient int numberOfElementsReceived;
 
-    public IterationSourceOperator(IterationID iterationId, short position) {
+    public IterationSourceOperator(IterationID iterationId) {
         super(new MySourceFunction());
         this.iterationId = Objects.requireNonNull(iterationId);
-        this.position = position;
         this.chainingStrategy = ChainingStrategy.HEAD;
     }
 
@@ -103,6 +102,9 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
                 output.collect(element);
             } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+                if(element.getValue().getOp() == Op.OPERATOR_EVENT && element.getValue().getOperatorEvent() instanceof FlowingOperatorEvent){
+                    ((FlowingOperatorEvent) element.getValue().getOperatorEvent()).setBroadcastCount((short) getRuntimeContext().getNumberOfParallelSubtasks());
+                }
                 broadcastOutput.broadcastEmit(element);
             }
 //            if(element.getValue().getElement() != null){

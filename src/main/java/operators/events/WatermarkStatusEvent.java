@@ -2,11 +2,11 @@ package operators.events;
 
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 
-public class WatermarkStatusEvent extends IterableOperatorEvent {
+public class WatermarkStatusEvent extends FlowingOperatorEvent {
     public int status;
 
     public WatermarkStatusEvent(int status, Byte currentIteration) {
-        super(currentIteration);
+        super();
         this.status = status;
     }
 

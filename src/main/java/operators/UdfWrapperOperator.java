@@ -2,6 +2,7 @@ package operators;
 
 import elements.GraphOp;
 import elements.Op;
+import elements.iterations.MessageCommunication;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;
@@ -92,33 +93,36 @@ public class UdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? e
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT) return; // Should not be in splitter
-        if (false) {
-            dataCacheWriter.addRecord(element);
-        } else {
-            getWrappedOperator().processElement(element);
-        }
-    }
-
-
-    @Override
-    public void handleOperatorEvent(OperatorEvent evt) {
-        if (evt instanceof StartTraining) {
+        if (element.getValue().getOp() == Op.OPERATOR_EVENT){
+            if (element.getValue().getOperatorEvent() instanceof StartTraining) {
             TRAINING = true;
-        } else if (evt instanceof StopTraining) {
-            try {
-                processWatermarkStatus(WatermarkStatus.ACTIVE); // Mark the watermark status as active
-                dataCacheWriter.finishCurrentSegment();
-                currentDataCacheReader =
-                        new DataCacheReader<>(
-                                typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
-                replayRecords(currentDataCacheReader);
-//                acknowledgeIfWatermarkIsReady();
-            } catch (Exception e) {
-                e.printStackTrace();
+            ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount((short) containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks());
+            context.broadcastToNextLayer(new GraphOp(Op.OPERATOR_EVENT, null,null, element.getValue().getOperatorEvent(), MessageCommunication.BROADCAST, null));
+            } else if (element.getValue().getOperatorEvent() instanceof StopTraining) {
+                try {
+                    dataCacheWriter.finishCurrentSegment();
+                    currentDataCacheReader =
+                            new DataCacheReader<>(
+                                    typeSerializer, fileSystem, dataCacheWriter.getFinishSegments());
+                    replayRecords(currentDataCacheReader);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        }else{
+            if (TRAINING) {
+                dataCacheWriter.addRecord(element);
+            } else {
+                getWrappedOperator().processElement(element);
             }
         }
     }
+
+
+//    @Override
+//    public void handleOperatorEvent(OperatorEvent evt) {
+//
+//    }
 
     private void replayRecords(DataCacheReader<StreamElement> dataCacheReader) throws Exception {
         while (dataCacheReader.hasNext()) {

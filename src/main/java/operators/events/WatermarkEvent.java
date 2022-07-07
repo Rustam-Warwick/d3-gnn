@@ -4,11 +4,11 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 
 import java.util.Objects;
 
-public class WatermarkEvent extends IterableOperatorEvent {
+public class WatermarkEvent extends FlowingOperatorEvent {
     public long timestamp;
 
     public WatermarkEvent(long timestamp, Byte currentIteration) {
-        super(currentIteration);
+        super();
         this.timestamp = timestamp;
     }
 

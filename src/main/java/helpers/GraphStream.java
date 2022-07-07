@@ -207,7 +207,7 @@ public class GraphStream {
 
         if (position_index > 0 || hasFoolLoopIteration) {
             // Iteration Heads should always exist here
-            DataStreamSource<GraphOp> iterationHead = new DataStreamSource<>(env, TypeInformation.of(GraphOp.class), new IterationSourceOperator(localIterationId, position_index), true, String.format("IterationHead - %s", position_index), Boundedness.BOUNDED).setParallelism(thisParallelism);
+            DataStreamSource<GraphOp> iterationHead = new DataStreamSource<>(env, TypeInformation.of(GraphOp.class), new IterationSourceOperator(localIterationId), true, String.format("IterationHead - %s", position_index), Boundedness.BOUNDED).setParallelism(thisParallelism);
             forward = inputData.union(iterationHead).keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
             iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
             forward.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);

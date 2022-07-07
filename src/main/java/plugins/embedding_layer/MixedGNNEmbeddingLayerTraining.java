@@ -19,11 +19,16 @@ import java.util.stream.Collectors;
  */
 public class MixedGNNEmbeddingLayerTraining extends Plugin {
 
-    public final String modelName; // Name of the model to be hold by this
-    public transient MixedGNNEmbeddingLayer embeddingLayer;
+    public final String modelName;
+
+    public transient GNNEmbeddingPlugin embeddingLayer;
+
     public transient Batchifier batchifier;
+
     public int numOutputChannels; // Num Output channels on the next layer. Used to see if all messages have been received
+
     public int syncMessages; // #Messages sent from the next layer for synchronization
+
     public int iterationSyncMessages; // #Messages sent from this layer for synchronization
 
     public MixedGNNEmbeddingLayerTraining(String modelName) {
@@ -34,7 +39,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
     @Override
     public void open() throws Exception {
         super.open();
-        embeddingLayer = (MixedGNNEmbeddingLayer) this.storage.getPlugin(String.format("%s-inferencer", modelName));
+        embeddingLayer = (GNNEmbeddingPlugin) this.storage.getPlugin(String.format("%s-inferencer", modelName));
         numOutputChannels = storage.layerFunction.getNumberOfOutChannels(null); // Number of expect sync messages from the next layer operator
         batchifier = new StackBatchifier();
     }
@@ -248,7 +253,7 @@ public class MixedGNNEmbeddingLayerTraining extends Plugin {
                 Rmi synchronize = new Rmi(getId(), "synchronize", new Object[]{}, elementType(), false, null);
                 storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, synchronize, null, MessageCommunication.BROADCAST), MessageDirection.BACKWARD);
             }
-            embeddingLayer.modelServer.getParameterStore().sync(); // This operator index is fully ready to update the model
+//            embeddingLayer.modelServer.getParameterStore().sync(); // This operator index is fully ready to update the model
         }
 
     }

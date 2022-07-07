@@ -5,28 +5,33 @@ import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
 import helpers.MyOutputReflectionContext;
-import operators.events.IterableOperatorEvent;
+import operators.events.FlowingOperatorEvent;
 import operators.events.WatermarkEvent;
 import operators.events.WatermarkStatusEvent;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
+import org.apache.flink.iteration.broadcast.BroadcastOutput;
+import org.apache.flink.iteration.broadcast.RecordWriterBroadcastOutput;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.execution.Environment;
+import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
+import org.apache.flink.runtime.plugable.SerializationDelegate;
 import org.apache.flink.runtime.state.*;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
+import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
@@ -37,7 +42,9 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Flow;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -109,13 +116,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected transient OutputTag<?>[] internalOutputTags; // All the existing output tags. In other words connected to this operator
 
+    protected transient BroadcastOutput<GraphOp> nextLayerBroadcastOutput; // Broadcasting to the next operator only
+
     protected transient int[] numOutChannels; // number of output channels per each operator
 
     protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
 
     protected transient List<Short> otherMasterParts; // Master Parts that are mapped to other operators
 
-    protected transient Map<IterableOperatorEvent, Short> events; // Table of IterableOperatorEvents received by this operator
+    protected transient Map<FlowingOperatorEvent, Short> events; // Table of FlowingOperatorEvents received by this operator
 
     // MAIN CONSTRUCTOR
     public BaseWrapperOperator(
@@ -334,11 +343,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * @param evt Coordinator event
      */
     @Override
-    public void handleOperatorEvent(OperatorEvent evt) {
+    public final void handleOperatorEvent(OperatorEvent evt) {
         try {
-            if (evt instanceof IterableOperatorEvent)
-                ((IterableOperatorEvent) evt).setCurrentIteration(ITERATION_COUNT);
-            GraphOp op = new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, evt, MessageCommunication.BROADCAST, null);
+            GraphOp op = new GraphOp(Op.OPERATOR_EVENT, null, null, evt, MessageCommunication.BROADCAST, null);
             context.element.replace(op);
             setKeyContextElement(context.element);
             processElement(context.element);
@@ -353,30 +360,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
         context.element = element;
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT && element.getValue().getOperatorEvent() instanceof IterableOperatorEvent) {
-            IterableOperatorEvent ev = (IterableOperatorEvent) element.getValue().getOperatorEvent();
-            if (Objects.isNull(ev.getCurrentIteration())) {
-                // This event is received from previous operator, not iteration messages nor generated using above functions
-                throw new IllegalStateException("Operator Event propagation not yet implemented");
-            } else {
-                if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()) {
-                    // Process This Iteration
-                    processActualElement(element);
-                    events.remove(ev);
-                    if (ev.getCurrentIteration() == 0) {
-                        // pass, do not do anymore iterations
-                        if (ev instanceof WatermarkEvent) {
-                            Watermark mark = ((WatermarkEvent) ev).getWatermark();
-                            wrappedOperator.processWatermark(mark);
-                        } else if (ev instanceof WatermarkStatusEvent) {
-                            WatermarkStatus status = ((WatermarkStatusEvent) ev).getWatermarkStatus();
-                            wrappedOperator.processWatermarkStatus(status);
-                        }
-                    } else {
-                        ev.currentIteration--;
-                        output.collect(ITERATE_OUTPUT_TAG, element);
-                    }
-                }
+        if (element.getValue().getOp() == Op.OPERATOR_EVENT && element.getValue().getOperatorEvent() instanceof FlowingOperatorEvent && Objects.nonNull(((FlowingOperatorEvent) element.getValue().getOperatorEvent()).getBroadcastCount())) {
+            FlowingOperatorEvent ev = (FlowingOperatorEvent) element.getValue().getOperatorEvent();
+            if (events.merge(ev, (short) 1, (a, b) -> (short) (a + b)) >= ev.getBroadcastCount()) {
+                // Process This Iteration
+                processActualElement(element);
             }
         } else {
             processActualElement(element);
@@ -446,11 +434,22 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         } else {
             internalOutputs = new Output[]{output};
         }
+
         internalOutputTags = new OutputTag[internalOutputs.length];
         numOutChannels = new int[internalOutputs.length];
         for (int i = 0; i < internalOutputs.length; i++) {
             if (myOutputReflectionContext.isRecordWriterOutput(internalOutputs[i])) {
                 OutputTag<?> outputTag = myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
+                if(outputTag == null){
+                    // This is meant for the next layer
+
+                    RecordWriter<SerializationDelegate<StreamElement>> recordWriter =
+                            myOutputReflectionContext.getRecordWriter(internalOutputs[i]);
+                    TypeSerializer<StreamElement> typeSerializer =
+                            myOutputReflectionContext.getRecordWriterTypeSerializer(internalOutputs[i]);
+
+                    nextLayerBroadcastOutput = new RecordWriterBroadcastOutput<>(recordWriter, typeSerializer);
+                }
                 internalOutputTags[i] = outputTag;
                 numOutChannels[i] = myOutputReflectionContext.getNumChannels(internalOutputs[i]);
             } else {
@@ -528,6 +527,18 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             }
             new Exception("OutChannels not found").printStackTrace();
             return -1;
+        }
+
+        public void broadcastToNextLayer(GraphOp el){
+            GraphOp old = element.getValue();
+            try {
+                element.replace(el);
+                nextLayerBroadcastOutput.broadcastEmit(element);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }finally {
+                element.replace(old);
+            }
         }
 
         /**

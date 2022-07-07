@@ -145,7 +145,6 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
         storage.updateFeature(destVertexState);
     }
 
-
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
@@ -160,5 +159,6 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             }
         }
     }
+
 
 }

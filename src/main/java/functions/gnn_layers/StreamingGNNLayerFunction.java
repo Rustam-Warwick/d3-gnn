@@ -56,7 +56,8 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
         op.setPartId(null);
         op.setMessageCommunication(MessageCommunication.BROADCAST);
-        message(op, direction);
+        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastToNextLayer(op);
+        else message(op, direction);
     }
 
     @Override
@@ -78,6 +79,9 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     public void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
         op.setPartId(null);
         op.setMessageCommunication(MessageCommunication.BROADCAST);
+        if(direction == MessageDirection.FORWARD){
+            throw new IllegalStateException("Not implemented");
+        }
         message(op, direction, timestamp);
     }
 
