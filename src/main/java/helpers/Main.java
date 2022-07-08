@@ -2,14 +2,19 @@ package helpers;
 
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
+import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.pytorch.engine.PtNDArray;
+import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
@@ -29,7 +34,21 @@ import java.util.Arrays;
 import java.util.function.Function;
 
 public class Main {
+
+    public static void test(){
+        NDArray x = LifeCycleNDManager.getInstance().ones(new Shape());
+        x.setRequiresGradient(true);
+        NDArray y = LifeCycleNDManager.getInstance().ones(new Shape()).mul(3);
+        NDArray p = LifeCycleNDManager.getInstance().ones(new Shape()).mul(10);
+        NDArray z = x.mul(y).add(x.mul(p));
+        NDArray ss = x.mul(y).add(x.mul(p));
+        JniUtils.backward((PtNDArray) z, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false,false);
+        JniUtils.backward((PtNDArray) ss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false,false);
+
+    }
+
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
+        test();
         SequentialBlock sb = new SequentialBlock();
         sb.add(new SAGEConv(64, true));
         sb.add(new SAGEConv(32, true));
@@ -46,6 +65,13 @@ public class Main {
                         })
                         .add(Linear.builder().setUnits(16).optBias(true).build())
                         .add(Linear.builder().setUnits(1).optBias(true).build())
+                        .add(new Function<NDList, NDList>() {
+                            @Override
+                            public NDList apply(NDList ndArrays) {
+                                return Activation.leakyRelu(ndArrays, 1);
+                            }
+                        })
+
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
@@ -89,7 +115,7 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(2)))
-                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l2Loss())))
+                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l1Loss())))
                 )
         );
 

@@ -19,15 +19,16 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import ai.djl.training.ParameterStore;
-import ai.djl.training.optimizer.Adam;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
+import ai.djl.util.Pair;
 import ai.djl.util.PairList;
 import elements.Plugin;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
-import features.GradientCollector;
+import features.MeanGradientCollector;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -43,7 +44,7 @@ public class ModelServer extends Plugin {
 
     protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
 
-    protected Optimizer optimizer; // Optimizer
+    protected transient Optimizer optimizer; // Optimizer
 
     private transient PairList<String, Shape> inputShape; // Input Shape of the model
 
@@ -58,11 +59,12 @@ public class ModelServer extends Plugin {
         super.open();
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         inputShape = model.describeInput();
-        optimizer = Adam.builder().optLearningRateTracker(Tracker.fixed(0.01f)).build();
+        optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
+        if(getPartId() == 0 && !containsFeature("collectedGradients")){
+            setFeature("collectedGradients", new MeanGradientCollector<String>(Tuple2.of(new HashMap<>(), new HashMap<>()), true, null));
+        }
     }
-
-    // INITIALIZATION DONE!!!
 
     public Model getModel() {
         return model;
@@ -82,11 +84,16 @@ public class ModelServer extends Plugin {
     @RemoteFunction
     public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
         model.getBlock().getParameters().forEach(parameter -> {
-            parameter.getValue().close();
-            parameter.getValue().setShape(null);
-            parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
-            parameter.getValue().getArray().detach();
+            if(masterParameters.containsKey(parameter.getValue().getId())){
+                parameter.getValue().close();
+                parameter.getValue().setShape(null);
+                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
+                parameter.getValue().getArray().detach();
+            }
         });
+        if(storage.layerFunction.isLast()){
+            getModel().getBlock().getParameters().forEach(item-> System.out.println(item.getValue().getArray()));
+        }
     }
 
     /**
@@ -97,10 +104,8 @@ public class ModelServer extends Plugin {
      */
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients) {
-        if(!containsFeature("collectedGradients")){
-            setFeature("collectedGradients", new GradientCollector(new HashMap<>(), true, null));
-        }
-        GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
+
+        MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
         feature.merge(gradients);
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
@@ -113,11 +118,19 @@ public class ModelServer extends Plugin {
         @Override
         public void updateAllParameters() {
             HashMap<String, NDArray> parameters = new HashMap<>();
-            GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
-            model.getBlock().getParameters().forEach(parameter -> {
-                optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), feature.getValue().get(parameter.getValue().getId()));
-                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
-            });
+            MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
+            int i =0;
+            for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
+                if(feature.getValue().containsKey(parameter.getValue().getId())){
+                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), feature.getValue().get(parameter.getValue().getId()));
+                    parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
+                    i++;
+                }
+            }
+
+            if(storage.layerFunction.isLast()){
+                getModel().getBlock().getParameters().forEach(item-> System.out.println(item.getValue().getArray()));
+            }
             new RemoteInvoke()
                     .method("updateReplicaParameters")
                     .noUpdate()
@@ -138,14 +151,15 @@ public class ModelServer extends Plugin {
             }
         }
 
+        /**
+         * Sending gradients to part 0,
+         */
         @Override
         public void sync() {
             HashMap<String, NDArray> thisGradients = new HashMap<>();
             model.getBlock().getParameters().forEach((parameter) -> {
-                if (parameter.getValue().getArray().hasGradient() && !parameter.getValue().getArray().getGradient().isInfinite().any().getBoolean() && !parameter.getValue().getArray().getGradient().isNaN().any().getBoolean()) {
+                if (parameter.getValue().getArray().hasGradient()) {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
-                } else {
-                    thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().zerosLike());
                 }
                 parameter.getValue().getArray().setRequiresGradient(false);
             });

@@ -12,6 +12,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
+import org.apache.flink.iteration.broadcast.ChainingBroadcastOutput;
 import org.apache.flink.iteration.broadcast.RecordWriterBroadcastOutput;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -42,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkState;
@@ -112,7 +114,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected transient OutputTag<?>[] internalOutputTags; // All the existing output tags. In other words connected to this operator
 
-    protected transient BroadcastOutput<GraphOp> nextLayerBroadcastOutput; // Broadcasting to the next operator only
+    protected transient BroadcastOutput[] broadcastOutputs; // Broadcasting to the next operator only
 
     protected transient int[] numOutChannels; // number of output channels per each operator
 
@@ -170,6 +172,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void open() throws Exception {
+        setKeyContextElement(context.element);
         wrappedOperator.open();
         for (int j = 0; j < 5; j++) {
             System.gc();
@@ -412,36 +415,35 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Finding and creating the individual outputs, broadcast outputs, parallelisms of our outputs
      */
     public void createIndividualOutputs(
-            Output<StreamRecord<GraphOp>> output) {
+            Output<StreamRecord<GraphOp>> output){
         MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
-        Output<?>[] internalOutputs;
+        Output<StreamRecord<Object>>[] internalOutputs;
         if (myOutputReflectionContext.isBroadcastingOutput(output)) {
             internalOutputs =
                     myOutputReflectionContext.getBroadcastingInternalOutputs(output);
         } else {
             internalOutputs = new Output[]{output};
         }
-
+        broadcastOutputs = new BroadcastOutput[internalOutputs.length];
         internalOutputTags = new OutputTag[internalOutputs.length];
         numOutChannels = new int[internalOutputs.length];
         for (int i = 0; i < internalOutputs.length; i++) {
             if (myOutputReflectionContext.isRecordWriterOutput(internalOutputs[i])) {
                 OutputTag<?> outputTag = myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
-                if(outputTag == null){
                     // This is meant for the next layer
-                    RecordWriter<SerializationDelegate<StreamElement>> recordWriter =
-                            myOutputReflectionContext.getRecordWriter(internalOutputs[i]);
-                    TypeSerializer<StreamElement> typeSerializer =
-                            myOutputReflectionContext.getRecordWriterTypeSerializer(internalOutputs[i]);
+                RecordWriter<SerializationDelegate<StreamElement>> recordWriter =
+                        myOutputReflectionContext.getRecordWriter(internalOutputs[i]);
+                TypeSerializer<StreamElement> typeSerializer =
+                        myOutputReflectionContext.getRecordWriterTypeSerializer(internalOutputs[i]);
 
-                    nextLayerBroadcastOutput = new RecordWriterBroadcastOutput<>(recordWriter, typeSerializer);
-                }
+                broadcastOutputs[i] = new RecordWriterBroadcastOutput<>(recordWriter, typeSerializer);
                 internalOutputTags[i] = outputTag;
                 numOutChannels[i] = myOutputReflectionContext.getNumChannels(internalOutputs[i]);
             } else {
                 OutputTag<?> outputTag = myOutputReflectionContext.getChainingOutputTag(internalOutputs[i]);
-                numOutChannels[i] = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
+                broadcastOutputs[i] = myOutputReflectionContext.createChainingBroadcastOutput(internalOutputs[i], outputTag);
                 internalOutputTags[i] = outputTag;
+                numOutChannels[i] = containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
             }
         }
     }
@@ -519,7 +521,28 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          * Broadcasts this message to the forward chain, identified with null outputTag
          * All other broadcasts should be done via IterationSource -> Tails that is only sent as regular events
          */
-        public void broadcastForward(GraphOp el){
+        public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp){
+            Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
+            GraphOp tmpVal = element.getValue();
+            StreamRecord<E> replaced;
+            if (timestamp == null) {
+                replaced = element.replace(el);
+                replaced.eraseTimestamp();
+            } else {
+                replaced = element.replace(el, timestamp);
+            }
+            for (int i = 0; i < internalOutputTags.length; i++) {
+                if(internalOutputTags[i] == tag){
+                    broadcastOutputs[i].broadcastEmit(replaced);
+                }
+            }
+            if (tmpTs != null) {
+                element.replace(tmpVal, tmpTs);
+            } else {
+                element.replace(tmpVal);
+                element.eraseTimestamp();
+            }
+
             GraphOp old = element.getValue();
             try {
                 element.replace(el);
@@ -533,9 +556,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Emits the record with custom timestamp to a different outputTag
+         * @implNote if outputTag=null, emit to the next in the pipeline
+         * @implNote if timestamp= null, emit with the timestamp of the current elemetn
          * Returns the current timestamp after emitting the event
          */
-        public <E> void outputWithTimestamp(E value, OutputTag<E> tag, @Nullable Long timestamp) {
+        public <E> void output(E value, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;

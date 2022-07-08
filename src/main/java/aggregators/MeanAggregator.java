@@ -40,7 +40,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     public static NDArray bulkReduce(NDArray... newElements) {
-        NDArray sum = Arrays.stream(newElements).reduce(NDArray::addi).get();
+        NDArray sum = Arrays.stream(newElements).reduce(NDArray::add).get();
         return sum;
     }
 

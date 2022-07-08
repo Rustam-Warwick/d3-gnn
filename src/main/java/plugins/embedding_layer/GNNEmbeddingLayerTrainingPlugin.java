@@ -14,12 +14,13 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
-import features.GradientCollector;
+import features.MeanGradientCollector;
 import features.Tensor;
 import operators.events.InferenceBarrier;
 import operators.events.LocalTrainBarrier;
 import operators.events.StartTraining;
 import operators.events.TrainBarrier;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple6;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import plugins.ModelServer;
@@ -56,8 +57,8 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
         embeddingPlugin = (GNNEmbeddingPlugin) storage.getPlugin(String.format("%s-inferencer", modelName));
         batchifier = new StackBatchifier();
         storage.layerFunction.runForAllLocalParts(()->{
-           setFeature("collectedGradients", new GradientCollector(new HashMap<>(), true, null));
-           setFeature("collectedAggregators", new GradientCollector(new HashMap<>(), true, null));
+           setFeature("collectedGradients", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
+           setFeature("collectedAggregators", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
         });
     }
     // INITIALIZATION DONE
@@ -69,7 +70,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
      */
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients) {
-        GradientCollector<String> feature = (GradientCollector<String>) getFeature("collectedGradients");
+        MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
         feature.merge(gradients);
     }
 
@@ -78,7 +79,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
      */
     @RemoteFunction
     public void collectAggregators(HashMap<BaseAggregator<?>, NDArray> aggGrads) {
-        GradientCollector<BaseAggregator<?>> feature = (GradientCollector<BaseAggregator<?>>) getFeature("collectedAggregators");
+        MeanGradientCollector<BaseAggregator<?>> feature = (MeanGradientCollector<BaseAggregator<?>>) getFeature("collectedAggregators");
         feature.merge(aggGrads);
     }
 
@@ -87,7 +88,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
      * Since we stop the stream, collectedVertexGradients should have both agg and features
      */
     public void trainUpdateFunction() {
-        GradientCollector<String> collectedGradients = (GradientCollector<String>) getFeature("collectedGradients");
+        MeanGradientCollector<String> collectedGradients = (MeanGradientCollector<String>) getFeature("collectedGradients");
         if (!collectedGradients.getValue().isEmpty()) {
             // 1. Prepare data for update model inputs(feature, aggregator)
             Tuple6<Vertex, NDArray, NDArray, NDArray, NDArray, NDArray>[] data = new Tuple6[collectedGradients.getValue().size()];// <Vertex, featre, featureGrad, agg, aggGrad, InputGrad>
@@ -132,17 +133,17 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
                     }
                 }
                 // 3. Send agg messages
-                for (Map.Entry<Short, HashMap<BaseAggregator<?>, NDArray>> entry : aggGradsPerPart.entrySet()) {
-                    new RemoteInvoke()
-                            .addDestination(entry.getKey())
-                            .noUpdate()
-                            .method("collectAggregators")
-                            .toElement(getId(), elementType())
-                            .withArgs(entry.getValue())
-                            .where(MessageDirection.ITERATE)
-                            .buildAndRun(storage);
-                }
-
+//                for (Map.Entry<Short, HashMap<BaseAggregator<?>, NDArray>> entry : aggGradsPerPart.entrySet()) {
+//                    new RemoteInvoke()
+//                            .addDestination(entry.getKey())
+//                            .noUpdate()
+//                            .method("collectAggregators")
+//                            .toElement(getId(), elementType())
+//                            .withArgs(entry.getValue())
+//                            .where(MessageDirection.ITERATE)
+//                            .buildAndRun(storage);
+//                }
+//
                 // 4. Send backward messages if it exists
                 if (Objects.nonNull(backwardGrads)) {
                     new RemoteInvoke()
@@ -173,7 +174,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
      * Train the second part which is the messages and edges
      */
     public void trainSecondPartStart() {
-        GradientCollector<BaseAggregator<?>> collectedAggregators = (GradientCollector<BaseAggregator<?>>) getFeature("collectedAggregators");
+        MeanGradientCollector<BaseAggregator<?>> collectedAggregators = (MeanGradientCollector<BaseAggregator<?>>) getFeature("collectedAggregators");
         if (!collectedAggregators.getValue().isEmpty()) {
             System.out.println("INSIDE");
 //            // 1. Compute the gradients

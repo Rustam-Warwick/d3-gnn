@@ -55,7 +55,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
         assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
-        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastForward(op);
+        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastOutput(op);
         else message(op, direction);
     }
 
@@ -63,11 +63,11 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     public void message(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
         try {
             if (direction == MessageDirection.BACKWARD) {
-                getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
+                getWrapperContext().output(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
             } else if (direction == MessageDirection.FORWARD) {
-                getWrapperContext().outputWithTimestamp(op, null, timestamp);
+                getWrapperContext().output(op, null, timestamp);
             } else {
-                getWrapperContext().outputWithTimestamp(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
+                getWrapperContext().output(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
             }
         } catch (NullPointerException e) {
             e.printStackTrace();
@@ -85,7 +85,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
 
     @Override
     public <OUT> void sideMessage(OUT op, @NotNull OutputTag<OUT> outputTag, @NotNull Long timestamp) {
-        getWrapperContext().outputWithTimestamp(op, outputTag, timestamp);
+        getWrapperContext().output(op, outputTag, timestamp);
     }
 
     @Override
