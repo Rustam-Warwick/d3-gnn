@@ -4,7 +4,6 @@ import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
@@ -15,14 +14,12 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
-import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.edge_classification.EdgeClassificationTrainingPlugin;
-import plugins.embedding_layer.GNNEmbeddingLayerTrainingPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
@@ -92,14 +89,17 @@ public class Main {
         // Configuration
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        Configuration a = new Configuration();
+        a.setString("metrics.reporter.fileoutput.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(a);
+
         // DataFlow
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(false, true, true,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
+//                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, window) :
@@ -107,16 +107,16 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
+//                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowedGNNEmbeddingLayer(models.get(0).getName(), true, 2 * window) :
                                         new StreamingGNNEmbeddingLayer(models.get(0).getName()))
-                ),
-                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
-                        .withPlugin(new ModelServer(models.get(2)))
-                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l1Loss())))
                 )
+//                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
+//                        .withPlugin(new ModelServer(models.get(2)))
+////                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l1Loss())))
+//                )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

@@ -11,7 +11,10 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
+
+import java.io.IOException;
 
 /**
  * GNNLayerFunction that assumes batch is ready per each process element
@@ -53,13 +56,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     }
 
     @Override
-    public void broadcastMessage(GraphOp op, MessageDirection direction) {
-        assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
-        if(direction == MessageDirection.FORWARD) getWrapperContext().broadcastOutput(op);
-        else message(op, direction);
-    }
-
-    @Override
     public void message(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
         try {
             if (direction == MessageDirection.BACKWARD) {
@@ -75,12 +71,35 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     }
 
     @Override
-    public void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp) {
+    public void broadcastMessage(GraphOp op, MessageDirection direction) {
         assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
-        if(direction == MessageDirection.FORWARD){
-            throw new IllegalStateException("Not implemented");
+        try {
+            if (direction == MessageDirection.BACKWARD) {
+                ctx.output(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
+            } else if (direction == MessageDirection.FORWARD) {
+                getWrapperContext().broadcastOutput(op, null, null);
+            } else {
+                ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
+            }
+        }catch (IOException e){
+            e.printStackTrace();
         }
-        message(op, direction, timestamp);
+    }
+
+    @Override
+    public void broadcastMessage(GraphOp op, MessageDirection direction, @Nullable Long timestamp) {
+        assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
+        try{
+            if (direction == MessageDirection.BACKWARD) {
+                getWrapperContext().output(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
+            } else if (direction == MessageDirection.FORWARD) {
+                getWrapperContext().broadcastOutput(op, null, timestamp);
+            } else {
+                getWrapperContext().output(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override

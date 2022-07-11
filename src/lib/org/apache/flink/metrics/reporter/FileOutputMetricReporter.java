@@ -16,7 +16,7 @@ import java.util.Map;
  * Metric Reporter that ouputs to a file all the task metrics
  */
 public class FileOutputMetricReporter implements Scheduled, MetricReporter {
-    public static List<String> names = List.of("numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
+    public static List<String> names = List.of("latency","numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
     public HashMap<Metric, Tuple2<File, StringBuilder>> fileHashMap = new HashMap<>(100);
 
     @Override
@@ -69,6 +69,9 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     public synchronized void createFileForMetric(Metric metric, String metricName, MetricGroup group) {
         StringBuilder str = new StringBuilder();
         Map<String, String> variables = group.getAllVariables();
+        if(metricName.equals("latency")){
+            System.out.println();
+        }
         if (names.contains(metricName) && variables.containsKey("<job_name>") && variables.containsKey("<operator_name>") && variables.containsKey("<subtask_index>")) {
             str.append(variables.get("<job_name>"));
             str.append('/');

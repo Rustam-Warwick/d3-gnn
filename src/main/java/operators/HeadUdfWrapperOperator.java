@@ -94,7 +94,7 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
             if (element.getValue().getOperatorEvent() instanceof StartTraining) {
                 TRAINING = true;
                 ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount(parallelism);
-                context.broadcastOutput(new GraphOp(element.getValue().getOperatorEvent()));
+//                context.broadcastOutput(new GraphOp(element.getValue().getOperatorEvent()));
             } else if (element.getValue().getOperatorEvent() instanceof StopTraining) {
                 try {
                     TRAINING = false;
@@ -108,6 +108,7 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
                 }
             }
         }else{
+            element.setTimestamp(getWrappedOperator().getProcessingTimeService().getCurrentProcessingTime());
             if (TRAINING) {
                 dataCacheWriter.addRecord(element);
             } else {

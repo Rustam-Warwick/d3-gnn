@@ -12,7 +12,6 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
-import org.apache.flink.iteration.broadcast.ChainingBroadcastOutput;
 import org.apache.flink.iteration.broadcast.RecordWriterBroadcastOutput;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -43,7 +42,6 @@ import org.slf4j.LoggerFactory;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import static org.apache.flink.util.Preconditions.checkState;
@@ -100,7 +98,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short operatorIndex; // Vertical position
 
-    protected final short parallelism;
+    protected final short parallelism; // Parallelism of this operator
 
     protected final short totalLayers; // Total horizontal layers
 
@@ -521,36 +519,28 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          * Broadcasts this message to the forward chain, identified with null outputTag
          * All other broadcasts should be done via IterationSource -> Tails that is only sent as regular events
          */
-        public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp){
+        public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp) throws IOException {
+            // 1. Store the previous value
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;
             if (timestamp == null) {
                 replaced = element.replace(el);
-                replaced.eraseTimestamp();
             } else {
                 replaced = element.replace(el, timestamp);
             }
+            // 2. Send the output
             for (int i = 0; i < internalOutputTags.length; i++) {
-                if(internalOutputTags[i] == tag){
+                if(Objects.equals(tag, internalOutputTags[i])){
                     broadcastOutputs[i].broadcastEmit(replaced);
                 }
             }
+            // 3. Return the previous value
             if (tmpTs != null) {
                 element.replace(tmpVal, tmpTs);
             } else {
                 element.replace(tmpVal);
                 element.eraseTimestamp();
-            }
-
-            GraphOp old = element.getValue();
-            try {
-                element.replace(el);
-                nextLayerBroadcastOutput.broadcastEmit(element);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }finally {
-                element.replace(old);
             }
         }
 
@@ -560,21 +550,22 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          * @implNote if timestamp= null, emit with the timestamp of the current elemetn
          * Returns the current timestamp after emitting the event
          */
-        public <E> void output(E value, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
+        public <E> void output(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;
             if (timestamp == null) {
-                replaced = element.replace(value);
-                replaced.eraseTimestamp();
+                replaced = element.replace(el);
             } else {
-                replaced = element.replace(value, timestamp);
+                replaced = element.replace(el, timestamp);
             }
-            if (tag == null) {
+            // 2. Send the output
+            if(tag == null){
                 output.collect((StreamRecord<GraphOp>) replaced);
-            } else {
+            }else{
                 output.collect(tag, replaced);
             }
+            // 3. Return the previous value
             if (tmpTs != null) {
                 element.replace(tmpVal, tmpTs);
             } else {
