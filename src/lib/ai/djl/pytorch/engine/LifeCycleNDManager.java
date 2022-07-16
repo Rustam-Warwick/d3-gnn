@@ -20,7 +20,7 @@ public class LifeCycleNDManager extends PtNDManager {
     private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(() ->
             new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice())
     );
-    private final transient HashMap<String, WeakReference<NDArray>> registrations = new HashMap<>(4000); // Thread Local
+    private final transient HashMap<String, WeakReference<NDArray>> registrations = new HashMap<>(); // Thread Local
 
     private final transient Scope scope = new Scope();
 
@@ -52,7 +52,7 @@ public class LifeCycleNDManager extends PtNDManager {
 
     @Override
     public void detachInternal(String resourceId) {
-        registrations.remove(resourceId);
+//        registrations.remove(resourceId);
     }
 
     @Override
