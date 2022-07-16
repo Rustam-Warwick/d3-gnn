@@ -150,21 +150,21 @@ public class CoraFull implements Dataset {
             Edge edge = (Edge) value.element;
             edge.setTimestamp(timestamp);
             value.setTimestamp(timestamp);
-            if (!seenVertices.contains(edge.src.getId())) {
-                int index = Integer.parseInt(edge.src.getId());
+            if (!seenVertices.contains(edge.getSrc().getId())) {
+                int index = Integer.parseInt(edge.getSrc().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.src.setFeature("feature", new Tensor(thisFeature));
-                edge.src.setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
-                seenVertices.add(edge.src.getId());
+                edge.getSrc().setFeature("feature", new Tensor(thisFeature));
+                edge.getSrc().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
+                seenVertices.add(edge.getSrc().getId());
             }
-            if (!seenVertices.contains(edge.dest.getId())) {
-                int index = Integer.parseInt(edge.dest.getId());
+            if (!seenVertices.contains(edge.getDest().getId())) {
+                int index = Integer.parseInt(edge.getDest().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.dest.setFeature("feature", new Tensor(thisFeature));
-                edge.dest.setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
-                seenVertices.add(edge.dest.getId());
+                edge.getDest().setFeature("feature", new Tensor(thisFeature));
+                edge.getDest().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
+                seenVertices.add(edge.getDest().getId());
             }
             out.collect(value);
         }

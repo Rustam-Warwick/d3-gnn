@@ -1,12 +1,10 @@
 package typeinfo;
 
+import elements.OmitStorage;
 import org.apache.flink.api.common.functions.InvalidTypesException;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.typeutils.GenericTypeInfo;
-import org.apache.flink.api.java.typeutils.PojoField;
-import org.apache.flink.api.java.typeutils.TypeExtractionUtils;
-import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.api.java.typeutils.*;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
@@ -23,9 +21,13 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClas
  * Special Factory that recursively serializer List Fields, if no recursion list is found will fall back to PojoTypeInfo
  */
 public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
-
     @Override
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
+        return this.createTypeInfo(t, genericParameters, false);
+    }
+
+
+    public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters, boolean omitStorage) {
         try {
             Class clazz = TypeExtractionUtils.typeToClass(t);
             List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
@@ -33,6 +35,7 @@ public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
             List<Field> recursiveListFields = new ArrayList<>();
 
             for (Field field : fields) {
+                if (omitStorage && field.isAnnotationPresent(OmitStorage.class)) continue;
                 Type fieldType = field.getGenericType();
                 try {
                     if (field.getType().equals(List.class) &&
@@ -53,14 +56,30 @@ public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
                 }
             }
             if (recursiveListFields.isEmpty()) {
-                // Fallback to Pojo
+                // Fallback to Pojo otherwise it will not serialize properly
                 Constructor<TypeExtractor> construc = TypeExtractor.class.getDeclaredConstructor();
                 construc.setAccessible(true);
                 TypeExtractor ex = construc.newInstance();
                 Method analyzePojo = TypeExtractor.class.getDeclaredMethod("analyzePojo", Type.class, List.class, TypeInformation.class, TypeInformation.class);
                 analyzePojo.setAccessible(true);
-                TypeInformation<T> pojoType =
-                        (TypeInformation<T>) analyzePojo.invoke(ex, t, new ArrayList<>(List.of(t)), null, null);
+                PojoTypeInfo<T> pojoType =
+                        (PojoTypeInfo<T>) analyzePojo.invoke(ex, t, new ArrayList<>(List.of(t)), null, null);
+
+                if (omitStorage) {
+                    // PojoTypeInfo does not know about the
+                    Field fieldsPojoField = PojoTypeInfo.class.getDeclaredField("fields");
+                    fieldsPojoField.setAccessible(true);
+                    PojoField[] fieldsPojo = (PojoField[]) fieldsPojoField.get(pojoType);
+                    List<PojoField> pojoFieldsOmitted = new ArrayList<>();
+                    for (PojoField pojoField : fieldsPojo) {
+                        if (omitStorage && pojoField.getField().isAnnotationPresent(OmitStorage.class)) continue;
+                        pojoFieldsOmitted.add(pojoField);
+                    }
+                    pojoType = new PojoTypeInfo(clazz, pojoFieldsOmitted);
+                    fieldsPojoField.setAccessible(false);
+                }
+
+
                 construc.setAccessible(false);
                 analyzePojo.setAccessible(false);
                 if (pojoType == null) {

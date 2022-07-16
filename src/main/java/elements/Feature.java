@@ -5,6 +5,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -15,6 +16,8 @@ import java.util.Objects;
  * @param <V> Type that is exposed through getValue method
  */
 public class Feature<T, V> extends ReplicableGraphElement {
+    public static String DELIMITER = "/";
+
     public T value;
     @Nullable
     public transient GraphElement element;
@@ -51,6 +54,27 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
+    /**
+     * Given featureName and attached Element Id return the unique id for this feature
+     */
+    public static String encodeAttachedFeatureId(String featureName, String attachedElementId) {
+        return attachedElementId + DELIMITER + featureName;
+    }
+
+    /**
+     * Given an attached Feature Id, decode it returns an array of [elementId, featureName]
+     */
+    public static String[] decodeAttachedFeatureId(String attachedFeatureId) {
+        return attachedFeatureId.split(DELIMITER);
+    }
+
+    /**
+     * Does this Id belong to attached feature or not
+     */
+    public static boolean isAttachedId(String featureId) {
+        return featureId.contains(DELIMITER);
+    }
+
     @Override
     public Feature<T, V> copy() {
         return new Feature<>(this, false);
@@ -64,6 +88,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Features attached to elements should arrive at corresponding masters first,
      * hence the different in main logic is that master should then create them on replica parts
+     * Handles the case for late Vertex Feature, since they arrive at masters first
+     * But not for Edge since edge Vertices can be replicated
      *
      * @return is created successfully
      */
@@ -71,8 +97,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public Boolean create() {
         if (this.attachedTo == null) return super.create();
         else {
+            if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
+                if (attachedTo.f0 == ElementType.VERTEX) {
+                    Vertex createElementNow = new Vertex(attachedTo.f1, false, getPartId());
+                    createElementNow.setStorage(storage);
+                    createElementNow.create();
+                } else {
+                    throw new IllegalStateException("Trying to create Feature while element is not here yet");
+                }
+            }
             boolean is_created = createElement();
-            if (is_created && state() == ReplicaState.MASTER && !isHalo()) {
+            if (is_created && state() == ReplicaState.MASTER && isReplicable() && !isHalo()) {
                 replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this), MessageDirection.ITERATE));
             }
             return is_created;
@@ -137,15 +172,26 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public List<Short> replicaParts() {
-        if (Objects.nonNull(getElement())) {
-            return getElement().replicaParts();
+        if (attachedTo != null) {
+            if (Objects.nonNull(getElement())) {
+                return getElement().replicaParts();
+            } else {
+                Collections.emptyList();
+            }
         }
         return super.replicaParts();
     }
 
     @Override
-    public void setId(@Nullable String id) {
-        throw new IllegalStateException("Use .setName() for Features");
+    public Boolean isReplicable() {
+        if (attachedTo != null) {
+            if (Objects.nonNull(getElement())) {
+                return getElement().isReplicable();
+            } else {
+                return false;
+            }
+        }
+        return super.isReplicable();
     }
 
     /**
@@ -157,7 +203,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public String getId() {
         if (this.attachedTo == null) return super.getId();
-        return attachedTo.f1 + ":" + this.id;
+        return encodeAttachedFeatureId(id, attachedTo.f1);
+    }
+
+    @Override
+    public void setId(@Nullable String id) {
+        throw new IllegalStateException("Use .setName() for Features");
     }
 
     /**
@@ -172,9 +223,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Set the name(actually id). SetId is made private to not have confusion
      */
-    public void setName(@Nullable String name){
+    public void setName(@Nullable String name) {
         this.id = name;
     }
+
     /**
      * If element is cached here return it, otherwise ask the DB to retrieve the element
      *
@@ -235,4 +287,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public ElementType elementType() {
         return ElementType.FEATURE;
     }
+
+
 }

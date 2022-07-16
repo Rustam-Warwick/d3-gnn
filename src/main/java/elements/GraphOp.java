@@ -63,13 +63,14 @@ public final class GraphOp {
         this(op, partId, element, ts, MessageCommunication.P2P);
     }
 
-    public GraphOp(BaseOperatorEvent evt){
+    public GraphOp(BaseOperatorEvent evt) {
         this(Op.OPERATOR_EVENT, null, null, evt, MessageCommunication.BROADCAST, null);
     }
 
     public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
         this(op, partId, element, null, communication, ts);
     }
+
     public GraphOp(@NotNull Op op, Short partId, GraphElement element, BaseOperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
@@ -135,7 +136,6 @@ public final class GraphOp {
         return
                 new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
-
 
 
     @Override

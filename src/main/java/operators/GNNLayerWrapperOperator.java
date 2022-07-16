@@ -8,7 +8,7 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 /**
- * Wrapper around GNNLayerFunctions
+ * Wrapper around GNNLayerFunctions, functions that are part of the GNN Layer
  * @param <T>
  */
 public class GNNLayerWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, GNNLayerFunction> & Triggerable<Object, VoidNamespace> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {

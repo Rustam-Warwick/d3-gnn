@@ -2,10 +2,8 @@ package features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import elements.GraphElement;
-import org.apache.flink.api.java.tuple.Tuple2;
 
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 /**
  * Versioned NDArray, Used to represent embeddings of specific model versions
@@ -45,21 +43,14 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Boolean createElement() {
-        this.value.detach();
-        return super.createElement();
+    public void applyForNDArrays(Consumer<NDArray> operation) {
+        super.applyForNDArrays(operation);
+        operation.accept(value);
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tensor newTensor = (Tensor) newElement;
-        newTensor.value.detach();
-        return super.updateElement(newElement, memento);
-    }
-
-    @Override
-    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
-        super.modifyNDArrayPossessionCounter(operation);
-        value.setTaskPossession(operation.apply(value.getTaskPossession()));
+    public void applyForNDArray(Consumer<NDArray> operation) {
+        super.applyForNDArray(operation);
+        operation.accept(value);
     }
 }

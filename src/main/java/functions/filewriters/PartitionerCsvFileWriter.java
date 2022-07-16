@@ -25,7 +25,7 @@ public class PartitionerCsvFileWriter extends ProcessFunction<GraphOp, Void> {
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
         Edge e = (Edge) value.getElement();
-        Files.write(outputFile.toPath(), String.format("%s,%s,%s,%s,%s,%s\n", ctx.timestamp(), e.src.getId(), e.src.masterPart(), e.dest.getId(), e.dest.masterPart(), value.getPartId()).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+        Files.write(outputFile.toPath(), String.format("%s,%s,%s,%s,%s,%s\n", ctx.timestamp(), e.getSrc().getId(), e.getSrc().masterPart(), e.getDest().getId(), e.getDest().masterPart(), value.getPartId()).getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
     }
 
     @Override

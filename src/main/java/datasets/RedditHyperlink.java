@@ -1,8 +1,10 @@
 package datasets;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
-import elements.*;
-import features.Tensor;
+import elements.Edge;
+import elements.GraphOp;
+import elements.Op;
+import elements.Vertex;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -13,22 +15,18 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.util.concurrent.ThreadLocalRandom;
+import java.nio.file.Path;
 
-/**
- * Dataset for signed network where format is assumed to <src, dest, sign ,Optional<ts>>
- */
-public class SignedNetworkDataset implements Dataset {
+public class RedditHyperlink implements Dataset{
+    private final transient String baseDirectory;
 
-    public final String fileName;
-
-    public SignedNetworkDataset(String fileName) {
-        this.fileName = fileName;
+    public RedditHyperlink(String baseDirectory) {
+        this.baseDirectory = baseDirectory;
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        DataStream<GraphOp> out;
+        String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-full.tsv").toString();
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
@@ -39,9 +37,8 @@ public class SignedNetworkDataset implements Dataset {
                 return ts == null ? Long.MIN_VALUE : ts;
             }
         })).setParallelism(1);
-
-
         if (fineGrainedResourceManagementEnabled) {
+            // All belong to the same slot sharing group
             fileReader.slotSharingGroup("file-input");
             parsed.slotSharingGroup("file-input");
             timestampExtracted.slotSharingGroup("file-input");
@@ -51,34 +48,30 @@ public class SignedNetworkDataset implements Dataset {
 
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
-        return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
-            @Override
-            public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-                assert value.getElement().elementType() == ElementType.EDGE && value.getElement().features != null;
-                Edge e = (Edge) value.getElement();
-                if (ThreadLocalRandom.current().nextFloat() < 0.5) {
-                    // Train
-                    e.getFeature("sign").setName("trainLabel");
-                } else {
-                    // Test
-                    e.getFeature("sign").setName("testLabel");
-                }
-                ctx.output(TRAIN_TEST_SPLIT_OUTPUT, value);
-                GraphOp topologyGraphOp = value.shallowCopy();
-                topologyGraphOp.setElement(e.copy());
-                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, topologyGraphOp);
-                out.collect(topologyGraphOp);
-            }
-        };
+        return new TrainTestSplitter();
     }
 
-    public static class Parser implements MapFunction<String, GraphOp> {
+    static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp>{
+        @Override
+        public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+            out.collect(value);
+            ctx.output(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
+        }
+    }
+
+    static class Parser implements MapFunction<String, GraphOp>{
         @Override
         public GraphOp map(String value) throws Exception {
+            LifeCycleNDManager.getInstance().clean();
             String[] values = value.split(",");
-            Edge e = new Edge(new Vertex(values[0]), new Vertex(values[1]));
-            e.setFeature("sign", new Tensor(LifeCycleNDManager.getInstance().create(1)));
-            return new GraphOp(Op.COMMIT, e, Float.valueOf(values[3]).longValue());
+            Edge edge = new Edge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
+//            float[] features = new float[values.length - 4];
+//            for(int i=4;i<values.length;i++){
+//                String processed = values[i].replaceAll("[^0-9.]", "");
+//                features[i-4] =  Float.valueOf(processed);
+//            }
+//            edge.setFeature("feature", new Tensor(LifeCycleNDManager.getInstance().create(features)));
+            return new GraphOp(Op.COMMIT,edge);
         }
     }
 

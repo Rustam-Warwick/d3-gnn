@@ -81,7 +81,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
             } else {
                 ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
             }
-        }catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -89,7 +89,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction, @Nullable Long timestamp) {
         assert op.getPartId() == null && op.getMessageCommunication() == MessageCommunication.BROADCAST;
-        try{
+        try {
             if (direction == MessageDirection.BACKWARD) {
                 getWrapperContext().output(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
             } else if (direction == MessageDirection.FORWARD) {

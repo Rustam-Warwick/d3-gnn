@@ -24,9 +24,12 @@ import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.runtime.state.StateSnapshotContext;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
@@ -50,7 +53,7 @@ import java.util.function.Consumer;
 
 /**
  * Feedback operator send data to the Head Operator through a FeedbackChannel Broker
- * It also handles the checkpointing of the data @todo enable checkpointing
+ * Also handles the fault-tolerance and checkpointing
  */
 public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {
@@ -72,6 +75,9 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         this.chainingStrategy = ChainingStrategy.ALWAYS;
     }
 
+    /**
+     * Register Feedback Writer
+     */
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
         super.setup(containingTask, config, output);
@@ -84,9 +90,15 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         registerFeedbackWriter();
     }
 
+    /**
+     * Get buffered records if it is a restoed state also wait for the <strong>Consumer</strong>
+     */
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
+        while (!feedbackChannel.hasConsumer()) {
+            Thread.sleep(500);
+        }
         ListStateDescriptor<StreamRecord<GraphOp>> descriptor =
                 new ListStateDescriptor(
                         "buffered-records",
@@ -102,6 +114,9 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         }
     }
 
+    /**
+     * Update this channel snapshot id
+     */
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
         ArrayDeque<StreamRecord<GraphOp>> buffer = feedbackChannel.getUnsafeBuffer(operatorID);
@@ -111,39 +126,48 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         feedbackChannel.finishSnapshot(context.getCheckpointId(), operatorID);
     }
 
+    /**
+     * Phaser arrive if this is max Watermark
+     * Since Iteration Source will emit watermark to detect termination
+     * Source will still try to finalize after this point so this is not immediately closed
+     */
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
-            feedbackChannel.finishProducer(operatorID);
+            BaseWrapperOperator.LOG.info(String.format("Watermark Arrived %s", getRuntimeContext().getTaskNameWithSubtasks()));
+            feedbackChannel.getPhaser().arrive();
         }
         super.processWatermark(mark);
     }
 
-
+    /**
+     * Send to record consumer
+     */
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-//        if (streamRecord.getValue().getElement() != null)
-//            streamRecord.getValue().getElement().modifyNDArrayPossessionCounter(item->item + 1);
+        if(streamRecord.getValue().getElement()!=null){
+            streamRecord.getValue().getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() + 1));
+        }
         recordConsumer.accept(streamRecord);
     }
 
-
+    /**
+     * Since the record would be reused, we have to clone a new one
+     */
     private void processIfObjectReuseEnabled(StreamRecord<GraphOp> record) {
-        // Since the record would be reused, we have to clone a new one
         feedbackChannel.put(record.copy(record.getValue()), operatorID);
     }
 
+    /**
+     * Since the record would not be reused, we could modify it in place.
+     */
     private void processIfObjectReuseNotEnabled(StreamRecord<GraphOp> record) {
-        // Since the record would not be reused, we could modify it in place.
         feedbackChannel.put(record, operatorID);
     }
 
-    @Override
-    public void close() throws Exception {
-        feedbackChannel.finishProducer(operatorID);
-        super.close();
-    }
-
+    /**
+     * Register Feedback Consumer + Register Metric Group + Register for the Phaser
+     */
     private void registerFeedbackWriter() {
         int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
         int attemptNum = getRuntimeContext().getAttemptNumber();
@@ -153,6 +177,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         feedbackChannel = broker.getChannel(realKey);
-        feedbackChannel.registerPublisher(operatorID);
+        feedbackChannel.getPhaser().register();
+        Tuple2<Meter, Meter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInRateMeter(),((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutRate());
+        feedbackChannel.registerPublisher(operatorID, meters);
     }
 }

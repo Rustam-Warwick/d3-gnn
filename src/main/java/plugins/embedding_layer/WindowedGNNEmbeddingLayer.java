@@ -11,7 +11,11 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
+import functions.metrics.MovingAverageCounter;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MeterView;
+import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
@@ -31,6 +35,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
 
     public transient Batchifier batchifier; // Batchifier for the windowed data
 
+    private transient Counter throughput; // Throughput counter, only used for last layer
+
+    private transient Counter windowThroughput; // Throughput counter, only used for last layer
+
+    private transient Counter latency; // Throughput counter, only used for last layer
+
     public WindowedGNNEmbeddingLayer(String modelName, boolean externalFeatures) {
         this(modelName, externalFeatures, 1000);
     }
@@ -48,6 +58,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         assert storage != null;
         batchifier = new StackBatchifier();
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
+        throughput = new SimpleCounter();
+        windowThroughput = new SimpleCounter();
+        latency = new MovingAverageCounter(1000);
+        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
+        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
+        storage.layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
         try {
             storage.layerFunction.getWrapperContext().runForAllKeys(() -> {
                 Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(), true, storage.layerFunction.getCurrentPart());
@@ -85,13 +101,13 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
             if (messageReady(edge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
+                NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("feature").getValue()), false);
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msg.get(0), 1)
                         .buildAndRun(storage);
             }
@@ -132,11 +148,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
     public void forward(Vertex v) {
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + windowInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 1000.0) * 1000);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
         Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
         elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
         storage.updateElement(elementUpdates);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
+        windowThroughput.inc();
     }
 
     /**
@@ -169,10 +186,12 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
         NDList batch_updates = UPDATE(batch_inputs, false);
         NDList[] updates = batchifier.unbatchify(batch_updates);
         for (int i = 0; i < updates.length; i++) {
+            throughput.inc();
+            latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - timestamps.get(i));
             elementUpdates.getValue().remove(vertices.get(i).getId());
             Vertex messageVertex = vertices.get(i).copy();
             messageVertex.setFeature("feature", new Tensor(updates[i].get(0)));
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD, timestamps.get(i));
+            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature")), MessageDirection.FORWARD, timestamps.get(i));
         }
         storage.updateFeature(elementUpdates);
     }
@@ -192,11 +211,11 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                     msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
                 }
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
@@ -221,11 +240,11 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                     msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
                 }
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("replace")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msgNew, msgOld)
                         .buildAndRun(storage);
             }
@@ -270,7 +289,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @return Is the Edge ready to pass on the message
      */
     public boolean messageReady(Edge edge) {
-        return Objects.nonNull(edge.src.getFeature("feature"));
+        return Objects.nonNull(edge.getSrc().getFeature("feature"));
     }
 
     /**

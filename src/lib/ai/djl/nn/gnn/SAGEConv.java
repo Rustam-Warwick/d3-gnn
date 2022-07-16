@@ -25,7 +25,7 @@ public class SAGEConv extends GNNBlock {
             @Override
             public NDList apply(NDList ndArrays) {
                 NDArray tmp = Activation.sigmoid(ndArrays).get(0);
-                if(tmp.getShape().dimension() > 1){
+                if (tmp.getShape().dimension() > 1) {
                     return new NDList(tmp.div(tmp.norm(new int[]{-1}).expandDims(1).repeat(1, tmp.getShape().get(1))));
                 }
                 return new NDList(tmp.div(tmp.norm(new int[]{-1})));

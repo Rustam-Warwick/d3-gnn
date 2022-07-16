@@ -42,10 +42,10 @@ class RandomPartitioner extends BasePartitioner {
             if (value.element.elementType() == ElementType.EDGE) {
                 value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 Edge edge = (Edge) value.element;
-                this.masters.putIfAbsent(edge.src.getId(), value.partId);
-                this.masters.putIfAbsent(edge.dest.getId(), value.partId);
-                edge.src.master = this.masters.get(edge.src.getId());
-                edge.dest.master = this.masters.get(edge.dest.getId());
+                this.masters.putIfAbsent(edge.getSrc().getId(), value.partId);
+                this.masters.putIfAbsent(edge.getDest().getId(), value.partId);
+                edge.getSrc().master = this.masters.get(edge.getSrc().getId());
+                edge.getDest().master = this.masters.get(edge.getDest().getId());
             } else if (value.element.elementType() == ElementType.VERTEX) {
                 short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 this.masters.putIfAbsent(value.element.getId(), part_tmp);

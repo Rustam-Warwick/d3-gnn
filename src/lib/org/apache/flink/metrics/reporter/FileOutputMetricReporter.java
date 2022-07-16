@@ -8,20 +8,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Metric Reporter that ouputs to a file all the task metrics
  */
 public class FileOutputMetricReporter implements Scheduled, MetricReporter {
-    public static List<String> names = List.of("latency","numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
-    public HashMap<Metric, Tuple2<File, StringBuilder>> fileHashMap = new HashMap<>(100);
+    public static List<String> names = List.of("windowThroughput", "latency", "throughput", "numRecordsOut", "numRecordsIn", "numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
+    public ConcurrentHashMap<Metric, Tuple2<File, StringBuilder>> fileHashMap = new ConcurrentHashMap<>(100);
 
     @Override
     public void open(MetricConfig config) {
-
     }
 
     @Override
@@ -69,9 +68,6 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     public synchronized void createFileForMetric(Metric metric, String metricName, MetricGroup group) {
         StringBuilder str = new StringBuilder();
         Map<String, String> variables = group.getAllVariables();
-        if(metricName.equals("latency")){
-            System.out.println();
-        }
         if (names.contains(metricName) && variables.containsKey("<job_name>") && variables.containsKey("<operator_name>") && variables.containsKey("<subtask_index>")) {
             str.append(variables.get("<job_name>"));
             str.append('/');
@@ -90,7 +86,6 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
                 e.printStackTrace();
             }
         }
-
     }
 
 }

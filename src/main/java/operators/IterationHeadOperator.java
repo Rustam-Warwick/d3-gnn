@@ -93,8 +93,6 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         processElement(element); // Wait for process to finish
-        if (element.getValue().getElement() != null)
-            element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
     }
 
     @Override

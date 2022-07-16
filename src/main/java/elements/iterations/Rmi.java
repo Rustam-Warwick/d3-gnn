@@ -10,7 +10,7 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 public class Rmi extends GraphElement {
     public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(15);
@@ -82,12 +82,11 @@ public class Rmi extends GraphElement {
     }
 
     @Override
-    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
-        super.modifyNDArrayPossessionCounter(operation);
+    public void applyForNDArrays(Consumer<NDArray> operation) {
+        super.applyForNDArrays(operation);
         for (Object arg : args) {
             if (arg instanceof NDArray) {
-                NDArray tmp = (NDArray) arg;
-                tmp.setTaskPossession(operation.apply(tmp.getTaskPossession()));
+                operation.accept((NDArray) arg);
             }
         }
     }

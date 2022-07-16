@@ -76,7 +76,7 @@ public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != null;
             new RemoteInvoke()
-                    .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("add")
                     .addDestination(masterPart())
@@ -150,7 +150,7 @@ public class ReplicableGraphElement extends GraphElement {
             boolean is_deleted = deleteElement();
             if (is_deleted && notifyMaster) {
                 new RemoteInvoke()
-                        .toElement(decodeFeatureId("parts"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                         .hasUpdate()
                         .method("remove")
                         .withArgs(getPartId())

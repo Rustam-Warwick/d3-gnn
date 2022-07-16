@@ -3,7 +3,6 @@ package functions.gnn_layers;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.ReplicaState;
 import elements.iterations.MessageDirection;
 import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
@@ -25,7 +24,6 @@ import javax.annotation.Nullable;
  * Real implementation should be tightly coupled with their respective operators
  */
 public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
-    // ---------------> Externally set Features, Variables
 
     /**
      * @return Attached storage engine
@@ -142,15 +140,15 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
         return getWrapperContext().getNumberOfOutChannels(tag);
     }
 
-    default void runForAllLocalParts(Runnable o) throws Exception{
+    default void runForAllLocalParts(Runnable o) throws Exception {
         getWrapperContext().runForAllKeys(o);
     }
 
-    default void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+    default void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
         getWrapperContext().registerKeyChangeListener(listener);
     }
 
-    default void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+    default void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
         getWrapperContext().deRegisterKeyChangeListener(listener);
     }
 
@@ -159,9 +157,10 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     default void process(GraphOp value) {
         try {
-            if (value.element != null) value.element.setStorage(getStorage());
+            value.getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() - 1));
             switch (value.op) {
                 case COMMIT:
+                    value.element.setStorage(getStorage());
                     if (!getStorage().containsElement(value.element)) {
                         value.element.create();
 
@@ -174,12 +173,8 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     if (!getStorage().containsElement(value.element)) {
                         GraphElement el = value.element.copy();
                         el.setStorage(getStorage());
-                        el.setPartId(getCurrentPart());
-                        if (el.state() == ReplicaState.MASTER) {
-                            // Replicas should not be created by master since they are the first parties sending sync messages
-                            el.create();
-                            el.sync(value.element);
-                        }
+                        el.create();
+                        el.sync(value.element);
                     } else {
                         GraphElement el = this.getStorage().getElement(value.element);
                         el.sync(value.element);

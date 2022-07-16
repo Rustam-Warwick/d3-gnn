@@ -58,10 +58,6 @@ public class GraphStream {
         parseCmdArgs();
     }
 
-    public boolean isFineGrainedResourceManagementEnabled() {
-        return fineGrainedResourceManagementEnabled;
-    }
-
     public String getPartitionerName() {
         return partitionerName;
     }
@@ -191,43 +187,37 @@ public class GraphStream {
         return partitionedOutput;
     }
 
-
     protected SingleOutputStreamOperator<GraphOp> streamingGNNLayerAsSource(DataStream<GraphOp> inputData, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
         IterationID localIterationId = new IterationID();
         SingleOutputStreamOperator<GraphOp> forward;
-//        if (fineGrainedResourceManagementEnabled) {
-//            env.registerSlotSharingGroup(SlotSharingGroup
-//                    .newBuilder("gnn-" + thisParallelism)
-//                    .setTaskHeapMemoryMB(600)
-//                    .setTaskOffHeapMemoryMB(700)
-//                    .setCpuCores(1)
-//                    .build());
-//        }
 
         if (position_index > 0 || hasFoolLoopIteration) {
-            // Iteration Heads should always exist here
+            // Add the iteration heads
             DataStreamSource<GraphOp> iterationHead = new DataStreamSource<>(env, TypeInformation.of(GraphOp.class), new IterationSourceOperator(localIterationId), true, String.format("IterationHead - %s", position_index), Boundedness.BOUNDED).setParallelism(thisParallelism);
             forward = inputData.union(iterationHead).keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
-            iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
-            forward.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
-            if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);
-            if (fineGrainedResourceManagementEnabled)
-                iterationHead.getTransformation().setSlotSharingGroup("gnn-" + thisParallelism);
+            iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            if (fineGrainedResourceManagementEnabled) {
+                forward.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0)); // position 0 and 1 in same slot sharing group preferably
+                iterationHead.getTransformation().setSlotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
+            }
+            if(position_index == 0){
+                // This was Splitter Full-Loop iteration
+                fullLoopIterationId = localIterationId;
+            }
         } else {
             forward = inputData.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
-            if (fineGrainedResourceManagementEnabled) forward.slotSharingGroup("gnn-" + thisParallelism);
-        }
-
-        if (position_index == 0 && hasFoolLoopIteration) {
-            fullLoopIterationId = localIterationId;
+            if (fineGrainedResourceManagementEnabled)
+                forward.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
         }
 
         if (position_index > 0) {
-            // Add iteration, these are always added
+            // Iteration Tails
             SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).forward().transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism).uid(String.format("IterationTail - %s", position_index));
-            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + thisParallelism);
-            if (fineGrainedResourceManagementEnabled) iterationHandler.slotSharingGroup("gnn-" + thisParallelism);
+            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            if (fineGrainedResourceManagementEnabled)
+                iterationHandler.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
         }
 
         if (position_index > 1 && hasBackwardIteration) {
@@ -235,15 +225,16 @@ public class GraphStream {
             int previousParallelism = (int) (env.getParallelism() * Math.pow(lambda, position_index - 2));
             DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
             SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism).uid(String.format("BackwardTail - %s", position_index - 1));
-            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + previousParallelism);
-            if (fineGrainedResourceManagementEnabled) backwardIteration.slotSharingGroup("gnn-" + previousParallelism);
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            if (fineGrainedResourceManagementEnabled)
+                backwardIteration.slotSharingGroup("gnn-" + Math.max(position_index - 2, 0));
         }
         if (position_index == layers && hasFoolLoopIteration) {
             // Add Full Loop Iteration
             DataStream<GraphOp> fullLoopFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
-            SingleOutputStreamOperator<Void> backwardIteration = fullLoopFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(env.getParallelism()).uid("FullLoopTail");
-            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + env.getParallelism());
-            if (fineGrainedResourceManagementEnabled) backwardIteration.slotSharingGroup("gnn-" + env.getParallelism());
+            SingleOutputStreamOperator<Void> fullLoopIteration = fullLoopFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(env.getParallelism()).uid("FullLoopTail");
+            fullLoopIteration.getTransformation().setCoLocationGroupKey("gnn-0");
+            if (fineGrainedResourceManagementEnabled) fullLoopIteration.slotSharingGroup("gnn-0");
         }
         this.position_index++;
         this.lastIterationID = localIterationId;
@@ -271,7 +262,8 @@ public class GraphStream {
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
 
         // 2. Partitiong the incoming stream
-        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = (SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain);
+//        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain)).disableChaining().process(new Throttler(10000)).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain));
         layerOutputs[0] = previousLayerUpdates; // First one is the partitioned data
 
         // 3. Execute the layers

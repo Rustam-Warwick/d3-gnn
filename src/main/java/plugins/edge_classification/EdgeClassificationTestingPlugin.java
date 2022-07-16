@@ -29,13 +29,9 @@ public class EdgeClassificationTestingPlugin extends Plugin {
     public final String modelName;
 
     public final int MAX_BATCH_SIZE; // Overall batch size across output layers
-
-    public transient int LOCAL_BATCH_SIZE; // Estimate batch size for this operator
-
-    public transient ModelServer modelServer; // Model Server Attached
-
     public final SerializableLoss loss; // Loss function
-
+    public transient int LOCAL_BATCH_SIZE; // Estimate batch size for this operator
+    public transient ModelServer modelServer; // Model Server Attached
     public transient StackBatchifier batchifier; // Helper for batching data
 
     public int BATCH_COUNT = 0;
@@ -80,37 +76,35 @@ public class EdgeClassificationTestingPlugin extends Plugin {
         Feature<HashSet<String>, HashSet<String>> readyEdges = (Feature<HashSet<String>, HashSet<String>>) getFeature("readyTrainingEdges");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> srcVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainSrcVertices");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> destVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainDestVertices");
-        if(e.src.containsFeature("feature") && e.dest.containsFeature("feature")){
+        if (e.getSrc().containsFeature("feature") && e.getDest().containsFeature("feature")) {
             // All dependecies are here,
             readyEdges.getValue().add(e.getId());
             storage.updateFeature(readyEdges);
             incrementBatchCount();
             return;
-        }
-        else if(e.src.containsFeature("feature") || e.dest.containsFeature("feature")){
+        } else if (e.getSrc().containsFeature("feature") || e.getDest().containsFeature("feature")) {
             // Either sides are not here yet
-            srcVertexState.getValue().compute(e.src.getId(), (src, value)->{
-                if(value == null) value = new HashMap<>(5);
-                value.put(e.dest.getId(), (byte) 1);
+            srcVertexState.getValue().compute(e.getSrc().getId(), (src, value) -> {
+                if (value == null) value = new HashMap<>(5);
+                value.put(e.getDest().getId(), (byte) 1);
                 return value;
             });
 
-            destVertexState.getValue().compute(e.dest.getId(), (dest, value)->{
-                if(value == null) value = new HashMap<>(5);
-                value.put(e.src.getId(), (byte) 1);
+            destVertexState.getValue().compute(e.getDest().getId(), (dest, value) -> {
+                if (value == null) value = new HashMap<>(5);
+                value.put(e.getSrc().getId(), (byte) 1);
                 return value;
             });
-        }
-        else{
-            srcVertexState.getValue().compute(e.src.getId(), (src, value)->{
-                if(value == null) value = new HashMap<>(5);
-                value.put(e.dest.getId(), (byte) 0);
+        } else {
+            srcVertexState.getValue().compute(e.getSrc().getId(), (src, value) -> {
+                if (value == null) value = new HashMap<>(5);
+                value.put(e.getDest().getId(), (byte) 0);
                 return value;
             });
 
-            destVertexState.getValue().compute(e.dest.getId(), (dest, value)->{
-                if(value == null) value = new HashMap<>(5);
-                value.put(e.src.getId(), (byte) 0);
+            destVertexState.getValue().compute(e.getDest().getId(), (dest, value) -> {
+                if (value == null) value = new HashMap<>(5);
+                value.put(e.getSrc().getId(), (byte) 0);
                 return value;
             });
         }
@@ -119,43 +113,43 @@ public class EdgeClassificationTestingPlugin extends Plugin {
         storage.updateFeature(destVertexState);
     }
 
-    public void mergeTrainingDataState(@Nonnull Vertex v){
+    public void mergeTrainingDataState(@Nonnull Vertex v) {
         Feature<HashSet<String>, HashSet<String>> readyEdges = (Feature<HashSet<String>, HashSet<String>>) getFeature("readyTrainingEdges");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> srcVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainSrcVertices");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> destVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainDestVertices");
-        srcVertexState.getValue().computeIfPresent(v.getId(), (src, value)->{
-            value.replaceAll((dest, state)->{
+        srcVertexState.getValue().computeIfPresent(v.getId(), (src, value) -> {
+            value.replaceAll((dest, state) -> {
                 state++;
-                if(state == 2){
+                if (state == 2) {
                     // Both are here
                     incrementBatchCount();
                     destVertexState.getValue().get(dest).remove(src);
-                    readyEdges.getValue().add(src+":"+dest);
+                    readyEdges.getValue().add(Edge.encodeEdgeId(src, dest));
                     return null;
                 }
 
                 return state;
             });
 
-            if(value.isEmpty()) return null;
+            if (value.isEmpty()) return null;
             return value;
         });
 
-        destVertexState.getValue().computeIfPresent(v.getId(), (dest, value)->{
-            value.replaceAll((src, state)->{
+        destVertexState.getValue().computeIfPresent(v.getId(), (dest, value) -> {
+            value.replaceAll((src, state) -> {
                 state++;
-                if(state == 2){
+                if (state == 2) {
                     // Both are here
                     incrementBatchCount();
                     srcVertexState.getValue().get(src).remove(dest);
-                    readyEdges.getValue().add(src+":"+dest);
+                    readyEdges.getValue().add(Edge.encodeEdgeId(src, dest));
                     return null;
                 }
 
                 return state;
             });
 
-            if(value.isEmpty()) return null;
+            if (value.isEmpty()) return null;
             return value;
         });
         storage.updateFeature(readyEdges);
@@ -166,13 +160,12 @@ public class EdgeClassificationTestingPlugin extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if(element.elementType() == ElementType.FEATURE){
-            Feature<?,?> feature = (Feature<?, ?>) element;
-            if(feature.attachedTo != null && feature.attachedTo.f0 == ElementType.EDGE && "trainLabel".equals(feature.getName())){
+        if (element.elementType() == ElementType.FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) element;
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.EDGE && "trainLabel".equals(feature.getName())) {
                 // Training label arrived
                 mergeTrainingDataState((Edge) feature.getElement());
-            }
-            else if(feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())){
+            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
                 mergeTrainingDataState((Vertex) feature.getElement());
             }
         }
@@ -181,18 +174,18 @@ public class EdgeClassificationTestingPlugin extends Plugin {
     /**
      * Starts training when data has arrived
      */
-    public void startTraining(){
+    public void startTraining() {
         Feature<HashSet<String>, HashSet<String>> readyEdges = (Feature<HashSet<String>, HashSet<String>>) getFeature("readyTrainingEdges");
-        if(!readyEdges.getValue().isEmpty()){
+        if (!readyEdges.getValue().isEmpty()) {
             // 1. Collect Data
             List<NDList> inputs = new ArrayList<>();
             List<NDList> labels = new ArrayList<>();
             List<Edge> edges = new ArrayList<>();
             for (String eId : readyEdges.getValue()) {
                 Edge e = storage.getEdge(eId);
-                ((NDArray) e.src.getFeature("feature").getValue()).setRequiresGradient(true);
-                ((NDArray) e.dest.getFeature("feature").getValue()).setRequiresGradient(true);
-                inputs.add(new NDList((NDArray) e.src.getFeature("feature").getValue(), (NDArray) e.dest.getFeature("feature").getValue()));
+                ((NDArray) e.getSrc().getFeature("feature").getValue()).setRequiresGradient(true);
+                ((NDArray) e.getDest().getFeature("feature").getValue()).setRequiresGradient(true);
+                inputs.add(new NDList((NDArray) e.getSrc().getFeature("feature").getValue(), (NDArray) e.getDest().getFeature("feature").getValue()));
                 labels.add(new NDList((NDArray) e.getFeature("trainLabel").getValue()));
                 edges.add(e);
             }
@@ -200,29 +193,33 @@ public class EdgeClassificationTestingPlugin extends Plugin {
             NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
 
-            try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs, batchedLabels)){
-                NDList predictions = ( modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
+            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs, batchedLabels)) {
+                NDList predictions = (modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
                 NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
                 JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
 
                 // 3. Collect Vertex Gradients
                 HashMap<Short, HashMap<String, NDArray>> backwardPartGrads = new HashMap<>();
-                edges.forEach(item->{
-                    backwardPartGrads.compute(item.src.masterPart(), (part, value)->{
-                        if(value == null) value = new HashMap<>();
-                        value.compute(item.src.getId(), (srcId, gradient)->{
-                            if(gradient == null) return ((NDArray) item.src.getFeature("feature").getValue()).getGradient();
-                            else gradient.addi( ((NDArray) item.src.getFeature("feature").getValue()).getGradient());
+                edges.forEach(item -> {
+                    backwardPartGrads.compute(item.getSrc().masterPart(), (part, value) -> {
+                        if (value == null) value = new HashMap<>();
+                        value.compute(item.getSrc().getId(), (srcId, gradient) -> {
+                            if (gradient == null)
+                                return ((NDArray) item.getSrc().getFeature("feature").getValue()).getGradient();
+                            else
+                                gradient.addi(((NDArray) item.getSrc().getFeature("feature").getValue()).getGradient());
                             return gradient;
                         });
                         return value;
                     });
 
-                    backwardPartGrads.compute(item.dest.masterPart(), (part, value)->{
-                        if(value == null) value = new HashMap<>();
-                        value.compute(item.dest.getId(), (destId, gradient)->{
-                            if(gradient == null) return ((NDArray) item.dest.getFeature("feature").getValue()).getGradient();
-                            else gradient.addi( ((NDArray) item.dest.getFeature("feature").getValue()).getGradient());
+                    backwardPartGrads.compute(item.getDest().masterPart(), (part, value) -> {
+                        if (value == null) value = new HashMap<>();
+                        value.compute(item.getDest().getId(), (destId, gradient) -> {
+                            if (gradient == null)
+                                return ((NDArray) item.getDest().getFeature("feature").getValue()).getGradient();
+                            else
+                                gradient.addi(((NDArray) item.getDest().getFeature("feature").getValue()).getGradient());
                             return gradient;
                         });
                         return value;
@@ -230,7 +227,7 @@ public class EdgeClassificationTestingPlugin extends Plugin {
                 });
 
                 // 4. Send Vertex Gradients
-                backwardPartGrads.forEach((key,grads)->{
+                backwardPartGrads.forEach((key, grads) -> {
                     new RemoteInvoke()
                             .addDestination(key) // Only masters will be here anyway
                             .noUpdate()
@@ -240,13 +237,13 @@ public class EdgeClassificationTestingPlugin extends Plugin {
                             .withArgs(grads)
                             .buildAndRun(storage);
                 });
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 // Cleanup
-                edges.forEach(e->{
-                    ((NDArray) e.src.getFeature("feature").getValue()).setRequiresGradient(false);
-                    ((NDArray) e.dest.getFeature("feature").getValue()).setRequiresGradient(false);
+                edges.forEach(e -> {
+                    ((NDArray) e.getSrc().getFeature("feature").getValue()).setRequiresGradient(false);
+                    ((NDArray) e.getDest().getFeature("feature").getValue()).setRequiresGradient(false);
                 });
                 readyEdges.getValue().clear();
                 storage.updateFeature(readyEdges);
@@ -257,15 +254,15 @@ public class EdgeClassificationTestingPlugin extends Plugin {
     @Override
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
-        try{
-            if(event instanceof StartTraining){
+        try {
+            if (event instanceof StartTraining) {
                 storage.layerFunction.runForAllLocalParts(this::startTraining);
                 modelServer.getParameterStore().sync();
                 storage.layerFunction.broadcastMessage(new GraphOp(new TrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.BACKWARD);
-            }else if(event instanceof InferenceBarrier){
+            } else if (event instanceof InferenceBarrier) {
                 storage.layerFunction.operatorEventMessage(new StopTraining());
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

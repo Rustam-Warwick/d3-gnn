@@ -17,8 +17,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class RecursiveListFieldPojoSerializer<T> extends TypeSerializer<T> {
     private final PojoSerializer<T> actualSerializer;
     private final Class<T> clazz;
-    private final TypeSerializer<?>[] fieldSerializers;
-    private final TypeSerializer<?>[] fieldSerializerswithNullRecursive;
+    private final TypeSerializer<?>[] fieldSerializersWithNullRecursive;
     private final ExecutionConfig executionConfig;
 
 
@@ -28,7 +27,7 @@ public class RecursiveListFieldPojoSerializer<T> extends TypeSerializer<T> {
             Field[] fields,
             ExecutionConfig executionConfig
     ) {
-        fieldSerializerswithNullRecursive = Arrays.copyOf(fieldSerializers, fieldSerializers.length);
+        fieldSerializersWithNullRecursive = Arrays.copyOf(fieldSerializers, fieldSerializers.length);
         for (int i = 0; i < fieldSerializers.length; i++) {
             if (fieldSerializers[i] == null) {
                 // Meant to be recursive
@@ -37,7 +36,6 @@ public class RecursiveListFieldPojoSerializer<T> extends TypeSerializer<T> {
         }
         actualSerializer = new PojoSerializer<>(clazz, fieldSerializers, fields, executionConfig);
         this.clazz = checkNotNull(clazz);
-        this.fieldSerializers = checkNotNull(fieldSerializers);
         this.executionConfig = checkNotNull(executionConfig);
     }
 
@@ -50,7 +48,7 @@ public class RecursiveListFieldPojoSerializer<T> extends TypeSerializer<T> {
     @Override
     public TypeSerializer<T> duplicate() {
         try {
-            TypeSerializer<?>[] duplicateFieldSerializers = duplicateSerializers(fieldSerializerswithNullRecursive);
+            TypeSerializer<?>[] duplicateFieldSerializers = duplicateSerializers(fieldSerializersWithNullRecursive);
             Field fieldsField = PojoSerializer.class.getDeclaredField("fields");
             fieldsField.setAccessible(true);
             Field[] fields = (Field[]) fieldsField.get(actualSerializer);

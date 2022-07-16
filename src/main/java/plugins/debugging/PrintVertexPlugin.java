@@ -24,8 +24,8 @@ public class PrintVertexPlugin extends Plugin {
         }
         if (element.elementType() == ElementType.EDGE) {
             Edge e = (Edge) element;
-            if (registeredVertices.contains(e.src.getId()) || registeredVertices.contains(e.dest.getId())) {
-                System.out.println(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.src.getId(), e.src.state(), e.dest.getId(), e.dest.state(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
+            if (registeredVertices.contains(e.getSrc().getId()) || registeredVertices.contains(e.getDest().getId())) {
+                System.out.println(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
             }
         }
         if (element.elementType() == ElementType.FEATURE) {

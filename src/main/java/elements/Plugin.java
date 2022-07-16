@@ -3,6 +3,7 @@ package elements;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,6 +32,17 @@ public class Plugin extends ReplicableGraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not created");
+    }
+
+    @Nullable
+    @Override
+    public Short getPartId() {
+        return storage.layerFunction.getCurrentPart();
+    }
+
+    @Override
+    public void setPartId(@Nullable Short partId) {
+        // Do not set instead fetch from the stroage
     }
 
     @Override

@@ -41,7 +41,7 @@ public class LifeCycleNDManager extends PtNDManager {
 
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
-        registrations.putIfAbsent(resourceId, new WeakReference<>((NDArray) resource));
+//        registrations.putIfAbsent(resourceId, new WeakReference<>((NDArray) resource));
     }
 
     @Override
@@ -64,17 +64,17 @@ public class LifeCycleNDManager extends PtNDManager {
      * Cleans the registrations
      */
     public void clean() {
-        if (registrations.size() > 10) {
-            registrations.values().removeIf(val -> {
-                NDArray tmp = val.get();
-                if (tmp == null) return true;
-                if (tmp.getTaskPossession() == 0) {
-                    tmp.close();
-                    return true;
-                }
-                return false;
-            });
-        }
+//        if (registrations.size() > 10) {
+//            registrations.values().removeIf(val -> {
+//                NDArray tmp = val.get();
+//                if (tmp == null) return true;
+//                if (tmp.getTaskPossession() == 0) {
+//                    tmp.close();
+//                    return true;
+//                }
+//                return false;
+//            });
+//        }
     }
 
     /**
@@ -85,7 +85,7 @@ public class LifeCycleNDManager extends PtNDManager {
         private final transient NDManager[] originalManagers = new NDManager[10];
         private transient NDList[] inputs;
 
-        public Scope start(NDList ...inputs) {
+        public Scope start(NDList... inputs) {
             this.inputs = inputs;
             int k = 0;
             for (int i = 0; i < inputs.length; i++) {
@@ -99,7 +99,7 @@ public class LifeCycleNDManager extends PtNDManager {
 
         @Override
         public void close() throws Exception {
-            int k=0;
+            int k = 0;
             for (int i = 0; i < inputs.length; i++) {
                 for (int j = 0; j < inputs[i].size(); j++) {
                     inputs[i].get(j).attach(originalManagers[k++]);

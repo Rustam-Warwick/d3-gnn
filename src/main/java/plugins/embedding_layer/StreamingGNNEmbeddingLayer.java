@@ -9,6 +9,10 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
+import functions.metrics.MovingAverageCounter;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.MeterView;
+import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
@@ -21,7 +25,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
 
     private transient ModelServer modelServer; // ParameterServer Plugin
 
-    private boolean RUNNING = true;
+    private boolean RUNNING = true; // Running is true of false
+
+    private transient Counter throughput; // Throughput counter, only used for last layer
+
+    private transient Counter latency; // Throughput counter, only used for last layer
 
     public StreamingGNNEmbeddingLayer() {
         super();
@@ -29,7 +37,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         createVertexEmbeddings = false;
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName){
+    public StreamingGNNEmbeddingLayer(String modelName) {
         this(modelName, false);
     }
 
@@ -44,6 +52,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         super.open();
         assert storage != null;
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
+        throughput = new SimpleCounter();
+        latency = new MovingAverageCounter(1000);
+        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
+        storage.layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
     /**
@@ -66,19 +78,19 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if(!RUNNING) return;
+        if (!RUNNING) return;
         if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
             if (messageReady(edge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) edge.src.getFeature("feature").getValue()), false);
+                NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("feature").getValue()), false);
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msg.get(0), 1)
                         .buildAndRun(storage);
             }
@@ -96,7 +108,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if(!RUNNING) return;
+        if (!RUNNING) return;
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -122,10 +134,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Vertex messageVertex = v.copy();
-        if (!storage.layerFunction.isLast()) {
-            messageVertex.setFeature("feature", new Tensor(update));
-        }
-        storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex), MessageDirection.FORWARD);
+        messageVertex.setFeature("feature", new Tensor(update));
+        throughput.inc();
+        latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - storage.layerFunction.currentTimestamp());
+        storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature")), MessageDirection.FORWARD);
     }
 
     /**
@@ -143,11 +155,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
                     msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
                 }
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
@@ -172,11 +184,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
                     msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
                 }
                 new RemoteInvoke()
-                        .toElement(edge.dest.decodeFeatureId("agg"), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("replace")
                         .hasUpdate()
-                        .addDestination(edge.dest.masterPart())
+                        .addDestination(edge.getDest().masterPart())
                         .withArgs(msgNew, msgOld)
                         .buildAndRun(storage);
             }
@@ -224,7 +236,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @Override
     public boolean messageReady(Edge edge) {
-        return edge.src.containsFeature("feature");
+        return edge.getSrc().containsFeature("feature");
     }
 
     /**

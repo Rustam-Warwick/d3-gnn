@@ -56,9 +56,9 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
         modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
         embeddingPlugin = (GNNEmbeddingPlugin) storage.getPlugin(String.format("%s-inferencer", modelName));
         batchifier = new StackBatchifier();
-        storage.layerFunction.runForAllLocalParts(()->{
-           setFeature("collectedGradients", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
-           setFeature("collectedAggregators", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
+        storage.layerFunction.runForAllLocalParts(() -> {
+            setFeature("collectedGradients", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
+            setFeature("collectedAggregators", new MeanGradientCollector(Tuple2.of(new HashMap<>(), new HashMap()), true, null));
         });
     }
     // INITIALIZATION DONE
@@ -92,25 +92,25 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
         if (!collectedGradients.getValue().isEmpty()) {
             // 1. Prepare data for update model inputs(feature, aggregator)
             Tuple6<Vertex, NDArray, NDArray, NDArray, NDArray, NDArray>[] data = new Tuple6[collectedGradients.getValue().size()];// <Vertex, featre, featureGrad, agg, aggGrad, InputGrad>
-            int i=0;
+            int i = 0;
             for (Map.Entry<String, NDArray> entry : collectedGradients.getValue().entrySet()) {
                 Vertex v = storage.getVertex(entry.getKey());
                 NDArray tmpFeature = (NDArray) v.getFeature("feature").getValue();
                 NDArray tmpAgg = (NDArray) v.getFeature("agg").getValue();
                 tmpFeature.setRequiresGradient(true);
                 tmpAgg.setRequiresGradient(true);
-                data[i++] = Tuple6.of(v,tmpFeature, null, tmpAgg, null, entry.getValue());
+                data[i++] = Tuple6.of(v, tmpFeature, null, tmpAgg, null, entry.getValue());
             }
             NDList[] inputs = new NDList[data.length];
             NDList[] grads = new NDList[data.length];
             for (i = 0; i < data.length; i++) {
-               inputs[i] = new NDList(data[i].f1, data[i].f3);
-               grads[i] = new NDList(data[i].f5);
+                inputs[i] = new NDList(data[i].f1, data[i].f3);
+                grads[i] = new NDList(data[i].f5);
             }
             NDList batchedInputs = batchifier.batchify(inputs);
             NDList batchedGradients = batchifier.batchify(grads);
 
-            try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs)){
+            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs)) {
 
                 // 2. Backward pass
                 NDList batchedPredictions = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), batchedInputs, true);
@@ -156,9 +156,9 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
                             .buildAndRun(storage);
                 }
 
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 for (Tuple6<Vertex, NDArray, NDArray, NDArray, NDArray, NDArray> datum : data) {
                     datum.f1.setRequiresGradient(false);
                     datum.f3.setRequiresGradient(false);
@@ -187,17 +187,17 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
                     Vertex v = (Vertex) entry.getKey().getElement();
                     Iterable<Edge> inEdges = storage.getIncidentEdges(v, EdgeType.IN);
                     for (Edge inEdge : inEdges) {
-                        if (srcVertices.contains(inEdge.src)) {
+                        if (srcVertices.contains(inEdge.getSrc())) {
                             // Src vertex is there can safely add
                             reverseEdgeList.putIfAbsent(entry.getKey(), new ArrayList<>());
-                            reverseEdgeList.get(entry.getKey()).add(srcVertices.get(srcVertices.indexOf(inEdge.src)));
-                        } else if (inEdge.src.getFeature("feature") != null) {
+                            reverseEdgeList.get(entry.getKey()).add(srcVertices.get(srcVertices.indexOf(inEdge.getSrc())));
+                        } else if (inEdge.getSrc().getFeature("feature") != null) {
                             // Src vertex not in the list but feature is here
                             reverseEdgeList.putIfAbsent(entry.getKey(), new ArrayList<>());
-                            ((NDArray) (inEdge.src.getFeature("feature").getValue())).setRequiresGradient(true); // Cache
-                            inEdge.src.setStorage(null); // Remove from storage to not save in the backend
-                            srcVertices.add(inEdge.src);
-                            reverseEdgeList.get(entry.getKey()).add(inEdge.src);
+                            ((NDArray) (inEdge.getSrc().getFeature("feature").getValue())).setRequiresGradient(true); // Cache
+                            inEdge.getSrc().setStorage(null); // Remove from storage to not save in the backend
+                            srcVertices.add(inEdge.getSrc());
+                            reverseEdgeList.get(entry.getKey()).add(inEdge.getSrc());
                         }
                     }
                 }
@@ -265,7 +265,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
     /**
      *
      */
-    public void inferenceFirstPartStart(){
+    public void inferenceFirstPartStart() {
         // 2. Clear Aggregators + InReduce all the existing edges
         HashMap<Vertex, List<String>> inEdges = new HashMap<>();
         LinkedHashMap<String, NDList> featureMap = new LinkedHashMap<>();
@@ -278,9 +278,9 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
             Iterable<Edge> localInEdges = storage.getIncidentEdges(v, EdgeType.IN);
             List<String> tmp = new ArrayList<>();
             for (Edge localInEdge : localInEdges) {
-                if (featureMap.containsKey(localInEdge.src.getId()) || localInEdge.src.containsFeature("feature")) {
-                    tmp.add(localInEdge.src.getId());
-                    featureMap.putIfAbsent(localInEdge.src.getId(), new NDList((NDArray) localInEdge.src.getFeature("feature").getValue()));
+                if (featureMap.containsKey(localInEdge.getSrc().getId()) || localInEdge.getSrc().containsFeature("feature")) {
+                    tmp.add(localInEdge.getSrc().getId());
+                    featureMap.putIfAbsent(localInEdge.getSrc().getId(), new NDList((NDArray) localInEdge.getSrc().getFeature("feature").getValue()));
                 }
             }
             if (!tmp.isEmpty()) inEdges.put(v, tmp);
@@ -296,7 +296,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
             List<NDArray> inFeatures = v.getValue().stream().map(item -> featureMap.get(item).get(0)).collect(Collectors.toList());
             NDArray message = MeanAggregator.bulkReduce(inFeatures.toArray(new NDArray[0]));
             new RemoteInvoke()
-                    .toElement(v.getKey().decodeFeatureId("agg"), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("agg", v.getKey().getId()), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
                     .method("reduce")
                     .hasUpdate()
@@ -322,54 +322,53 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
     @Override
     public void onOperatorEvent(OperatorEvent event) {
         super.onOperatorEvent(event);
-        try{
-            if(event instanceof StartTraining){
+        try {
+            if (event instanceof StartTraining) {
                 // Iteration StartTraining message twice to get the pending inference results, then emit to next operator
                 StartTraining evt = (StartTraining) event;
                 evt.setBroadcastCount((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks());
-                if(++startTrainingSyncMessages < 3){
+                if (++startTrainingSyncMessages < 3) {
                     storage.layerFunction.broadcastMessage(new GraphOp(evt), MessageDirection.ITERATE);
-                }else{
+                } else {
                     embeddingPlugin.stop();
                     storage.layerFunction.broadcastMessage(new GraphOp(evt), MessageDirection.FORWARD);
                     startTrainingSyncMessages = 0;
-            }
-            }else if(event instanceof TrainBarrier){
-                    storage.layerFunction.runForAllLocalParts(this::trainUpdateFunction);
-                    storage.layerFunction.broadcastMessage(new GraphOp(new LocalTrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.ITERATE);
-            }else if(event instanceof LocalTrainBarrier){
-                    storage.layerFunction.runForAllLocalParts(this::trainSecondPartStart);
-                    if(!storage.layerFunction.isFirst()){
-                        storage.layerFunction.broadcastMessage(new GraphOp(new TrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.BACKWARD);
-                    }else{
-                        // Start Inference
-                        inferenceSyncMessages++;
-                        modelServer.getParameterStore().sync();
-                        storage.layerFunction.broadcastMessage(new GraphOp(new InferenceBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.ITERATE);
-                    }
-            }else if(event instanceof InferenceBarrier){
+                }
+            } else if (event instanceof TrainBarrier) {
+                storage.layerFunction.runForAllLocalParts(this::trainUpdateFunction);
+                storage.layerFunction.broadcastMessage(new GraphOp(new LocalTrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.ITERATE);
+            } else if (event instanceof LocalTrainBarrier) {
+                storage.layerFunction.runForAllLocalParts(this::trainSecondPartStart);
+                if (!storage.layerFunction.isFirst()) {
+                    storage.layerFunction.broadcastMessage(new GraphOp(new TrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.BACKWARD);
+                } else {
+                    // Start Inference
+                    inferenceSyncMessages++;
+                    modelServer.getParameterStore().sync();
+                    storage.layerFunction.broadcastMessage(new GraphOp(new InferenceBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.ITERATE);
+                }
+            } else if (event instanceof InferenceBarrier) {
                 // first 2 for updating the model, then reset agg and send new messages
                 inferenceSyncMessages++;
-                if(inferenceSyncMessages == 1){
+                if (inferenceSyncMessages == 1) {
                     modelServer.getParameterStore().sync();
-                }else if(inferenceSyncMessages == 3){
+                } else if (inferenceSyncMessages == 3) {
                     // Ready to do agg
                     storage.layerFunction.runForAllLocalParts(this::inferenceFirstPartStart);
-                }else{
+                } else {
                     // Ready to forward
                     storage.layerFunction.runForAllLocalParts(this::inferenceSecondPartStart);
                 }
 
-                if(inferenceSyncMessages < 4){
+                if (inferenceSyncMessages < 4) {
                     storage.layerFunction.broadcastMessage(new GraphOp(new InferenceBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.ITERATE);
-                }else{
+                } else {
                     storage.layerFunction.broadcastMessage(new GraphOp(new InferenceBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.FORWARD);
                     inferenceSyncMessages = 0;
                     embeddingPlugin.start();
                 }
             }
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

@@ -84,11 +84,11 @@ public class HDRF extends BasePartitioner {
         }
 
         public float REP(Edge edge, short partition) {
-            int srcDeg = partialDegTable.get(edge.src.getId());
-            int destDeg = partialDegTable.get(edge.dest.getId());
+            int srcDeg = partialDegTable.get(edge.getSrc().getId());
+            int destDeg = partialDegTable.get(edge.getDest().getId());
             float srcDegNormal = (float) srcDeg / (srcDeg + destDeg);
             float destDegNormal = 1 - srcDegNormal;
-            return this.G(edge.src.getId(), srcDegNormal, partition) + this.G(edge.dest.getId(), destDegNormal, partition);
+            return this.G(edge.getSrc().getId(), srcDegNormal, partition) + this.G(edge.getDest().getId(), destDegNormal, partition);
         }
 
         public float BAL(short partition) {
@@ -98,8 +98,8 @@ public class HDRF extends BasePartitioner {
 
         public short computePartition(Edge edge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(edge.src.getId(), 1, Integer::sum);
-            partialDegTable.merge(edge.dest.getId(), 1, Integer::sum);
+            partialDegTable.merge(edge.getSrc().getId(), 1, Integer::sum);
+            partialDegTable.merge(edge.getDest().getId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
@@ -118,11 +118,11 @@ public class HDRF extends BasePartitioner {
 
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
-            partitionTable.compute(edge.src.getId(), (key, val) -> {
+            partitionTable.compute(edge.getSrc().getId(), (key, val) -> {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
                     totalNumberOfVertices.incrementAndGet();
-                    return new ArrayList(List.of(finalSelected));
+                    return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
                 } else {
                     if (!val.contains(finalSelected)) {
                         // Seocond or more part hence the replica
@@ -133,10 +133,10 @@ public class HDRF extends BasePartitioner {
                 }
             });
             // Same as previous
-            partitionTable.compute(edge.dest.getId(), (key, val) -> {
+            partitionTable.compute(edge.getDest().getId(), (key, val) -> {
                 if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
-                    return new ArrayList(List.of(finalSelected));
+                    return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
                 } else {
                     if (!val.contains(finalSelected)) {
                         totalNumberOfReplicas.incrementAndGet();
@@ -185,8 +185,8 @@ public class HDRF extends BasePartitioner {
 //                currentlyProcessing.add(edge.src.getId());
 //                currentlyProcessing.add(edge.dest.getId());
                 short partition = this.computePartition(edge);
-                edge.src.master = this.partitionTable.get(edge.src.getId()).get(0);
-                edge.dest.master = this.partitionTable.get(edge.dest.getId()).get(0);
+                edge.getSrc().master = this.partitionTable.get(edge.getSrc().getId()).get(0);
+                edge.getDest().master = this.partitionTable.get(edge.getDest().getId()).get(0);
 //                currentlyProcessing.remove(edge.src.getId());
 //                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;

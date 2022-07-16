@@ -7,6 +7,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
+import ai.djl.nn.Parameter;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
@@ -14,6 +15,7 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
+import ai.djl.training.initializer.ConstantInitializer;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.configuration.Configuration;
@@ -32,15 +34,15 @@ import java.util.function.Function;
 
 public class Main {
 
-    public static void test(){
+    public static void test() {
         NDArray x = LifeCycleNDManager.getInstance().ones(new Shape());
         x.setRequiresGradient(true);
         NDArray y = LifeCycleNDManager.getInstance().ones(new Shape()).mul(3);
         NDArray p = LifeCycleNDManager.getInstance().ones(new Shape()).mul(10);
         NDArray z = x.mul(y).add(x.mul(p));
         NDArray ss = x.mul(y).add(x.mul(p));
-        JniUtils.backward((PtNDArray) z, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false,false);
-        JniUtils.backward((PtNDArray) ss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false,false);
+        JniUtils.backward((PtNDArray) z, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
+        JniUtils.backward((PtNDArray) ss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
 
     }
 
@@ -54,10 +56,10 @@ public class Main {
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                if(ndArrays.size() == 1){
-                                    return new NDList(ndArrays.get(0).concat(ndArrays.get(0),-1));
+                                if (ndArrays.size() == 1) {
+                                    return new NDList(ndArrays.get(0).concat(ndArrays.get(0), -1));
                                 }
-                                return new NDList(ndArrays.get(0).concat(ndArrays.get(1),-1));
+                                return new NDList(ndArrays.get(0).concat(ndArrays.get(1), -1));
                             }
                         })
                         .add(Linear.builder().setUnits(16).optBias(true).build())
@@ -74,6 +76,7 @@ public class Main {
         model.setBlock(sb);
 //        NDHelper.loadModel(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"), model);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
+        model.getBlock().setInitializer(new ConstantInitializer(1f), Parameter.Type.WEIGHT);
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -90,9 +93,7 @@ public class Main {
         Arrays.sort(args);
         ArrayList<Model> models = layeredModel();
         Configuration a = new Configuration();
-        a.setString("metrics.reporter.fileoutput.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment(a);
-
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
@@ -110,8 +111,8 @@ public class Main {
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
                         .withPlugin(
                                 window != null ?
-                                        new WindowedGNNEmbeddingLayer(models.get(0).getName(), true, 2 * window) :
-                                        new StreamingGNNEmbeddingLayer(models.get(0).getName()))
+                                        new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, window) :
+                                        new StreamingGNNEmbeddingLayer(models.get(1).getName()))
                 )
 //                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
 //                        .withPlugin(new ModelServer(models.get(2)))
@@ -121,24 +122,8 @@ public class Main {
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
-
-//        SingleOutputStreamOperator<Void> outputStream = embeddings[embeddings.length - 1].forward().process(new ProcessFunction<GraphOp, Void>() {
-//            @Override
-//            public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
-//                // Do nothing just here to collect the metrics from previous operator
-//            }
-//        }).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
-////        SingleOutputStreamOperator<GraphOp> partitionedStream = embeddings[0].forward().process(new AddTimestamp()).setParallelism(1).name("Inputs");
-////        SingleOutputStreamOperator<GraphOp> outputStream = embeddings[embeddings.length - 1].forward().process(new AddTimestamp()).setParallelism(embeddings[embeddings.length - 1].getParallelism()).name("Embeddings");
-////        SingleOutputStreamOperator<Void> resultLatencies = partitionedStream.keyBy(GraphOp::getTimestamp).connect(outputStream.keyBy(GraphOp::getTimestamp)).process(new LatencyOutput(jobName, 10000)).name("Latencies").setParallelism(embeddings[embeddings.length - 1].getParallelism());
-//        if (embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().isPresent()) {
-//            outputStream.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
-////            resultLatencies.slotSharingGroup(embeddings[embeddings.length - 1].getTransformation().getSlotSharingGroup().get());
-//        }
-////        if (embeddings[0].getTransformation().getSlotSharingGroup().isPresent()) {
-////            partitionedStream.slotSharingGroup(embeddings[0].getTransformation().getSlotSharingGroup().get());
-////        }
-
         env.execute(jobName);
+
+
     }
 }

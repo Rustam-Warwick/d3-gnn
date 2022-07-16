@@ -1,14 +1,11 @@
 package partitioner;
 
 import elements.GraphOp;
-import functions.selectors.ElementForPartKeySelector;
+import functions.selectors.PartKeySelector;
+import operators.FullBufferOperator;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.util.Collector;
 
 /**
  * HDRF but with Windowing the elements, wihtout watermark all will be evicted at the end of stream
@@ -19,9 +16,12 @@ public class WindowedHDRF extends BasePartitioner {
         HDRF hdrfMain = new HDRF();
         hdrfMain.partitions = this.partitions;
         DataStream<GraphOp> partitioned = hdrfMain.partition(inputDataStream, fineGrainedResourceManagementEnabled);
-        SingleOutputStreamOperator<GraphOp> out = partitioned.keyBy(new ElementForPartKeySelector()).window(TumblingEventTimeWindows.of(Time.seconds(30))).process(new EmitAllFunction()).name(getName());
+        SingleOutputStreamOperator<GraphOp> out = partitioned
+                .keyBy(new PartKeySelector())
+                .transform(getName(), TypeInformation.of(GraphOp.class), new FullBufferOperator<GraphOp>())
+                .name(getName());
         if (fineGrainedResourceManagementEnabled) {
-            out.slotSharingGroup("gnn-" + out.getParallelism());
+            out.slotSharingGroup("gnn-0");
         }
         return out;
     }
@@ -35,13 +35,5 @@ public class WindowedHDRF extends BasePartitioner {
     public String getName() {
         return "hdrf-windowed";
     }
-
-    public static class EmitAllFunction extends ProcessWindowFunction<GraphOp, GraphOp, String, TimeWindow> {
-        @Override
-        public void process(String s, ProcessWindowFunction<GraphOp, GraphOp, String, TimeWindow>.Context context, Iterable<GraphOp> elements, Collector<GraphOp> out) throws Exception {
-            elements.forEach(out::collect);
-        }
-    }
-
 
 }

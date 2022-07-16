@@ -48,6 +48,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Operator that Wraps around another operator and implements some common logic
+ *
  * @implNote Assumes that the input is GraphOp
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
  * @see GNNLayerWrapperOperator manages wrapping around single operators
@@ -413,7 +414,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Finding and creating the individual outputs, broadcast outputs, parallelisms of our outputs
      */
     public void createIndividualOutputs(
-            Output<StreamRecord<GraphOp>> output){
+            Output<StreamRecord<GraphOp>> output) {
         MyOutputReflectionContext myOutputReflectionContext = new MyOutputReflectionContext();
         Output<StreamRecord<Object>>[] internalOutputs;
         if (myOutputReflectionContext.isBroadcastingOutput(output)) {
@@ -428,7 +429,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         for (int i = 0; i < internalOutputs.length; i++) {
             if (myOutputReflectionContext.isRecordWriterOutput(internalOutputs[i])) {
                 OutputTag<?> outputTag = myOutputReflectionContext.getRecordWriterOutputTag(internalOutputs[i]);
-                    // This is meant for the next layer
+                // This is meant for the next layer
                 RecordWriter<SerializationDelegate<StreamElement>> recordWriter =
                         myOutputReflectionContext.getRecordWriter(internalOutputs[i]);
                 TypeSerializer<StreamElement> typeSerializer =
@@ -531,7 +532,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             }
             // 2. Send the output
             for (int i = 0; i < internalOutputTags.length; i++) {
-                if(Objects.equals(tag, internalOutputTags[i])){
+                if (Objects.equals(tag, internalOutputTags[i])) {
                     broadcastOutputs[i].broadcastEmit(replaced);
                 }
             }
@@ -546,6 +547,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Emits the record with custom timestamp to a different outputTag
+         *
          * @implNote if outputTag=null, emit to the next in the pipeline
          * @implNote if timestamp= null, emit with the timestamp of the current elemetn
          * Returns the current timestamp after emitting the event
@@ -560,9 +562,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 replaced = element.replace(el, timestamp);
             }
             // 2. Send the output
-            if(tag == null){
+            if (tag == null) {
                 output.collect((StreamRecord<GraphOp>) replaced);
-            }else{
+            } else {
                 output.collect(tag, replaced);
             }
             // 3. Return the previous value
@@ -615,6 +617,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         /**
          * Run the Runnable on all parts that are hashed to this operator
+         *
          * @param o Runnable Function
          */
         public void runForAllKeys(Runnable o) throws Exception {
@@ -631,15 +634,19 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         /**
          * Registeringey change listener
          */
-        public void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+        public void registerKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
             getWrappedOperator().getKeyedStateBackend().registerKeySelectionListener(listener);
         }
 
         /**
          * De-Registeringey change listener
          */
-        public void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener){
+        public void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
             getWrappedOperator().getKeyedStateBackend().deregisterKeySelectionListener(listener);
+        }
+
+        public StreamConfig getStreamConfig(){
+            return streamConfig;
         }
     }
 

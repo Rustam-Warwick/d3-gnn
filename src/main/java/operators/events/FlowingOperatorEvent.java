@@ -35,6 +35,6 @@ public class FlowingOperatorEvent extends BaseOperatorEvent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(),broadcastCount);
+        return Objects.hash(getClass(), broadcastCount);
     }
 }

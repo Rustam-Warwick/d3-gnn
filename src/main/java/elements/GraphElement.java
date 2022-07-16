@@ -1,5 +1,7 @@
 package elements;
 
+import ai.djl.ndarray.NDArray;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -12,13 +14,13 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Consumer;
 
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
 public class GraphElement implements Serializable {
-
     protected static final transient Tuple2<Boolean, GraphElement> reuse = Tuple2.of(false, null);
 
+    @OmitStorage
     @Nullable
     public String id;
 
@@ -54,7 +56,6 @@ public class GraphElement implements Serializable {
         this.ts = element.ts;
     }
 
-
     /**
      * Copy bare element, without storage and features
      *
@@ -81,6 +82,7 @@ public class GraphElement implements Serializable {
      */
     public Boolean createElement() {
         assert storage != null;
+        applyForNDArray(NDArray::detach);
         boolean is_created = storage.addElement(this);
         if (is_created) {
             if (features != null) {
@@ -124,6 +126,8 @@ public class GraphElement implements Serializable {
      */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
+        applyForNDArray(item->item.attach(LifeCycleNDManager.getInstance()));
+        newElement.applyForNDArray(NDArray::detach);
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> feature = iterator.next();
@@ -231,7 +235,7 @@ public class GraphElement implements Serializable {
      * @return state of this element
      */
     public ReplicaState state() {
-        if (getPartId() == null) return ReplicaState.UNDEFINED;
+        if (getPartId() == null || masterPart() == null) return ReplicaState.UNDEFINED;
         if (Objects.equals(getPartId(), this.masterPart())) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
@@ -312,7 +316,7 @@ public class GraphElement implements Serializable {
      */
     public void setStorage(BaseStorage storage) {
         this.storage = storage;
-        this.partId = (partId == null && storage != null) ? storage.layerFunction.getCurrentPart() : partId; // Do not override part id if already exists, means came from another part
+        this.partId = storage != null ? storage.layerFunction.getCurrentPart() : partId;
         if (features != null) {
             for (Feature<?, ?> ft : this.features) {
                 ft.setStorage(storage);
@@ -331,8 +335,8 @@ public class GraphElement implements Serializable {
     @Nullable
     public Feature<?, ?> getFeature(String name) {
         Feature<?, ?> result = features != null ? features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null) : null;
-        if (result == null && storage != null && storage.containsFeature(decodeFeatureId(name))) {
-            result = storage.getFeature(decodeFeatureId(name));
+        if (result == null && storage != null && storage.containsFeature(Feature.encodeAttachedFeatureId(name, getId()))) {
+            result = storage.getFeature(Feature.encodeAttachedFeatureId(name, getId()));
         }
         if (Objects.nonNull(result)) result.setElement(this);
         return result;
@@ -343,7 +347,7 @@ public class GraphElement implements Serializable {
      */
     public Boolean containsFeature(String name) {
         boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
-        return hasLocallyAvailable || (storage != null && storage.containsFeature(decodeFeatureId(name)));
+        return hasLocallyAvailable || (storage != null && storage.containsFeature(Feature.encodeAttachedFeatureId(name, getId())));
     }
 
     /**
@@ -381,16 +385,6 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Helper method that decodes feature id from the featureName
-     *
-     * @param name featureName
-     * @return full feature id
-     */
-    public String decodeFeatureId(String name) {
-        return getId() + ":" + name;
-    }
-
-    /**
      * Resolve timestamp of the new Element that just came in
      *
      * @param newTimestamp New Element timestamp
@@ -407,13 +401,19 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Whenever another task posses this element increment the task posession counter for NDArrays,
-     * This is will delay their close() method untill it is back to 0 again. Used for state handling in Feedback streams.
+     * Consumer for all NDArrays, traverses all
      */
-    public void modifyNDArrayPossessionCounter(Function<Integer, Integer> operation) {
+    public void applyForNDArrays(Consumer<NDArray> operation) {
         if (features != null) {
-            features.forEach(item -> item.modifyNDArrayPossessionCounter(operation));
+            features.forEach(item -> item.applyForNDArrays(operation));
         }
+    }
+
+    /**
+     * Only if this element has an attribute that is NDArray, do not traverse to other elements
+     */
+    public void applyForNDArray(Consumer<NDArray> operation){
+
     }
 
     @Override

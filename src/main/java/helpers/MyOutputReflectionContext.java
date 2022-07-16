@@ -36,14 +36,14 @@ public class MyOutputReflectionContext extends OutputReflectionContext {
         return ReflectionUtils.<Integer>getFieldValue(ReflectionUtils.<RecordWriter>getFieldValue(output, recordWriterField), recordWriterNumChannelsField);
     }
 
-    public <OUT> ChainingBroadcastOutput<OUT> createChainingBroadcastOutput(Output<StreamRecord<Object>> rawOutput, OutputTag outputTag){
-        try{
+    public <OUT> ChainingBroadcastOutput<OUT> createChainingBroadcastOutput(Output<StreamRecord<Object>> rawOutput, OutputTag outputTag) {
+        try {
             Constructor<ChainingBroadcastOutput> chainingBroadcastOutputConstructor = ChainingBroadcastOutput.class.getDeclaredConstructor(Output.class, OutputTag.class);
             chainingBroadcastOutputConstructor.setAccessible(true);
             ChainingBroadcastOutput<OUT> broadcastOutput = chainingBroadcastOutputConstructor.newInstance(rawOutput, outputTag);
             chainingBroadcastOutputConstructor.setAccessible(false);
             return broadcastOutput;
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
 

@@ -38,26 +38,25 @@ public class MeanGradientCollector<T> extends Feature<Tuple2<HashMap<T, NDArray>
         return this.value.f0;
     }
 
-    public void merge(HashMap<T, NDArray> incoming){
-        if(incoming.isEmpty()) return;
-        incoming.forEach((key, grad)->{
-            if(!grad.isValid()) return;
-            this.value.f0.compute(key, (localKey, localGrad)->{
-               if(localGrad == null){
-                   grad.detach();
-                   value.f1.put(localKey, 1);
-                   return grad;
-               }
-               else{
-                   value.f1.merge(localKey,1, Integer::sum);
-                   return localGrad.add(grad);
-               }
+    public void merge(HashMap<T, NDArray> incoming) {
+        if (incoming.isEmpty()) return;
+        incoming.forEach((key, grad) -> {
+            if (!grad.isValid()) return;
+            this.value.f0.compute(key, (localKey, localGrad) -> {
+                if (localGrad == null) {
+                    grad.detach();
+                    value.f1.put(localKey, 1);
+                    return grad;
+                } else {
+                    value.f1.merge(localKey, 1, Integer::sum);
+                    return localGrad.add(grad);
+                }
             });
         });
         storage.updateFeature(this);
     }
 
-    public void clean(){
+    public void clean() {
         value.f1.clear();
         value.f0.clear();
         storage.updateFeature(this);

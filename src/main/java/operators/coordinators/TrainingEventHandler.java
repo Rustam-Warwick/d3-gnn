@@ -8,8 +8,8 @@ import javax.annotation.Nullable;
 import java.util.List;
 
 public class TrainingEventHandler implements WrapperOperatorEventHandler {
+    private static final int modelUpdatedMessagesReceived = 0; // Message received to notify about model update. shared by all parallel handlers
     private static int trainingMessagesReceived = 0; // Message received to start training
-    private static int modelUpdatedMessagesReceived = 0; // Message received to notify about model update. shared by all parallel handlers
     private transient WrapperOperatorCoordinator mainCoordinator;
 
     public TrainingEventHandler() {

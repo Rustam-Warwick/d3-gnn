@@ -69,13 +69,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Iterable<Vertex> getVertices();
 
     @Nullable
-    public abstract Edge getEdge(String src, String dest);
+    public abstract Edge getEdge(String id);
 
-    @Nullable
-    public Edge getEdge(String id) {
-        String[] ids = id.split(":");
-        return getEdge(ids[0], ids[1]);
-    }
+    public abstract Iterable<Edge> getEdges(String src, String dest); // Possible-multigraph
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
@@ -173,7 +169,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
 
-    // Helper methods for creating and getting GraphElements
+    /**
+     * Helper methods
+     */
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:
@@ -213,17 +211,23 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    public boolean containsElement(GraphElement element) {
-        switch (element.elementType()) {
+    public boolean containsElement(String id, ElementType type) {
+        switch (type) {
             case VERTEX:
-                return this.containsVertex(element.getId());
+                return this.containsVertex(id);
             case EDGE:
-                return this.containsEdge(element.getId());
+                return this.containsEdge(id);
             case FEATURE:
-                return this.containsFeature(element.getId());
+                return this.containsFeature(id);
+            case PLUGIN:
+                return this.plugins.containsKey(id);
             default:
                 return false;
         }
+    }
+
+    public boolean containsElement(GraphElement element) {
+        return containsElement(element.getId(), element.elementType());
     }
 
     public GraphElement getElement(GraphElement element) {
@@ -245,7 +249,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object>{
+    private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object> {
         @Override
         public void keySelected(Object newKey) {
             plugins.values().forEach(Plugin::clearFeatures);

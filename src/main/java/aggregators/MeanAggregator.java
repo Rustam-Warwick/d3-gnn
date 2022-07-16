@@ -3,11 +3,11 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
-import elements.GraphElement;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
@@ -88,20 +88,18 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void reset() {
         value = new Tuple2<>(value.f0.zerosLike(), 0);
-        value.f0.detach();
         storage.updateFeature(this);
     }
 
     @Override
-    public Boolean createElement() {
-        this.value.f0.detach();
-        return super.createElement();
+    public void applyForNDArrays(Consumer<NDArray> operation) {
+        super.applyForNDArrays(operation);
+        operation.accept(value.f0);
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        MeanAggregator newTensor = (MeanAggregator) newElement;
-        newTensor.value.f0.detach();
-        return super.updateElement(newElement, memento);
+    public void applyForNDArray(Consumer<NDArray> operation) {
+        super.applyForNDArray(operation);
+        operation.accept(value.f0);
     }
 }

@@ -114,7 +114,8 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
      */
     public void subscribe(WrapperOperatorEventHandler e) {
         e.getEventClasses().forEach(aClass -> {
-            if(handlers.containsKey(aClass)) throw new IllegalStateException("EventHandler cannot share the same event class");
+            if (handlers.containsKey(aClass))
+                throw new IllegalStateException("EventHandler cannot share the same event class");
             handlers.put(aClass, e);
         });
         e.setCoordinator(this);

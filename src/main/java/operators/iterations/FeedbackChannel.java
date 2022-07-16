@@ -17,6 +17,8 @@
  */
 package operators.iterations;
 
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
@@ -37,6 +39,8 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class FeedbackChannel<T> implements Closeable {
 
+    public final ConcurrentHashMap<OperatorID, Tuple2<Meter, Meter>> meters; // Multi-Producer meters
+
     private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Multi-Producers
 
     private final SubtaskFeedbackKey<T> key; // Key of this FeedbackChannel
@@ -48,12 +52,19 @@ public final class FeedbackChannel<T> implements Closeable {
     FeedbackChannel(SubtaskFeedbackKey<T> key) {
         this.key = Objects.requireNonNull(key);
         this.queues = new ConcurrentHashMap<>();
+        this.meters = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Has this channel any consumers
+     */
     public boolean hasConsumer() {
         return consumerRef.get() != null;
     }
 
+    /**
+     * Has this channel any Producers
+     */
     public boolean hasProducer() {
         return !queues.isEmpty();
     }
@@ -69,7 +80,8 @@ public final class FeedbackChannel<T> implements Closeable {
                 consumer.scheduleDrainAll();
             }
         } else {
-//            ("Such channel Does not exist");
+            // Can only happen if the channel is interrupted, external job cancel signal
+            // Not an issue since it is closing any way
         }
     }
 
@@ -78,12 +90,13 @@ public final class FeedbackChannel<T> implements Closeable {
      *
      * @param publisherId OperatorId of the published operator
      */
-    public void registerPublisher(OperatorID publisherId) {
+    public void registerPublisher(OperatorID publisherId, Tuple2<Meter, Meter> numRecordsInCounter) {
         Preconditions.checkNotNull(publisherId);
         if (queues.containsKey(publisherId)) {
             throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
         }
         queues.putIfAbsent(publisherId, new LockFreeBatchFeedbackQueue<>());
+        meters.putIfAbsent(publisherId, numRecordsInCounter);
     }
 
     /**
@@ -98,7 +111,6 @@ public final class FeedbackChannel<T> implements Closeable {
         if (!this.consumerRef.compareAndSet(null, consumerTask)) {
             throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
         }
-        phaser.register();
     }
 
     /**
@@ -127,17 +139,18 @@ public final class FeedbackChannel<T> implements Closeable {
     }
 
     /**
-     * Finish a specific producer
+     * Phase used to coordinate the closing of this iteration step
      */
-    public void finishProducer(OperatorID operatorID) {
-        if (queues.containsKey(operatorID)) {
-            queues.remove(operatorID); // Remove so that no new elements are accepted
-            phaser.arrive();
-        }
-    }
-
     public Phaser getPhaser() {
         return phaser;
+    }
+
+    /**
+     * Get total messages being sent from the <strong>Operator</strong> of the iteration producers
+     * Used in the iteration consumer to detect termination
+     */
+    public double getTotalFlowingMessagesRate() {
+        return meters.values().stream().mapToDouble(item -> item.f0.getRate() + item.f1.getRate()).sum();
     }
 
     /**
@@ -145,17 +158,24 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     @Override
     public void close() {
+        queues.clear();
+        meters.clear();
+        phaser.forceTermination();
         ConsumerTask<T> consumer = consumerRef.getAndSet(null);
-        queues.values().clear();
         IOUtils.closeQuietly(consumer);
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         broker.removeChannel(key);
     }
 
+    /**
+     * Actual task that is run on each IterationSource MailboxExecutor
+     *
+     * @param <T>
+     */
     private static final class ConsumerTask<T> implements Runnable, Closeable {
         private final Executor executor;
-        private final FeedbackConsumer<T> consumer;
         private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues;
+        private FeedbackConsumer<T> consumer;
 
         ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues) {
             this.executor = Objects.requireNonNull(executor);
@@ -177,6 +197,7 @@ public final class FeedbackChannel<T> implements Closeable {
                 try {
                     T element;
                     while ((element = buffer.pollFirst()) != null) {
+                        if (consumer == null) return;
                         consumer.processFeedback(element);
                     }
                 } catch (Exception e) {
@@ -187,7 +208,7 @@ public final class FeedbackChannel<T> implements Closeable {
 
         @Override
         public void close() {
-            queues.clear();
+            consumer = null;
         }
     }
 }

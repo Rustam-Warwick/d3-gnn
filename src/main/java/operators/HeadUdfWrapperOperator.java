@@ -30,7 +30,7 @@ import java.util.Collections;
 
 /**
  * Wrapper around any other operator
- *
+ * Acts as the <strong>Splitter</strong> operator of the paper
  * @param <T> Internal operator
  */
 public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
@@ -90,7 +90,7 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT){
+        if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
             if (element.getValue().getOperatorEvent() instanceof StartTraining) {
                 TRAINING = true;
                 ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount(parallelism);
@@ -107,7 +107,7 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
                     e.printStackTrace();
                 }
             }
-        }else{
+        } else {
             element.setTimestamp(getWrappedOperator().getProcessingTimeService().getCurrentProcessingTime());
             if (TRAINING) {
                 dataCacheWriter.addRecord(element);
@@ -116,12 +116,6 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
             }
         }
     }
-
-
-//    @Override
-//    public void handleOperatorEvent(OperatorEvent evt) {
-//
-//    }
 
     private void replayRecords(DataCacheReader<StreamElement> dataCacheReader) throws Exception {
         while (dataCacheReader.hasNext()) {

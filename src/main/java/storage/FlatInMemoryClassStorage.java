@@ -5,13 +5,10 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
-import typeinfo.OmittingPojoTypeInfoFactory;
+import typeinfo.RecursiveListFieldsTypeInfoFactory;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 /**
  * @implNote Only use if using InMemoryState backend
@@ -20,25 +17,27 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     protected MapState<String, Vertex> vertexTable;
     protected MapState<String, Feature<?, ?>> attachedFeatureTable;
     protected MapState<String, Feature<?, ?>> independentFeatureTable;
-    protected MapState<String, Map<String, Edge>> edgeTable;
-    protected MapState<String, Map<String, Edge>> reverseEdgeTable;
+    protected MapState<String, Map<String, List<String>>> outEdgeTable;
+    protected MapState<String, Map<String, List<String>>> inEdgeTable;
+    protected MapState<String, Edge> edgeTable;
 
     public FlatInMemoryClassStorage() {
 
     }
 
-
     @Override
     public void open() throws Exception {
-        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new OmittingPojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null));
-        MapStateDescriptor<String, Map<String, Edge>> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, Types.MAP(Types.STRING, new OmittingPojoTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null)));
-        MapStateDescriptor<String, Map<String, Edge>> reverseEdgeTableDesc = new MapStateDescriptor<>("reverseEdgeTable", Types.STRING, Types.MAP(Types.STRING, new OmittingPojoTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null)));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new OmittingPojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, Edge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null, true));
+        MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
+        MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
 
-        vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
-        reverseEdgeTable = layerFunction.getRuntimeContext().getMapState(reverseEdgeTableDesc);
+        outEdgeTable = layerFunction.getRuntimeContext().getMapState(outEdgeTableDesc);
+        inEdgeTable = layerFunction.getRuntimeContext().getMapState(inEdgeTableDesc);
+        vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
         independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
         super.open();
@@ -73,12 +72,17 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public boolean addEdge(Edge edge) {
         try {
-            if (!edgeTable.contains(edge.src.getId())) edgeTable.put(edge.src.getId(), new HashMap<>());
-            if (!reverseEdgeTable.contains(edge.dest.getId())) reverseEdgeTable.put(edge.dest.getId(), new HashMap<>());
-            edge.src = getVertex(edge.src.getId());
-            edge.dest = getVertex(edge.dest.getId());
-            edgeTable.get(edge.src.getId()).put(edge.dest.getId(), edge);
-            reverseEdgeTable.get(edge.dest.getId()).put(edge.src.getId(), edge);
+            edgeTable.put(edge.getId(), edge);
+            if (!outEdgeTable.contains(edge.getSrc().getId())) outEdgeTable.put(edge.getSrc().getId(), new HashMap<>());
+            if (!inEdgeTable.contains(edge.getDest().getId())) inEdgeTable.put(edge.getDest().getId(), new HashMap<>());
+            Map<String, List<String>> outEdges = outEdgeTable.get(edge.getSrc().getId());
+            Map<String, List<String>> inEdges = inEdgeTable.get(edge.getDest().getId());
+            if (!outEdges.containsKey(edge.getDest().getId())) outEdges.put(edge.getDest().getId(), new ArrayList());
+            if (!inEdges.containsKey(edge.getSrc().getId())) inEdges.put(edge.getSrc().getId(), new ArrayList());
+            outEdges.get(edge.getDest().getId()).add(edge.getId());
+            inEdges.get(edge.getSrc().getId()).add(edge.getId());
+            outEdgeTable.put(edge.getSrc().getId(), outEdges);
+            inEdgeTable.put(edge.getDest().getId(), inEdges);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -131,7 +135,10 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Vertex getVertex(String id) {
         try {
             Vertex v = vertexTable.get(id);
-            if (v.storage == null) v.setStorage(this);
+            if (v.storage == null) {
+                v.setId(id);
+                v.setStorage(this);
+            }
             return v;
         } catch (Exception e) {
             e.printStackTrace();
@@ -155,47 +162,69 @@ public class FlatInMemoryClassStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Edge getEdge(String src, String dest) {
+    public Edge getEdge(String id) {
         try {
-            Edge tmp = edgeTable.get(src).get(dest);
-            if (tmp.storage == null) tmp.setStorage(this);
-            return tmp;
+            Edge e = edgeTable.get(id);
+            if (e.storage == null) {
+                e.setId(id);
+                e.setStorage(this);
+            }
+            return e;
         } catch (Exception e) {
-            e.printStackTrace();
             return null;
         }
     }
 
+    @Override
+    public Iterable<Edge> getEdges(String src, String dest) {
+        try {
+            if (outEdgeTable.contains(src)) {
+                Map<String, List<String>> outEdges = outEdgeTable.get(src);
+                if (outEdges.containsKey(dest)) {
+                    return () -> IteratorUtils.transformedIterator(
+                            outEdges.get(dest).iterator(), str -> (getEdge((String) str))
+                    );
+                } else {
+                    return Collections.emptyList();
+
+                }
+            } else {
+                return Collections.emptyList();
+            }
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
 
     @Override
     public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
-            if(edge_type == EdgeType.OUT){
-                Iterator<Map.Entry<String, Edge>> outIterator = edgeTable.contains(vertex.getId()) ? edgeTable.get(vertex.getId()).entrySet().iterator() : IteratorUtils.emptyIterator();
-                return () -> IteratorUtils.transformedIterator(outIterator, obj -> {
-                    Map.Entry<String, Edge> val = (Map.Entry<String, Edge>) obj;
-                    if (val.getValue().src == null) {
-                        val.getValue().src = vertex;
-                        val.getValue().dest = this.getVertex(val.getKey());
-                        val.getValue().setStorage(this);
-                    }
-                    return val.getValue();
-                });
+            Iterator<Edge> outEdgesIterator = null;
+            Iterator<Edge> inEdgesIterator = null;
+            if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
+                if (outEdgeTable.contains(vertex.getId())) {
+                    Map<String, List<String>> outEdges = outEdgeTable.get(vertex.getId());
+                    outEdgesIterator = IteratorUtils.transformedIterator(outEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));
+                }
+
+            } else if (edge_type == EdgeType.IN) {
+                if (inEdgeTable.contains(vertex.getId())) {
+                    Map<String, List<String>> inEdges = inEdgeTable.get(vertex.getId());
+                    inEdgesIterator = IteratorUtils.transformedIterator(inEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));
+                }
             }
-            else if(edge_type == EdgeType.IN){
-                reverseEdgeTable.contains(vertex.getId());
-                Iterator<Map.Entry<String, Edge>> inIterator = reverseEdgeTable.contains(vertex.getId())?reverseEdgeTable.get(vertex.getId()).entrySet().iterator():IteratorUtils.emptyIterator();
-                return () -> IteratorUtils.transformedIterator(inIterator, obj -> {
-                    Map.Entry<String, Edge> val = (Map.Entry<String, Edge>) obj;
-                    if (val.getValue().dest == null) {
-                        val.getValue().dest = vertex;
-                        val.getValue().src = this.getVertex(val.getKey());
-                        val.getValue().setStorage(this);
-                    }
-                    return val.getValue();
-                });
-            }
-            return Collections.emptyList();
+            if (outEdgesIterator != null && inEdgesIterator != null) {
+                Iterator<Edge> finalOutEdgesIterator = outEdgesIterator;
+                Iterator<Edge> finalInEdgesIterator = inEdgesIterator;
+                return () -> IteratorUtils.chainedIterator(finalOutEdgesIterator, finalInEdgesIterator);
+            } else if (outEdgesIterator != null) {
+                Iterator<Edge> finalOutEdgesIterator1 = outEdgesIterator;
+                return () -> finalOutEdgesIterator1;
+            } else if (inEdgesIterator != null) {
+                Iterator<Edge> finalInEdgesIterator1 = inEdgesIterator;
+                return () -> finalInEdgesIterator1;
+            } else return Collections.emptyList();
+
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
@@ -206,17 +235,23 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public Feature<?, ?> getFeature(String id) {
         try {
-            if (id.contains(":")) {
+            Feature<?, ?> tmp;
+            if (Feature.isAttachedId(id)) {
                 // This is attached feature
-                Feature<?, ?> tmp = attachedFeatureTable.get(id);
-                if (tmp.storage == null) tmp.setStorage(this);
-                return tmp;
+                tmp = attachedFeatureTable.get(id);
+                if (tmp.storage == null) {
+                    tmp.setStorage(this);
+                    tmp.setName(Feature.decodeAttachedFeatureId(id)[1]);
+                }
             } else {
                 // This is independent Feature
-                Feature<?, ?> tmp = independentFeatureTable.get(id);
-                if (tmp.storage == null) tmp.setStorage(this);
-                return tmp;
+                tmp = independentFeatureTable.get(id);
+                if (tmp.storage == null) {
+                    tmp.setStorage(this);
+                    tmp.setName(id);
+                }
             }
+            return tmp;
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -236,7 +271,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public boolean containsFeature(String id) {
         try {
-            if (id.contains(":")) {
+            if (Feature.isAttachedId(id)) {
                 // Attached Feature
                 return attachedFeatureTable.contains(id);
             } else {
@@ -251,12 +286,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     @Override
     public boolean containsEdge(String id) {
         try {
-            String[] ids = id.split(":");
-            if (edgeTable.contains(ids[0])) {
-                return edgeTable.get(ids[0]).containsKey(ids[1]);
-            } else {
-                return false;
-            }
+            return edgeTable.contains(id);
         } catch (Exception e) {
             e.printStackTrace();
             return false;

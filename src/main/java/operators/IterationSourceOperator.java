@@ -28,6 +28,7 @@ import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.operator.OperatorUtils;
+import org.apache.flink.runtime.execution.CancelTaskException;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
@@ -47,6 +48,7 @@ import java.util.concurrent.Executor;
 
 /**
  * Feedback consumer operator as a source operator
+ * @implNote <strong>Termination Detection</strong> is carried by looking at the operator input and output rate, periodically
  */
 public class IterationSourceOperator extends StreamSource<GraphOp, IterationSourceOperator.MySourceFunction>
         implements FeedbackConsumer<StreamRecord<GraphOp>> {
@@ -59,7 +61,9 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     private transient BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
 
-    private transient int numberOfElementsReceived;
+    private boolean timerRegistered = false; // While processing first message register termination timer, do not register afterward
+
+    private boolean isBufferPoolClosed = false; // If buffer pool is closed there might be a race condition
 
     public IterationSourceOperator(IterationID iterationId) {
         super(new MySourceFunction());
@@ -67,6 +71,9 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         this.chainingStrategy = ChainingStrategy.HEAD;
     }
 
+    /**
+     * Register Consumer
+     */
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
         super.setup(containingTask, config, output);
@@ -81,55 +88,68 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         getUserFunction().setFeedbackChannel(feedbackChannel);
     }
 
-    @Override
-    public void open() throws Exception {
-        super.open();
-        getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 2000000, 450000);
-    }
-
+    /**
+     * Add Snapshot to all queues
+     */
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
         feedbackChannel.addSnapshot(checkpointId); // Stop all the iterations from being consumed
         super.prepareSnapshotPreBarrier(checkpointId);
     }
 
+    /**
+     * Process the Feedback
+     */
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        if(isBufferPoolClosed) return;
+        if(!timerRegistered){
+            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 5000);
+            timerRegistered = true;
+        }
         try {
-            numberOfElementsReceived++;
             if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
                 output.collect(element);
             } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
                 broadcastOutput.broadcastEmit(element);
             }
-//            if(element.getValue().getElement() != null){
-//                element.getValue().getElement().modifyNDArrayPossessionCounter(item -> item - 1);
-//            }
-        } catch (Exception e) {
-            // Errors can happen here
+        }
+        catch (CancelTaskException bufferPool){
+            isBufferPoolClosed = true;
+        }
+        catch (IllegalStateException Exception){
+        }
+        catch (Exception e) {
+            BaseWrapperOperator.LOG.error(e.getMessage());
+        }
+        finally{
+            if(element.getValue().getElement()!=null){
+                element.getValue().getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() - 1));
+            }
         }
     }
 
+    /**
+     * Only happens if the job has fully completed
+     * Wait maybe some pending messages
+     * Emit everything that remains
+     */
     @Override
     public void finish() throws Exception {
+        BaseWrapperOperator.LOG.info(String.format("Finishing %s", getRuntimeContext().getTaskNameWithSubtasks()));
         while (mailboxExecutor.tryYield()) {
-            Thread.sleep(300);
+            Thread.sleep(5000); // Wait maybe more messages are to come
         }
         IOUtils.closeQuietly(feedbackChannel);
+        BaseWrapperOperator.LOG.info(String.format("Finished %s", getRuntimeContext().getTaskNameWithSubtasks()));
         super.finish();
     }
 
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationId, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
-    }
-
+    /**
+     * Actual Source function to be executed
+     * Note that This is working in a separate Thread from the functions of the operator.
+     * This actually lives in the Task's Thread not Operator Thread
+     */
     protected static class MySourceFunction implements SourceFunction<GraphOp> {
         private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel;
 
@@ -139,31 +159,60 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
         @Override
         public void run(SourceContext<GraphOp> ctx) throws Exception {
-            while (!feedbackChannel.hasProducer()) {
-                Thread.onSpinWait();
-            }
-            feedbackChannel.getPhaser().register();
             try {
+                while (!feedbackChannel.hasProducer()) {
+                    // Make sure there are available producers, otherwise will skip directly to cancellation
+                    Thread.sleep(500);
+                }
+                feedbackChannel.getPhaser().register(); // Register here since they are different threads
                 feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
             } catch (InterruptedException e) {
-                System.out.println("Interrupted Closing the channel");
-                IOUtils.closeQuietly(feedbackChannel);
+                // Close the channel here to not have any remaining message after this exists from interruption
+                IOUtils.closeQuietly(feedbackChannel); // Close this channel here, because this operator is always entering to finish() method even if interrupted
+                BaseWrapperOperator.LOG.error("Interrupted Closing the channel");
             }
         }
 
+        /**
+         * Channel closed preemtively
+         */
         @Override
         public void cancel() {
-
         }
     }
 
+    /**
+     * Find the termination of the iteration tails
+     */
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
+        private final byte RETRY_COUNT = 3;
+        private byte count = 0;
+
         @Override
         public void onProcessingTime(long time) throws Exception {
-            if (numberOfElementsReceived == 0) {
-                output.emitWatermark(new Watermark(Long.MAX_VALUE));
+            if (count >= RETRY_COUNT) return; // Already did what it had to do
+            double sumMessageRate = feedbackChannel.getTotalFlowingMessagesRate();
+            // Operator has started so try to find termination point
+            if (sumMessageRate > 0) count = 0;
+            else {
+                if (++count == RETRY_COUNT){
+                    BaseWrapperOperator.LOG.info(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
+                    output.emitWatermark(new Watermark(Long.MAX_VALUE));}
             }
-            numberOfElementsReceived = 0;
         }
+    }
+
+    /**
+     * Register the consumer
+     */
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 }

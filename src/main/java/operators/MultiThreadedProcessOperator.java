@@ -121,11 +121,13 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
 
     @Override
     public void finish() throws Exception {
+        while (!workQueue.isEmpty()) {
+            Thread.sleep(500);
+        }
         executorService.shutdown();
         while (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
-            Thread.onSpinWait();
+            Thread.sleep(500);
         }
-        super.finish();
     }
 
     private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E> {

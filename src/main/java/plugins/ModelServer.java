@@ -61,7 +61,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if(getPartId() == 0 && !containsFeature("collectedGradients")){
+        if (getPartId() == 0 && !containsFeature("collectedGradients")) {
             setFeature("collectedGradients", new MeanGradientCollector<String>(Tuple2.of(new HashMap<>(), new HashMap<>()), true, null));
         }
     }
@@ -84,15 +84,15 @@ public class ModelServer extends Plugin {
     @RemoteFunction
     public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
         model.getBlock().getParameters().forEach(parameter -> {
-            if(masterParameters.containsKey(parameter.getValue().getId())){
+            if (masterParameters.containsKey(parameter.getValue().getId())) {
                 parameter.getValue().close();
                 parameter.getValue().setShape(null);
                 parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
                 parameter.getValue().getArray().detach();
             }
         });
-        if(storage.layerFunction.isLast()){
-            getModel().getBlock().getParameters().forEach(item-> System.out.println(item.getValue().getArray()));
+        if (storage.layerFunction.isLast()) {
+            getModel().getBlock().getParameters().forEach(item -> System.out.println(item.getValue().getArray()));
         }
     }
 
@@ -119,17 +119,17 @@ public class ModelServer extends Plugin {
         public void updateAllParameters() {
             HashMap<String, NDArray> parameters = new HashMap<>();
             MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
-            int i =0;
+            int i = 0;
             for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
-                if(feature.getValue().containsKey(parameter.getValue().getId())){
+                if (feature.getValue().containsKey(parameter.getValue().getId())) {
                     optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), feature.getValue().get(parameter.getValue().getId()));
                     parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
                     i++;
                 }
             }
 
-            if(storage.layerFunction.isLast()){
-                getModel().getBlock().getParameters().forEach(item-> System.out.println(item.getValue().getArray()));
+            if (storage.layerFunction.isLast()) {
+                getModel().getBlock().getParameters().forEach(item -> System.out.println(item.getValue().getArray()));
             }
             new RemoteInvoke()
                     .method("updateReplicaParameters")
