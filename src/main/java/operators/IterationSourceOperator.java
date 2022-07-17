@@ -172,7 +172,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             } catch (InterruptedException e) {
                 // Close the channel here to not have any remaining message after this exists from interruption
                 IOUtils.closeQuietly(feedbackChannel); // Close this channel here, because this operator is always entering to finish() method even if interrupted
-                BaseWrapperOperator.LOG.error("Interrupted Closing the channel");
+                BaseWrapperOperator.LOG.error("Interrupted Closing the source");
             }
         }
 

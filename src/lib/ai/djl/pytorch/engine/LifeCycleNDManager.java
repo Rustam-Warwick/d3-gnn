@@ -6,7 +6,10 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -21,6 +24,14 @@ public class LifeCycleNDManager extends PtNDManager {
      *
      */
     private static transient LifeCycleNDManager INSTANCE;
+
+    public static final Logger LOG = LoggerFactory.getLogger(NDManager.class);
+
+    /**
+     * HashMap for the Threads
+     */
+    private static final transient ConcurrentHashMap<Long, Thread> THREADS = new ConcurrentHashMap<>();
+
     /**
      * Thread with MIN_Priority to clean the NDArrays attached to this Manager after some time of their creation
      */
@@ -33,6 +44,7 @@ public class LifeCycleNDManager extends PtNDManager {
      * NDArray Delayed list with counter, when counter is zero move back to the registrations if not detached
      */
     private final transient ConcurrentHashMap<String, Tuple2<NDArray, Integer>> delayedList = new ConcurrentHashMap<>();
+
 
     private LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
@@ -50,14 +62,13 @@ public class LifeCycleNDManager extends PtNDManager {
         if(INSTANCE == null){
             INSTANCE = new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().defaultDevice());
         }
+        THREADS.putIfAbsent(Thread.currentThread().getId(), Thread.currentThread());
         return INSTANCE;
     }
 
     public Scope getScope() {
         return new Scope();
     }
-
-
 
     public void postpone(NDArray resource){
         delayedList.compute(resource.getUid(), (tmpId, tmpRes)->{
@@ -113,22 +124,47 @@ public class LifeCycleNDManager extends PtNDManager {
 
     }
 
+    public void releaseAll(){
+        LOG.info("Releasing all tensors");
+        registrations.forEach((key,item)->{
+            item.f0.close();
+        });
+        registrations.clear();
+        delayedList.forEach((key, item)->{
+            item.f0.close();
+        });
+        delayedList.clear();
+    }
+
     /**
      * Cleans the registrations
      */
     public void clean(){
         boolean notInterrupted = true;
         while(notInterrupted){
-            final long offset = System.currentTimeMillis() - 10000;
-            registrations.forEach((key,item)->{
-                if (item.f1 < offset){
-                    item.f0.close();
-                    registrations.remove(key);
-                }
-            });
+            for (Thread value : THREADS.values()) {
+                if(!value.isAlive())THREADS.remove(value.getId());
+            }
+            if(THREADS.isEmpty()){
+               releaseAll();
+            }else{
+                final long offset = System.currentTimeMillis() - 10000;
+                final int[] count = new int[]{0};
+                registrations.forEach((key,item)->{
+                    if (item.f1 < offset){
+                        item.f0.close();
+                        registrations.remove(key);
+                        count[0]++;
+                    }
+                });
+
+                LOG.info(String.format("Released %s tensors\n",count[0]));
+            }
+
             try{
                 Thread.sleep(3000);
             }catch (InterruptedException e){
+                LOG.info("Interrupted");
                 notInterrupted = false;
             }
         }
@@ -169,14 +205,6 @@ public class LifeCycleNDManager extends PtNDManager {
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
-        cleanerThread.interrupt();
-        for (Tuple2<NDArray, Long> closeable : registrations.values()) {
-            closeable.f0.close();
-        }
-        registrations.clear();
-        for (Tuple2<NDArray, Integer> value : delayedList.values()) {
-            value.f0.close();
-        }
-        delayedList.clear();
+        releaseAll();
     }
 }
