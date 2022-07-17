@@ -1,6 +1,5 @@
 package functions.gnn_layers;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.iterations.MessageDirection;
@@ -157,7 +156,6 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     default void process(GraphOp value) {
         try {
-            value.getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() - 1));
             switch (value.op) {
                 case COMMIT:
                     value.element.setStorage(getStorage());
@@ -192,7 +190,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
             System.out.println(value);
             e.printStackTrace();
         } finally {
-            LifeCycleNDManager.getInstance().clean();
+//            LifeCycleNDManager.getInstance().clean();
         }
     }
 

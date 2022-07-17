@@ -1,7 +1,6 @@
 package elements;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -82,7 +81,6 @@ public class GraphElement implements Serializable {
      */
     public Boolean createElement() {
         assert storage != null;
-        applyForNDArray(NDArray::detach);
         boolean is_created = storage.addElement(this);
         if (is_created) {
             if (features != null) {
@@ -126,8 +124,6 @@ public class GraphElement implements Serializable {
      */
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
-        applyForNDArray(item->item.attach(LifeCycleNDManager.getInstance()));
-        newElement.applyForNDArray(NDArray::detach);
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> feature = iterator.next();
@@ -413,7 +409,7 @@ public class GraphElement implements Serializable {
      * Only if this element has an attribute that is NDArray, do not traverse to other elements
      */
     public void applyForNDArray(Consumer<NDArray> operation){
-
+        // pass for Feature implementations
     }
 
     @Override

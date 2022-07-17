@@ -18,6 +18,7 @@
 
 package operators;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
@@ -116,15 +117,17 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         }
         catch (CancelTaskException bufferPool){
             isBufferPoolClosed = true;
+            bufferPool.printStackTrace();
         }
         catch (IllegalStateException Exception){
+
         }
         catch (Exception e) {
             BaseWrapperOperator.LOG.error(e.getMessage());
         }
         finally{
-            if(element.getValue().getElement()!=null){
-                element.getValue().getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() - 1));
+            if(element.getValue().getElement() != null){
+                element.getValue().getElement().applyForNDArrays(item-> LifeCycleNDManager.getInstance().prepone(item));
             }
         }
     }

@@ -1,7 +1,10 @@
 package features;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.Feature;
+import elements.GraphElement;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.function.Consumer;
 
@@ -40,6 +43,22 @@ public class Tensor extends Feature<NDArray, NDArray> {
     @Override
     public NDArray getValue() {
         return this.value;
+    }
+
+    @Override
+    public Boolean createElement() {
+        value.detach();
+        return super.createElement();
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        Tensor tmp = ((Tensor)newElement);
+        if(value != tmp.value){
+            value.attach(LifeCycleNDManager.getInstance());
+            tmp.value.detach();
+        }
+        return super.updateElement(newElement, memento);
     }
 
     @Override

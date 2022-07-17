@@ -52,7 +52,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    private transient final Cleaner.Cleanable cleanable;
+    private transient Cleaner.Cleanable cleanable;
     private final PtNDArrayEx ptNDArrayEx;
     private String name;
     private Device device;
@@ -62,7 +62,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
     private PtNDManager manager;
-    private int taskPossession = 0;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
@@ -79,7 +78,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         this.manager = manager;
         this.ptNDArrayEx = new PtNDArrayEx(this);
         manager.attachInternal(getUid(), this);
-        this.cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this));
     }
 
     /**
@@ -96,7 +94,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         this.ptNDArrayEx = new PtNDArrayEx(this);
         manager.attachInternal(getUid(), this);
         dataRef = new ByteBuffer[]{data};
-        this.cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this));
     }
 
     /**
@@ -319,6 +316,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         detach();
         this.manager = (PtNDManager) manager;
         manager.attachInternal(getUid(), this);
+
     }
 
     /**
@@ -339,6 +337,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public void detach() {
         manager.detachInternal(getUid());
         manager = PtNDManager.getSystemManager();
+        if(cleanable == null) cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
     }
 
     /**
@@ -1760,11 +1759,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     public int getTaskPossession() {
-        return taskPossession;
+        return 0;
     }
 
     public void setTaskPossession(int taskPossession) {
-        this.taskPossession = taskPossession;
     }
 
     /**
@@ -1808,7 +1806,17 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        cleanable.clean();
+        if(cleanable != null) cleanable.clean();
+        else{
+            Long pointer = handle.getAndSet(null);
+            if (pointer != null) {
+                JniUtils.deleteNDArray(pointer);
+            }
+            if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
+                UNSAFE.invokeCleaner(dataRef[0]);
+                dataRef[0] = null;
+            }
+        }
     }
 
     public static class PtNDArrayFinalizeTask implements Runnable {
@@ -1826,7 +1834,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             if (pointer != null) {
                 JniUtils.deleteNDArray(pointer);
             }
-            if (dataRef != null && dataRef.length > 0) {
+            if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
                 UNSAFE.invokeCleaner(dataRef[0]);
                 dataRef[0] = null;
             }

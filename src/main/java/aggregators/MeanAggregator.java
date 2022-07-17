@@ -3,6 +3,7 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
+import elements.GraphElement;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
@@ -89,6 +90,22 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     public void reset() {
         value = new Tuple2<>(value.f0.zerosLike(), 0);
         storage.updateFeature(this);
+    }
+
+    @Override
+    public Boolean createElement() {
+        value.f0.detach();
+        return super.createElement();
+    }
+
+    @Override
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        MeanAggregator tmp = (MeanAggregator) newElement;
+        if(value.f0 != tmp.value.f0){
+            value.f0.attach(LifeCycleNDManager.getInstance());
+            tmp.value.f0.detach();
+        }
+        return super.updateElement(newElement, memento);
     }
 
     @Override

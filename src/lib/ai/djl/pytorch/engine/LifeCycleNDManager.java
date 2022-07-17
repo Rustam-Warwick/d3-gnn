@@ -5,9 +5,9 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
+import org.apache.flink.api.java.tuple.Tuple2;
 
-import java.lang.ref.WeakReference;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A special Singleton NDManager that is direct child of the SystemNDManager.
@@ -17,31 +17,81 @@ import java.util.HashMap;
  * Try to avoid NDManager if it is not going to be closed again
  */
 public class LifeCycleNDManager extends PtNDManager {
-    private static final transient ThreadLocal<LifeCycleNDManager> instances = ThreadLocal.withInitial(() ->
-            new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().getDevice())
-    );
-    private final transient HashMap<String, WeakReference<NDArray>> registrations = new HashMap<>(); // Thread Local
-
-    private final transient Scope scope = new Scope();
+    /**
+     *
+     */
+    private static transient LifeCycleNDManager INSTANCE;
+    /**
+     * Thread with MIN_Priority to clean the NDArrays attached to this Manager after some time of their creation
+     */
+    private transient final Thread cleanerThread;
+    /**
+     * NDArray Registrations with a timestamp
+     */
+    private final transient ConcurrentHashMap<String, Tuple2<NDArray,Long>> registrations = new ConcurrentHashMap<>();
+    /**
+     * NDArray Delayed list with counter, when counter is zero move back to the registrations if not detached
+     */
+    private final transient ConcurrentHashMap<String, Tuple2<NDArray, Integer>> delayedList = new ConcurrentHashMap<>();
 
     private LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
+        this.resources = null;
+        this.tempResources = null;
+        cleanerThread = new Thread(this::clean);
+        cleanerThread.setPriority(Thread.MIN_PRIORITY);
+        cleanerThread.start();
     }
 
     /**
      * Get NDManager for this Thread
      */
     public static LifeCycleNDManager getInstance() {
-        return instances.get();
+        if(INSTANCE == null){
+            INSTANCE = new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().defaultDevice());
+        }
+        return INSTANCE;
     }
 
     public Scope getScope() {
-        return scope;
+        return new Scope();
+    }
+
+
+
+    public void postpone(NDArray resource){
+        delayedList.compute(resource.getUid(), (tmpId, tmpRes)->{
+           if(tmpRes == null){
+               // Never seen before
+               registrations.remove(resource.getUid()); // Remove if exists here
+               tmpRes = Tuple2.of(resource, 1);
+           }else{
+               tmpRes.f1++;
+           }
+           return tmpRes;
+        });
+    }
+
+    public void prepone(NDArray resource){
+        delayedList.compute(resource.getUid(), (tmpId, tmpRes)->{
+            if(tmpRes == null) return tmpRes;
+            tmpRes.f1--;
+            if(tmpRes.f1 == 0){
+                if(resource.getManager() == LifeCycleNDManager.this){
+                    registrations.put(resource.getUid(), Tuple2.of(resource, System.currentTimeMillis()));
+                }
+                return null;
+            }
+            return tmpRes;
+        });
     }
 
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
-//        registrations.putIfAbsent(resourceId, new WeakReference<>((NDArray) resource));
+        if(!delayedList.containsKey(resourceId)){
+            // Synchrnoizing post-ponements + No need to add if it is delayed
+            registrations.put(resourceId, Tuple2.of((NDArray) resource, System.currentTimeMillis()));
+        }
     }
 
     @Override
@@ -49,32 +99,40 @@ public class LifeCycleNDManager extends PtNDManager {
         // Pass
     }
 
-
     @Override
     public void detachInternal(String resourceId) {
-//        registrations.remove(resourceId);
+        if(!delayedList.containsKey(resourceId)){
+            // Synchronizing Post-ponement stage + if delayed list contains registrations should be empty
+            registrations.remove(resourceId);
+        }
     }
 
     @Override
     public void close() {
         // Not closing explicitely
+
     }
 
     /**
      * Cleans the registrations
      */
-    public void clean() {
-//        if (registrations.size() > 10) {
-//            registrations.values().removeIf(val -> {
-//                NDArray tmp = val.get();
-//                if (tmp == null) return true;
-//                if (tmp.getTaskPossession() == 0) {
-//                    tmp.close();
-//                    return true;
-//                }
-//                return false;
-//            });
-//        }
+    public void clean(){
+        boolean notInterrupted = true;
+        while(notInterrupted){
+            final long offset = System.currentTimeMillis() - 10000;
+            registrations.forEach((key,item)->{
+                if (item.f1 < offset){
+                    item.f0.close();
+                    registrations.remove(key);
+                }
+            });
+            try{
+                Thread.sleep(3000);
+            }catch (InterruptedException e){
+                notInterrupted = false;
+            }
+        }
+
     }
 
     /**
@@ -108,4 +166,17 @@ public class LifeCycleNDManager extends PtNDManager {
         }
     }
 
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        cleanerThread.interrupt();
+        for (Tuple2<NDArray, Long> closeable : registrations.values()) {
+            closeable.f0.close();
+        }
+        registrations.clear();
+        for (Tuple2<NDArray, Integer> value : delayedList.values()) {
+            value.f0.close();
+        }
+        delayedList.clear();
+    }
 }

@@ -1,6 +1,5 @@
 package datasets;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.Edge;
 import elements.GraphOp;
 import elements.Op;
@@ -50,7 +49,6 @@ public class RedditHyperlink implements Dataset{
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
         return new TrainTestSplitter();
     }
-
     static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp>{
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
@@ -62,7 +60,6 @@ public class RedditHyperlink implements Dataset{
     static class Parser implements MapFunction<String, GraphOp>{
         @Override
         public GraphOp map(String value) throws Exception {
-            LifeCycleNDManager.getInstance().clean();
             String[] values = value.split(",");
             Edge edge = new Edge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
 //            float[] features = new float[values.length - 4];

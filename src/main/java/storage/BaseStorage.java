@@ -15,7 +15,6 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.HashMap;
-import java.util.stream.Stream;
 
 /**
  * Base Class for all storage Engines
@@ -93,8 +92,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         return this.plugins.get(id);
     }
 
-    public Stream<Plugin> getPlugins() {
-        return this.plugins.values().stream();
+    public Iterable<Plugin> getPlugins() {
+        return this.plugins.values();
     }
 
     public BaseStorage withPlugin(Plugin plugin) {

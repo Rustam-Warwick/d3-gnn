@@ -18,6 +18,7 @@
 
 package operators;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
@@ -145,8 +146,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
      */
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-        if(streamRecord.getValue().getElement()!=null){
-            streamRecord.getValue().getElement().applyForNDArrays(item->item.setTaskPossession(item.getTaskPossession() + 1));
+        if(streamRecord.getValue().getElement() != null){
+            streamRecord.getValue().getElement().applyForNDArrays(item-> LifeCycleNDManager.getInstance().postpone(item));
         }
         recordConsumer.accept(streamRecord);
     }

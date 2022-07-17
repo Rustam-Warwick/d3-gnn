@@ -7,7 +7,6 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
-import ai.djl.nn.Parameter;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
@@ -15,7 +14,6 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
-import ai.djl.training.initializer.ConstantInitializer;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.configuration.Configuration;
@@ -76,7 +74,7 @@ public class Main {
         model.setBlock(sb);
 //        NDHelper.loadModel(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"), model);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
-        model.getBlock().setInitializer(new ConstantInitializer(1f), Parameter.Type.WEIGHT);
+//        model.getBlock().setInitializer(new ConstantInitializer(1f), Parameter.Type.WEIGHT);
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
