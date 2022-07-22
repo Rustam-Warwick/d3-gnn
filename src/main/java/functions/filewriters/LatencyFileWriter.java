@@ -1,6 +1,5 @@
 package functions.filewriters;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import org.apache.commons.collections.buffer.CircularFifoBuffer;
 import org.apache.flink.configuration.Configuration;
@@ -60,7 +59,6 @@ public class LatencyFileWriter extends KeyedCoProcessFunction<Long, GraphOp, Gra
             gauge.add(latency);
             latencies.add(latency);
         }
-        LifeCycleNDManager.getInstance().clean();
     }
 
     @Override

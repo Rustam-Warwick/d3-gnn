@@ -10,9 +10,12 @@ import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
+import operators.BaseWrapperOperator;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
@@ -23,13 +26,13 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
 
     public final boolean createVertexEmbeddings; // Do we feed external features or should this generate by itself
 
-    private transient ModelServer modelServer; // ParameterServer Plugin
+    protected transient ModelServer modelServer; // ParameterServer Plugin
 
-    private boolean RUNNING = true; // Running is true of false
+    protected boolean RUNNING = true; // Running is true of false
 
-    private transient Counter throughput; // Throughput counter, only used for last layer
+    protected transient Counter throughput; // Throughput counter, only used for last layer
 
-    private transient Counter latency; // Throughput counter, only used for last layer
+    protected transient Counter latency; // Throughput counter, only used for last layer
 
     public StreamingGNNEmbeddingLayer() {
         super();
@@ -133,11 +136,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
-        Vertex messageVertex = v.copy();
-        messageVertex.setFeature("feature", new Tensor(update));
+        Tensor updateTensor = new Tensor("feature", update,false, v.masterPart());
+        updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, v.getId());
         throughput.inc();
         latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - storage.layerFunction.currentTimestamp());
-        storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature")), MessageDirection.FORWARD);
+        storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD);
     }
 
     /**
@@ -149,20 +152,25 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         Preconditions.checkNotNull(v);
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
         NDArray msg = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
-                if (Objects.isNull(msg)) {
-                    msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            for (Edge edge : outEdges) {
+                if (this.messageReady(edge)) {
+                    if (Objects.isNull(msg)) {
+                        msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
+                    }
+                    new RemoteInvoke()
+                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                            .where(MessageDirection.ITERATE)
+                            .method("reduce")
+                            .hasUpdate()
+                            .addDestination(edge.getDest().masterPart())
+                            .withArgs(msg, 1)
+                            .buildAndRun(storage);
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msg, 1)
-                        .buildAndRun(storage);
             }
+        }catch (Exception e){
+
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
 
@@ -173,25 +181,29 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Preconditions.checkNotNull(newFeature.getElement());
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDArray msgOld = null;
-        NDArray msgNew = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
-                if (Objects.isNull(msgOld)) {
-                    msgOld = MESSAGE(new NDList(oldFeature.getValue()), false).get(0);
-                    msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            Preconditions.checkNotNull(newFeature.getElement());
+            Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+            NDArray msgOld = null;
+            NDArray msgNew = null;
+            for (Edge edge : outEdges) {
+                if (this.messageReady(edge)) {
+                    if (Objects.isNull(msgOld)) {
+                        msgOld = MESSAGE(new NDList(oldFeature.getValue()), false).get(0);
+                        msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
+                    }
+                    new RemoteInvoke()
+                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                            .where(MessageDirection.ITERATE)
+                            .method("replace")
+                            .hasUpdate()
+                            .addDestination(edge.getDest().masterPart())
+                            .withArgs(msgNew, msgOld)
+                            .buildAndRun(storage);
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("replace")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msgNew, msgOld)
-                        .buildAndRun(storage);
             }
+        }catch (Exception e){
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
 
@@ -204,12 +216,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @Override
     public NDList UPDATE(NDList feature, boolean training) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(feature)) {
-            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
-            return res;
-        } catch (Exception e) {
-            return null;
-        }
+        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -221,13 +228,8 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @Override
     public NDList MESSAGE(NDList features, boolean training) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(features)) {
-            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
-            return res;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+
     }
 
     /**

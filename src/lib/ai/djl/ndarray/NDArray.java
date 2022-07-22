@@ -19,6 +19,7 @@ import ai.djl.ndarray.internal.NDFormat;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.ndarray.types.SparseFormat;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.util.Float16Utils;
 
 import java.nio.*;
@@ -4741,9 +4742,13 @@ public interface NDArray extends NDResource, BytesSupplier {
      */
     NDArray batchDot(NDArray other);
 
-    int getTaskPossession();
+    default void postpone() {
+        ((LifeCycleNDManager) getManager()).postpone(this);
+    }
 
-    void setTaskPossession(int taskPossession);
+    default void prepone() {
+        ((LifeCycleNDManager) getManager()).prepone(this);
+    }
 
     default boolean isValid() {
         return !isNaN().any().getBoolean() && !isInfinite().any().getBoolean();

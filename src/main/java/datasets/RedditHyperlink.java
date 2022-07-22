@@ -16,7 +16,7 @@ import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
 
-public class RedditHyperlink implements Dataset{
+public class RedditHyperlink implements Dataset {
     private final transient String baseDirectory;
 
     public RedditHyperlink(String baseDirectory) {
@@ -25,7 +25,7 @@ public class RedditHyperlink implements Dataset{
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-full.tsv").toString();
+        String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-200k.tsv").toString();
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
@@ -49,7 +49,10 @@ public class RedditHyperlink implements Dataset{
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
         return new TrainTestSplitter();
     }
-    static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp>{
+
+    static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
+        int count = 0;
+
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
@@ -57,7 +60,7 @@ public class RedditHyperlink implements Dataset{
         }
     }
 
-    static class Parser implements MapFunction<String, GraphOp>{
+    static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
@@ -68,7 +71,7 @@ public class RedditHyperlink implements Dataset{
 //                features[i-4] =  Float.valueOf(processed);
 //            }
 //            edge.setFeature("feature", new Tensor(LifeCycleNDManager.getInstance().create(features)));
-            return new GraphOp(Op.COMMIT,edge);
+            return new GraphOp(Op.COMMIT, edge);
         }
     }
 

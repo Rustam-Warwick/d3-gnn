@@ -1,6 +1,7 @@
 package plugins.debugging;
 
 import elements.*;
+import operators.BaseWrapperOperator;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -20,18 +21,18 @@ public class PrintVertexPlugin extends Plugin {
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         if (element.elementType() == ElementType.VERTEX && registeredVertices.contains(element.getId())) {
-            System.out.println(String.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
+            BaseWrapperOperator.LOG.info(String.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
         }
         if (element.elementType() == ElementType.EDGE) {
             Edge e = (Edge) element;
             if (registeredVertices.contains(e.getSrc().getId()) || registeredVertices.contains(e.getDest().getId())) {
-                System.out.println(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
+                BaseWrapperOperator.LOG.info(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPartId(), storage.layerFunction.getPosition(), element.getTimestamp()));
             }
         }
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
-                System.out.println(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), element.getTimestamp(), feature.value));
+                BaseWrapperOperator.LOG.info(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), element.getTimestamp(), feature.value));
             }
         }
     }
@@ -42,7 +43,7 @@ public class PrintVertexPlugin extends Plugin {
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
-                System.out.println(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp(), feature.value));
+                BaseWrapperOperator.LOG.info(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), newElement.getTimestamp(), feature.value));
             }
         }
     }

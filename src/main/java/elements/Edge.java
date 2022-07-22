@@ -134,6 +134,8 @@ public class Edge extends GraphElement {
         getDest().applyForNDArrays(operation);
     }
 
+
+
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);

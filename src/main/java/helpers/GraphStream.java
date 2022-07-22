@@ -202,7 +202,7 @@ public class GraphStream {
                 forward.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0)); // position 0 and 1 in same slot sharing group preferably
                 iterationHead.getTransformation().setSlotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
             }
-            if(position_index == 0){
+            if (position_index == 0) {
                 // This was Splitter Full-Loop iteration
                 fullLoopIterationId = localIterationId;
             }

@@ -20,8 +20,9 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
-import plugins.embedding_layer.WindowedGNNEmbeddingLayer;
+import plugins.embedding_layer.WindowingOutputGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
@@ -45,7 +46,6 @@ public class Main {
     }
 
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
-        test();
         SequentialBlock sb = new SequentialBlock();
         sb.add(new SAGEConv(64, true));
         sb.add(new SAGEConv(32, true));
@@ -75,7 +75,7 @@ public class Main {
 //        NDHelper.loadModel(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"), model);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
 //        model.getBlock().setInitializer(new ConstantInitializer(1f), Parameter.Type.WEIGHT);
-        model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
+        model.getBlock().getParameters().forEach(item -> item.getValue().getArray().postpone());
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
@@ -93,7 +93,7 @@ public class Main {
         Configuration a = new Configuration();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        Integer window = null;
+        Integer window = 500;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
@@ -101,15 +101,16 @@ public class Main {
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
                         .withPlugin(
                                 window != null ?
-                                        new WindowedGNNEmbeddingLayer(models.get(0).getName(), false, window) :
+                                        new WindowingOutputGNNEmbeddingLayer(models.get(0).getName(), true, window):
                                         new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
+                        .withPlugin(new PrintVertexPlugin("ps4"))
                         .withPlugin(
                                 window != null ?
-                                        new WindowedGNNEmbeddingLayer(models.get(1).getName(), true, window) :
+                                        new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window):
                                         new StreamingGNNEmbeddingLayer(models.get(1).getName()))
                 )
 //                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()

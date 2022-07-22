@@ -408,7 +408,7 @@ public class GraphElement implements Serializable {
     /**
      * Only if this element has an attribute that is NDArray, do not traverse to other elements
      */
-    public void applyForNDArray(Consumer<NDArray> operation){
+    public void applyForNDArray(Consumer<NDArray> operation) {
         // pass for Feature implementations
     }
 

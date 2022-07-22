@@ -31,6 +31,7 @@ import java.util.Collections;
 /**
  * Wrapper around any other operator
  * Acts as the <strong>Splitter</strong> operator of the paper
+ *
  * @param <T> Internal operator
  */
 public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {

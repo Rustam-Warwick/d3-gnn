@@ -18,7 +18,7 @@
 package operators.iterations;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.metrics.Meter;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class FeedbackChannel<T> implements Closeable {
 
-    public final ConcurrentHashMap<OperatorID, Tuple2<Meter, Meter>> meters; // Multi-Producer meters
+    public final ConcurrentHashMap<OperatorID, Tuple2<Counter, Counter>> meters; // Multi-Producer meters
 
     private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Multi-Producers
 
@@ -90,7 +90,7 @@ public final class FeedbackChannel<T> implements Closeable {
      *
      * @param publisherId OperatorId of the published operator
      */
-    public void registerPublisher(OperatorID publisherId, Tuple2<Meter, Meter> numRecordsInCounter) {
+    public void registerPublisher(OperatorID publisherId, Tuple2<Counter, Counter> numRecordsInCounter) {
         Preconditions.checkNotNull(publisherId);
         if (queues.containsKey(publisherId)) {
             throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
@@ -149,8 +149,8 @@ public final class FeedbackChannel<T> implements Closeable {
      * Get total messages being sent from the <strong>Operator</strong> of the iteration producers
      * Used in the iteration consumer to detect termination
      */
-    public double getTotalFlowingMessagesRate() {
-        return meters.values().stream().mapToDouble(item -> item.f0.getRate() + item.f1.getRate()).sum();
+    public long getTotalFlowingMessagesRate() {
+        return meters.values().stream().mapToLong(item -> item.f0.getCount() + item.f1.getCount()).sum();
     }
 
     /**

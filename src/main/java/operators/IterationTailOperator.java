@@ -18,7 +18,7 @@
 
 package operators;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.NDArray;
 import elements.GraphOp;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
@@ -28,7 +28,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.metrics.Meter;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -146,8 +146,8 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
      */
     @Override
     public void processElement(StreamRecord<GraphOp> streamRecord) {
-        if(streamRecord.getValue().getElement() != null){
-            streamRecord.getValue().getElement().applyForNDArrays(item-> LifeCycleNDManager.getInstance().postpone(item));
+        if (streamRecord.getValue().getElement() != null) {
+            streamRecord.getValue().getElement().applyForNDArrays(NDArray::postpone);
         }
         recordConsumer.accept(streamRecord);
     }
@@ -179,7 +179,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         feedbackChannel = broker.getChannel(realKey);
         feedbackChannel.getPhaser().register();
-        Tuple2<Meter, Meter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInRateMeter(),((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutRate());
+        Tuple2<Counter, Counter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutCounter(), ((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInCounter());
         feedbackChannel.registerPublisher(operatorID, meters);
     }
 }

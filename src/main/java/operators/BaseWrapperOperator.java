@@ -173,10 +173,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     public void open() throws Exception {
         setKeyContextElement(context.element);
         wrappedOperator.open();
-        for (int j = 0; j < 5; j++) {
-            System.gc();
-            System.runFinalization();
-        }
+        System.gc();
+        System.runFinalization();
     }
 
     @Override
@@ -645,7 +643,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             getWrappedOperator().getKeyedStateBackend().deregisterKeySelectionListener(listener);
         }
 
-        public StreamConfig getStreamConfig(){
+        public StreamConfig getStreamConfig() {
             return streamConfig;
         }
     }

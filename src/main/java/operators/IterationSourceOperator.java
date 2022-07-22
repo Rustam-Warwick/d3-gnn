@@ -18,7 +18,7 @@
 
 package operators;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.NDArray;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
@@ -42,6 +42,7 @@ import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.IOUtils;
 
 import java.util.Objects;
@@ -49,6 +50,7 @@ import java.util.concurrent.Executor;
 
 /**
  * Feedback consumer operator as a source operator
+ *
  * @implNote <strong>Termination Detection</strong> is carried by looking at the operator input and output rate, periodically
  */
 public class IterationSourceOperator extends StreamSource<GraphOp, IterationSourceOperator.MySourceFunction>
@@ -103,31 +105,26 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      */
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        if(isBufferPoolClosed) return;
-        if(!timerRegistered){
-            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 5000);
+        if (isBufferPoolClosed) return;
+        if (!timerRegistered) {
+            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 30000);
             timerRegistered = true;
         }
         try {
+
             if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
                 output.collect(element);
             } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
                 broadcastOutput.broadcastEmit(element);
             }
-        }
-        catch (CancelTaskException bufferPool){
+        } catch (CancelTaskException bufferPool) {
             isBufferPoolClosed = true;
-            bufferPool.printStackTrace();
-        }
-        catch (IllegalStateException Exception){
-
-        }
-        catch (Exception e) {
-            BaseWrapperOperator.LOG.error(e.getMessage());
-        }
-        finally{
-            if(element.getValue().getElement() != null){
-                element.getValue().getElement().applyForNDArrays(item-> LifeCycleNDManager.getInstance().prepone(item));
+            BaseWrapperOperator.LOG.error(bufferPool.getMessage());
+        } catch (Exception e) {
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
+        } finally {
+            if (element.getValue().getElement() != null) {
+                element.getValue().getElement().applyForNDArrays(NDArray::prepone);
             }
         }
     }
@@ -146,6 +143,20 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         IOUtils.closeQuietly(feedbackChannel);
         BaseWrapperOperator.LOG.info(String.format("Finished %s", getRuntimeContext().getTaskNameWithSubtasks()));
         super.finish();
+    }
+
+    /**
+     * Register the consumer
+     */
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationId, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 
     /**
@@ -190,32 +201,22 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
         private final byte RETRY_COUNT = 3;
         private byte count = 0;
-
+        private Long prevCount = null;
         @Override
         public void onProcessingTime(long time) throws Exception {
             if (count >= RETRY_COUNT) return; // Already did what it had to do
-            double sumMessageRate = feedbackChannel.getTotalFlowingMessagesRate();
+            long sumMessageCount = feedbackChannel.getTotalFlowingMessagesRate();
             // Operator has started so try to find termination point
-            if (sumMessageRate > 0) count = 0;
+            if (prevCount == null || sumMessageCount > prevCount){
+                count = 0;
+                prevCount = sumMessageCount;
+            }
             else {
-                if (++count == RETRY_COUNT){
+                if (++count == RETRY_COUNT) {
                     BaseWrapperOperator.LOG.info(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
-                    output.emitWatermark(new Watermark(Long.MAX_VALUE));}
+                    output.emitWatermark(new Watermark(Long.MAX_VALUE));
+                }
             }
         }
-    }
-
-    /**
-     * Register the consumer
-     */
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = getRuntimeContext().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationId, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
     }
 }

@@ -5,7 +5,6 @@ import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.translate.Batchifier;
@@ -110,7 +109,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
             NDList batchedInputs = batchifier.batchify(inputs);
             NDList batchedGradients = batchifier.batchify(grads);
 
-            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs)) {
+            try {
 
                 // 2. Backward pass
                 NDList batchedPredictions = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), batchedInputs, true);

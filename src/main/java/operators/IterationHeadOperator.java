@@ -18,7 +18,6 @@
 
 package operators;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
@@ -103,7 +102,6 @@ public class IterationHeadOperator extends AbstractStreamOperator<GraphOp>
             broadcastOutput.broadcastEmit(element);
         }
 
-        LifeCycleNDManager.getInstance().clean();
     }
 
     @Override

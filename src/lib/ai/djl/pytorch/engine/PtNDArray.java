@@ -39,7 +39,7 @@ import java.util.stream.IntStream;
  * Added extra cleaner for this NDArray, works with explicit call as well as Cleaner for GC
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
-    private static final transient Cleaner cleaner = Cleaner.create();
+    protected static final transient Cleaner cleaner = Cleaner.create();
     private static transient Unsafe UNSAFE;
 
     static {
@@ -52,8 +52,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    private transient Cleaner.Cleanable cleanable;
     private final PtNDArrayEx ptNDArrayEx;
+    private transient Cleaner.Cleanable cleanable;
     private String name;
     private Device device;
     private DataType dataType;
@@ -313,10 +313,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void attach(NDManager manager) {
-        detach();
+        if (this.manager == manager) return;
+        if (manager instanceof LifeCycleNDManager) {
+            ((LifeCycleNDManager) manager).detachInternal(this);
+        } else {
+            manager.detachInternal(getUid());
+        }
         this.manager = (PtNDManager) manager;
         manager.attachInternal(getUid(), this);
-
     }
 
     /**
@@ -324,7 +328,12 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void tempAttach(NDManager manager) {
-        detach();
+        if (this.manager == manager) return;
+        if (manager instanceof LifeCycleNDManager) {
+            ((LifeCycleNDManager) manager).detachInternal(this);
+        } else {
+            manager.detachInternal(getUid());
+        }
         NDManager original = this.manager;
         this.manager = (PtNDManager) manager;
         manager.tempAttachInternal(original, getUid(), this);
@@ -335,9 +344,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void detach() {
-        manager.detachInternal(getUid());
+        if (manager instanceof LifeCycleNDManager) {
+            ((LifeCycleNDManager) manager).detachInternal(this);
+        } else {
+            manager.detachInternal(getUid());
+        }
         manager = PtNDManager.getSystemManager();
-        if(cleanable == null) cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
+        if (cleanable == null)
+            cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
     }
 
     /**
@@ -1758,13 +1772,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         return ptNDArrayEx;
     }
 
-    public int getTaskPossession() {
-        return 0;
-    }
-
-    public void setTaskPossession(int taskPossession) {
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -1783,12 +1790,12 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     /**
-     * {@inheritDoc}
+     * Only check the reference
      */
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof PtNDArray) {
-            return contentEquals((PtNDArray) obj);
+            return obj == this;
         }
         return false;
     }
@@ -1798,7 +1805,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public int hashCode() {
-        return 0;
+        return getUid().hashCode();
     }
 
     /**
@@ -1806,23 +1813,38 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        if(cleanable != null) cleanable.clean();
-        else{
-            Long pointer = handle.getAndSet(null);
-            if (pointer != null) {
-                JniUtils.deleteNDArray(pointer);
-            }
-            if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
-                UNSAFE.invokeCleaner(dataRef[0]);
-                dataRef[0] = null;
+        Long pointer = handle.getAndSet(null);
+        if (pointer != null) {
+            JniUtils.deleteNDArray(pointer);
+            if (manager instanceof LifeCycleNDManager) {
+                ((LifeCycleNDManager) manager).detachInternal(this);
+            } else {
+                manager.detachInternal(getUid());
             }
         }
+        if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
+            UNSAFE.invokeCleaner(dataRef[0]);
+            dataRef[0] = null;
+        }
+        if(cleanable!=null)cleanable.clean();
+    }
+
+    public void closeNotNotify(){
+        Long pointer = handle.getAndSet(null);
+        if (pointer != null) {
+            JniUtils.deleteNDArray(pointer);
+        }
+        if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
+            UNSAFE.invokeCleaner(dataRef[0]);
+            dataRef[0] = null;
+        }
+
+        if(cleanable!=null)cleanable.clean();
     }
 
     public static class PtNDArrayFinalizeTask implements Runnable {
         private final AtomicReference<Long> handle;
         private final ByteBuffer[] dataRef;
-
         public PtNDArrayFinalizeTask(PtNDArray array) {
             handle = array.handle;
             dataRef = array.dataRef;

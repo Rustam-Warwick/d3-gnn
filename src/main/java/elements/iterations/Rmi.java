@@ -3,6 +3,8 @@ package elements.iterations;
 import ai.djl.ndarray.NDArray;
 import elements.ElementType;
 import elements.GraphElement;
+import operators.BaseWrapperOperator;
+import org.apache.flink.util.ExceptionUtils;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -13,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class Rmi extends GraphElement {
-    public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(15);
+    public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
     public static transient MethodHandles.Lookup globalLookup = MethodHandles.lookup();
     public Object[] args;
     public ElementType elemType;
@@ -35,7 +37,7 @@ public class Rmi extends GraphElement {
 
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
-            ConcurrentHashMap<String, MethodHandle> thisClassMethods = new ConcurrentHashMap<>(5);
+            ConcurrentHashMap<String, MethodHandle> thisClassMethods = new ConcurrentHashMap<>(1 << 3);
             Method[] methods = clazz.getMethods();
             for (Method method : methods) {
                 if (method.isAnnotationPresent(RemoteFunction.class)) {
@@ -77,13 +79,23 @@ public class Rmi extends GraphElement {
             }
 
         } catch (Throwable e) {
-            e.printStackTrace();
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
 
     @Override
     public void applyForNDArrays(Consumer<NDArray> operation) {
         super.applyForNDArrays(operation);
+        for (Object arg : args) {
+            if (arg instanceof NDArray) {
+                operation.accept((NDArray) arg);
+            }
+        }
+    }
+
+    @Override
+    public void applyForNDArray(Consumer<NDArray> operation) {
+        super.applyForNDArray(operation);
         for (Object arg : args) {
             if (arg instanceof NDArray) {
                 operation.accept((NDArray) arg);

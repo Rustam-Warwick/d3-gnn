@@ -57,7 +57,6 @@ public class ModelServer extends Plugin {
 
     public void open() throws Exception {
         super.open();
-        model.getBlock().getParameters().forEach(item -> item.getValue().getArray().detach());
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();

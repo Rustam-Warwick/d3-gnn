@@ -12,6 +12,7 @@ import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.runtime.state.KeyedStateBackend;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
@@ -161,7 +162,6 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     value.element.setStorage(getStorage());
                     if (!getStorage().containsElement(value.element)) {
                         value.element.create();
-
                     } else {
                         GraphElement thisElement = getStorage().getElement(value.element);
                         thisElement.update(value.element);
@@ -187,8 +187,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     break;
             }
         } catch (Exception | Error e) {
-            System.out.println(value);
-            e.printStackTrace();
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         } finally {
 //            LifeCycleNDManager.getInstance().clean();
         }

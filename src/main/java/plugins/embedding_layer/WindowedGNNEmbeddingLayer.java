@@ -12,10 +12,12 @@ import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
+import operators.BaseWrapperOperator;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
@@ -164,36 +166,41 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
     @Override
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
-        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
-        List<NDList> inputs = new ArrayList<>();
-        List<Vertex> vertices = new ArrayList<>();
-        List<Long> timestamps = new ArrayList<>();
-        elementUpdates.getValue().forEach((key, val) -> {
-            if (val.f0 <= timestamp) {
-                // Send it
-                Vertex v = storage.getVertex(key);
-                if (updateReady(v)) {
-                    NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
-                    NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-                    inputs.add(new NDList(ft, agg));
-                    vertices.add(v);
-                    timestamps.add(val.f1);
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
+            List<NDList> inputs = new ArrayList<>();
+            List<Vertex> vertices = new ArrayList<>();
+            List<Long> timestamps = new ArrayList<>();
+            elementUpdates.getValue().forEach((key, val) -> {
+                if (val.f0 <= timestamp) {
+                    // Send it
+                    Vertex v = storage.getVertex(key);
+                    if (updateReady(v)) {
+                        NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+                        NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
+                        inputs.add(new NDList(ft, agg));
+                        vertices.add(v);
+                        timestamps.add(val.f1);
+                    }
                 }
+            });
+            if (inputs.isEmpty()) return;
+            NDList batch_inputs = batchifier.batchify(inputs.toArray(NDList[]::new));
+            NDList batch_updates = UPDATE(batch_inputs, false);
+            NDList[] updates = batchifier.unbatchify(batch_updates);
+            for (int i = 0; i < updates.length; i++) {
+                throughput.inc();
+                latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - timestamps.get(i));
+                elementUpdates.getValue().remove(vertices.get(i).getId());
+                Vertex messageVertex = vertices.get(i);
+                Tensor updateTensor = new Tensor("feature", updates[i].get(0),false, messageVertex.masterPart());
+                updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, messageVertex.getId());
+                storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD, timestamps.get(i));
             }
-        });
-        if (inputs.isEmpty()) return;
-        NDList batch_inputs = batchifier.batchify(inputs.toArray(NDList[]::new));
-        NDList batch_updates = UPDATE(batch_inputs, false);
-        NDList[] updates = batchifier.unbatchify(batch_updates);
-        for (int i = 0; i < updates.length; i++) {
-            throughput.inc();
-            latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - timestamps.get(i));
-            elementUpdates.getValue().remove(vertices.get(i).getId());
-            Vertex messageVertex = vertices.get(i).copy();
-            messageVertex.setFeature("feature", new Tensor(updates[i].get(0)));
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.masterPart(), messageVertex.getFeature("feature")), MessageDirection.FORWARD, timestamps.get(i));
+            storage.updateFeature(elementUpdates);
+        } catch (Exception e) {
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
-        storage.updateFeature(elementUpdates);
     }
 
     /**
@@ -202,23 +209,28 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @param v Vertex
      */
     public void reduceOutEdges(Vertex v) {
-        Preconditions.checkNotNull(v);
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
-        NDArray msg = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
-                if (Objects.isNull(msg)) {
-                    msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            Preconditions.checkNotNull(v);
+            Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
+            NDArray msg = null;
+            for (Edge edge : outEdges) {
+                if (this.messageReady(edge)) {
+                    if (Objects.isNull(msg)) {
+                        msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
+                    }
+                    new RemoteInvoke()
+                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                            .where(MessageDirection.ITERATE)
+                            .method("reduce")
+                            .hasUpdate()
+                            .addDestination(edge.getDest().masterPart())
+                            .withArgs(msg, 1)
+                            .buildAndRun(storage);
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msg, 1)
-                        .buildAndRun(storage);
             }
+        }
+        catch (Exception e){
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
 
@@ -229,26 +241,31 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Preconditions.checkNotNull(newFeature.getElement());
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDArray msgOld = null;
-        NDArray msgNew = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
-                if (Objects.isNull(msgOld)) {
-                    msgOld = MESSAGE(new NDList(oldFeature.getValue()), false).get(0);
-                    msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            Preconditions.checkNotNull(newFeature.getElement());
+            Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+            NDArray msgOld = null;
+            NDArray msgNew = null;
+            for (Edge edge : outEdges) {
+                if (this.messageReady(edge)) {
+                    if (Objects.isNull(msgOld)) {
+                        msgOld = MESSAGE(new NDList(oldFeature.getValue()), false).get(0);
+                        msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
+                    }
+                    new RemoteInvoke()
+                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                            .where(MessageDirection.ITERATE)
+                            .method("replace")
+                            .hasUpdate()
+                            .addDestination(edge.getDest().masterPart())
+                            .withArgs(msgNew, msgOld)
+                            .buildAndRun(storage);
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("replace")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msgNew, msgOld)
-                        .buildAndRun(storage);
             }
+        }catch (Exception e){
+            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
+
     }
 
     /**
@@ -259,12 +276,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @return Next layer feature
      */
     public NDList UPDATE(NDList feature, boolean training) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(feature)) {
-            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
-            return res;
-        } catch (Exception e) {
-            return null;
-        }
+        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -275,13 +287,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public NDList MESSAGE(NDList features, boolean training) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(features)) {
-            NDList res = ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
-            return res;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
     }
 
     /**

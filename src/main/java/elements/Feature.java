@@ -1,6 +1,5 @@
 package elements;
 
-import elements.iterations.MessageDirection;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import javax.annotation.Nullable;
@@ -99,7 +98,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 if (attachedTo.f0 == ElementType.VERTEX) {
-                    Vertex createElementNow = new Vertex(attachedTo.f1, false, getPartId());
+                    Vertex createElementNow = new Vertex(attachedTo.f1, false, masterPart());
                     createElementNow.setStorage(storage);
                     createElementNow.create();
                 } else {
@@ -108,7 +107,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
             }
             boolean is_created = createElement();
             if (is_created && state() == ReplicaState.MASTER && isReplicable() && !isHalo()) {
-                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this), MessageDirection.ITERATE));
+                syncReplicas(replicaParts());
+//                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this.copy()), MessageDirection.ITERATE));
             }
             return is_created;
         }
@@ -255,7 +255,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void setElement(GraphElement attachingElement) {
         if (attachingElement != null) {
             if (element == attachingElement) return; // Already attached
-            if (element != null && element.features.contains(this)) {
+            if (element != null && element.features !=null && element.features.contains(this)) {
                 throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
             }
             attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()) : attachedTo;

@@ -135,6 +135,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public Vertex getVertex(String id) {
         try {
             Vertex v = vertexTable.get(id);
+            if(v==null) return null;
             if (v.storage == null) {
                 v.setId(id);
                 v.setStorage(this);

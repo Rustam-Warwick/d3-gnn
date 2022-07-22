@@ -1,8 +1,6 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -58,22 +56,15 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction
     @Override
     public void reduce(NDArray newElement, int count) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0, newElement))) {
-            this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
-            this.value.f1 += count;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
+        value.f1 += count;
+
     }
 
     @RemoteFunction
     @Override
     public void replace(NDArray newElement, NDArray oldElement) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(new NDList(value.f0, newElement, oldElement))) {
-            value.f0.addi((newElement.sub(oldElement)).divi(value.f1));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        value.f0.addi((newElement.sub(oldElement)).divi(value.f1));
     }
 
     @Override
@@ -94,16 +85,16 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     @Override
     public Boolean createElement() {
-        value.f0.detach();
+        value.f0.postpone();
         return super.createElement();
     }
 
     @Override
     public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         MeanAggregator tmp = (MeanAggregator) newElement;
-        if(value.f0 != tmp.value.f0){
-            value.f0.attach(LifeCycleNDManager.getInstance());
-            tmp.value.f0.detach();
+        if (value != tmp.value) {
+            value.f0.prepone();
+            tmp.value.f0.postpone();
         }
         return super.updateElement(newElement, memento);
     }

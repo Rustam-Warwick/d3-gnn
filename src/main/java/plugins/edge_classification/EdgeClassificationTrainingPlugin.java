@@ -197,7 +197,7 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
             NDList batchedLabels = batchifier.batchify(labels.toArray(NDList[]::new));
 
-            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start(batchedInputs, batchedLabels)) {
+            try {
                 NDList predictions = (modelServer.getModel().getBlock()).forward(modelServer.getParameterStore(), batchedInputs, true);
                 NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
                 System.out.println(meanLoss);
