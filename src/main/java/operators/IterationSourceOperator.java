@@ -107,7 +107,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (isBufferPoolClosed) return;
         if (!timerRegistered) {
-            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 30000);
+            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 10000);
             timerRegistered = true;
         }
         try {

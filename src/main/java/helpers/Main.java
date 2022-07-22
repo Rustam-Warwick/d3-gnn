@@ -20,7 +20,6 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowingOutputGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
@@ -93,7 +92,7 @@ public class Main {
         Configuration a = new Configuration();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        Integer window = 500;
+        Integer window = null;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
@@ -107,7 +106,6 @@ public class Main {
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
-                        .withPlugin(new PrintVertexPlugin("ps4"))
                         .withPlugin(
                                 window != null ?
                                         new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window):
