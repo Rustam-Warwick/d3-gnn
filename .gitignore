@@ -4,3 +4,5 @@ build/
 jupyter/
 gradle/
 python/
+gradlew
+gradlew.bat
