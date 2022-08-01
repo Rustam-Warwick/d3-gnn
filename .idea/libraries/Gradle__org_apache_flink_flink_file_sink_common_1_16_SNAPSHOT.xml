@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.flink:flink-file-sink-common:1.16-SNAPSHOT">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-file-sink-common/1.16-SNAPSHOT/4945569099469a5160b08901b3b99d0bb2323199/flink-file-sink-common-1.16-SNAPSHOT.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-file-sink-common/1.16-SNAPSHOT/b69ad7549c324b008295c793e15e41f8d4574f3e/flink-file-sink-common-1.16-SNAPSHOT-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: org.apache.flink:flink-rpc-akka-loader:1.15.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-rpc-akka-loader/1.15.0/ed92b772f96b28fd1e5daa2372f0bdcb729d9250/flink-rpc-akka-loader-1.15.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-rpc-akka-loader/1.15.0/7b4014baf979c1a7e6b8e34af5638536d5887174/flink-rpc-akka-loader-1.15.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

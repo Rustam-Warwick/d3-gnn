@@ -1,0 +1,11 @@
+package elements;
+
+import org.apache.flink.api.common.typeinfo.TypeInfo;
+import typeinfo.ByteEnumTypeInfoFactory;
+
+@TypeInfo(ByteEnumTypeInfoFactory.class)
+public enum ReplicaState {
+    UNDEFINED,
+    REPLICA,
+    MASTER
+}

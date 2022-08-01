@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="Gradle: org.apache.flink:flink-shaded-zookeeper-3:3.4.14-14.0">
-    <CLASSES>
-      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-shaded-zookeeper-3/3.4.14-14.0/47cb3abb9267c78c13b05aca07e4dac0426ebebb/flink-shaded-zookeeper-3-3.4.14-14.0.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

@@ -1,0 +1,11 @@
+<component name="libraryTable">
+  <library name="Gradle: com.ververica:frocksdbjni:6.20.3-ververica-1.0">
+    <CLASSES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.ververica/frocksdbjni/6.20.3-ververica-1.0/bcdbcd6b5cc2daa68b90d94666c35ad6e6a6cc61/frocksdbjni-6.20.3-ververica-1.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/com.ververica/frocksdbjni/6.20.3-ververica-1.0/14f8c6ed3312a2b211e71d16eb359f6d3a6c30c3/frocksdbjni-6.20.3-ververica-1.0-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
