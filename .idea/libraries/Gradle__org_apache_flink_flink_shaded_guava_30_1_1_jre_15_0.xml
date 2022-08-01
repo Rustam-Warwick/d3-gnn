@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="Gradle: org.apache.flink:flink-shaded-guava:30.1.1-jre-15.0">
-    <CLASSES>
-      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-shaded-guava/30.1.1-jre-15.0/bd226b0497e69b57de5c9868cbf5489a573d52a9/flink-shaded-guava-30.1.1-jre-15.0.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>

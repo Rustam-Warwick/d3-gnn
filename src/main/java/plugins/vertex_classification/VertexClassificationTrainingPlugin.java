@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Simply stores and initializes the model, does not do any continuous inference
  */
-public class VertexTrainingLayer extends Plugin {
+public class VertexClassificationTrainingPlugin extends Plugin {
 
     public final String modelName;
 
@@ -37,14 +37,14 @@ public class VertexTrainingLayer extends Plugin {
     public int BATCH_COUNT = 0;
 
 
-    public VertexTrainingLayer(String modelName, SerializableLoss loss, int MAX_BATCH_SIZE) {
+    public VertexClassificationTrainingPlugin(String modelName, SerializableLoss loss, int MAX_BATCH_SIZE) {
         super(String.format("%s-trainer", modelName));
         this.MAX_BATCH_SIZE = MAX_BATCH_SIZE;
         this.loss = loss;
         this.modelName = modelName;
     }
 
-    public VertexTrainingLayer(String modelName, SerializableLoss loss) {
+    public VertexClassificationTrainingPlugin(String modelName, SerializableLoss loss) {
         this(modelName, loss, 1024);
     }
 

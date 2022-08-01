@@ -1,9 +1,0 @@
-<component name="libraryTable">
-  <library name="Gradle: org.apache.flink:flink-shaded-netty:4.1.70.Final-15.0">
-    <CLASSES>
-      <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.apache.flink/flink-shaded-netty/4.1.70.Final-15.0/fb7b17dc76a1517b16bc49fc11000e26a5ea62c8/flink-shaded-netty-4.1.70.Final-15.0.jar!/" />
-    </CLASSES>
-    <JAVADOC />
-    <SOURCES />
-  </library>
-</component>
