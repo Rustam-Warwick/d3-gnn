@@ -5,4 +5,5 @@ jupyter/
 gradle/
 python/
 gradlew
+kube-config/
 gradlew.bat

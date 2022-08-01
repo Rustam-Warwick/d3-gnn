@@ -30,6 +30,8 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.KeyedProcessOperator;
 import partitioner.BasePartitioner;
 
+import java.util.Arrays;
+
 public class GraphStream {
 
     private final StreamExecutionEnvironment env; // Stream environment
@@ -53,6 +55,7 @@ public class GraphStream {
     private IterationID fullLoopIterationId; // Iteration Id of 0 layer
 
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs) {
+        Arrays.sort(cmdArgs);
         this.env = env;
         this.cmdArgs = cmdArgs;
         configureSerializers();

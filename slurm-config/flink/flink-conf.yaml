@@ -156,7 +156,7 @@ parallelism.default: 1
 #==============================================================================
 
 #metrics.reporter.dghttp.factory.class: org.apache.flink.metrics.datadog.DatadogHttpReporterFactory
-#metrics.reporter.dghttp.apikey: 76d2b9d99243916d9959ad430c53aee3
+#metrics.reporter.dghttp.apikey: bla-bla
 #metrics.reporter.dghttp.tags: flink
 #metrics.reporter.dghttp.dataCenter: EU
 #metrics.reporter.dghttp.interval: 10 SECONDS

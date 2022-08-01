@@ -1,23 +1,36 @@
-# Flink Graph Neural Networks
+# D3-GNN
 ## Requirements
 - *Java 8 or 11* (Some higher version sometimes work as well)
-- *build.gradle* file for Java dependencies
-- *environment.yml* file for Python dependencies
-- Dataset to be ingested, **Cora, MovieLens, Reddit, Stackoverflow** tested so far
+- Gradle packet manager
+
+## Datasets
+1. **StackOverflow** dataset can be downloaded from https://snap.stanford.edu/data/sx-stackoverflow.html
+2. **Reddit-Hyperlinks-body** dataset can be downloaded from https://snap.stanford.edu/data/soc-RedditHyperlinks.html
+
+We pre-process those datasets to make them easier to parse using the corresponding **RedditHyperlinks** and **Stackoverflow** parsers.
+We include this pre-processing script in /scripts/jupyter/Pre Process Datasets.ipynb file
+
+To test the aforementioned datasets organize them in a folder structure as such:
+- Datasets
+  - RedditHyperlinks
+    - soc-redditHyperlinks-body.tsv
+  - StackOverflow
+    - sx-stackoverflow.tsv
+
+Then create an environments variable _DATASET_DIR_ pointing to the /Datasets folder.
 
 ## How to Run
 1. Run **libShadowJar** task to generate library jar file. Then copy it to flink/lib directory 
-2. Extend the **Dataset** class and provide _Splitter_ and _Parser_ for the particular dataset of choice
-3. Code the desired Flink pipeline in helpers/Main.java
+2. Extend the **Dataset** class and implement _Splitter_ and _Parser_ logic for the particular dataset of choice or alternatively pass -d=[reddit-hyperlink | stackoverflow] to test with the implemented datasets. The latter will only work if the steps in Datasets are correctly executed.
+3. Code the desired Flink pipeline in helpers/Main.java (default pipeline as described in the paper is already implemented)
 4. Run shadowJar task to generate job jar file. 
 5. Deploy the jar file using the Flink Dashboard
-   1. For slurm cluster deployment there is a helper _slurm-config/slurm.script_
-   2. Local exeuction works as expected
-   3. For K8 deployment there are helper files in kude-config
+   1. For slurm cluster deployment there are helper scripts in _slurm-config/flink_. Read the corresponding README for instructions.
    
 
 ## Key Components
 #### **src/main/java** is the main Java development folder
+#### **src/main/lib** is the Folder that goes to Flink lib folder hence is statically class-loaded on cluster startup time
 ### Elements
 Elements store main classes involved within Flink operators
 - **GraphElement**: Base Class for all graph elements(@Vertex, @Feature, @Edge, @Plugin)
@@ -52,8 +65,6 @@ All the Plugins are contianed here
 - **GNNEmbeddingLayerTrainingPlugin**: Trainer plugin for intermediate gnn embedding layers
 ### Partitioner
 - **BasePartitioner**: Base class for all partitioners
-### Serializers
-Some Java Types are not serializable(Converted into byte stream). All Custom Serializers are implemented here. They follow Flink's own tutorial on how to extend Flink Types.
 ### Storage
 Storage is central process function of gnn layers. Storage is responsible for storing GraphElements
 - **BaseStorage**: Defines the main interfaces and common logic for storage.

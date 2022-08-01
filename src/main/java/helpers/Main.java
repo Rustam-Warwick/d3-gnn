@@ -87,17 +87,14 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-        Arrays.sort(args);
-        ArrayList<Model> models = layeredModel();
-        Configuration a = new Configuration();
+        ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        Integer window = 500;
+        Integer window = null;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-//                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowingOutputGNNEmbeddingLayer(models.get(0).getName(), true, window) :
@@ -105,16 +102,11 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-//                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
                         .withPlugin(
                                 window != null ?
                                         new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window) :
                                         new StreamingGNNEmbeddingLayer(models.get(1).getName()))
                 )
-//                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
-//                        .withPlugin(new ModelServer(models.get(2)))
-////                        .withPlugin(new EdgeClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(Loss.l1Loss())))
-//                )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
