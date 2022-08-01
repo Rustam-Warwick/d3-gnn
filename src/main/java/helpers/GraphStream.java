@@ -10,6 +10,7 @@ import elements.*;
 import elements.iterations.Rmi;
 import features.Set;
 import features.Tensor;
+import functions.helpers.Throttler;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
 import operators.IterationSourceOperator;
@@ -262,8 +263,8 @@ public class GraphStream {
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
 
         // 2. Partitiong the incoming stream
-//        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain)).disableChaining().process(new Throttler(10000)).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain));
+        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain)).disableChaining().process(new Throttler(500, 50000)).name("Throttler").setParallelism(1);
+//        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain));
         layerOutputs[0] = previousLayerUpdates; // First one is the partitioned data
 
         // 3. Execute the layers

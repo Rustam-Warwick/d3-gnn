@@ -22,10 +22,8 @@ import java.util.List;
 public class WindowingOutputGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
 
-    public transient Batchifier batchifier; // Batchifier for the windowed data
-
     public final int windowInterval; // Window Interval for graph element updates in milliseconds
-
+    public transient Batchifier batchifier; // Batchifier for the windowed data
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
     public WindowingOutputGNNEmbeddingLayer(int windowInterval) {
@@ -63,7 +61,7 @@ public class WindowingOutputGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
     public void forward(Vertex v) {
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + windowInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
         Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
         elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
         storage.updateElement(elementUpdates);

@@ -28,7 +28,7 @@ public interface View {
     /**
      * The interval in which metrics are updated.
      */
-    int UPDATE_INTERVAL_SECONDS = 2;
+    int UPDATE_INTERVAL_SECONDS = 1;
 
     /**
      * This method will be called regularly to update the metric.

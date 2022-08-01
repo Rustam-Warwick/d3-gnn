@@ -62,7 +62,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     @Override
     public boolean valuesEqual(NDArray v1, NDArray v2) {
-        return v1==v2;
+        return v1 == v2;
     }
 
     @Override

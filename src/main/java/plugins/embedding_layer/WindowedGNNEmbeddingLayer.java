@@ -193,7 +193,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                 latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - timestamps.get(i));
                 elementUpdates.getValue().remove(vertices.get(i).getId());
                 Vertex messageVertex = vertices.get(i);
-                Tensor updateTensor = new Tensor("feature", updates[i].get(0),false, messageVertex.masterPart());
+                Tensor updateTensor = new Tensor("feature", updates[i].get(0), false, messageVertex.masterPart());
                 updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, messageVertex.getId());
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD, timestamps.get(i));
             }
@@ -209,7 +209,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @param v Vertex
      */
     public void reduceOutEdges(Vertex v) {
-        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             Preconditions.checkNotNull(v);
             Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
             NDArray msg = null;
@@ -228,8 +228,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                             .buildAndRun(storage);
                 }
             }
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
@@ -241,7 +240,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             Preconditions.checkNotNull(newFeature.getElement());
             Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
             NDArray msgOld = null;
@@ -262,7 +261,7 @@ public class WindowedGNNEmbeddingLayer extends Plugin {
                             .buildAndRun(storage);
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }
 

@@ -9,9 +9,11 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.checkerframework.checker.units.qual.A;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
@@ -103,15 +105,18 @@ public class HDRF extends BasePartitioner {
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
-            short selected = 0;
+            List<Short> tmp = new ArrayList<>();
             for (short i = 0; i < this.numPartitions; i++) {
                 float score = REP(edge, i) + BAL(i);
                 if (score > maxScore) {
+                    tmp.clear();
                     maxScore = score;
-                    selected = i;
+                    tmp.add(i);
                 }
+                else if(score == maxScore) tmp.add(i);
             }
-            final short finalSelected = selected;
+
+            final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
 
             // 3. Update the tables
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
@@ -146,7 +151,7 @@ public class HDRF extends BasePartitioner {
                 }
             });
 
-            return selected;
+            return finalSelected;
         }
 
         public short computePartition(Vertex vertex) {
@@ -179,16 +184,16 @@ public class HDRF extends BasePartitioner {
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
                 Edge edge = (Edge) elementToPartition;
-//                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
-//                    // Wait for completion
-//                }
-//                currentlyProcessing.add(edge.src.getId());
-//                currentlyProcessing.add(edge.dest.getId());
+                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
+                    // Wait for completion
+                }
+                currentlyProcessing.add(edge.src.getId());
+                currentlyProcessing.add(edge.dest.getId());
                 short partition = this.computePartition(edge);
                 edge.getSrc().master = this.partitionTable.get(edge.getSrc().getId()).get(0);
                 edge.getDest().master = this.partitionTable.get(edge.getDest().getId()).get(0);
-//                currentlyProcessing.remove(edge.src.getId());
-//                currentlyProcessing.remove(edge.dest.getId());
+                currentlyProcessing.remove(edge.src.getId());
+                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;
             }
             out.collect(value);

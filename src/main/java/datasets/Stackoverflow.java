@@ -16,16 +16,16 @@ import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
 
-public class RedditHyperlink implements Dataset {
+public class Stackoverflow implements Dataset {
     private final transient String baseDirectory;
 
-    public RedditHyperlink(String baseDirectory) {
+    public Stackoverflow(String baseDirectory) {
         this.baseDirectory = baseDirectory;
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
+        String fileName = Path.of(baseDirectory, "StackOverflow", "sx-stackoverflow.tsv").toString();
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {

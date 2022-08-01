@@ -92,7 +92,7 @@ public class Main {
         Configuration a = new Configuration();
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        Integer window = null;
+        Integer window = 500;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
@@ -100,7 +100,7 @@ public class Main {
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(0).getName()))
                         .withPlugin(
                                 window != null ?
-                                        new WindowingOutputGNNEmbeddingLayer(models.get(0).getName(), true, window):
+                                        new WindowingOutputGNNEmbeddingLayer(models.get(0).getName(), true, window) :
                                         new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
                 ),
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
@@ -108,7 +108,7 @@ public class Main {
 //                        .withPlugin(new GNNEmbeddingLayerTrainingPlugin(models.get(1).getName()))
                         .withPlugin(
                                 window != null ?
-                                        new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window):
+                                        new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window) :
                                         new StreamingGNNEmbeddingLayer(models.get(1).getName()))
                 )
 //                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()

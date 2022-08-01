@@ -255,7 +255,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void setElement(GraphElement attachingElement) {
         if (attachingElement != null) {
             if (element == attachingElement) return; // Already attached
-            if (element != null && element.features !=null && element.features.contains(this)) {
+            if (element != null && element.features != null && element.features.contains(this)) {
                 throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
             }
             attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()) : attachedTo;

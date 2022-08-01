@@ -1,5 +1,6 @@
 package functions.gnn_layers;
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.iterations.MessageDirection;
@@ -156,7 +157,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      * @param value Process The Incoming Value
      */
     default void process(GraphOp value) {
-        try {
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             switch (value.op) {
                 case COMMIT:
                     value.element.setStorage(getStorage());

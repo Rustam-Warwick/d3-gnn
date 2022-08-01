@@ -83,7 +83,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         broadcastOutput =
                 BroadcastOutputFactory.createBroadcastOutput(
                         output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
-        mailboxExecutor = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MIN_PRIORITY);
+        mailboxExecutor = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
                     mailboxExecutor.execute(runnable::run, "Head feedback");
@@ -122,6 +122,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             BaseWrapperOperator.LOG.error(bufferPool.getMessage());
         } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
+            BaseWrapperOperator.LOG.error(element.getValue().toString());
         } finally {
             if (element.getValue().getElement() != null) {
                 element.getValue().getElement().applyForNDArrays(NDArray::prepone);
@@ -202,16 +203,16 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         private final byte RETRY_COUNT = 3;
         private byte count = 0;
         private Long prevCount = null;
+
         @Override
         public void onProcessingTime(long time) throws Exception {
             if (count >= RETRY_COUNT) return; // Already did what it had to do
             long sumMessageCount = feedbackChannel.getTotalFlowingMessagesRate();
             // Operator has started so try to find termination point
-            if (prevCount == null || sumMessageCount > prevCount){
+            if (prevCount == null || sumMessageCount > prevCount) {
                 count = 0;
                 prevCount = sumMessageCount;
-            }
-            else {
+            } else {
                 if (++count == RETRY_COUNT) {
                     BaseWrapperOperator.LOG.info(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
                     output.emitWatermark(new Watermark(Long.MAX_VALUE));

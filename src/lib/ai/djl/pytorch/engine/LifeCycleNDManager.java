@@ -225,10 +225,13 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
 import com.github.benmanes.caffeine.cache.*;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.apache.flink.api.java.tuple.Tuple2;
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -247,33 +250,34 @@ public class LifeCycleNDManager extends PtNDManager {
     /**
      * HashMap for the Threads
      */
-    private static final ThreadLocal<LifeCycleNDManager> THREADS = ThreadLocal.withInitial(()->new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().defaultDevice()));
+    private static final transient NonBlockingHashMapLong<Tuple2<Thread, LifeCycleNDManager>> THREADS = new NonBlockingHashMapLong<>();
+
+    static {
+        Thread cleanerThread = new Thread(LifeCycleNDManager::clean);
+        cleanerThread.setPriority(Thread.NORM_PRIORITY);
+        cleanerThread.start();
+    }
 
     /**
      * Scopes
      */
     protected final Scope parentScope = new Scope();
-
     protected final ManualTicker ticker = new ManualTicker();
-
+    protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>();
     protected long scopedCount = 0;
-
-    protected final NonBlockingHashMap<AutoCloseable, Integer> detached = new NonBlockingHashMap<>();
-
-    protected long closedValues = 0;
-
+    protected long closedCount = 0;
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
-                        if(closedValues++ % 10000 ==0) LOG.info(String.format("So far closed %s detached %s", closedValues, detached.size()));
-                        if(key instanceof PtNDArray) ((PtNDArray) key).closeNotNotify();
+                        closedCount++;
+                        if (key instanceof PtNDArray) ((PtNDArray) key).closeNotNotify();
                         else key.close();
                     }
                 } catch (Exception e) {
                     LOG.error(e.getMessage());
                 }
-            }).expireAfterWrite(1000, TimeUnit.NANOSECONDS)
+            }).expireAfterWrite(100, TimeUnit.NANOSECONDS)
             .ticker(ticker)
             .scheduler(Scheduler.systemScheduler())
             .build();
@@ -282,16 +286,54 @@ public class LifeCycleNDManager extends PtNDManager {
         super(parent, device);
         this.resources = null;
         this.tempResources = null;
-        Thread closingThread = new LifeCycleManagerCleaner(this, Thread.currentThread());
-        closingThread.setName("[Cleaner] "+Thread.currentThread().getName());
-        closingThread.start();
     }
 
     /**
      * Get NDManager for this Thread
      */
     public static LifeCycleNDManager getInstance() {
-        return THREADS.get();
+        THREADS.computeIfAbsent(Thread.currentThread().getId(), (a) -> Tuple2.of(Thread.currentThread(), new LifeCycleNDManager(PtNDManager.getSystemManager(), PtNDManager.getSystemManager().defaultDevice())));
+        return THREADS.get(Thread.currentThread().getId()).f1;
+    }
+
+    public static void clean() {
+        boolean notInterrupted = true;
+        while (notInterrupted) {
+            // Cleanup closed threads
+            for (Iterator<Tuple2<Thread, LifeCycleNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
+                Tuple2<Thread, LifeCycleNDManager> val = threadLocal.next();
+                if (!val.f0.isAlive()) {
+                    // Clean the data structure, thread is no longer needed
+                    try {
+                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
+                            value.close();
+                        }
+                        for (AutoCloseable value : val.f1.detached.keySet()) {
+                            value.close();
+                        }
+                        val.f1.attached.asMap().clear();
+                        val.f1.detached.clear();
+                        threadLocal.remove();
+                        System.gc();
+                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
+                    } catch (Exception ignored) {
+                        LOG.error("Exception in trying to close all Tensors");
+                    }
+                } else {
+                    LOG.error(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
+                }
+            }
+
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                LOG.info("Interrupted");
+                notInterrupted = false;
+            }
+
+
+        }
+
     }
 
     public Scope getScope() {
@@ -352,45 +394,6 @@ public class LifeCycleNDManager extends PtNDManager {
 
     }
 
-    static class LifeCycleManagerCleaner extends Thread{
-        private final LifeCycleNDManager manager;
-        private final Thread managerThread;
-
-        public LifeCycleManagerCleaner(LifeCycleNDManager manager, Thread managerThread) {
-            this.manager = manager;
-            this.managerThread = managerThread;
-        }
-
-        @Override
-        public void run() {
-            try {
-                managerThread.join(); // Wait for the main thread to finish executing then release all remaining tensors
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-            LOG.info(String.format("[Finalizing] Closed so far %s, Attached %s, Detached %s", manager.closedValues,manager.attached.asMap().size(), manager.detached.size()));
-            manager.attached.asMap().forEach((key,item)-> {
-                try {
-                    if(key instanceof PtNDArray) ((PtNDArray) key).closeNotNotify();
-                    else key.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            manager.detached.forEach((key, item)->{
-                try {
-                    if(key instanceof PtNDArray) ((PtNDArray) key).closeNotNotify();
-                    else key.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            });
-            manager.attached.asMap().clear();
-            manager.detached.clear();
-            System.gc();
-        }
-    }
-
     /**
      * Logical Clock for releasing the Tensors
      */
@@ -401,8 +404,8 @@ public class LifeCycleNDManager extends PtNDManager {
             value++;
         }
 
-        public void increment(long tmp){
-            value+=tmp;
+        public void increment(long tmp) {
+            value += tmp;
         }
 
         @Override
@@ -425,7 +428,7 @@ public class LifeCycleNDManager extends PtNDManager {
         @Override
         public void close() throws Exception {
             openCount--;
-            if(isClosed()){
+            if (isClosed()) {
                 // Now the scope is closed update the ticker value back to the scope ticker
                 ticker.increment(scopedCount);
                 scopedCount = 0;

@@ -25,8 +25,21 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
 
     @Override
     public void notifyOfRemovedMetric(Metric metric, String metricName, MetricGroup group) {
+
         if (fileHashMap.containsKey(metric)) {
             Tuple2<File, StringBuilder> file = fileHashMap.get(metric);
+            if (metric instanceof Gauge) {
+                Gauge tmp = (Gauge) metric;
+                file.f1.append(tmp.getValue().toString()).append("\n");
+            }
+            if (metric instanceof Counter) {
+                Counter tmp = (Counter) metric;
+                file.f1.append(tmp.getCount()).append("\n");
+            }
+            if (metric instanceof Meter) {
+                Meter tmp = (Meter) metric;
+                file.f1.append(tmp.getRate()).append("\n");
+            }
             try {
                 Files.write(file.f0.toPath(), file.f1.toString().getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
             } catch (IOException e) {

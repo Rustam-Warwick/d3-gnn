@@ -6,17 +6,22 @@ import org.apache.flink.util.Collector;
 
 public class Throttler extends ProcessFunction<GraphOp, GraphOp> {
     private final long nanoSeconds;
-
-    public Throttler(int numRecordsPerSecond) {
-        nanoSeconds = (long) (1f / numRecordsPerSecond * 1000000000);
+    private final long maxRecords;
+    private long count = 0;
+    public Throttler(int numRecordsPerSecond, long maxRecords) {
+        nanoSeconds = (long) (1000000000f / numRecordsPerSecond);
+        this.maxRecords = maxRecords;
     }
 
     @Override
     public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+        if(count++ > maxRecords) return;
         long startTime = System.nanoTime();
-        while (System.nanoTime() < startTime + nanoSeconds) {
+        while (System.nanoTime() <= startTime + nanoSeconds) {
             // continue
+            Thread.onSpinWait();
         }
+
         out.collect(value);
     }
 }

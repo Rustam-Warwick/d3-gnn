@@ -135,7 +135,6 @@ public class Edge extends GraphElement {
     }
 
 
-
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
