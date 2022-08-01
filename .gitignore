@@ -1,5 +1,4 @@
-.gradle
-build
-/datasets
-/jupyter
-gradle
+.gradle/
+build/
+jupyter/
+gradle/
