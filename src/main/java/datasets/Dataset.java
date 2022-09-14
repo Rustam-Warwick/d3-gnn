@@ -20,6 +20,12 @@ public interface Dataset extends Serializable {
         if (name.equals("reddit-hyperlink")) {
             return new RedditHyperlink(Path.of(System.getenv("DATASET_DIR")).toString());
         }
+        if (name.equals("coauth-DBLP")){
+            return new CoauthDBLP(Path.of(System.getenv("DATASET_DIR"),"coauth-DBLP-full").toString());
+        }
+        if (name.equals("coauth-DBLP-vertex-stream")){
+            return new CoauthDBLPVertexStream(Path.of(System.getenv("DATASET_DIR"),"coauth-DBLP-full").toString());
+        }
         if (name.equals("stackoverflow")) {
             return new Stackoverflow(Path.of(System.getenv("DATASET_DIR")).toString());
         } else if (name.contains("signed")) {

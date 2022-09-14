@@ -215,7 +215,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
                 for (Map.Entry<BaseAggregator<?>, List<Vertex>> baseAggregatorListEntry : reverseEdgeList.entrySet()) {
                     List<NDList> tmpMessages = baseAggregatorListEntry.getValue().stream().map(item -> new NDList((NDArray) item.getFeature("message").getValue())).collect(Collectors.toList());
                     NDList tmpBatchedMessages = batchifier.batchify(tmpMessages.toArray(new NDList[0]));
-                    NDArray batchedGradients = baseAggregatorListEntry.getKey().grad(collectedAggregators.getValue().get(baseAggregatorListEntry.getKey()), tmpBatchedMessages.get(0));
+                    NDArray batchedGradients = baseAggregatorListEntry.getKey().grad(collectedAggregators.getValue().get(baseAggregatorListEntry.getKey()), tmpBatchedMessages);
                     NDList[] tmpUnBatchedGradients = batchifier.unbatchify(new NDList(batchedGradients));
                     for (int i = 0; i < tmpUnBatchedGradients.length; i++) {
                         Vertex v = baseAggregatorListEntry.getValue().get(i);

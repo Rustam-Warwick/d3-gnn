@@ -57,17 +57,14 @@ public class Edge extends GraphElement {
      * Returns [src_id, dest_id, att]
      */
     public static String[] decodeVertexIdsAndAttribute(String edgeId) {
-        String[] val = edgeId.split(DELIMITER);
-        if (val.length == 2) {
-            return new String[]{val[0], val[1], null};
-        } else return val;
+        return edgeId.split(DELIMITER);
     }
 
     /**
      * Encode attribute-less edge id
      */
     public static String encodeEdgeId(String srcId, String destId) {
-        return srcId + DELIMITER + destId;
+        return srcId + DELIMITER + destId + DELIMITER;
     }
 
     /**
@@ -81,7 +78,7 @@ public class Edge extends GraphElement {
      * Contains attribute or not
      */
     public static boolean isAttributed(String edgeId) {
-        return StringUtils.countMatches(edgeId, DELIMITER) == 2;
+        return !edgeId.substring(edgeId.length() - 1).equals(DELIMITER);
     }
 
     @Override
@@ -100,21 +97,21 @@ public class Edge extends GraphElement {
     }
 
     public Vertex getSrc() {
-        if (src == null) {
-            src = storage.getVertex(decodeVertexIdsAndAttribute(getId())[0]);
+        if (src == null && storage != null) {
+                src = storage.getVertex(decodeVertexIdsAndAttribute(getId())[0]);
         }
         return src;
     }
 
     public Vertex getDest() {
-        if (dest == null) {
+        if (dest == null && storage != null) {
             dest = storage.getVertex(decodeVertexIdsAndAttribute(getId())[1]);
         }
         return dest;
     }
 
     @Override
-    public Boolean create() {
+    protected Boolean createElement(boolean notify) {
         assert storage != null;
         if (src != null && !storage.containsVertex(getSrc().getId())) {
             src.create();
@@ -124,7 +121,7 @@ public class Edge extends GraphElement {
         }
         src = null;
         dest = null;
-        return super.create();
+        return super.createElement(notify);
     }
 
     @Override
@@ -133,7 +130,6 @@ public class Edge extends GraphElement {
         getSrc().applyForNDArrays(operation);
         getDest().applyForNDArrays(operation);
     }
-
 
     @Override
     public void setStorage(BaseStorage storage) {

@@ -9,25 +9,27 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
+import ai.djl.nn.gnn.HyperSAGE;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
+import datasets.Dataset;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
+import plugins.embedding_layer.StreamingHGNNEmbeddingLayer;
 import plugins.embedding_layer.WindowingOutputGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.function.Function;
 
 public class Main {
@@ -46,8 +48,8 @@ public class Main {
 
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new SAGEConv(64, true));
-        sb.add(new SAGEConv(32, true));
+        sb.add(new HyperSAGE(64, true));
+        sb.add(new HyperSAGE(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(new Function<NDList, NDList>() {
@@ -87,31 +89,24 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
+
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setMaxParallelism(32);
         // DataFlow
-        Integer window = null;
+//        Integer window = null;
         GraphStream gs = new GraphStream(env, args);
+
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(
-                                window != null ?
-                                        new WindowingOutputGNNEmbeddingLayer(models.get(0).getName(), true, window) :
-                                        new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
-                ),
-                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
-                        .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(
-                                window != null ?
-                                        new WindowingOutputGNNEmbeddingLayer(models.get(1).getName(), window) :
-                                        new StreamingGNNEmbeddingLayer(models.get(1).getName()))
+                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
                 )
         );
 
-        String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
-        env.execute(jobName);
+//        String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
+//        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
+        env.execute();
 
 
     }

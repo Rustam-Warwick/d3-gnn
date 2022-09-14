@@ -44,22 +44,25 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     /**
-     * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas
-     *
+     * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
+     * First send the sync messages then do the synchronization logic
      * @return is_created
      */
     @Override
     public Boolean create() {
         if (state() == ReplicaState.REPLICA) clearFeatures();
-        boolean is_created = createElement();
-        if (is_created && !isHalo()) {
-            if (state() == ReplicaState.MASTER) {
-                // Add setFeature
-                setFeature("parts", new Set<Short>(new ArrayList<>(), true));
-            } else if (state() == ReplicaState.REPLICA) {
-                // Send Query to sync
-                storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
+        boolean is_created = createElement(false); // Delaying the plugin callback for later time
+        if (is_created) {
+            if(!isHalo()) {
+                if (state() == ReplicaState.MASTER) {
+                    // Add setFeature
+                    setFeature("parts", new Set<Short>(new ArrayList<>(), true));
+                } else if (state() == ReplicaState.REPLICA) {
+                    // Send Query to sync
+                    storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
+                }
             }
+            storage.getPlugins().forEach(item->item.addElementCallback(this));
         }
         return is_created;
     }
@@ -87,7 +90,6 @@ public class ReplicableGraphElement extends GraphElement {
         } else if (state() == ReplicaState.REPLICA) {
             return updateElement(newElement, null);
         }
-
         return super.sync(this); // Do nothing
     }
 
@@ -101,9 +103,10 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 && !isHalo()) {
-                syncReplicas(replicaParts());
+            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null, false);
+            if (tmp.f0) {
+                if(!isHalo()) syncReplicas(replicaParts());
+                storage.getPlugins().forEach(item->item.updateElementCallback(this, tmp.f1));
             }
             return tmp;
         } else if (state() == ReplicaState.REPLICA) {

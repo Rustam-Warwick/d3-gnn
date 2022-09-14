@@ -1,6 +1,7 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import elements.Feature;
 import elements.iterations.RemoteFunction;
 
@@ -30,17 +31,16 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
     }
 
     @RemoteFunction
-    public abstract void reduce(NDArray newElement, int count);
+    public abstract void reduce(NDList newElement, int count);
 
     @RemoteFunction
-    public abstract void replace(NDArray newElement, NDArray oldElement);
+    public abstract void replace(NDList newElement, NDList oldElement);
 
     /**
      * @param aggGradient dLoss/dAgg
-     * @param message     Edge message to this aggregator. (Batch_size, message_size)
      * @return dLoss/dmessages
      */
-    public abstract NDArray grad(NDArray aggGradient, NDArray message);
+    public abstract NDArray grad(NDArray aggGradient, NDList messages);
 
     public abstract void reset();
 }

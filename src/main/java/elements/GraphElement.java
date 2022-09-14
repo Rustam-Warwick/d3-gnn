@@ -75,11 +75,12 @@ public class GraphElement implements Serializable {
 
     /**
      * Creates element and all attached Features
-     *
+     * Notifies the listener plugins if the boolean flag is true
+     * Here we should encode the logic of transforming the element locally if needed
      * @return Was element created
      * @implNote Does not rollback if some Feature is not created
      */
-    public Boolean createElement() {
+    protected Boolean createElement(boolean notify) {
         assert storage != null;
         boolean is_created = storage.addElement(this);
         if (is_created) {
@@ -88,9 +89,13 @@ public class GraphElement implements Serializable {
                     el.createElement();
                 }
             }
-            storage.getPlugins().forEach(item -> item.addElementCallback(this));
+            if(notify) storage.getPlugins().forEach(item -> item.addElementCallback(this));
         }
         return is_created;
+    }
+
+    final protected Boolean createElement(){
+        return this.createElement(true);
     }
 
     /**
@@ -99,7 +104,7 @@ public class GraphElement implements Serializable {
      * @return Was element deleted
      * @implNote Does not rollback after deletion
      */
-    public Boolean deleteElement() {
+    protected Boolean deleteElement(boolean notify) {
         assert storage != null;
         cacheFeatures();
         if (features != null) {
@@ -109,20 +114,24 @@ public class GraphElement implements Serializable {
         }
         boolean is_deleted = storage.deleteElement(this);
         if (is_deleted) {
-            storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
+            if(notify) storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
         }
         return is_deleted;
+    }
+
+    final protected Boolean deleteElement(){
+        return this.deleteElement(true);
     }
 
     /**
      * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
      * If memnto is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your sub-class has some additional data that should be updated.
-     * Memento stores the different between the updated value of this element vs the old value.
+     * Memento stores the difference between the updated value of this element vs the old value.
      *
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+    protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento, boolean notify) {
         assert storage != null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
@@ -148,10 +157,14 @@ public class GraphElement implements Serializable {
             resolveTimestamp(newElement.getTimestamp());
             this.storage.updateElement(this);
             GraphElement finalMemento = memento;
-            this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, finalMemento));
+            if(notify) this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, finalMemento));
             return Tuple2.of(true, memento);
         }
         return reuse;
+    }
+
+    final protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento){
+        return this.updateElement(newElement, memento, true);
     }
 
     /**
@@ -405,16 +418,9 @@ public class GraphElement implements Serializable {
         }
     }
 
-    /**
-     * Only if this element has an attribute that is NDArray, do not traverse to other elements
-     */
-    public void applyForNDArray(Consumer<NDArray> operation) {
-        // pass for Feature implementations
-    }
-
     @Override
     public String toString() {
-        return "GraphElement{" +
+        return elementType()+"{" +
                 "id='" + id + '\'' +
                 '}';
     }

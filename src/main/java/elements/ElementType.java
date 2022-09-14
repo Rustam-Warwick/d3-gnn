@@ -9,6 +9,9 @@ public enum ElementType {
     PLUGIN,
     EDGE,
     FEATURE,
-    NONE,
-    VERTEX
+    VERTEX,
+    HYPEREDGE,
+    GRAPH,
+    NONE
+
 }

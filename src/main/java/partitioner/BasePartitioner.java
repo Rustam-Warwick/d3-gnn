@@ -15,6 +15,8 @@ abstract public class BasePartitioner {
      */
     public static BasePartitioner getPartitioner(String name) {
         switch (name) {
+            case "hypergraph-minmax":
+                return new HyperGraphMinMax();
             case "hdrf":
                 return new HDRF();
             case "windowed-hdrf":

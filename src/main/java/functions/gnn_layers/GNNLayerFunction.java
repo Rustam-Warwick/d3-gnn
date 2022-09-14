@@ -1,8 +1,10 @@
 package functions.gnn_layers;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
+import elements.ElementType;
 import elements.GraphElement;
 import elements.GraphOp;
+import elements.ReplicaState;
 import elements.iterations.MessageDirection;
 import elements.iterations.Rmi;
 import operators.BaseWrapperOperator;
@@ -161,6 +163,9 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
             switch (value.op) {
                 case COMMIT:
                     value.element.setStorage(getStorage());
+                    if(value.element.elementType() == ElementType.HYPEREDGE && value.element.state() == ReplicaState.REPLICA){
+                        System.out.println(value);
+                    }
                     if (!getStorage().containsElement(value.element)) {
                         value.element.create();
                     } else {

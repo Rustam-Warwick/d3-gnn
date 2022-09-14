@@ -44,29 +44,41 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // -------- Abstract methods
 
+    // -- Add
     public abstract boolean addFeature(Feature<?, ?> feature);
 
     public abstract boolean addVertex(Vertex vertex);
 
     public abstract boolean addEdge(Edge edge);
 
+    public abstract boolean addHyperEdge(HEdge hEdge);
+
+    // -- Update
     public abstract boolean updateFeature(Feature<?, ?> feature);
 
     public abstract boolean updateVertex(Vertex vertex);
 
     public abstract boolean updateEdge(Edge edge);
 
+    public abstract boolean updateHyperEdge(HEdge hEdge);
+
+    // -- Delete
     public abstract boolean deleteFeature(Feature<?, ?> feature);
 
     public abstract boolean deleteVertex(Vertex vertex);
 
     public abstract boolean deleteEdge(Edge edge);
 
+    public abstract boolean deleteHyperEdge(HEdge hEdge);
+
+    // -- Get
+    // - Vertex
     @Nullable
     public abstract Vertex getVertex(String id);
 
     public abstract Iterable<Vertex> getVertices();
 
+    // - Edge
     @Nullable
     public abstract Edge getEdge(String id);
 
@@ -74,14 +86,23 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
+    // - HyperEdge
+    public abstract HEdge getHyperEdge(String id);
+
+    public abstract Iterable<HEdge> getHyperEdges(Vertex id);
+
+    // - Feature
     @Nullable
     public abstract Feature<?, ?> getFeature(String id);
 
+    // -- Contains
     public abstract boolean containsVertex(String id);
 
     public abstract boolean containsFeature(String id);
 
     public abstract boolean containsEdge(String id);
+
+    public abstract boolean containsHyperEdge(String id);
 
     public abstract void cacheFeaturesOf(GraphElement e);
 
@@ -179,6 +200,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.addEdge((Edge) element);
             case FEATURE:
                 return this.addFeature((Feature<?, ?>) element);
+            case HYPEREDGE:
+                return this.addHyperEdge((HEdge) element);
             default:
                 return false;
         }
@@ -192,6 +215,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.deleteEdge((Edge) element);
             case FEATURE:
                 return this.deleteFeature((Feature<?, ?>) element);
+            case HYPEREDGE:
+                return this.deleteHyperEdge((HEdge) element);
             default:
                 return false;
         }
@@ -205,6 +230,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.updateEdge((Edge) element);
             case FEATURE:
                 return this.updateFeature((Feature) element);
+            case HYPEREDGE:
+                return this.updateHyperEdge((HEdge) element);
             default:
                 return false;
         }
@@ -220,6 +247,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.containsFeature(id);
             case PLUGIN:
                 return this.plugins.containsKey(id);
+            case HYPEREDGE:
+                return this.containsHyperEdge(id);
             default:
                 return false;
         }
@@ -243,6 +272,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.getEdge(id);
             case PLUGIN:
                 return this.getPlugin(id);
+            case HYPEREDGE:
+                return this.getHyperEdge(id);
             default:
                 return null;
         }

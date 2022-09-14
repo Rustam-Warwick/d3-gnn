@@ -1,6 +1,7 @@
 package elements.iterations;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import elements.ElementType;
 import elements.GraphElement;
 import operators.BaseWrapperOperator;
@@ -89,16 +90,11 @@ public class Rmi extends GraphElement {
         for (Object arg : args) {
             if (arg instanceof NDArray) {
                 operation.accept((NDArray) arg);
-            }
-        }
-    }
-
-    @Override
-    public void applyForNDArray(Consumer<NDArray> operation) {
-        super.applyForNDArray(operation);
-        for (Object arg : args) {
-            if (arg instanceof NDArray) {
-                operation.accept((NDArray) arg);
+            }else if(arg instanceof NDList){
+                NDList tmp = (NDList) arg;
+                for (NDArray ndArray : tmp) {
+                    operation.accept(ndArray);
+                }
             }
         }
     }

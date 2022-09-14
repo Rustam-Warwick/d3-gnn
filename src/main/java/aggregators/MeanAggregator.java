@@ -1,6 +1,7 @@
 package aggregators;
 
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDList;
 import elements.GraphElement;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -55,21 +56,21 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     @RemoteFunction
     @Override
-    public void reduce(NDArray newElement, int count) {
-        this.value.f0.muli(this.value.f1).addi(newElement).divi(this.value.f1 + count);
+    public void reduce(NDList newElement, int count) {
+        this.value.f0.muli(this.value.f1).addi(newElement.get(0)).divi(this.value.f1 + count);
         value.f1 += count;
 
     }
 
     @RemoteFunction
     @Override
-    public void replace(NDArray newElement, NDArray oldElement) {
-        value.f0.addi((newElement.sub(oldElement)).divi(value.f1));
+    public void replace(NDList newElement, NDList oldElement) {
+        value.f0.addi((newElement.get(0).sub(oldElement.get(0))).divi(value.f1));
     }
 
     @Override
-    public NDArray grad(NDArray aggGradient, NDArray messages) {
-        return aggGradient.div(value.f1).expandDims(0).repeat(0, messages.getShape().get(0)); // (batch_size, gradient)
+    public NDArray grad(NDArray aggGradient, NDList messages) {
+        return aggGradient.div(value.f1).expandDims(0).repeat(0, messages.get(0).getShape().get(0)); // (batch_size, gradient)
     }
 
     @Override
@@ -84,19 +85,19 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public Boolean createElement() {
+    public Boolean createElement(boolean notify) {
         value.f0.postpone();
-        return super.createElement();
+        return super.createElement(notify);
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento, boolean notify) {
         MeanAggregator tmp = (MeanAggregator) newElement;
         if (value != tmp.value) {
             value.f0.prepone();
             tmp.value.f0.postpone();
         }
-        return super.updateElement(newElement, memento);
+        return super.updateElement(newElement, memento, notify);
     }
 
     @Override
@@ -105,9 +106,4 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
         operation.accept(value.f0);
     }
 
-    @Override
-    public void applyForNDArray(Consumer<NDArray> operation) {
-        super.applyForNDArray(operation);
-        operation.accept(value.f0);
-    }
 }

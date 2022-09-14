@@ -5,6 +5,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.checkerframework.checker.units.qual.A;
 import typeinfo.RecursiveListFieldsTypeInfoFactory;
 
 import javax.annotation.Nullable;
@@ -20,6 +21,8 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     protected MapState<String, Map<String, List<String>>> outEdgeTable;
     protected MapState<String, Map<String, List<String>>> inEdgeTable;
     protected MapState<String, Edge> edgeTable;
+    protected MapState<String, HEdge> hyperEdgeTable;
+    protected MapState<String, List<String>> vertex2HyperEdge;
 
     public FlatInMemoryClassStorage() {
 
@@ -31,15 +34,19 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
         MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
         MapStateDescriptor<String, Edge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null, true));
+        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
         MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
+        MapStateDescriptor<String, List<String>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(Types.STRING));
 
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
+        hyperEdgeTable = layerFunction.getRuntimeContext().getMapState(hyperEdgeTableDesc);
         outEdgeTable = layerFunction.getRuntimeContext().getMapState(outEdgeTableDesc);
         inEdgeTable = layerFunction.getRuntimeContext().getMapState(inEdgeTableDesc);
         vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
         attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
         independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
+        vertex2HyperEdge = layerFunction.getRuntimeContext().getMapState(vertex2HyperEdgeDesc);
         super.open();
     }
 
@@ -91,6 +98,25 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     }
 
     @Override
+    public boolean addHyperEdge(HEdge hEdge) {
+        try{
+            hyperEdgeTable.put(hEdge.getId(), hEdge);
+            for (String vertexId : hEdge.vertexIds) {
+                if(!vertex2HyperEdge.contains(vertexId)) vertex2HyperEdge.put(vertexId, new ArrayList<>());
+                List<String> tmp = vertex2HyperEdge.get(vertexId);
+                if(!tmp.contains(hEdge.getId())){
+                    tmp.add(hEdge.getId());
+                    vertex2HyperEdge.put(vertexId, tmp);
+                }
+            }
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @Override
     public boolean updateFeature(Feature<?, ?> feature) {
         try {
             if (feature.attachedTo == null) {
@@ -116,6 +142,11 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     }
 
     @Override
+    public boolean updateHyperEdge(HEdge hEdge) {
+        return true;
+    }
+
+    @Override
     public boolean deleteFeature(Feature<?, ?> feature) {
         return false;
     }
@@ -127,6 +158,11 @@ public class FlatInMemoryClassStorage extends BaseStorage {
 
     @Override
     public boolean deleteEdge(Edge edge) {
+        return false;
+    }
+
+    @Override
+    public boolean deleteHyperEdge(HEdge hEdge) {
         return false;
     }
 
@@ -232,6 +268,30 @@ public class FlatInMemoryClassStorage extends BaseStorage {
         }
     }
 
+
+    @Override
+    public Iterable<HEdge> getHyperEdges(Vertex id) {
+        try{
+            if(vertex2HyperEdge.contains(id.getId())){
+                List<String> vEdges = vertex2HyperEdge.get(id.getId());
+                return () -> IteratorUtils.transformedIterator(vEdges.iterator(), hEdgeId-> getHyperEdge((String) hEdgeId));
+            }else return Collections.emptyList();
+        }catch (Exception e){
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public HEdge getHyperEdge(String id) {
+        try{
+            return hyperEdgeTable.get(id);
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
+    }
+
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String id) {
@@ -288,6 +348,16 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     public boolean containsEdge(String id) {
         try {
             return edgeTable.contains(id);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @Override
+    public boolean containsHyperEdge(String id) {
+        try {
+            return hyperEdgeTable.contains(id);
         } catch (Exception e) {
             e.printStackTrace();
             return false;

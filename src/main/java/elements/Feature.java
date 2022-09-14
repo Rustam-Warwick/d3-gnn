@@ -97,6 +97,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (this.attachedTo == null) return super.create();
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
+                // Sometimes element attached can arrive later that the feature,
+                // We can create a dummy version of the element here since we alreay have the master part
+
                 if (attachedTo.f0 == ElementType.VERTEX) {
                     Vertex createElementNow = new Vertex(attachedTo.f1, false, masterPart());
                     createElementNow.setStorage(storage);
@@ -105,10 +108,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
                     throw new IllegalStateException("Trying to create Feature while element is not here yet");
                 }
             }
-            boolean is_created = createElement();
-            if (is_created && state() == ReplicaState.MASTER && isReplicable() && !isHalo()) {
-                syncReplicas(replicaParts());
-//                replicaParts().forEach(part -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part, this.copy()), MessageDirection.ITERATE));
+            boolean is_created = createElement(false); // Send replicas before the callback
+            if (is_created) {
+                if(state() == ReplicaState.MASTER && isReplicable() && !isHalo()){
+                    syncReplicas(replicaParts());
+                }
+                storage.getPlugins().forEach(item->item.addElementCallback(this));
             }
             return is_created;
         }
@@ -121,14 +126,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento, boolean notify) {
         assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
             memento = this.copy();
             value = newFeature.value;
         }
-        return super.updateElement(newElement, memento);
+        return super.updateElement(newElement, memento, notify);
     }
 
     /**

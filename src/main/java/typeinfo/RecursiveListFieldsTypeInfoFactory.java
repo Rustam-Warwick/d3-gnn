@@ -79,7 +79,6 @@ public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
                     fieldsPojoField.setAccessible(false);
                 }
 
-
                 construc.setAccessible(false);
                 analyzePojo.setAccessible(false);
                 if (pojoType == null) {
