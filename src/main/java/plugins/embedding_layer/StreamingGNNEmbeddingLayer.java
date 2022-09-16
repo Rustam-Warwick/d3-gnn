@@ -92,7 +92,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
                         .method("reduce")
                         .hasUpdate()
                         .addDestination(edge.getDest().masterPart())
-                        .withArgs(msg.get(0), 1)
+                        .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
@@ -150,11 +150,11 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     public void reduceOutEdges(Vertex v) {
         Preconditions.checkNotNull(v);
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
-        NDArray msg = null;
+        NDList msg = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
                 if (Objects.isNull(msg)) {
-                    msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false).get(0);
+                    msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false);
                 }
                 new RemoteInvoke()
                         .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
@@ -177,13 +177,13 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
         Preconditions.checkNotNull(newFeature.getElement());
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDArray msgOld = null;
-        NDArray msgNew = null;
+        NDList msgOld = null;
+        NDList msgNew = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
                 if (Objects.isNull(msgOld)) {
-                    msgOld = MESSAGE(new NDList(oldFeature.getValue()), false).get(0);
-                    msgNew = MESSAGE(new NDList(newFeature.getValue()), false).get(0);
+                    msgOld = MESSAGE(new NDList(oldFeature.getValue()), false);
+                    msgNew = MESSAGE(new NDList(newFeature.getValue()), false);
                 }
                 new RemoteInvoke()
                         .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)

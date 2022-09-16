@@ -1,7 +1,6 @@
 package elements;
 
 import ai.djl.ndarray.NDArray;
-import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import java.util.HashMap;
@@ -45,7 +44,7 @@ public class HGraph extends GraphElement{
     }
 
     @Override
-    public Boolean createElement(boolean notify) {
+    public Boolean createElement() {
         assert storage!=null;
         if(vertices != null){
             for (Vertex vertex : vertices) {
@@ -63,7 +62,7 @@ public class HGraph extends GraphElement{
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         throw new IllegalStateException("Update not available for subgraph grannularity");
     }
 

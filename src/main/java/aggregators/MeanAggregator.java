@@ -59,7 +59,6 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     public void reduce(NDList newElement, int count) {
         this.value.f0.muli(this.value.f1).addi(newElement.get(0)).divi(this.value.f1 + count);
         value.f1 += count;
-
     }
 
     @RemoteFunction
@@ -85,19 +84,19 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public Boolean createElement(boolean notify) {
+    public Boolean createElement() {
         value.f0.postpone();
-        return super.createElement(notify);
+        return super.createElement();
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento, boolean notify) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         MeanAggregator tmp = (MeanAggregator) newElement;
         if (value != tmp.value) {
             value.f0.prepone();
             tmp.value.f0.postpone();
         }
-        return super.updateElement(newElement, memento, notify);
+        return super.updateElement(newElement, memento);
     }
 
     @Override

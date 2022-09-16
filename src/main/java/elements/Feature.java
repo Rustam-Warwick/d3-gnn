@@ -90,16 +90,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * Handles the case for late Vertex Feature, since they arrive at masters first
      * But not for Edge since edge Vertices can be replicated
      *
-     * @return is created successfully
      */
     @Override
-    public Boolean create() {
-        if (this.attachedTo == null) return super.create();
+    public void create() {
+        if (this.attachedTo == null) super.create();
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Sometimes element attached can arrive later that the feature,
-                // We can create a dummy version of the element here since we alreay have the master part
-
+                // We can create a dummy version of the element here since we already have the master part
                 if (attachedTo.f0 == ElementType.VERTEX) {
                     Vertex createElementNow = new Vertex(attachedTo.f1, false, masterPart());
                     createElementNow.setStorage(storage);
@@ -108,14 +106,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
                     throw new IllegalStateException("Trying to create Feature while element is not here yet");
                 }
             }
-            boolean is_created = createElement(false); // Send replicas before the callback
-            if (is_created) {
-                if(state() == ReplicaState.MASTER && isReplicable() && !isHalo()){
-                    syncReplicas(replicaParts());
-                }
-                storage.getPlugins().forEach(item->item.addElementCallback(this));
-            }
-            return is_created;
+            syncReplicas(replicaParts());
+            createElement(); // Send replicas before the callback
         }
     }
 
@@ -126,14 +118,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento, boolean notify) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
             memento = this.copy();
             value = newFeature.value;
         }
-        return super.updateElement(newElement, memento, notify);
+        return super.updateElement(newElement, memento);
     }
 
     /**
@@ -146,8 +138,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Given 2 Ts if they are both equal
-     *
+     * Given 2 Ts if they are both equal, required to check an actual feature update
      * @param v1 first T
      * @param v2 second T
      * @return if v1 === v2

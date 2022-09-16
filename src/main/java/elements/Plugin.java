@@ -1,6 +1,5 @@
 package elements;
 
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;
@@ -20,17 +19,17 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
-    public Boolean create() {
+    public void create() {
         throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
+    public void sync(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not created");
     }
 
@@ -46,7 +45,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
-    public Boolean delete() {
+    public void delete() {
         throw new IllegalStateException("Plugins are not created");
     }
 

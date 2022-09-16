@@ -46,25 +46,12 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
      * First send the sync messages then do the synchronization logic
-     * @return is_created
      */
     @Override
-    public Boolean create() {
+    public void create() {
         if (state() == ReplicaState.REPLICA) clearFeatures();
-        boolean is_created = createElement(false); // Delaying the plugin callback for later time
-        if (is_created) {
-            if(!isHalo()) {
-                if (state() == ReplicaState.MASTER) {
-                    // Add setFeature
-                    setFeature("parts", new Set<Short>(new ArrayList<>(), true));
-                } else if (state() == ReplicaState.REPLICA) {
-                    // Send Query to sync
-                    storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
-                }
-            }
-            storage.getPlugins().forEach(item->item.addElementCallback(this));
-        }
-        return is_created;
+        if(!isHalo() && state() == ReplicaState.REPLICA) storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
+        createElement(); // Delaying the plugin callback for later time
     }
 
     /**
@@ -72,12 +59,12 @@ public class ReplicableGraphElement extends GraphElement {
      * Replica -> Accept the sync and update the element
      *
      * @param newElement New element to sync with
-     * @return (isSynced, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
+    public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != null;
+            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Create parts only there clearly is a replica
             new RemoteInvoke()
                     .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                     .hasUpdate()
@@ -88,9 +75,8 @@ public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
-            return updateElement(newElement, null);
+            updateElement(newElement, null);
         }
-        return super.sync(this); // Do nothing
     }
 
     /**
@@ -98,31 +84,22 @@ public class ReplicableGraphElement extends GraphElement {
      * replica -> Redirect to master, false message
      *
      * @param newElement newElement to update with
-     * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null, false);
-            if (tmp.f0) {
-                if(!isHalo()) syncReplicas(replicaParts());
-                storage.getPlugins().forEach(item->item.updateElementCallback(this, tmp.f1));
-            }
-            return tmp;
-        } else if (state() == ReplicaState.REPLICA) {
-            // Replica update, simply ignore it. SHold have been at MASTER
-            return reuse;
-        } else throw new IllegalStateException("Replicable element but don't know if master or repica");
+            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
+            if (tmp.f0 && !isHalo()) syncReplicas(replicaParts());
+        } else throw new IllegalStateException("No one should receive updates other than MASTER");
     }
 
     /**
      * master -> Send delete message to replica, actually delete the element from master immediately
      * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
      *
-     * @return isDeleted
      */
     @Override
-    public Boolean delete() {
+    public void delete() {
         if (state() == ReplicaState.MASTER) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
@@ -132,14 +109,10 @@ public class ReplicableGraphElement extends GraphElement {
                     .where(MessageDirection.ITERATE)
                     .withArgs(false)
                     .buildAndRun(storage);
-            return deleteElement();
-
+            deleteElement();
         } else if (state() == ReplicaState.REPLICA) {
-            assert storage != null;
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
-            return false;
         }
-        return false;
     }
 
     /**
@@ -151,8 +124,8 @@ public class ReplicableGraphElement extends GraphElement {
     public void deleteReplica(boolean notifyMaster) {
         if (this.state() == ReplicaState.REPLICA) {
             boolean is_deleted = deleteElement();
-            if (is_deleted && notifyMaster) {
-                new RemoteInvoke()
+            if (is_deleted) {
+                if(notifyMaster) new RemoteInvoke()
                         .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                         .hasUpdate()
                         .method("remove")
@@ -171,7 +144,7 @@ public class ReplicableGraphElement extends GraphElement {
      */
     public void syncReplicas(List<Short> parts) {
         assert storage != null;
-        if ((this.state() != ReplicaState.MASTER) || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
+        if ((state() != ReplicaState.MASTER) || !isReplicable()|| Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
             return;
         cacheFeatures();
         ReplicableGraphElement cpy = copy();
@@ -198,11 +171,8 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        Feature<?, ?> parts = getFeature("parts");
-        if (Objects.isNull(parts)) return super.replicaParts();
-        else {
-            return (List<Short>) parts.getValue();
-        }
+        if(!containsFeature("parts")) return super.replicaParts();
+        return (List<Short>) getFeature("parts").getValue(); // @implNote Never create other Feature with the name parts
     }
 
     @Override

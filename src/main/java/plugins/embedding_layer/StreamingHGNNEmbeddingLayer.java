@@ -10,14 +10,10 @@ import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
-import partitioner.HDRF;
 import plugins.ModelServer;
-
-import javax.annotation.Nullable;
 
 
 /**

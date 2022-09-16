@@ -2,13 +2,10 @@ package elements;
 
 import ai.djl.ndarray.NDArray;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.checkerframework.checker.units.qual.A;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -20,7 +17,7 @@ public class HEdge extends ReplicableGraphElement {
     @OmitStorage
     public Vertex[] vertices;
 
-    public HashSet<String> vertexIds;
+    public HashSet<String> vertexIds; // This we need to store since the naming convention of HEdge does not imply the vertex ids
 
     public HEdge() {
 
@@ -56,24 +53,26 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     /**
-     * Create vertices first then the hyperedge
+     * HyperEdge on create should arrive with vertices otherwise a zero-vertex is assumed
      */
     @Override
-    public Boolean createElement(boolean notify) {
+    public Boolean createElement() {
+        vertexIds.clear();
         if(vertices != null){
             for (int i = 0; i < vertices.length; i++) {
                 if(!storage.containsVertex(vertices[i].getId())) vertices[i].create();
+                vertexIds.add(vertices[i].getId());
             }
         }
         vertices = null; // Set to null to then access from the storage, similar to edge
-        return super.createElement(notify);
+        return super.createElement();
     }
 
     /**
      * Append only set of vertex ids in the hyperedge
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento, boolean notify) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
         if(newHEdge.vertices != null){
             // This is not possible during SYNC phases so we are safe from merging vertexIds across replicas
@@ -86,7 +85,21 @@ public class HEdge extends ReplicableGraphElement {
                 }
             }
         }
-        return super.updateElement(newElement, memento, notify);
+        return super.updateElement(newElement, memento);
+    }
+
+    /**
+     * master -> update element, if changed send message to replica
+     * replica -> Redirect to master, false message
+     *
+     * @param newElement newElement to update with
+     */
+    @Override
+    public void update(GraphElement newElement) {
+        if (state() == ReplicaState.MASTER) {
+            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
+            if(tmp.f0 && !isHalo() && tmp.f1.features != null) syncReplicas(replicaParts());
+        } else throw new IllegalStateException("Replicable element but don't know if master or repica");
     }
 
     /**
@@ -128,11 +141,11 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public void applyForNDArrays(Consumer<NDArray> operation) {
         super.applyForNDArrays(operation);
-        if(vertices != null){
-            for (Vertex vertex : vertices) {
-                vertex.applyForNDArrays(operation);
-            }
-        }
+//        if(vertices != null){
+//            for (Vertex vertex : vertices) {
+//                vertex.applyForNDArrays(operation);
+//            }
+//        }
     }
 
     @Override

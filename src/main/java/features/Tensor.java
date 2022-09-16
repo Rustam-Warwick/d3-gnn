@@ -45,19 +45,19 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Boolean createElement(boolean notify) {
+    public Boolean createElement() {
         value.postpone();
-        return super.createElement(notify);
+        return super.createElement();
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento, boolean notify) {
+    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tensor tmp = ((Tensor) newElement);
         if (value != tmp.value) {
             value.prepone();
             tmp.value.postpone();
         }
-        return super.updateElement(newElement, memento, notify);
+        return super.updateElement(newElement, memento);
     }
 
     @Override

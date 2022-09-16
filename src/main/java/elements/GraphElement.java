@@ -80,22 +80,18 @@ public class GraphElement implements Serializable {
      * @return Was element created
      * @implNote Does not rollback if some Feature is not created
      */
-    protected Boolean createElement(boolean notify) {
+    protected Boolean createElement() {
         assert storage != null;
         boolean is_created = storage.addElement(this);
         if (is_created) {
+            storage.runCallback(item -> item.addElementCallback(this));
             if (features != null) {
                 for (Feature<?, ?> el : features) {
                     el.createElement();
                 }
             }
-            if(notify) storage.getPlugins().forEach(item -> item.addElementCallback(this));
         }
         return is_created;
-    }
-
-    final protected Boolean createElement(){
-        return this.createElement(true);
     }
 
     /**
@@ -104,7 +100,7 @@ public class GraphElement implements Serializable {
      * @return Was element deleted
      * @implNote Does not rollback after deletion
      */
-    protected Boolean deleteElement(boolean notify) {
+    protected Boolean deleteElement() {
         assert storage != null;
         cacheFeatures();
         if (features != null) {
@@ -114,13 +110,9 @@ public class GraphElement implements Serializable {
         }
         boolean is_deleted = storage.deleteElement(this);
         if (is_deleted) {
-            if(notify) storage.getPlugins().forEach(item -> item.deleteElementCallback(this));
+            storage.runCallback(item -> item.deleteElementCallback(this));
         }
         return is_deleted;
-    }
-
-    final protected Boolean deleteElement(){
-        return this.deleteElement(true);
     }
 
     /**
@@ -131,7 +123,7 @@ public class GraphElement implements Serializable {
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
-    protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento, boolean notify) {
+    protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
@@ -155,54 +147,46 @@ public class GraphElement implements Serializable {
 
         if (memento != null) {
             resolveTimestamp(newElement.getTimestamp());
-            this.storage.updateElement(this);
+            storage.updateElement(this);
             GraphElement finalMemento = memento;
-            if(notify) this.storage.getPlugins().forEach(item -> item.updateElementCallback(this, finalMemento));
+            storage.runCallback(item -> item.updateElementCallback(this, finalMemento));
             return Tuple2.of(true, memento);
         }
         return reuse;
     }
 
-    final protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento){
-        return this.updateElement(newElement, memento, true);
-    }
-
     /**
      * External delete query
      *
-     * @return is deleted
      */
-    public Boolean delete() {
-        return deleteElement();
+    public void delete() {
+        deleteElement();
     }
 
     /**
      * External Create logic
      *
-     * @return is created
      */
-    public Boolean create() {
-        return createElement();
+    public void create() {
+        createElement();
     }
 
     /**
      * External Sync logic
      *
      * @param newElement element that requires syncing
-     * @return (isSynced, previous element)
      */
-    public Tuple2<Boolean, GraphElement> sync(GraphElement newElement) {
-        return reuse;
+    public void sync(GraphElement newElement) {
+        // No action
     }
 
     /**
      * External Update logic
      *
      * @param newElement external update element
-     * @return (isUpdated, previous element)
      */
-    public Tuple2<Boolean, GraphElement> update(GraphElement newElement) {
-        return updateElement(newElement, null);
+    public void update(GraphElement newElement) {
+         updateElement(newElement, null);
     }
 
     /**
@@ -381,9 +365,8 @@ public class GraphElement implements Serializable {
      * Retrieves all features of this graph element from the storage
      */
     public void cacheFeatures() {
-        if (Objects.nonNull(storage)) {
-            storage.cacheFeaturesOf(this);
-        }
+        assert storage != null;
+        storage.cacheFeaturesOf(this);
     }
 
     /**

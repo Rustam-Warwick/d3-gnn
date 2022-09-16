@@ -72,7 +72,6 @@ public class Rmi extends GraphElement {
                 Object[] args = generateVarargs(message.args, deepCopyElement);
                 method.invokeWithArguments(args);
                 element.update(deepCopyElement);
-
             } else {
                 MethodHandle method = classRemoteMethods.get(element.getClass()).get(message.methodName);
                 Object[] args = generateVarargs(message.args, element);

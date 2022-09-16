@@ -1,7 +1,6 @@
 package elements;
 
 import ai.djl.ndarray.NDArray;
-import org.apache.commons.lang3.StringUtils;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
@@ -9,10 +8,8 @@ import java.util.function.Consumer;
 
 /**
  * Edge class represents an Edge in the Graph.
- * Normally and edge should only contain the ids of its vertex, however because of out-of-orderness we can have a situation where Vertices are not created before the edge arrives
- * We also attach the Edge src and destination features to the Edge
- * If those src, destination Vertices do not exist upon Edge creation those are created as well, otherwise they are turned null
- * Vertex updates should not happen within edges and they will be ignored
+ * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multigraphs
+ * @implNote  Vertex updates should not happen within edges and they will be ignored
  */
 public class Edge extends GraphElement {
     public static String DELIMITER = "~";
@@ -97,21 +94,17 @@ public class Edge extends GraphElement {
     }
 
     public Vertex getSrc() {
-        if (src == null && storage != null) {
-                src = storage.getVertex(decodeVertexIdsAndAttribute(getId())[0]);
-        }
+        if (src == null && storage != null) src = storage.getVertex(decodeVertexIdsAndAttribute(getId())[0]);
         return src;
     }
 
     public Vertex getDest() {
-        if (dest == null && storage != null) {
-            dest = storage.getVertex(decodeVertexIdsAndAttribute(getId())[1]);
-        }
+        if (dest == null && storage != null) dest = storage.getVertex(decodeVertexIdsAndAttribute(getId())[1]);
         return dest;
     }
 
     @Override
-    protected Boolean createElement(boolean notify) {
+    protected Boolean createElement() {
         assert storage != null;
         if (src != null && !storage.containsVertex(getSrc().getId())) {
             src.create();
@@ -121,7 +114,7 @@ public class Edge extends GraphElement {
         }
         src = null;
         dest = null;
-        return super.createElement(notify);
+        return super.createElement();
     }
 
     @Override
@@ -134,15 +127,15 @@ public class Edge extends GraphElement {
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if (src != null) src.setStorage(storage);
-        if (dest != null) dest.setStorage(storage);
+        if (getSrc() != null) getSrc().setStorage(storage);
+        if (getDest() != null) getDest().setStorage(storage);
     }
 
     @Override
     public void clearFeatures() {
         super.clearFeatures();
-        if (src != null) src.clearFeatures();
-        if (dest != null) dest.clearFeatures();
+        if (getSrc() != null) getSrc().clearFeatures();
+        if (getDest() != null) getDest().clearFeatures();
     }
 
 

@@ -253,19 +253,18 @@ public class LifeCycleNDManager extends PtNDManager {
     private static final transient NonBlockingHashMapLong<Tuple2<Thread, LifeCycleNDManager>> THREADS = new NonBlockingHashMapLong<>();
 
     static {
+        // Start the Tensor cleaner thread in this JVM globally
         Thread cleanerThread = new Thread(LifeCycleNDManager::clean);
         cleanerThread.setPriority(Thread.NORM_PRIORITY);
         cleanerThread.start();
     }
 
-    /**
-     * Scopes
-     */
-    protected final Scope parentScope = new Scope();
-    protected final ManualTicker ticker = new ManualTicker();
-    protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>();
-    protected long scopedCount = 0;
-    protected long closedCount = 0;
+    protected final Scope parentScope = new Scope(); // Scope to delay the tensor removing
+    protected final ManualTicker ticker = new ManualTicker(); // Logical timer depending on the data-rate
+    protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>(); // Map of detached tensors
+    protected long scopedCount = 0; // Count of opened tensors when we are in a scope
+    protected long closedCount = 0; // Count of closed tensor for reporting purposes
+
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
@@ -296,6 +295,9 @@ public class LifeCycleNDManager extends PtNDManager {
         return THREADS.get(Thread.currentThread().getId()).f1;
     }
 
+    /**
+     * Analyze Threads using NDArrays and clean them when the thread is stopped
+     */
     public static void clean() {
         boolean notInterrupted = true;
         while (notInterrupted) {
@@ -320,18 +322,16 @@ public class LifeCycleNDManager extends PtNDManager {
                         LOG.error("Exception in trying to close all Tensors");
                     }
                 } else {
-                    LOG.error(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
+                    LOG.info(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
                 }
             }
 
             try {
                 Thread.sleep(5000);
             } catch (InterruptedException e) {
-                LOG.info("Interrupted");
+                LOG.info("Interrupted Cleaner Thread ");
                 notInterrupted = false;
             }
-
-
         }
 
     }
@@ -374,7 +374,7 @@ public class LifeCycleNDManager extends PtNDManager {
     @Override
     public void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
         // Pass
-        LOG.error("Trying to temp attach this tensor, should not happen, can cause memory leaks");
+        LOG.error("Trying to temp attach this tensor, should not happen, can cause memory leaks. Use postpone method instead");
     }
 
     @Override
@@ -383,6 +383,9 @@ public class LifeCycleNDManager extends PtNDManager {
         LOG.error("detached tensor");
     }
 
+    /**
+     * Custom method for detaching tensors
+     */
     public void detachInternal(AutoCloseable resource) {
         detached.remove(resource);
         attached.invalidate(resource); // !This might cause eviction is the time is late
@@ -390,8 +393,7 @@ public class LifeCycleNDManager extends PtNDManager {
 
     @Override
     public void close() {
-        // Not closing explicitely
-
+        // Not closing explicitely, delegated to the cleaner and GC
     }
 
     /**
@@ -426,7 +428,7 @@ public class LifeCycleNDManager extends PtNDManager {
         }
 
         @Override
-        public void close() throws Exception {
+        public void close() {
             openCount--;
             if (isClosed()) {
                 // Now the scope is closed update the ticker value back to the scope ticker
