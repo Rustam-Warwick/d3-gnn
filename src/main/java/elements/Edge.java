@@ -104,7 +104,7 @@ public class Edge extends GraphElement {
     }
 
     @Override
-    protected Boolean createElement() {
+    protected Consumer<Plugin> createElement() {
         assert storage != null;
         if (src != null && !storage.containsVertex(getSrc().getId())) {
             src.create();

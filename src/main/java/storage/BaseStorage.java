@@ -122,7 +122,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * Register a callback to be fired in the future
      */
-    public void runCallback(Consumer<Plugin> a){
+    public void runCallback(@Nullable Consumer<Plugin> a){
+        if(a == null) return;
         for (Plugin value : plugins.values()) {
             a.accept(value);
         }

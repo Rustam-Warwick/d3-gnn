@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 public class ReplicableGraphElement extends GraphElement {
     @Nullable
@@ -49,9 +50,11 @@ public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        if (state() == ReplicaState.REPLICA) clearFeatures();
-        if(!isHalo() && state() == ReplicaState.REPLICA) storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
-        createElement(); // Delaying the plugin callback for later time
+        if(state() == ReplicaState.REPLICA) clearFeatures();
+        Consumer<Plugin> callback = createElement();
+        if(callback != null && state() == ReplicaState.REPLICA && !isHalo())
+            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
+        storage.runCallback(callback);
     }
 
     /**
@@ -64,7 +67,7 @@ public class ReplicableGraphElement extends GraphElement {
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != null;
-            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Create parts only there clearly is a replica
+            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Create parts only when there is clearly is a replica
             new RemoteInvoke()
                     .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                     .hasUpdate()
@@ -75,7 +78,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
-            updateElement(newElement, null);
+            super.update(newElement);
         }
     }
 
@@ -88,8 +91,10 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 && !isHalo()) syncReplicas(replicaParts());
+            Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
+            // @todo Think about how to organize this sync logic, right now if the callback function assumes that replicas have the same state they will be wrong
+            if (tmp.f0 != null && !isHalo()) syncReplicas(replicaParts());
+            storage.runCallback(tmp.f0);
         } else throw new IllegalStateException("No one should receive updates other than MASTER");
     }
 
@@ -109,7 +114,7 @@ public class ReplicableGraphElement extends GraphElement {
                     .where(MessageDirection.ITERATE)
                     .withArgs(false)
                     .buildAndRun(storage);
-            deleteElement();
+            super.delete();
         } else if (state() == ReplicaState.REPLICA) {
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
         }
@@ -117,23 +122,20 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
-     *
      * @param notifyMaster should notify it master part after deletion?
      */
     @RemoteFunction
     public void deleteReplica(boolean notifyMaster) {
         if (this.state() == ReplicaState.REPLICA) {
-            boolean is_deleted = deleteElement();
-            if (is_deleted) {
-                if(notifyMaster) new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
-                        .hasUpdate()
-                        .method("remove")
-                        .withArgs(getPartId())
-                        .where(MessageDirection.ITERATE)
-                        .addDestination(masterPart())
-                        .buildAndRun(storage);
-            }
+            super.delete();
+            if(notifyMaster) new RemoteInvoke()
+                    .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
+                    .hasUpdate()
+                    .method("remove")
+                    .withArgs(getPartId())
+                    .where(MessageDirection.ITERATE)
+                    .addDestination(masterPart())
+                    .buildAndRun(storage);
         }
     }
 
@@ -146,8 +148,8 @@ public class ReplicableGraphElement extends GraphElement {
         assert storage != null;
         if ((state() != ReplicaState.MASTER) || !isReplicable()|| Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
             return;
-        cacheFeatures();
-        ReplicableGraphElement cpy = copy();
+        cacheFeatures(); // retrieve all features of this element
+        ReplicableGraphElement cpy = copy(); // Make a copy do not actually send this element
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 if (feature.isHalo()) continue;

@@ -1,8 +1,10 @@
 package elements;
 
 import ai.djl.ndarray.NDArray;
+import jdk.dynalink.Operation;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.util.concurrent.FutureUtils;
 import storage.BaseStorage;
 import typeinfo.ListTypeInformationFactory;
 import typeinfo.RecursiveListFieldsTypeInfoFactory;
@@ -13,11 +15,13 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
 public class GraphElement implements Serializable {
-    protected static final transient Tuple2<Boolean, GraphElement> reuse = Tuple2.of(false, null);
+    protected static final transient Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage
     @Nullable
@@ -74,45 +78,36 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Creates element and all attached Features
-     * Notifies the listener plugins if the boolean flag is true
-     * Here we should encode the logic of transforming the element locally if needed
-     * @return Was element created
-     * @implNote Does not rollback if some Feature is not created
+     * Tries to create the element returns null if not created
      */
-    protected Boolean createElement() {
+    protected Consumer<Plugin> createElement() {
         assert storage != null;
-        boolean is_created = storage.addElement(this);
-        if (is_created) {
-            storage.runCallback(item -> item.addElementCallback(this));
+        Consumer<Plugin> callback = null;
+        if(storage.addElement(this)){
+            callback = item -> item.addElementCallback(this);
             if (features != null) {
                 for (Feature<?, ?> el : features) {
-                    el.createElement();
+                    callback = callback.andThen(el.createElement());
                 }
             }
         }
-        return is_created;
+        return callback;
     }
 
     /**
      * Deletes element and all attached Features
-     *
-     * @return Was element deleted
-     * @implNote Does not rollback after deletion
      */
-    protected Boolean deleteElement() {
+    protected Consumer<Plugin> deleteElement() {
         assert storage != null;
         cacheFeatures();
+        Consumer<Plugin> callback = null;
         if (features != null) {
             for (GraphElement el : features) {
-                el.deleteElement();
+                callback = callback == null ? el.deleteElement() : el.deleteElement().andThen(callback);
             }
         }
-        boolean is_deleted = storage.deleteElement(this);
-        if (is_deleted) {
-            storage.runCallback(item -> item.deleteElementCallback(this));
-        }
-        return is_deleted;
+        storage.deleteElement(this);
+        return callback;
     }
 
     /**
@@ -123,16 +118,19 @@ public class GraphElement implements Serializable {
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
-    protected Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+    protected Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         assert storage != null;
+        Consumer<Plugin> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> feature = iterator.next();
                 Feature<?, ?> thisFeature = this.getFeature(feature.getName());
                 if (Objects.nonNull(thisFeature)) {
-                    Tuple2<Boolean, GraphElement> tmp = thisFeature.updateElement(feature, null);
-                    if (tmp.f0) {
+                    // This is Feature update
+                    Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
+                    if (tmp.f0 != null) {
                         memento = memento == null ? this.copy() : memento;
+                        callback = callback == null ? tmp.f0: callback.andThen(tmp.f0);
                         memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
                     }
                 } else {
@@ -140,7 +138,10 @@ public class GraphElement implements Serializable {
                     iterator.remove();
                     feature.setStorage(storage);
                     feature.setElement(this);
-                    feature.createElement();
+                    Consumer<Plugin> tmp = feature.createElement();
+                    if(tmp != null){
+                        callback = callback == null ? tmp: callback.andThen(tmp);
+                    }
                 }
             }
         }
@@ -149,8 +150,9 @@ public class GraphElement implements Serializable {
             resolveTimestamp(newElement.getTimestamp());
             storage.updateElement(this);
             GraphElement finalMemento = memento;
-            storage.runCallback(item -> item.updateElementCallback(this, finalMemento));
-            return Tuple2.of(true, memento);
+            Consumer<Plugin> tmp = item -> item.updateElementCallback(this, finalMemento);
+            callback = callback == null ? tmp: callback.andThen(tmp);
+            return Tuple2.of(callback, memento);
         }
         return reuse;
     }
@@ -160,7 +162,7 @@ public class GraphElement implements Serializable {
      *
      */
     public void delete() {
-        deleteElement();
+        storage.runCallback(deleteElement());
     }
 
     /**
@@ -168,7 +170,7 @@ public class GraphElement implements Serializable {
      *
      */
     public void create() {
-        createElement();
+        storage.runCallback(createElement());
     }
 
     /**
@@ -186,7 +188,7 @@ public class GraphElement implements Serializable {
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
-         updateElement(newElement, null);
+         storage.runCallback(updateElement(newElement, null).f0);
     }
 
     /**

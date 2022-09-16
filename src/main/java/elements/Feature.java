@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Represents a Feature either attached to another element or not
@@ -106,8 +107,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
                     throw new IllegalStateException("Trying to create Feature while element is not here yet");
                 }
             }
-            syncReplicas(replicaParts());
-            createElement(); // Send replicas before the callback
+            Consumer<Plugin> callback = createElement();
+            if(callback != null) syncReplicas(replicaParts());
+            storage.runCallback(callback);
         }
     }
 
@@ -118,7 +120,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {

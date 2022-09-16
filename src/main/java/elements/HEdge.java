@@ -56,7 +56,7 @@ public class HEdge extends ReplicableGraphElement {
      * HyperEdge on create should arrive with vertices otherwise a zero-vertex is assumed
      */
     @Override
-    public Boolean createElement() {
+    public Consumer<Plugin> createElement() {
         vertexIds.clear();
         if(vertices != null){
             for (int i = 0; i < vertices.length; i++) {
@@ -72,7 +72,7 @@ public class HEdge extends ReplicableGraphElement {
      * Append only set of vertex ids in the hyperedge
      */
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
         if(newHEdge.vertices != null){
             // This is not possible during SYNC phases so we are safe from merging vertexIds across replicas
@@ -97,8 +97,8 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Boolean, GraphElement> tmp = updateElement(newElement, null);
-            if(tmp.f0 && !isHalo() && tmp.f1.features != null) syncReplicas(replicaParts());
+            Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
+            if(tmp.f0!=null && !isHalo() && tmp.f1.features != null) syncReplicas(replicaParts());
         } else throw new IllegalStateException("Replicable element but don't know if master or repica");
     }
 

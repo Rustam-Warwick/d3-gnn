@@ -3,6 +3,7 @@ package aggregators;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.GraphElement;
+import elements.Plugin;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
@@ -84,19 +85,21 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public Boolean createElement() {
-        value.f0.postpone();
-        return super.createElement();
+    public Consumer<Plugin> createElement() {
+        Consumer<Plugin> tmp = super.createElement();
+        if(tmp != null) value.f0.postpone();
+        return tmp;
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        MeanAggregator tmp = (MeanAggregator) newElement;
-        if (value != tmp.value) {
+    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
+        MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
+        if(callback.f0 != null && mementoAggregator.value.f0 != value.f0){
             value.f0.prepone();
-            tmp.value.f0.postpone();
+            mementoAggregator.value.f0.postpone();
         }
-        return super.updateElement(newElement, memento);
+        return callback;
     }
 
     @Override

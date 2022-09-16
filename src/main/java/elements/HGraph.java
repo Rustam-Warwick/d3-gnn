@@ -44,7 +44,7 @@ public class HGraph extends GraphElement{
     }
 
     @Override
-    public Boolean createElement() {
+    public Consumer<Plugin> createElement() {
         assert storage!=null;
         if(vertices != null){
             for (Vertex vertex : vertices) {
@@ -58,7 +58,7 @@ public class HGraph extends GraphElement{
                 else hEdge.create();
             }
         }
-        return true;
+        return null;
     }
 
     @Override

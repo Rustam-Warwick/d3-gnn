@@ -1,8 +1,10 @@
 package features;
 
+import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
+import elements.Plugin;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.function.Consumer;
@@ -45,19 +47,21 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Boolean createElement() {
-        value.postpone();
-        return super.createElement();
+    public Consumer<Plugin> createElement() {
+        Consumer<Plugin> tmp = super.createElement();
+        if(tmp != null) value.postpone();
+        return tmp;
     }
 
     @Override
-    public Tuple2<Boolean, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tensor tmp = ((Tensor) newElement);
-        if (value != tmp.value) {
+    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
+        Tensor mementoAggregator = (Tensor) callback.f1;
+        if(callback.f0 != null && mementoAggregator.value != value){
             value.prepone();
-            tmp.value.postpone();
+            mementoAggregator.value.postpone();
         }
-        return super.updateElement(newElement, memento);
+        return callback;
     }
 
     @Override
