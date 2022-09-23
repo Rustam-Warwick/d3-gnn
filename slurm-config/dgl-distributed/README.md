@@ -50,3 +50,6 @@ def get_local_usable_addr(probe_addr):
 
 
 </code>
+
+## Configure <strong>GLOO_PORT_RANGE</strong> env variable as such: "100:1000"
+## Now the gloo and DGL will only use this port range for communication
