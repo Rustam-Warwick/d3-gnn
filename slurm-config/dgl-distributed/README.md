@@ -37,7 +37,7 @@ def get_local_usable_addr(probe_addr):
                 port = i
                 sock.close()
                 break
-            except socket.errors:
+            except socket.error:
                 pass
     if port is None:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
