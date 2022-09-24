@@ -63,7 +63,7 @@ public class HGraph extends GraphElement{
 
     @Override
     public void update(GraphElement newElement) {
-        throw new IllegalStateException("Update not available for subgraph grannularity");
+        throw new IllegalStateException("Update not available in subgraph granularity");
     }
 
     @Override

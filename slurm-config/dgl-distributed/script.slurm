@@ -23,51 +23,62 @@
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=2
 #SBATCH --exclusive
+#SBATCH --export=ALL,DGL_DIST_MODE=distributed,DGL_IP_CONFIG=ip_config.txt,DGL_GRAPH_FORMAT=csc,DGL_KEEP_ALIVE=0,DGL_DIST_MAX_TRY_TIMES=300,DGL_NUM_SERVER=1,DGL_CONF_PATH=stackoverflow_part/stackoverflow.json,DGL_NUM_SAMPLER=1
 
-HOSTNAMES=$(scontrol show hostnames "$SLURM_NODELIST")
+. $CONDA_ROOT/etc/profile.d/conda.sh
 
 if [ "$1" != 'run' ]; then
-	rm ip_config_server.txt
-	touch ip_config_server.txt
-	rm ip_config_client.txt
-	touch ip_config_client.txt
+	rm ip_config.txt
+
+	touch ip_config.txt
+
+	HOSTNAMES=$(scontrol show hostnames "$SLURM_NODELIST")
+
 	for HOSTNAME in $HOSTNAMES
 	do
-		echo "$HOSTNAME"
-		echo "" >> ip_config_server.txt
-		echo "" >> ip_config_client.txt
+		echo "" >> ip_config.txt
 	done
 
-        srun script.slurm run # Run the script in all the tasks
+  srun script.slurm run # Run the script in all the tasks
 
 else
+	export DGL_NUM_CLIENT=$(( $DGL_NUM_SERVER * ( 1 + $DGL_NUM_SAMPLER ) * ( $( echo $SLURM_TASKS_PER_NODE | sed 's@^[^0-9]*\([0-9]\+\).*@\1@') - 1 ) * $SLURM_NNODES ))
+
 	index=$(($SLURM_PROCID % 2))
-	HOSTNAME=$(hostname)
+
 	if [ $index == 0 ]; then
-		# This is server
-		sleep $(($SLURM_NODEID + 1))
+		export DGL_ROLE=server
+
+		export DGL_SERVER_ID=$SLURM_NODEID
 
 		[[ $(nslookup $(hostname)) =~ [0-9.]+$ ]]
 
-		WRITE_VALUE_SERVER=$(printf "%ss/^/%s 11090/" $(($SLURM_NODEID + 1)) $BASH_REMATCH)
+		sed -i "$(printf "%ss/^/%s 11090/" $(($SLURM_NODEID + 1)) $BASH_REMATCH)" ip_config.txt
 
-		sed -i "$WRITE_VALUE_SERVER" ip_config_server.txt
+		sleep 3
 
-		python3.8 start_server.py
+		conda activate flink
+
+		python3.8 -u -c "import dgl;import os;dgl.distributed.initialize(os.getenv(\"DGL_IP_CONFIG\"))" # Run server as a string script
 
 	else
 		# This is client
+		export DGL_ROLE=client
 
 		sleep 10
 
-		[[ $(head -1 ip_config_server.txt) =~ [a-zA-Z0-9.-]+ ]]
+		[[ $(head -1 ip_config.txt) =~ [a-zA-Z0-9.-]+ ]]
 
-		IP_MASTER=$BASH_REMATCH
+		export MASTER_ADDR=$BASH_REMATCH
 
-		echo $IP_MASTER
+		export MASTER_PORT=11100
 
-		python3.8 -m torch.distributed.launch --nproc_per_node=1 --nnodes="$SLURM_NNODES" --node_rank="$SLURM_NODEID" --master_addr="$IP_MASTER" --master_port=11091 start_client.py
+		export RANK=$SLURM_NODEID
+
+		export WORLD_SIZE=$SLURM_NNODES
+
+		conda activate flink
+
+		python3.8 -u start_client.py
 	fi
 fi
-
-wait

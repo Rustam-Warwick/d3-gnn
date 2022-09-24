@@ -77,6 +77,7 @@ public class HEdge extends ReplicableGraphElement {
         if(newHEdge.vertices != null){
             // This is not possible during SYNC phases so we are safe from merging vertexIds across replicas
             // The reason why this is not possible is because SYNC is copying this element which drops the vertices
+            // If there is an addition of new vertices to this hyperedge we should update it even if features of it are not updated
             for (Vertex vertex : newHEdge.vertices) {
                 if(!vertexIds.contains(vertex.getId())){
                     if(memento == null) memento = copy();
@@ -98,7 +99,7 @@ public class HEdge extends ReplicableGraphElement {
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            if(tmp.f0!=null && !isHalo() && tmp.f1.features != null) syncReplicas(replicaParts());
+            if(tmp.f0!=null && !isHalo() && newElement.features != null) syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features
         } else throw new IllegalStateException("Replicable element but don't know if master or repica");
     }
 

@@ -22,32 +22,9 @@ class SAGE(nn.Module):
 
 
 if __name__ == '__main__':
-
-    print("Starting Client")
-
-    tot_num_clients = 1 * (1 + 1) * int(os.environ["SLURM_NNODES"])
-
-    os.environ.update({
-        "DGL_DIST_MODE": "distributed",
-        "DGL_ROLE": "client",
-        "DGL_NUM_SAMPLER": "1",
-        "DGL_NUM_CLIENT": str(tot_num_clients),
-        "DGL_CONF_PATH": "./stackoverflow_part/stackoverflow.json",
-        "DGL_IP_CONFIG": "./ip_config_server.txt",
-        "DGL_NUM_SERVER": "1",
-        "DGL_GRAPH_FORMAT": "csc",
-        "OMP_NUM_THREADS": "4",
-        "DGL_GROUP_ID": "0"
-        })
-
-
-    dgl.distributed.initialize("./ip_config_server.txt", num_worker_threads=4)
-
-    print("Finished Initializae")
+    dgl.distributed.initialize(os.getenv("DGL_IP_CONFIG")
 
     torch.distributed.init_process_group("gloo")
-
-    print("Started Client")
 
     g = dgl.distributed.DistGraph('stackoverflow')
 

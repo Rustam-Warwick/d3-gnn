@@ -9,8 +9,7 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HyperSAGE;
-import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.nn.gnn.HyperSAGEConv;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.pytorch.engine.PtNDArray;
@@ -20,7 +19,6 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import plugins.embedding_layer.StreamingHGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
@@ -44,8 +42,8 @@ public class Main {
 
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HyperSAGE(64, true));
-        sb.add(new HyperSAGE(32, true));
+        sb.add(new HyperSAGEConv(64, true));
+        sb.add(new HyperSAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(new Function<NDList, NDList>() {
@@ -88,7 +86,8 @@ public class Main {
 
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setMaxParallelism(32);
+        env.setMaxParallelism(1);
+        env.setParallelism(1);
         // DataFlow
 //        Integer window = null;
         GraphStream gs = new GraphStream(env, args);

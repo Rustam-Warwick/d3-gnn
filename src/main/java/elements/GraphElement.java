@@ -1,10 +1,8 @@
 package elements;
 
 import ai.djl.ndarray.NDArray;
-import jdk.dynalink.Operation;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.util.concurrent.FutureUtils;
 import storage.BaseStorage;
 import typeinfo.ListTypeInformationFactory;
 import typeinfo.RecursiveListFieldsTypeInfoFactory;
@@ -15,9 +13,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
 public class GraphElement implements Serializable {
@@ -406,7 +402,7 @@ public class GraphElement implements Serializable {
     @Override
     public String toString() {
         return elementType()+"{" +
-                "id='" + id + '\'' +
+                "id='" + getId() + '\'' +
                 '}';
     }
 

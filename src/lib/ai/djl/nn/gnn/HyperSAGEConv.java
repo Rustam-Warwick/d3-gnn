@@ -9,9 +9,9 @@ import ai.djl.nn.core.Linear;
 
 import java.util.function.Function;
 
-public class HyperSAGE extends HGNNBlock{
+public class HyperSAGEConv extends HGNNBlock{
 
-    public HyperSAGE(int outFeatures, boolean optBias) {
+    public HyperSAGEConv(int outFeatures, boolean optBias) {
         // Update Block expecs thisFeature, aggregator
         SequentialBlock updateBlock = new SequentialBlock();
         updateBlock.add(new Function<NDList, NDList>() {

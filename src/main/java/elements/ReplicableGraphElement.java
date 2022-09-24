@@ -50,7 +50,7 @@ public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        if(state() == ReplicaState.REPLICA) clearFeatures();
+        if(state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
         if(callback != null && state() == ReplicaState.REPLICA && !isHalo())
             storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
@@ -67,7 +67,7 @@ public class ReplicableGraphElement extends GraphElement {
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != null;
-            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Create parts only when there is clearly is a replica
+            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
             new RemoteInvoke()
                     .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
                     .hasUpdate()
