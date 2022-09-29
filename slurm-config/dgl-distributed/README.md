@@ -6,17 +6,18 @@
 git clone https://github.com/pytorch/pytorch
 ```
 ### 2. Re-route the gloo submodule url in the .gitmodules file to <a> https://github.com/rustambaku13/gloo</a>
-### 3. git update sync and build according to pytorch documentation  
+### 3. Sync submodules
 
 ```
 cd pytorch  
 git submodule sync  
 git submodule update --init --recursive --jobs 0  
 ```
+### 4. Build according to pytorch documentation  
 
 ## Step 2. Build the DGL library from source files
 ### 1. Follow the instruction on the DGL homepage
-### 2. locate dgl/distributed/rpc_client.py and replace this function
+### 2. Locate dgl/distributed/rpc_client.py and replace this function
 ```
 def get_local_usable_addr(probe_addr):
     """Get local usable IP and port
