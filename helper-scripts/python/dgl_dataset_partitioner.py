@@ -1,10 +1,49 @@
+import os
+
 import dgl
 import argparse as arg
-import numpy as np
 import torch as pt
+from torch.distributed import init_process_group
 import pandas as pd
 from os.path import abspath, join
 
+class SAGE(pt.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layers = pt.nn.ModuleList()
+        self.layers.append(dgl.nn.SAGEConv(64, 32, 'mean'))
+        self.layers.append(dgl.nn.SAGEConv(32, 16, 'mean'))
+
+    def forward(self, g, x):
+        x_new = x
+        for i, layer in enumerate(self.layers):
+            x_new = layer(g[i], x_new)
+        return x_new
+
+
+class Tester:
+    def __init__(self):
+        self.model = SAGE()
+
+    def start_client(self):
+        os.environ["DGL_DIST_MODE"] = "standalone"
+        with open("ip_config.txt", "w+") as f:
+            f.write("localhost")
+            dgl.distributed.initialize("ip_config.txt")
+            # init_process_group("gloo", init_method="tcp://localhost:8000", world_size=1, rank=0)
+            os.remove("ip_config.txt")
+        graph = dgl.distributed.DistGraph(DATASET_NAME, None, join(PARTITION_DIR, DATASET_NAME+".json"))
+        mask = dgl.distributed.node_split(pt.ones(graph.num_nodes(), dtype=pt.bool), graph.get_partition_book())
+        train_dataloader = dgl.dataloading.DistNodeDataLoader(graph, mask, dgl.dataloading.MultiLayerFullNeighborSampler(2), batch_size=1024)
+        for step, (input_nodes, seeds, blocks) in enumerate(train_dataloader):
+            # Load the input features as well as output labels
+            features_batched = graph.ndata["features"][input_nodes]
+            result = self.model(blocks, features_batched)
+
+            pass
+
+    def start_server(self):
+        pass
 
 def partition_graph(graph: dgl.DGLGraph, num_parts: int, train_test_split=-1):
     if train_test_split > 0:
@@ -29,7 +68,6 @@ def get_reddit() -> dgl.DGLGraph:
 
 
 if __name__ == "__main__":
-
     global DATASET_DIR, PARTITION_DIR, DATASET_NAME
     parser = arg.ArgumentParser(description='Partitioning some datasets')
 
@@ -41,16 +79,22 @@ if __name__ == "__main__":
                         help='name of the dataset')
     parser.add_argument('-t', type=str,
                         help='directory where to partition to')
+    parser.add_argument('--TEST', type=bool, required=False,
+                        help='TEST MODE')
 
     args = parser.parse_args()
     DATASET_DIR = abspath(args.d)
     PARTITION_DIR = abspath(args.t)
     DATASET_NAME = args.n
     graph = None
-    if DATASET_NAME == "reddit-hyperlink":
-        graph = get_reddit()
-
-    if graph is not None:
-        partition_graph(graph, args.p)
+    if args.TEST:
+        tester = Tester()
+        tester.start_client()
     else:
-        print("Dataset name is not recognized or error during parsing")
+        if DATASET_NAME == "reddit-hyperlink":
+            graph = get_reddit()
+
+        if graph is not None:
+            partition_graph(graph, args.p)
+        else:
+            print("Dataset name is not recognized or error during parsing")
