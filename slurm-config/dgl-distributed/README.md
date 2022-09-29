@@ -4,12 +4,16 @@
 ### 1. Clone the PyTorch repo (without the --recursive flag)
 <code> git clone https://github.com/pytorch/pytorch  </code>
 ### 2. Re-route the gloo submodule url in the .gitmodules file to <a> https://github.com/rustambaku13/gloo</a>
-### 3. git update sync and build according to pytorch documentation
+### 3. git update sync and build according to pytorch documentation  
+
 <code> 
-cd pytorch
-git submodule sync
-git submodule update --init --recursive --jobs 0
-</code>
+    cd pytorch  
+    
+    git submodule sync  
+    
+    git submodule update --init --recursive --jobs 0  
+</code>  
+
 ## Step 2. Build the DGL library from source files
 ### 1. Follow the instruction on the DGL homepage
 ### 2. locate dgl/distributed/rpc_client.py and replace this function
