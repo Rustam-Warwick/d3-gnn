@@ -2,16 +2,16 @@
 #### <small> All of these steps are better done in conda </small>
 ## Step 1. Buld Pytorch from source files
 ### 1. Clone the PyTorch repo (without the --recursive flag)
-```git clone https://github.com/pytorch/pytorch```
+```
+git clone https://github.com/pytorch/pytorch
+```
 ### 2. Re-route the gloo submodule url in the .gitmodules file to <a> https://github.com/rustambaku13/gloo</a>
 ### 3. git update sync and build according to pytorch documentation  
 
 ```
-    cd pytorch  
-    
-    git submodule sync  
-    
-    git submodule update --init --recursive --jobs 0  
+cd pytorch  
+git submodule sync  
+git submodule update --init --recursive --jobs 0  
 ```
 
 ## Step 2. Build the DGL library from source files
