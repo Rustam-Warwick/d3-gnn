@@ -85,7 +85,6 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> update element, if changed send message to replica
      * replica -> Redirect to master, false message
-     *
      * @param newElement newElement to update with
      */
     @Override
