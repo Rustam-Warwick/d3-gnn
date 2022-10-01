@@ -8,34 +8,74 @@ import pandas as pd
 from os.path import abspath, join
 
 
+
 class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
+    """ Sampler for edges with temporal ids """
+
     def __init__(self, num_layers=None, sample_size=None, **kwargs):
         assert num_layers is not None or sample_size is not None, "Either sample sample or num_layers should be not None"
+        self.T = 0
         if num_layers is not None:
             super().__init__([-1] * num_layers, **kwargs)
         else:
             super().__init__(sample_size, **kwargs)
 
-    def filter_timestamp(self, edge):
-        return edge.data["_ID"] > 10
+    def update_T(self, new_T):
+        """ Call this method to update the time """
+        self.T = new_T
 
+    def filter_timestamp(self, edge):
+        """ Filter function for edges according to timestamp """
+        return edge.data["_ID"] > self.T
+
+    def sample_neighbors(self, graph, seed_nodes, fanout, edge_dir='in', prob=None,
+                         exclude_edges=None, replace=False, etype_sorted=True,
+                         output_device=None):
+        """ Changed the method for sampling because the default one did not fetch the out edges """
+        if len(graph.etypes) > 1:
+            frontier = dgl.distributed.graph_services.sample_etype_neighbors(
+                graph, seed_nodes, dgl.distributed.graph_services.ETYPE, fanout, prob=prob, replace=replace,
+                edge_dir=edge_dir, etype_sorted=etype_sorted)
+        else:
+            frontier = dgl.distributed.graph_services.sample_neighbors(
+                graph, seed_nodes, fanout, replace=replace, prob=prob, edge_dir=edge_dir)
+        return frontier
+
+    def sample_out_nodes(self, g, seed_nodes, exclude_eids=None):
+        """ Get the khop_out nodes as a list each element unique """
+        output_nodes = list(seed_nodes)
+        for fanout in reversed(self.fanouts[:-1]):
+            if not len(seed_nodes):
+                break
+            frontier: dgl.DGLHeteroGraph = self.sample_neighbors(g,
+                                                                 seed_nodes, fanout, edge_dir="out",
+                                                                 prob=self.prob,
+                                                                 replace=self.replace, output_device=self.output_device,
+                                                                 exclude_edges=exclude_eids)
+            frontier.remove_edges(frontier.filter_edges(self.filter_timestamp))
+            seed_nodes = frontier.edges()[1]
+            for i in seed_nodes:
+                if i not in output_nodes:
+                    output_nodes.append(i)
+        return list(set(output_nodes))
 
     def sample_blocks(self, g, seed_nodes, exclude_eids=None):
         output_nodes = seed_nodes
         blocks = []
         for fanout in reversed(self.fanouts):
-            frontier:dgl.DGLHeteroGraph = g.sample_neighbors(
-                seed_nodes, fanout, edge_dir=self.edge_dir, prob=self.prob,
-                replace=self.replace, output_device=self.output_device,
-                exclude_edges=exclude_eids)
+            frontier: dgl.DGLHeteroGraph = self.sample_neighbors(g,
+                                                                 seed_nodes, fanout, edge_dir=self.edge_dir,
+                                                                 prob=self.prob,
+                                                                 replace=self.replace, output_device=self.output_device,
+                                                                 exclude_edges=exclude_eids)
             frontier.remove_edges(frontier.filter_edges(self.filter_timestamp))
             eid = frontier.edata[dgl.base.EID]
             block = dgl.to_block(frontier, seed_nodes)
             block.edata[dgl.base.EID] = eid
             seed_nodes = block.srcdata[dgl.base.NID]
             blocks.insert(0, block)
-
         return seed_nodes, output_nodes, blocks
+
 
 class SAGE(pt.nn.Module):
     def __init__(self):
@@ -62,19 +102,28 @@ class Tester:
             dgl.distributed.initialize("ip_config.txt")
             # init_process_group("gloo", init_method="tcp://localhost:8000", world_size=1, rank=0)
             os.remove("ip_config.txt")
-        graph = dgl.distributed.DistGraph(DATASET_NAME, None, join(PARTITION_DIR, DATASET_NAME+".json"))
-        mask = dgl.distributed.node_split(pt.ones(graph.num_nodes(), dtype=pt.bool), graph.get_partition_book())
-        train_dataloader = dgl.dataloading.DistNodeDataLoader(graph, mask, TemporalEdgeSampler(num_layers=2), batch_size=1024)
+        NUM_LAYERS = 2
+        graph = dgl.distributed.DistGraph(DATASET_NAME, None, join(PARTITION_DIR, DATASET_NAME + ".json"))
+        local_graph: dgl.DGLHeteroGraph = graph._g
+        sampler = TemporalEdgeSampler(num_layers=NUM_LAYERS, edge_dir="in")
 
-        for step, (input_nodes, seeds, blocks) in enumerate(train_dataloader):
-            # Load the input features as well as output labels
+        for i in range(local_graph.number_of_edges()):
+            new_src, new_dest, time = local_graph.edges()[0][i], local_graph.edges()[1][i], \
+                                      local_graph.edata["orig_id"][i]
+            sampler.update_T(time)
+            if time == 17386:
+                print("")
+            influenced_nodes = sampler.sample_out_nodes(graph, [new_dest])
+            print("Time is %s, with %s of influenced nodes" % (time, len(influenced_nodes)))
+            input_nodes, seed, blocks = sampler.sample(graph, influenced_nodes)
             features_batched = graph.ndata["features"][input_nodes]
             result = self.model(blocks, features_batched)
-
-            pass
-
     def start_server(self):
         pass
+
+
+# PART FOR PARTITIONING
+
 
 def partition_graph(graph: dgl.DGLGraph, num_parts: int, train_test_split=-1):
     if train_test_split > 0:
