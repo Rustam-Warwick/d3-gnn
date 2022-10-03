@@ -147,6 +147,11 @@ def get_reddit() -> dgl.DGLGraph:
     return graph
 
 
+def get_manual_graph() -> dgl.DGLGraph:
+    graph = dgl.graph([[0, 1], [1, 2], [1, 3],[2, 4],[3, 4],[0, 5],[5, 4]])
+    graph.ndata["features"] = pt.rand((6, 64))
+    return graph
+
 if __name__ == "__main__":
     global DATASET_DIR, PARTITION_DIR, DATASET_NAME
     parser = arg.ArgumentParser(description='Partitioning some datasets')
@@ -173,7 +178,8 @@ if __name__ == "__main__":
     else:
         if DATASET_NAME == "reddit-hyperlink":
             graph = get_reddit()
-
+        if DATASET_NAME == "manual-graph":
+            graph = get_manual_graph()
         if graph is not None:
             partition_graph(graph, args.p)
         else:

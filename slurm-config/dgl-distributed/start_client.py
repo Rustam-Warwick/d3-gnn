@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import dgl.nn as dglnn
 import time
 import torch.optim as optim
-
+# DGL_DIST_MODE=distributed DGL_IP_CONFIG=ip_config.txt DGL_GRAPH_FORMAT=csc DGL_KEEP_ALIVE=0 DGL_DIST_MAX_TRY_TIMES=300 DGL_NUM_SERVER=1 DGL_DATASET_NAME=reddit-hyperlink DGL_CONF_PATH=/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/helper-scripts/python/reddit-hyperlink/reddit-hyperlink.json DGL_NUM_SAMPLER=1
 
 class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
     """ Sampler for edges with temporal ids """
@@ -120,7 +120,7 @@ if __name__ == '__main__':
 
     for i in range(local_graph.number_of_edges()):
         new_src, new_dest, T = local_graph.edges()[0][i], local_graph.edges()[1][i], \
-                                  local_graph.edata["_ID"][i] # Assuming data is shuffled
+                                  local_graph.edata["_ID"][i]
 
         src_index = (local_graph.nodes() == new_src)
 
@@ -148,8 +148,10 @@ if __name__ == '__main__':
         windowed_count += len(influenced_nodes)
 
         LOCAL_END = int(round(time.time() * 1000))
+
         if i % 5000 == 0:
             print(i, TH_MEAN_LOCAL)
+
         if LOCAL_END - LOCAL_START > 1000:
             TH_MEAN_LOCAL = windowed_count / ((LOCAL_END - LOCAL_START)) * 1000
             if TH_MEAN_LOCAL > TH_MAX:

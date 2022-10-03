@@ -20,10 +20,11 @@
 # Need to have FLINK_HOME in the .env
 
 #SBATCH --job-name dgl-slurm
-#SBATCH --nodes=2
+#SBATCH --nodes=7
 #SBATCH --ntasks-per-node=2
 #SBATCH --exclusive
 #SBATCH --export=ALL,DGL_DIST_MODE=distributed,DGL_IP_CONFIG=ip_config.txt,DGL_GRAPH_FORMAT=csc,DGL_KEEP_ALIVE=0,DGL_DIST_MAX_TRY_TIMES=300,DGL_NUM_SERVER=1,DGL_DATASET_NAME=reddit-hyperlink,DGL_CONF_PATH=reddit-hyperlink/reddit-hyperlink.json,DGL_NUM_SAMPLER=1
+
 # DGL_NUM_SERVER -> Number of server per machine, leave it 1. More than one means simply backup servers
 # DGL_NUM_SAMPLER -> Number of samplers per client.
 
@@ -44,10 +45,14 @@ if [ "$1" != 'run' ]; then
 	for HOSTNAME in $HOSTNAMES
 
 	do
-		echo "" >> ip_config.txt
+
+		[[ $(nslookup $HOSTNAME) =~ [0-9.]+$ ]]
+
+		echo "$(printf "%s 11090" $BASH_REMATCH)" >> ip_config.txt
+
 	done
 
-        srun script.slurm run # Run the script in all the tasks
+	srun script.slurm run # Run the script in all the tasks
 
 else
 	export DGL_NUM_CLIENT=$(( $DGL_NUM_SERVER * ( 1 + $DGL_NUM_SAMPLER ) * ( $( echo $SLURM_TASKS_PER_NODE | sed 's@^[^0-9]*\([0-9]\+\).*@\1@') - 1 ) * $SLURM_NNODES ))
@@ -55,15 +60,10 @@ else
 	index=$(($SLURM_PROCID % $( echo $SLURM_TASKS_PER_NODE | sed 's@^[^0-9]*\([0-9]\+\).*@\1@')))
 
 	if [ $index == 0 ]; then
+
 		export DGL_ROLE=server
 
 		export DGL_SERVER_ID=$SLURM_NODEID
-
-		[[ $(nslookup $(hostname)) =~ [0-9.]+$ ]]
-
-		sed -i "$(printf "%ss/^/%s 11090/" $(($SLURM_NODEID + 1)) $BASH_REMATCH)" ip_config.txt
-
-		sleep 3
 
 		python3.8 -u -c "import dgl;import os;dgl.distributed.initialize(os.getenv(\"DGL_IP_CONFIG\"))" # Run server as a string script
 
@@ -73,7 +73,7 @@ else
 
 		sleep 10
 
-		[[ $(head -1 ip_config.txt) =~ [a-zA-Z0-9.-]+ ]]
+		[[ $(head -1 ip_config.txt) =~ [a-zA-Z0-9.-]+ ]] # First ip in the ip_config file is assumed to the Master address
 
 		export MASTER_ADDR=$BASH_REMATCH
 
