@@ -60,7 +60,6 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Master -> Add to part feature, send syncReplicas request
      * Replica -> Accept the sync and update the element
-     *
      * @param newElement New element to sync with
      */
     @Override
@@ -140,7 +139,6 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Sends a copy of this element as message to all parts
-     *
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {

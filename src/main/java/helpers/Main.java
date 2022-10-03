@@ -2,24 +2,20 @@ package helpers;
 
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HyperSAGEConv;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
-import ai.djl.pytorch.engine.PtNDArray;
-import ai.djl.pytorch.jni.JniUtils;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.StreamingHGNNEmbeddingLayer;
+import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.FlatInMemoryClassStorage;
 
 import java.io.IOException;
@@ -28,22 +24,10 @@ import java.util.function.Function;
 
 public class Main {
 
-    public static void test() {
-        NDArray x = LifeCycleNDManager.getInstance().ones(new Shape());
-        x.setRequiresGradient(true);
-        NDArray y = LifeCycleNDManager.getInstance().ones(new Shape()).mul(3);
-        NDArray p = LifeCycleNDManager.getInstance().ones(new Shape()).mul(10);
-        NDArray z = x.mul(y).add(x.mul(p));
-        NDArray ss = x.mul(y).add(x.mul(p));
-        JniUtils.backward((PtNDArray) z, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
-        JniUtils.backward((PtNDArray) ss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
-
-    }
-
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HyperSAGEConv(64, true));
-        sb.add(new HyperSAGEConv(32, true));
+        sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(new Function<NDList, NDList>() {
@@ -67,9 +51,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-//        NDHelper.loadModel(Path.of("/Users/rustamwarwick/Documents/Projects/Flink-Partitioning/jupyter/models/GraphSageBias-2022-05-15"), model);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
-//        model.getBlock().setInitializer(new ConstantInitializer(1f), Parameter.Type.WEIGHT);
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().postpone());
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -86,8 +68,8 @@ public class Main {
 
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setMaxParallelism(1);
-        env.setParallelism(1);
+        env.setMaxParallelism(2);
+        env.setParallelism(2);
         // DataFlow
 //        Integer window = null;
         GraphStream gs = new GraphStream(env, args);
@@ -95,7 +77,7 @@ public class Main {
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
                 )
         );
 

@@ -74,7 +74,7 @@ public class GraphElement implements Serializable {
     }
 
     /**
-     * Tries to create the element returns null if not created
+     * Tries to create the element returns null if not created otherwise returns the callback to be fired
      */
     protected Consumer<Plugin> createElement() {
         assert storage != null;

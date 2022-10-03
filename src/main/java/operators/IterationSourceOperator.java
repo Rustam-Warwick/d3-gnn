@@ -105,13 +105,14 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      */
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        if (isBufferPoolClosed) return;
+        if (isBufferPoolClosed) return; // Channel closed
         if (!timerRegistered) {
-            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 10000);
+            // Open termination detector
+            getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 5000, 5000);
             timerRegistered = true;
         }
         try {
-
+            // Actual processing of messages
             if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
                 output.collect(element);
             } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
@@ -200,23 +201,19 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      * Find the termination of the iteration tails
      */
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
-        private final byte RETRY_COUNT = 3;
-        private byte count = 0;
-        private Long prevCount = null;
+        private Long prevCount = 0L;
 
         @Override
         public void onProcessingTime(long time) throws Exception {
-            if (count >= RETRY_COUNT) return; // Already did what it had to do
-            long sumMessageCount = feedbackChannel.getTotalFlowingMessagesRate();
+            if(prevCount == null)return; // Already emitted watermark
+            long sumMessageCount = feedbackChannel.getTotalFlowingMessageCount();
             // Operator has started so try to find termination point
-            if (prevCount == null || sumMessageCount > prevCount) {
-                count = 0;
+            if (sumMessageCount > prevCount) {
                 prevCount = sumMessageCount;
             } else {
-                if (++count == RETRY_COUNT) {
-                    BaseWrapperOperator.LOG.info(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
-                    output.emitWatermark(new Watermark(Long.MAX_VALUE));
-                }
+                BaseWrapperOperator.LOG.info(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
+                output.emitWatermark(new Watermark(Long.MAX_VALUE));
+                prevCount = null;
             }
         }
     }

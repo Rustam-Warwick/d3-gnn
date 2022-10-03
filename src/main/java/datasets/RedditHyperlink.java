@@ -15,6 +15,7 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
+import java.time.Duration;
 
 public class RedditHyperlink implements Dataset {
     private final transient String baseDirectory;
@@ -28,12 +29,13 @@ public class RedditHyperlink implements Dataset {
         String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
+
+        SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(10)).withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
             @Override
             public long extractTimestamp(GraphOp element, long recordTimestamp) {
                 Long ts = element.getTimestamp();
                 element.setTimestamp(null);
-                return ts == null ? Long.MIN_VALUE : ts;
+                return ts == null ? System.currentTimeMillis():  ts;
             }
         })).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {

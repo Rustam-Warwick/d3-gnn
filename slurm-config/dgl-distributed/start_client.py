@@ -119,8 +119,8 @@ if __name__ == '__main__':
     sampler = TemporalEdgeSampler(num_layers=2, edge_dir="in")
 
     for i in range(local_graph.number_of_edges()):
-        new_src, new_dest, time = local_graph.edges()[0][i], local_graph.edges()[1][i], \
-                                  local_graph.edata["_ID"][i]
+        new_src, new_dest, T = local_graph.edges()[0][i], local_graph.edges()[1][i], \
+                                  local_graph.edata["_ID"][i] # Assuming data is shuffled
 
         src_index = (local_graph.nodes() == new_src)
 
@@ -130,7 +130,7 @@ if __name__ == '__main__':
 
         new_dest = local_graph.ndata["_ID"][dest_index]
 
-        sampler.update_T(time)
+        sampler.update_T(T)
 
         influenced_nodes = sampler.sample_out_nodes(g, [new_dest])
 

@@ -149,7 +149,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * Get total messages being sent from the <strong>Operator</strong> of the iteration producers
      * Used in the iteration consumer to detect termination
      */
-    public long getTotalFlowingMessagesRate() {
+    public long getTotalFlowingMessageCount() {
         return meters.values().stream().mapToLong(item -> item.f0.getCount() + item.f1.getCount()).sum();
     }
 
