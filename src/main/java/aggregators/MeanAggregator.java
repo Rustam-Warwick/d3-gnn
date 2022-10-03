@@ -96,8 +96,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
         if(callback.f0 != null && mementoAggregator.value.f0 != value.f0){
-            value.f0.prepone();
-            mementoAggregator.value.f0.postpone();
+            value.f0.postpone();
+            mementoAggregator.value.f0.prepone();
         }
         return callback;
     }

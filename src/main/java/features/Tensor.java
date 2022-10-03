@@ -1,6 +1,5 @@
 package features;
 
-import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
@@ -58,8 +57,8 @@ public class Tensor extends Feature<NDArray, NDArray> {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
         if(callback.f0 != null && mementoAggregator.value != value){
-            value.prepone();
-            mementoAggregator.value.postpone();
+            value.postpone();
+            mementoAggregator.value.prepone();
         }
         return callback;
     }

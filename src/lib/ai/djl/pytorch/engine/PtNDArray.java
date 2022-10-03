@@ -1809,6 +1809,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     /**
+     * Added UNSAFE native memory deallocation + special detach method for the LifeCycleManager
      * {@inheritDoc}
      */
     @Override

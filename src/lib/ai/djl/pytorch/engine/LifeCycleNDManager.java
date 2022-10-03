@@ -260,9 +260,13 @@ public class LifeCycleNDManager extends PtNDManager {
     }
 
     protected final Scope parentScope = new Scope(); // Scope to delay the tensor removing
+
     protected final ManualTicker ticker = new ManualTicker(); // Logical timer depending on the data-rate
+
     protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>(); // Map of detached tensors
+
     protected long scopedCount = 0; // Count of opened tensors when we are in a scope
+
     protected long closedCount = 0; // Count of closed tensor for reporting purposes
 
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
@@ -270,8 +274,7 @@ public class LifeCycleNDManager extends PtNDManager {
                 try {
                     if (cause.wasEvicted()) {
                         closedCount++;
-                        if (key instanceof PtNDArray) ((PtNDArray) key).closeNotNotify();
-                        else key.close();
+                        key.close();
                     }
                 } catch (Exception e) {
                     LOG.error(e.getMessage());
@@ -296,50 +299,15 @@ public class LifeCycleNDManager extends PtNDManager {
     }
 
     /**
-     * Analyze Threads using NDArrays and clean them when the thread is stopped
+     * Get the scope object
      */
-    public static void clean() {
-        boolean notInterrupted = true;
-        while (notInterrupted) {
-            // Cleanup closed threads
-            for (Iterator<Tuple2<Thread, LifeCycleNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
-                Tuple2<Thread, LifeCycleNDManager> val = threadLocal.next();
-                if (!val.f0.isAlive()) {
-                    // Clean the data structure, thread is no longer needed
-                    try {
-                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
-                            value.close();
-                        }
-                        for (AutoCloseable value : val.f1.detached.keySet()) {
-                            value.close();
-                        }
-                        val.f1.attached.asMap().clear();
-                        val.f1.detached.clear();
-                        threadLocal.remove();
-                        System.gc();
-                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
-                    } catch (Exception ignored) {
-                        LOG.error("Exception in trying to close all Tensors");
-                    }
-                } else {
-                    LOG.info(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
-                }
-            }
-
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                LOG.info("Interrupted Cleaner Thread ");
-                notInterrupted = false;
-            }
-        }
-
-    }
-
     public Scope getScope() {
         return parentScope;
     }
 
+    /**
+     * Postponed tensor are detached from cache untill prepone exactly as many times as they were postponed
+     */
     public void postpone(NDArray resource) {
         detached.compute(resource, (key, val) -> {
             if (val == null) {
@@ -350,6 +318,9 @@ public class LifeCycleNDManager extends PtNDManager {
         });
     }
 
+    /**
+     * Prepone the tensor trying to merge it into the cache.
+     */
     public void prepone(NDArray resource) {
         detached.compute(resource, (key, val) -> {
             if (val == null) return val;
@@ -362,6 +333,9 @@ public class LifeCycleNDManager extends PtNDManager {
         });
     }
 
+    /**
+     * Called when the Tensor is constructed or re-attached
+     */
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
         if (!attached.asMap().containsKey(resource) && !detached.containsKey(resource)) {
@@ -371,16 +345,22 @@ public class LifeCycleNDManager extends PtNDManager {
         }
     }
 
+    /**
+     * @implNote Not implemented
+     */
     @Override
     public void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
         // Pass
-        LOG.error("Trying to temp attach this tensor, should not happen, can cause memory leaks. Use postpone method instead");
+        throw new IllegalStateException("TempAttaching is disabled for LifeCycleNDManager, please use postpone and prepone for delaying closure");
     }
 
+    /**
+     * @implNote Not implemented
+     */
     @Override
     public void detachInternal(String resourceId) {
         // No detaching for this NDArray, will be cleaned by the cleaner thread
-        LOG.error("detached tensor");
+        throw new IllegalStateException("For LifeCycleNDManager please use the detachInternal(AutoClosable)");
     }
 
     /**
@@ -391,6 +371,10 @@ public class LifeCycleNDManager extends PtNDManager {
         attached.invalidate(resource); // !This might cause eviction is the time is late
     }
 
+    /**
+     * @implNote Not implemented
+     * Closing LifeCycleNDManager is only done with the special Thread
+     */
     @Override
     public void close() {
         // Not closing explicitely, delegated to the cleaner and GC
@@ -440,6 +424,47 @@ public class LifeCycleNDManager extends PtNDManager {
         public boolean isClosed() {
             return openCount == 0;
         }
+    }
+
+    /**
+     * Analyze Threads using NDArrays and clean them when the thread is stopped
+     */
+    public static void clean() {
+        boolean notInterrupted = true;
+        while (notInterrupted) {
+            // Cleanup closed threads
+            for (Iterator<Tuple2<Thread, LifeCycleNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
+                Tuple2<Thread, LifeCycleNDManager> val = threadLocal.next();
+                if (!val.f0.isAlive()) {
+                    // Clean the data structure, thread is no longer needed
+                    try {
+                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
+                            value.close();
+                        }
+                        for (AutoCloseable value : val.f1.detached.keySet()) {
+                            value.close();
+                        }
+                        val.f1.attached.asMap().clear();
+                        val.f1.detached.clear();
+                        threadLocal.remove();
+                        System.gc();
+                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
+                    } catch (Exception ignored) {
+                        LOG.error("Exception in trying to close all Tensors");
+                    }
+                } else {
+                    LOG.info(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
+                }
+            }
+
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                LOG.info("Interrupted Cleaner Thread ");
+                notInterrupted = false;
+            }
+        }
+
     }
 
 }

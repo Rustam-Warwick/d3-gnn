@@ -157,6 +157,9 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      * @param value Process The Incoming Value
      */
     default void process(GraphOp value) {
+        if (getTimerService().currentWatermark() > currentTimestamp()){
+            System.out.println("Late event");
+        }
         try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             switch (value.op) {
                 case COMMIT:

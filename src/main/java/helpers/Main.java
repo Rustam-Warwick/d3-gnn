@@ -78,6 +78,10 @@ public class Main {
                 new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                ),
+                new StreamingGNNLayerFunction(new FlatInMemoryClassStorage()
+                        .withPlugin(new ModelServer(models.get(1)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
                 )
         );
 
