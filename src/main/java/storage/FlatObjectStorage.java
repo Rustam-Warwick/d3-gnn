@@ -5,7 +5,6 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.checkerframework.checker.units.qual.A;
 import typeinfo.RecursiveListFieldsTypeInfoFactory;
 
 import javax.annotation.Nullable;
@@ -14,7 +13,7 @@ import java.util.*;
 /**
  * @implNote Only use if using InMemoryState backend
  */
-public class FlatInMemoryClassStorage extends BaseStorage {
+public class FlatObjectStorage extends BaseStorage {
     protected MapState<String, Vertex> vertexTable;
     protected MapState<String, Feature<?, ?>> attachedFeatureTable;
     protected MapState<String, Feature<?, ?>> independentFeatureTable;
@@ -24,7 +23,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
     protected MapState<String, HEdge> hyperEdgeTable;
     protected MapState<String, List<String>> vertex2HyperEdge;
 
-    public FlatInMemoryClassStorage() {
+    public FlatObjectStorage() {
 
     }
 
@@ -244,7 +243,7 @@ public class FlatInMemoryClassStorage extends BaseStorage {
                     outEdgesIterator = IteratorUtils.transformedIterator(outEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));
                 }
 
-            } else if (edge_type == EdgeType.IN) {
+            } else if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
                 if (inEdgeTable.contains(vertex.getId())) {
                     Map<String, List<String>> inEdges = inEdgeTable.get(vertex.getId());
                     inEdgesIterator = IteratorUtils.transformedIterator(inEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));

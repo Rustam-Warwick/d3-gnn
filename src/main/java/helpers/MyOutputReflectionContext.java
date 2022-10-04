@@ -13,6 +13,9 @@ import org.apache.flink.util.OutputTag;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 
+/**
+ * Helper class with extension of FLink-ML iteration. Used to create individual outputs in the @link{BaseWrapperOperator}
+ */
 public class MyOutputReflectionContext extends OutputReflectionContext {
     private final Field recordWriterTagField;
     private final Field recordWriterField;

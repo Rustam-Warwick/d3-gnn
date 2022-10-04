@@ -26,6 +26,9 @@ public class Edge extends GraphElement {
         super();
     }
 
+    public Edge(String id){
+        super(id);
+    }
     /**
      * Normal Edge Creation
      */

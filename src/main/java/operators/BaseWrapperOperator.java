@@ -48,7 +48,6 @@ import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * Operator that Wraps around another operator and implements some common logic
- *
  * @implNote Assumes that the input is GraphOp
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
  * @see GNNLayerWrapperOperator manages wrapping around single operators
@@ -332,8 +331,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         assert evt instanceof BaseOperatorEvent; // Only send BaseOperatorEvents
         try {
             GraphOp op = new GraphOp(Op.OPERATOR_EVENT, null, null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null);
-            context.element.replace(op);
-            setKeyContextElement(context.element);
+            setKeyContextElement(context.element.replace(op));
             processElement(context.element);
         } catch (Exception e) {
             e.printStackTrace();

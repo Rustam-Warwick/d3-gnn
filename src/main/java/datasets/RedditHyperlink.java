@@ -15,7 +15,6 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
-import java.time.Duration;
 
 public class RedditHyperlink implements Dataset {
     private final transient String baseDirectory;
@@ -30,7 +29,7 @@ public class RedditHyperlink implements Dataset {
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
 
-        SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>forBoundedOutOfOrderness(Duration.ofSeconds(10)).withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
+        SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
             @Override
             public long extractTimestamp(GraphOp element, long recordTimestamp) {
                 Long ts = element.getTimestamp();
@@ -65,7 +64,7 @@ public class RedditHyperlink implements Dataset {
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split(",");
+            String[] values = value.split("\t");
             Edge edge = new Edge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){

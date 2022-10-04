@@ -31,6 +31,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
 
+    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
 
     /**
      * The function that this BaseStorage is attached to
@@ -40,7 +41,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * Plugins in the list state
      */
-    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
 
     private transient RemoveCachedFeatures removeCachedFeatures;
 
@@ -109,8 +109,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract void cacheFeaturesOf(GraphElement e);
 
 
-    // ----- Plugin Implementation and some common methods & CAllbacks
-
+    // ----- Plugin Implementation and some common methods & Callbacks
     public Plugin getPlugin(String id) {
         return this.plugins.get(id);
     }
@@ -175,6 +174,13 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    /**
+     * Single records has been processed fully
+     * @implNote Sub-classes might need this callback to have certain logic
+     */
+    public void recordProcessed(){
+
+    }
 
     // Operator State Handler
     @Override
@@ -197,7 +203,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         } else {
             pluginListState.add(plugins);
         }
-
     }
 
 

@@ -24,7 +24,6 @@ public class NDHelper {
     public static ExecutionConfig addSerializers(ExecutionConfig config) {
         config.addDefaultKryoSerializer(NDArray.class, NDArrayLZ4Serializer.class);
         config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
-        config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
         config.addDefaultKryoSerializer(PtNDManager.class, NDManagerSerializer.class);
         config.addDefaultKryoSerializer(NDManager.class, NDManagerSerializer.class);
         config.addDefaultKryoSerializer(BaseNDManager.class, NDManagerSerializer.class);

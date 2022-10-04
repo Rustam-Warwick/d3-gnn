@@ -9,7 +9,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import org.checkerframework.checker.units.qual.A;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,7 +26,7 @@ public class HDRF extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        int numThreats = 10;
+        int numThreats = 1;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);
@@ -184,16 +183,16 @@ public class HDRF extends BasePartitioner {
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
                 Edge edge = (Edge) elementToPartition;
-                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
-                    // Wait for completion
-                }
-                currentlyProcessing.add(edge.src.getId());
-                currentlyProcessing.add(edge.dest.getId());
+//                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
+//                    // Wait for completion
+//                }
+//                currentlyProcessing.add(edge.src.getId());
+//                currentlyProcessing.add(edge.dest.getId());
                 short partition = this.computePartition(edge);
                 edge.getSrc().master = this.partitionTable.get(edge.getSrc().getId()).get(0);
                 edge.getDest().master = this.partitionTable.get(edge.getDest().getId()).get(0);
-                currentlyProcessing.remove(edge.src.getId());
-                currentlyProcessing.remove(edge.dest.getId());
+//                currentlyProcessing.remove(edge.src.getId());
+//                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;
             }
             out.collect(value);

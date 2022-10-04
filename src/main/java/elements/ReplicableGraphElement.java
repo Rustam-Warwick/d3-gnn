@@ -93,7 +93,9 @@ public class ReplicableGraphElement extends GraphElement {
             // @todo Think about how to organize this sync logic, right now if the callback function assumes that replicas have the same state they will be wrong
             if (tmp.f0 != null && !isHalo()) syncReplicas(replicaParts());
             storage.runCallback(tmp.f0);
-        } else throw new IllegalStateException("No one should receive updates other than MASTER");
+        } else {
+            throw new IllegalStateException("No one should receive updates other than MASTER");
+        }
     }
 
     /**

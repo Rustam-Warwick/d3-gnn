@@ -18,6 +18,9 @@ public class Set<T> extends Feature<List<T>, List<T>> {
         super(value, halo, (short) -1);
     }
 
+    public Set(String id, List<T> val, boolean halo, short master){
+        super(id, val, halo, master);
+    }
     @Override
     public Set<T> copy() {
         return new Set<>(this, false);
