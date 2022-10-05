@@ -54,7 +54,6 @@ public class NDHelper {
         numpyParameterFiles.sort(Comparator.comparing(File::toString));
         model.getBlock().getParameters().forEach(param -> {
             try {
-                System.out.println(numpyParameterFiles.get(0));
                 InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
                 NDArray tmp = NDHelper.decodeNumpy(model.getNDManager(), in);
                 param.getValue().setArray(tmp);

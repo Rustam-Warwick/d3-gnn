@@ -61,7 +61,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
-    private PtNDManager manager;
+    protected PtNDManager manager;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
@@ -1817,29 +1817,18 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if (manager instanceof LifeCycleNDManager) {
-                ((LifeCycleNDManager) manager).detachInternal(this);
-            } else {
-                manager.detachInternal(getUid());
+            if(manager != null) {
+                if (manager instanceof LifeCycleNDManager) {
+                    ((LifeCycleNDManager) manager).detachInternal(this);
+                } else {
+                    manager.detachInternal(getUid());
+                }
             }
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);
             dataRef[0] = null;
         }
-        if (cleanable != null) cleanable.clean();
-    }
-
-    public void closeNotNotify() {
-        Long pointer = handle.getAndSet(null);
-        if (pointer != null) {
-            JniUtils.deleteNDArray(pointer);
-        }
-        if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
-            UNSAFE.invokeCleaner(dataRef[0]);
-            dataRef[0] = null;
-        }
-
         if (cleanable != null) cleanable.clean();
     }
 

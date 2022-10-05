@@ -26,7 +26,7 @@ public class HDRF extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        int numThreats = 1;
+        int numThreats = 3;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);

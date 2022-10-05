@@ -53,9 +53,9 @@ public class RedditHyperlink implements Dataset {
 
     static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         int count = 0;
-
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+            if(count++ > 1000) return;
             out.collect(value);
             ctx.output(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
         }

@@ -6,10 +6,12 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
+import ai.djl.nn.Parameter;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.training.initializer.Initializer;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -52,6 +54,10 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
+        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.WEIGHT);
+        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.BIAS);
+        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.BETA);
+        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.OTHER);
         model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(64));
         model.getBlock().getParameters().forEach(item -> item.getValue().getArray().postpone());
         ArrayList<Model> models = new ArrayList<>();
@@ -69,21 +75,19 @@ public class Main {
 
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(2);
         // DataFlow
-        env.setParallelism(3);
-        env.setMaxParallelism(5);
         Integer window = null;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new CompressedListStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                ),
+                new StreamingGNNLayerFunction(new CompressedListStorage()
+                        .withPlugin(new ModelServer(models.get(1)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
                 )
-//                ),
-//                new StreamingGNNLayerFunction(new FlatObjectStorage()
-//                        .withPlugin(new ModelServer(models.get(1)))
-//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
-//                )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

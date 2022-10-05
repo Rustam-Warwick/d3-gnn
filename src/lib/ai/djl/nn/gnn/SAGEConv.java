@@ -24,11 +24,12 @@ public class SAGEConv extends GNNBlock {
         updateBlock.add(new Function<NDList, NDList>() {
             @Override
             public NDList apply(NDList ndArrays) {
-                NDArray tmp = Activation.sigmoid(ndArrays).get(0);
+                NDArray tmp = Activation.softmax(ndArrays).get(0);
                 if (tmp.getShape().dimension() > 1) {
                     return new NDList(tmp.div(tmp.norm(new int[]{-1}).expandDims(1).repeat(1, tmp.getShape().get(1))));
                 }
-                return new NDList(tmp.div(tmp.norm(new int[]{-1})));
+                return new NDList(tmp);
+//                return new NDList(tmp.div(tmp.norm(new int[]{-1})));
             }
         });
         // Message block is just a forward

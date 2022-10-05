@@ -274,6 +274,7 @@ public class LifeCycleNDManager extends PtNDManager {
                 try {
                     if (cause.wasEvicted()) {
                         closedCount++;
+                        if(key instanceof PtNDArray) ((PtNDArray) key).manager = null;
                         key.close();
                     }
                 } catch (Exception e) {
