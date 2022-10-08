@@ -17,8 +17,8 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
-import storage.CompressedListStorage;
+import plugins.embedding_layer.CountWindowedGNNEmbeddingLayer;
+import storage.FlatObjectStorage;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -72,28 +72,23 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(2);
         // DataFlow
-        Integer window = null;
+        Integer window = 2000;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
-                new StreamingGNNLayerFunction(new CompressedListStorage()
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                        .withPlugin(new CountWindowedGNNEmbeddingLayer(models.get(0).getName(), true, window))
                 ),
-                new StreamingGNNLayerFunction(new CompressedListStorage()
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
+                        .withPlugin(new CountWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 2 * window  * 5))
                 )
         );
-
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
         env.execute(jobName);
-
-
     }
 }

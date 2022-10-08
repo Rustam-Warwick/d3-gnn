@@ -13,5 +13,4 @@ public enum ElementType {
     HYPEREDGE,
     GRAPH,
     NONE
-
 }

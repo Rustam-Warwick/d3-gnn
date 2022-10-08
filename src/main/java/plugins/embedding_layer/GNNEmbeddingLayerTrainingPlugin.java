@@ -295,7 +295,7 @@ public class GNNEmbeddingLayerTrainingPlugin extends Plugin {
             List<NDArray> inFeatures = v.getValue().stream().map(item -> featureMap.get(item).get(0)).collect(Collectors.toList());
             NDArray message = MeanAggregator.bulkReduce(inFeatures.toArray(new NDArray[0]));
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("agg", v.getKey().getId()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("agg", v.getKey().getId(), ElementType.VERTEX), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
                     .method("reduce")
                     .hasUpdate()

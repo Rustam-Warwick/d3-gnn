@@ -19,23 +19,22 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-public class WindowingOutputGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
-
+public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     public final int windowInterval; // Window Interval for graph element updates in milliseconds
     public transient Batchifier batchifier; // Batchifier for the windowed data
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public WindowingOutputGNNEmbeddingLayer(int windowInterval) {
+    public TimeWindowedGNNEmbeddingLayer(int windowInterval) {
         this.windowInterval = windowInterval;
     }
 
-    public WindowingOutputGNNEmbeddingLayer(String modelName, int windowInterval) {
+    public TimeWindowedGNNEmbeddingLayer(String modelName, int windowInterval) {
         super(modelName);
         this.windowInterval = windowInterval;
     }
 
-    public WindowingOutputGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int windowInterval) {
+    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int windowInterval) {
         super(modelName, createVertexEmbeddings);
         this.windowInterval = windowInterval;
     }

@@ -12,9 +12,11 @@ import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.*;
 
 /**
@@ -22,17 +24,12 @@ import java.util.*;
  */
 public class CompressedListStorage extends BaseStorage{
 
+    // TOPOLOGY RELATED STATES
     protected ListState<Short> vertexMasters; // Master parts of vertices
 
     protected ListState<List<Tuple2<Integer, String>>> outEdges; // Out edges of vertices
 
     protected ListState<List<Tuple2<Integer, String>>> inEdges; // In edges of vertices
-
-    protected MapState<Integer, NDArray> features; // Tensor feature of vertices
-
-    protected MapState<Integer, Tuple2<NDArray, Integer>> meanAggregators; // Mean Aggregator of vertices
-
-    protected MapState<Integer, List<Short>> replicationParts; // Part for vertex replication
 
     protected MapState<String, Integer> vId2Int; // Vertex id -> Index in the list
 
@@ -40,27 +37,43 @@ public class CompressedListStorage extends BaseStorage{
 
     protected ValueState<Integer> counter; // Counter for incrementing Vertex ids
 
+    protected Map<String, Tuple3<MapState<Integer, ? extends Object>, Boolean, Constructor<? extends Feature>>> vFeature; // Feature name -> <State, Halo, Constructor>
+
+    protected Map<String, Tuple3<MapState<Integer, ? extends Object>, Boolean, Constructor<? extends Feature>>> pluginFeature; // Feature name -> <State, Halo, Constructor>
 
     @Override
     public void open() throws Exception {
         ListStateDescriptor<Short> vertexMastersDesc = new ListStateDescriptor<>("vertexMasters", Short.class );
-        MapStateDescriptor<Integer, NDArray> featuresDesc = new MapStateDescriptor<>("features", Integer.class, NDArray.class );
-        MapStateDescriptor<Integer, List<Short>> replicaPartsDesc = new MapStateDescriptor<>("replicaParts", Types.INT, Types.LIST(Types.SHORT));
         ValueStateDescriptor<Integer> counterDesc = new ValueStateDescriptor<>("counter", Types.INT);
         ListStateDescriptor<List<Tuple2<Integer, String>>> outEdgesDesc = new ListStateDescriptor<>("outEdges", Types.LIST(Types.TUPLE(Types.INT, Types.STRING)));
         ListStateDescriptor<List<Tuple2<Integer, String>>> intEdgesDesc = new ListStateDescriptor<>("inEdges", Types.LIST(Types.TUPLE(Types.INT, Types.STRING)));
         MapStateDescriptor<String, Integer> vertexIdTranslationDesc = new MapStateDescriptor<String, Integer>("vertexIdTranslation",Types.STRING, Types.INT);
         MapStateDescriptor<Integer, String> inverseIdTranslationDesc = new MapStateDescriptor<Integer, String>("inverseVertexIdTranslation",Types.INT, Types.STRING);
-        MapStateDescriptor<Integer, Tuple2<NDArray, Integer>> meanAggregatorsDesc = new MapStateDescriptor<>("meanAggregators",Types.INT, Types.TUPLE(TypeInformation.of(NDArray.class), Types.INT));
         this.vertexMasters = layerFunction.getRuntimeContext().getListState(vertexMastersDesc);
         this.vId2Int = layerFunction.getRuntimeContext().getMapState(vertexIdTranslationDesc);
         this.vInt2Id = layerFunction.getRuntimeContext().getMapState(inverseIdTranslationDesc);
         this.counter = layerFunction.getRuntimeContext().getState(counterDesc);
         this.outEdges = layerFunction.getRuntimeContext().getListState(outEdgesDesc);
         this.inEdges = layerFunction.getRuntimeContext().getListState(intEdgesDesc);
-        this.features = layerFunction.getRuntimeContext().getMapState(featuresDesc);
-        this.meanAggregators = layerFunction.getRuntimeContext().getMapState(meanAggregatorsDesc);
-        this.replicationParts = layerFunction.getRuntimeContext().getMapState(replicaPartsDesc);
+        this.vFeature = new HashMap<>(); // Single Hashmap holding Feature MapStates for Vertex
+
+        // Populate the needed Features for vertex
+        this.vFeature.put("feature", Tuple3.of(
+                layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_feature", Types.INT, TypeInformation.of(NDArray.class))),
+                false,
+                Tensor.class.getConstructor()
+        ));
+        this.vFeature.put("agg", Tuple3.of(
+                layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_agg", Types.INT, Types.TUPLE(TypeInformation.of(NDArray.class), Types.INT))),
+                true,
+                MeanAggregator.class.getConstructor()
+        ));
+        this.vFeature.put("parts", Tuple3.of(
+                layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_parts", Types.INT, Types.LIST(Types.SHORT))),
+                true,
+                Set.class.getConstructor()
+        ));
+
         super.open();
         layerFunction.getWrapperContext().runForAllKeys(()-> {
             try {
@@ -74,19 +87,17 @@ public class CompressedListStorage extends BaseStorage{
     @Override
     public boolean addFeature(Feature<?, ?> feature) {
         try{
-            if(feature.getName().equals("feature")){
-                // Vertex Feature
-                Tensor tensor = (Tensor) feature;
-                int vId = vId2Int.get(tensor.attachedTo.f1);
-                features.put(vId, tensor.getValue());
-            }else if(feature.getName().equals("agg")){
-                MeanAggregator meanAggregator = (MeanAggregator) feature;
-                int vId = vId2Int.get(meanAggregator.attachedTo.f1);
-                meanAggregators.put(vId, meanAggregator.value);
-            }else if(feature.getName().equals("parts")){
-                Set<Short> parts = (Set<Short>) feature;
-                int vId = vId2Int.get(parts.attachedTo.f1);
-                replicationParts.put(vId, parts.getValue());
+            if(feature.attachedTo != null){
+                // Independent Feature
+                if(feature.attachedTo.f0 == ElementType.VERTEX){
+                    int vId = vId2Int.get(feature.attachedTo.f1);
+                    MapState<Integer,Object> tmp = (MapState<Integer, Object>) vFeature.get(feature.getName()).f0;
+                    tmp.put(vId, feature.value);
+                }else{
+                    throw new NotImplementedException("Other Element Features are not implemented yet!");
+                }
+            }else{
+                throw new NotImplementedException("Non-Attached Features do not exist yet");
             }
             return true;
         }catch (Exception e){
@@ -303,43 +314,31 @@ public class CompressedListStorage extends BaseStorage{
 
     @Nullable
     @Override
-    public Feature<?, ?> getFeature(String id) {
+    public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
         try{
-            boolean isAttached = Feature.isAttachedId(id);
-            if(isAttached){
-                String[] featureAttachedId = Feature.decodeAttachedFeatureId(id);
-                if(featureAttachedId[1].equals("feature")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    NDArray tmp = features.get(vId);
-                    Tensor res = new Tensor(featureAttachedId[1], tmp, false, (short) -1);
-                    res.attachedTo = Tuple2.of(ElementType.VERTEX, featureAttachedId[0]);
-                    res.setStorage(this);
-                    return res;
-
-                }else if(featureAttachedId[1].equals("agg")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    Tuple2<NDArray, Integer> tmp = meanAggregators.get(vId);
-                    MeanAggregator res = new MeanAggregator(featureAttachedId[1], tmp, true, (short) -1);
-                    res.attachedTo = Tuple2.of(ElementType.VERTEX, featureAttachedId[0]);
-                    res.setStorage(this);
-                    return res;
-                }else if(featureAttachedId[1].equals("parts")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    List<Short> tmp = replicationParts.get(vId);
-                    Set<Short> res = new Set<>(featureAttachedId[1], tmp, true, (short) -1);
-                    res.attachedTo = Tuple2.of(ElementType.VERTEX, featureAttachedId[0]);
-                    res.setStorage(this);
-                    return res;
-                }
-            }else{
-
+            if(elementType == ElementType.VERTEX){
+                int vId = vId2Int.get(elementId);
+                Object featureValue = vFeature.get(featureName).f0.get(vId);
+                Boolean isHalo = vFeature.get(featureName).f1;
+                Feature<Object,Object> tmpFeature = vFeature.get(featureName).f2.newInstance();
+                tmpFeature.value = featureValue;
+                tmpFeature.halo = isHalo;
+                tmpFeature.attachedTo = Tuple2.of(ElementType.VERTEX, elementId);
+                tmpFeature.id = featureName;
+                tmpFeature.setStorage(this);
+                return tmpFeature;
             }
-
             return null;
         }catch (Exception e){
             e.printStackTrace();
             return null;
         }
+    }
+
+    @Nullable
+    @Override
+    public Feature<?, ?> getStandaloneFeature(String id) {
+        throw new NotImplementedException("Standalone Features not yet available");
     }
 
     @Override
@@ -353,22 +352,16 @@ public class CompressedListStorage extends BaseStorage{
     }
 
     @Override
-    public boolean containsFeature(String id) {
+    public boolean containsStandaloneFeature(String id) {
+        throw new NotImplementedException("Standalone Features not yet available");
+    }
+
+    @Override
+    public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
         try{
-            boolean isAttached = Feature.isAttachedId(id);
-            if(isAttached){
-                String[] featureAttachedId = Feature.decodeAttachedFeatureId(id);
-                if(featureAttachedId[1].equals("feature")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    return features.contains(vId);
-                }else if(featureAttachedId[1].equals("agg")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    return meanAggregators.contains(vId);
-                }else if(featureAttachedId[1].equals("parts")){
-                    int vId = vId2Int.get(featureAttachedId[0]);
-                    return replicationParts.contains(vId);
-                }
-            }else{
+            if(elementType == ElementType.VERTEX){
+                int vId = vId2Int.get(elementId);
+                return vFeature.get(featureName).f0.contains(vId);
             }
             return false;
         }catch (Exception e){

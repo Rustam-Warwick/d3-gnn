@@ -49,6 +49,8 @@ public class FlatObjectStorage extends BaseStorage {
         super.open();
     }
 
+
+
     @Override
     public boolean addFeature(Feature<?, ?> feature) {
         try {
@@ -293,26 +295,30 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getFeature(String id) {
-        try {
-            Feature<?, ?> tmp;
-            if (Feature.isAttachedId(id)) {
-                // This is attached feature
-                tmp = attachedFeatureTable.get(id);
-                if (tmp.storage == null) {
-                    tmp.setStorage(this);
-                    tmp.setName(Feature.decodeAttachedFeatureId(id)[1]);
-                }
-            } else {
-                // This is independent Feature
-                tmp = independentFeatureTable.get(id);
-                if (tmp.storage == null) {
-                    tmp.setStorage(this);
-                    tmp.setName(id);
-                }
+    public Feature<?, ?> getStandaloneFeature(String id) {
+        try{
+            Feature<?,?> tmp = independentFeatureTable.get(id);
+            if (tmp.storage == null) {
+                tmp.setStorage(this);
             }
             return tmp;
-        } catch (Exception e) {
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    @Nullable
+    @Override
+    public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+        try{
+            if(id==null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
+            Feature<?,?> tmp = attachedFeatureTable.get(id);
+            if (tmp.storage == null) {
+                tmp.setStorage(this);
+            }
+            return tmp;
+        }catch (Exception e){
             e.printStackTrace();
             return null;
         }
@@ -329,15 +335,21 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsFeature(String id) {
-        try {
-            if (Feature.isAttachedId(id)) {
-                // Attached Feature
-                return attachedFeatureTable.contains(id);
-            } else {
-                return independentFeatureTable.contains(id);
-            }
-        } catch (Exception e) {
+    public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+        try{
+            if(id==null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
+            return attachedFeatureTable.contains(id);
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    @Override
+    public boolean containsStandaloneFeature(String id) {
+        try{
+            return independentFeatureTable.contains(id);
+        }catch (Exception e){
             e.printStackTrace();
             return false;
         }

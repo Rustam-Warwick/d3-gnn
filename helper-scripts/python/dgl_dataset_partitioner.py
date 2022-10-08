@@ -144,12 +144,16 @@ def get_reddit() -> dgl.DGLGraph:
     graph = dgl.DGLGraph()
     graph.add_nodes(vertex_names.shape[0], data={"features": pt.rand((vertex_names.shape[0], 64))})
     graph.add_edges(data[0].values, data[1].values)
+    graph.ndata["ID"] = pt.range(0, graph.number_of_nodes() - 1)
+    graph.edata["T"] = pt.range(0, graph.number_of_edges() - 1)
     return graph
 
 
 def get_manual_graph() -> dgl.DGLGraph:
-    graph = dgl.graph([[0, 1], [1, 2], [1, 3],[2, 4],[3, 4],[0, 5],[5, 4]])
-    graph.ndata["features"] = pt.rand((6, 64))
+    graph = dgl.graph([[0, 1], [1, 2], [1, 3],[2, 4],[3, 4],[0, 5],[5, 4], [5,7], [7,8], [0,4], [4,8], [5,6]])
+    graph.ndata["ID"] = pt.range(0, graph.number_of_nodes() - 1)
+    graph.ndata["features"] = pt.rand((graph.number_of_nodes(), 64))
+    graph.edata["T"] = pt.range(0, graph.number_of_edges() - 1)
     return graph
 
 if __name__ == "__main__":

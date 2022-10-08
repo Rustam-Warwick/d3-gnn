@@ -86,7 +86,7 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
                 if(messageReady(vertex)){
                     NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("feature").getValue()), false);
                     new RemoteInvoke()
-                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getId()), ElementType.FEATURE)
+                            .toElement(Feature.encodeAttachedFeatureId("agg", edge.getId(), ElementType.HYPEREDGE), ElementType.FEATURE)
                             .where(MessageDirection.ITERATE)
                             .method("reduce")
                             .hasUpdate()
@@ -107,7 +107,7 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
                 NDList message = new NDList((NDArray) feature.getValue());
                 for (Vertex vertex : edge.getVertices()) {
                     new RemoteInvoke()
-                            .toElement(Feature.encodeAttachedFeatureId("agg", vertex.getId()), ElementType.FEATURE)
+                            .toElement(Feature.encodeAttachedFeatureId("agg", vertex.getId(), ElementType.VERTEX), ElementType.FEATURE)
                             .where(MessageDirection.ITERATE)
                             .method("reduce")
                             .hasUpdate()
@@ -139,7 +139,7 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
                         if(messageReady(v)){
                             NDList message = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false);
                             new RemoteInvoke()
-                                    .toElement(Feature.encodeAttachedFeatureId("agg", newEdge.getId()), ElementType.FEATURE)
+                                    .toElement(Feature.encodeAttachedFeatureId("agg", newEdge.getId(), ElementType.HYPEREDGE), ElementType.FEATURE)
                                     .where(MessageDirection.ITERATE)
                                     .method("reduce")
                                     .hasUpdate()
@@ -181,7 +181,7 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
         for (HEdge hyperEdge : storage.getHyperEdges(v)) {
             if(message == null) message = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false);
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("agg", hyperEdge.getId()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("agg", hyperEdge.getId(), ElementType.HYPEREDGE), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
                     .method("reduce")
                     .hasUpdate()
@@ -199,7 +199,7 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
         NDList oldMessage = MESSAGE(new NDList((NDArray) oldFeature.getValue()), false);
         for (HEdge hyperEdge : storage.getHyperEdges((Vertex) newFeature.getElement())) {
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("agg", hyperEdge.getId()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("agg", hyperEdge.getId(), ElementType.HYPEREDGE), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
                     .method("replace")
                     .hasUpdate()

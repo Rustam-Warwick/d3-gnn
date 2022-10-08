@@ -6,6 +6,7 @@ import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -95,17 +96,23 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // - Feature
     @Nullable
-    public abstract Feature<?, ?> getFeature(String id);
+    public abstract Feature<?,?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
+
+    @Nullable
+    public abstract Feature<?,?> getStandaloneFeature(String id);
 
     // -- Contains
     public abstract boolean containsVertex(String id);
 
-    public abstract boolean containsFeature(String id);
+    public abstract boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable  String id);
+
+    public abstract boolean containsStandaloneFeature(String id);
 
     public abstract boolean containsEdge(String id);
 
     public abstract boolean containsHyperEdge(String id);
 
+    // -- Other
     public abstract void cacheFeaturesOf(GraphElement e);
 
 
@@ -174,14 +181,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    /**
-     * Single records has been processed fully
-     * @implNote Sub-classes might need this callback to have certain logic
-     */
-    public void recordProcessed(){
-
-    }
-
     // Operator State Handler
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
@@ -207,8 +206,38 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
 
     /**
-     * Helper methods
+     * Generic Mapper GraphElement mapper Methods
      */
+
+    @Nullable
+    public final Feature<?,?> getFeature(String id){
+        try{
+            if(Feature.isAttachedId(id)){
+                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
+                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+            }else{
+                return getStandaloneFeature(id);
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    public final boolean containsFeature(String id){
+        try{
+            if(Feature.isAttachedId(id)){
+                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
+                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+            }else{
+                return containsStandaloneFeature(id);
+            }
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
+    }
+
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:
@@ -271,14 +300,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    public boolean containsElement(GraphElement element) {
-        return containsElement(element.getId(), element.elementType());
-    }
-
-    public GraphElement getElement(GraphElement element) {
-        return this.getElement(element.getId(), element.elementType());
-    }
-
     public GraphElement getElement(String id, ElementType t) {
         switch (t) {
             case VERTEX:
@@ -296,6 +317,15 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    public boolean containsElement(GraphElement element) {
+        return containsElement(element.getId(), element.elementType());
+    }
+
+    public GraphElement getElement(GraphElement element) {
+        return this.getElement(element.getId(), element.elementType());
+    }
+
+    // Remove Cached Plugin Features on Key Change. Important since plugins are always in memory
     private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object> {
         @Override
         public void keySelected(Object newKey) {

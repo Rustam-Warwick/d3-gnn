@@ -1,6 +1,7 @@
 package elements;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -57,15 +58,16 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Given featureName and attached Element Id return the unique id for this feature
      */
-    public static String encodeAttachedFeatureId(String featureName, String attachedElementId) {
-        return attachedElementId + DELIMITER + featureName;
+    public static String encodeAttachedFeatureId(String featureName, String attachedElementId, ElementType type) {
+        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
     }
 
     /**
-     * Given an attached Feature Id, decode it returns an array of [elementId, featureName]
+     * Given an attached Feature Id, decode it returns an array of <elementId, featureName, ElementType>
      */
-    public static String[] decodeAttachedFeatureId(String attachedFeatureId) {
-        return attachedFeatureId.split(DELIMITER);
+    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
+        String[] val = attachedFeatureId.split(DELIMITER);
+        return Tuple3.of(val[0], val[1], ElementType.values()[Integer.parseInt(val[2])]);
     }
 
     /**
@@ -201,7 +203,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public String getId() {
         if (this.attachedTo == null) return super.getId();
-        return encodeAttachedFeatureId(id, attachedTo.f1);
+        return encodeAttachedFeatureId(id, attachedTo.f1, attachedTo.f0);
     }
 
     @Override

@@ -20,6 +20,7 @@ import plugins.ModelServer;
 import java.util.Objects;
 
 public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPlugin {
+
     public final String modelName; // Model name to identify the ParameterStore
 
     public final boolean createVertexEmbeddings; // Do we feed external features or should this generate by itself
@@ -87,7 +88,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
             if (messageReady(edge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("feature").getValue()), false);
                 new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
@@ -157,7 +158,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
                     msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false);
                 }
                 new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
@@ -186,7 +187,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
                     msgNew = MESSAGE(new NDList(newFeature.getValue()), false);
                 }
                 new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId()), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("replace")
                         .hasUpdate()

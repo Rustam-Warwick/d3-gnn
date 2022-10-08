@@ -68,7 +68,7 @@ public class ReplicableGraphElement extends GraphElement {
             assert newElement.getPartId() != null;
             if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("parts", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("add")
                     .addDestination(masterPart())
@@ -129,7 +129,7 @@ public class ReplicableGraphElement extends GraphElement {
         if (this.state() == ReplicaState.REPLICA) {
             super.delete();
             if(notifyMaster) new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("parts", getId()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("parts", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("remove")
                     .withArgs(getPartId())

@@ -326,8 +326,8 @@ public class GraphElement implements Serializable {
     @Nullable
     public Feature<?, ?> getFeature(String name) {
         Feature<?, ?> result = features != null ? features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null) : null;
-        if (result == null && storage != null && storage.containsFeature(Feature.encodeAttachedFeatureId(name, getId()))) {
-            result = storage.getFeature(Feature.encodeAttachedFeatureId(name, getId()));
+        if (result == null && storage != null && storage.containsAttachedFeature(getId(), name, elementType(), null)) {
+            result = storage.getAttachedFeature(getId(), name, elementType(), null);
         }
         if (Objects.nonNull(result)) result.setElement(this);
         return result;
@@ -338,7 +338,7 @@ public class GraphElement implements Serializable {
      */
     public Boolean containsFeature(String name) {
         boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
-        return hasLocallyAvailable || (storage != null && storage.containsFeature(Feature.encodeAttachedFeatureId(name, getId())));
+        return hasLocallyAvailable || (storage != null && storage.containsAttachedFeature(getId(), name, elementType(), null));
     }
 
     /**

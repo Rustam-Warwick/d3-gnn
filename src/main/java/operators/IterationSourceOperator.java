@@ -204,7 +204,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      */
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
         private Long prevCount = 0L;
-
         @Override
         public void onProcessingTime(long time) throws Exception {
             if(prevCount == null)return; // Already emitted watermark
@@ -213,7 +212,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             if (prevCount == 0  || sumMessageCount > prevCount) {
                 prevCount = sumMessageCount;
             } else {
-                BaseWrapperOperator.LOG.error(String.format("Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
+                BaseWrapperOperator.LOG.info(String.format("Final Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));
                 output.emitWatermark(new Watermark(Long.MAX_VALUE));
                 prevCount = null;
             }
