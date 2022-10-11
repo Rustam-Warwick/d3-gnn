@@ -19,7 +19,7 @@ import plugins.ModelServer;
 
 import java.util.Objects;
 
-public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPlugin {
+public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddingPlugin {
 
     public final String modelName; // Model name to identify the ParameterStore
 
@@ -40,13 +40,14 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
     }
 
     public StreamingGNNEmbeddingLayer(String modelName) {
-        this(modelName, false);
+        this(modelName, false, true);
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings) {
+    public StreamingGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, boolean isRunning) {
         super(String.format("%s-inferencer", modelName));
         this.createVertexEmbeddings = createVertexEmbeddings;
         this.modelName = modelName;
+        this.RUNNING = isRunning;
     }
 
     @Override
@@ -72,7 +73,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
             if (createVertexEmbeddings && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = LifeCycleNDManager.getInstance().ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("feature", new Tensor(embeddingRandom));
+                element.setFeature("f", new Tensor(embeddingRandom));
             }
         }
     }
@@ -86,7 +87,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         } else if (element.elementType() == ElementType.EDGE) {
             Edge edge = (Edge) element;
             if (messageReady(edge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("feature").getValue()), false);
+                NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("f").getValue()), false);
                 new RemoteInvoke()
                         .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
@@ -98,7 +99,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
@@ -114,7 +115,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
@@ -133,10 +134,10 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+        NDArray ft = (NDArray) (v.getFeature("f")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
-        Tensor tmp = new Tensor("feature", update, false, v.masterPart());
+        Tensor tmp = new Tensor("f", update, false, v.masterPart());
         tmp.attachedTo = Tuple2.of(ElementType.VERTEX, v.getId());
         throughput.inc();
         latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - storage.layerFunction.currentTimestamp());
@@ -155,7 +156,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
                 if (Objects.isNull(msg)) {
-                    msg = MESSAGE(new NDList((NDArray) v.getFeature("feature").getValue()), false);
+                    msg = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                 }
                 new RemoteInvoke()
                         .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
@@ -229,7 +230,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @Override
     public boolean messageReady(Edge edge) {
-        return edge.getSrc().containsFeature("feature");
+        return edge.getSrc().containsFeature("f");
     }
 
     /**
@@ -238,7 +239,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements GNNEmbeddingPl
      */
     @Override
     public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("feature") && vertex.containsFeature("agg");
+        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
     }
 
     @Override

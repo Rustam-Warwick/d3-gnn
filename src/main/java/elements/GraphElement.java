@@ -79,7 +79,7 @@ public class GraphElement implements Serializable {
     protected Consumer<Plugin> createElement() {
         assert storage != null;
         Consumer<Plugin> callback = null;
-        if(storage.addElement(this)){
+        if (storage.addElement(this)) {
             callback = item -> item.addElementCallback(this);
             if (features != null) {
                 for (Feature<?, ?> el : features) {
@@ -126,7 +126,7 @@ public class GraphElement implements Serializable {
                     Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
                     if (tmp.f0 != null) {
                         memento = memento == null ? this.copy() : memento;
-                        callback = callback == null ? tmp.f0: callback.andThen(tmp.f0);
+                        callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
                         memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
                     }
                 } else {
@@ -135,8 +135,8 @@ public class GraphElement implements Serializable {
                     feature.setStorage(storage);
                     feature.setElement(this);
                     Consumer<Plugin> tmp = feature.createElement();
-                    if(tmp != null){
-                        callback = callback == null ? tmp: callback.andThen(tmp);
+                    if (tmp != null) {
+                        callback = callback == null ? tmp : callback.andThen(tmp);
                     }
                 }
             }
@@ -147,7 +147,7 @@ public class GraphElement implements Serializable {
             storage.updateElement(this);
             GraphElement finalMemento = memento;
             Consumer<Plugin> tmp = item -> item.updateElementCallback(this, finalMemento);
-            callback = callback == null ? tmp: callback.andThen(tmp);
+            callback = callback == null ? tmp : callback.andThen(tmp);
             return Tuple2.of(callback, memento);
         }
         return reuse;
@@ -155,7 +155,6 @@ public class GraphElement implements Serializable {
 
     /**
      * External delete query
-     *
      */
     public void delete() {
         storage.runCallback(deleteElement());
@@ -163,7 +162,6 @@ public class GraphElement implements Serializable {
 
     /**
      * External Create logic
-     *
      */
     public void create() {
         storage.runCallback(createElement());
@@ -184,7 +182,7 @@ public class GraphElement implements Serializable {
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
-         storage.runCallback(updateElement(newElement, null).f0);
+        storage.runCallback(updateElement(newElement, null).f0);
     }
 
     /**
@@ -401,7 +399,7 @@ public class GraphElement implements Serializable {
 
     @Override
     public String toString() {
-        return elementType()+"{" +
+        return elementType() + "{" +
                 "id='" + getId() + '\'' +
                 '}';
     }

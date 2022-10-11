@@ -50,7 +50,6 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
 
-
     @Override
     public boolean addFeature(Feature<?, ?> feature) {
         try {
@@ -100,18 +99,18 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean addHyperEdge(HEdge hEdge) {
-        try{
+        try {
             hyperEdgeTable.put(hEdge.getId(), hEdge);
             for (String vertexId : hEdge.vertexIds) {
-                if(!vertex2HyperEdge.contains(vertexId)) vertex2HyperEdge.put(vertexId, new ArrayList<>());
+                if (!vertex2HyperEdge.contains(vertexId)) vertex2HyperEdge.put(vertexId, new ArrayList<>());
                 List<String> tmp = vertex2HyperEdge.get(vertexId);
-                if(!tmp.contains(hEdge.getId())){
+                if (!tmp.contains(hEdge.getId())) {
                     tmp.add(hEdge.getId());
                     vertex2HyperEdge.put(vertexId, tmp);
                 }
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -272,12 +271,12 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public Iterable<HEdge> getHyperEdges(Vertex id) {
-        try{
-            if(vertex2HyperEdge.contains(id.getId())){
+        try {
+            if (vertex2HyperEdge.contains(id.getId())) {
                 List<String> vEdges = vertex2HyperEdge.get(id.getId());
-                return () -> IteratorUtils.transformedIterator(vEdges.iterator(), hEdgeId-> getHyperEdge((String) hEdgeId));
-            }else return Collections.emptyList();
-        }catch (Exception e){
+                return () -> IteratorUtils.transformedIterator(vEdges.iterator(), hEdgeId -> getHyperEdge((String) hEdgeId));
+            } else return Collections.emptyList();
+        } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
         }
@@ -285,9 +284,9 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public HEdge getHyperEdge(String id) {
-        try{
+        try {
             return hyperEdgeTable.get(id);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -296,13 +295,13 @@ public class FlatObjectStorage extends BaseStorage {
     @Nullable
     @Override
     public Feature<?, ?> getStandaloneFeature(String id) {
-        try{
-            Feature<?,?> tmp = independentFeatureTable.get(id);
+        try {
+            Feature<?, ?> tmp = independentFeatureTable.get(id);
             if (tmp.storage == null) {
                 tmp.setStorage(this);
             }
             return tmp;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -311,14 +310,14 @@ public class FlatObjectStorage extends BaseStorage {
     @Nullable
     @Override
     public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
-        try{
-            if(id==null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
-            Feature<?,?> tmp = attachedFeatureTable.get(id);
+        try {
+            if (id == null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
+            Feature<?, ?> tmp = attachedFeatureTable.get(id);
             if (tmp.storage == null) {
                 tmp.setStorage(this);
             }
             return tmp;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -336,10 +335,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
-        try{
-            if(id==null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
+        try {
+            if (id == null) id = Feature.encodeAttachedFeatureId(featureName, elementId, elementType);
             return attachedFeatureTable.contains(id);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -347,9 +346,9 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean containsStandaloneFeature(String id) {
-        try{
+        try {
             return independentFeatureTable.contains(id);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }

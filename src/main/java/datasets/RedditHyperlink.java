@@ -28,14 +28,14 @@ public class RedditHyperlink implements Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
-        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)),fileName, FileProcessingMode.PROCESS_ONCE,0).setParallelism(1);
+        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
             @Override
             public long extractTimestamp(GraphOp element, long recordTimestamp) {
                 Long ts = element.getTimestamp();
                 element.setTimestamp(null);
-                return ts == null ? System.currentTimeMillis():  ts;
+                return ts == null ? System.currentTimeMillis() : ts;
             }
         })).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
@@ -70,7 +70,7 @@ public class RedditHyperlink implements Dataset {
 //                String processed = values[i].replaceAll("[^0-9.]", "");
 //                features[i-4] =  Float.valueOf(processed);
 //            }
-//            edge.setFeature("feature", new Tensor(LifeCycleNDManager.getInstance().create(features)));
+//            edge.setFeature("f", new Tensor(LifeCycleNDManager.getInstance().create(features)));
             return new GraphOp(Op.COMMIT, edge);
         }
     }

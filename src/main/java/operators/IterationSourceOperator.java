@@ -107,7 +107,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         if (isBufferPoolClosed) {
             return;
-        }; // Channel closed
+        }// Channel closed
         if (!timerRegistered) {
             // Open termination detector
             getRuntimeContext().getProcessingTimeService().scheduleWithFixedDelay(new CheckTermination(), 2000, 2000);
@@ -204,12 +204,13 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      */
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
         private Long prevCount = 0L;
+
         @Override
         public void onProcessingTime(long time) throws Exception {
-            if(prevCount == null)return; // Already emitted watermark
+            if (prevCount == null) return; // Already emitted watermark
             long sumMessageCount = feedbackChannel.getTotalFlowingMessageCount();
             // Operator has started so try to find termination point
-            if (prevCount == 0  || sumMessageCount > prevCount) {
+            if (prevCount == 0 || sumMessageCount > prevCount) {
                 prevCount = sumMessageCount;
             } else {
                 BaseWrapperOperator.LOG.info(String.format("Final Watermark Emitted %s", getRuntimeContext().getTaskNameWithSubtasks()));

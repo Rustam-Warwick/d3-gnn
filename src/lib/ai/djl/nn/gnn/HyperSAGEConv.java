@@ -9,7 +9,7 @@ import ai.djl.nn.core.Linear;
 
 import java.util.function.Function;
 
-public class HyperSAGEConv extends HGNNBlock{
+public class HyperSAGEConv extends HGNNBlock {
 
     public HyperSAGEConv(int outFeatures, boolean optBias) {
         // Update Block expecs thisFeature, aggregator

@@ -11,7 +11,7 @@ import java.util.function.Consumer;
  * HyperGraph Represents a subgraph which comprises hyperedges and a list of vertices
  * During construction all hyperedges will get shared vertices by reference
  */
-public class HGraph extends GraphElement{
+public class HGraph extends GraphElement {
     public Vertex[] vertices;
     public HEdge[] hEdges;
 
@@ -19,7 +19,7 @@ public class HGraph extends GraphElement{
 
     }
 
-    public HGraph(Vertex[] vertices, HEdge[] hEdges){
+    public HGraph(Vertex[] vertices, HEdge[] hEdges) {
         super("graph");
         HashMap<String, Vertex> setVertices = new HashMap<>();
         for (Vertex vertex : vertices) {
@@ -45,16 +45,16 @@ public class HGraph extends GraphElement{
 
     @Override
     public Consumer<Plugin> createElement() {
-        assert storage!=null;
-        if(vertices != null){
+        assert storage != null;
+        if (vertices != null) {
             for (Vertex vertex : vertices) {
-                if(storage.containsVertex(vertex.getId()))storage.getVertex(vertex.getId()).update(vertex);
+                if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
                 else vertex.create();
             }
         }
-        if(hEdges != null){
+        if (hEdges != null) {
             for (HEdge hEdge : hEdges) {
-                if(storage.containsHyperEdge(hEdge.getId())) storage.getHyperEdge(hEdge.getId()).update(hEdge);
+                if (storage.containsHyperEdge(hEdge.getId())) storage.getHyperEdge(hEdge.getId()).update(hEdge);
                 else hEdge.create();
             }
         }
@@ -69,12 +69,12 @@ public class HGraph extends GraphElement{
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if(vertices != null){
+        if (vertices != null) {
             for (Vertex vertex : vertices) {
                 vertex.setStorage(storage);
             }
         }
-        if(hEdges != null){
+        if (hEdges != null) {
             for (HEdge hEdge : hEdges) {
                 hEdge.setStorage(storage);
             }

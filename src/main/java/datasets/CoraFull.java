@@ -48,7 +48,7 @@ public class CoraFull implements Dataset {
 //
 //                    float p = ThreadLocalRandom.current().nextFloat();
 //                    if (p < trainSplitProbability) {
-//                        label.setId("trainLabel");
+//                        label.setId("train_l");
 //                    } else {
 //                        label.setId("testLabel");
 //                    }
@@ -62,7 +62,7 @@ public class CoraFull implements Dataset {
 //                    e.dest.features.removeIf(item -> "label".equals(item.getName())); // Remove it
 //                    float p = ThreadLocalRandom.current().nextFloat();
 //                    if (p < trainSplitProbability) {
-//                        label.setId("trainLabel");
+//                        label.setId("train_l");
 //                    } else {
 //                        label.setId("testLabel");
 //                    }
@@ -154,7 +154,7 @@ public class CoraFull implements Dataset {
                 int index = Integer.parseInt(edge.getSrc().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.getSrc().setFeature("feature", new Tensor(thisFeature));
+                edge.getSrc().setFeature("f", new Tensor(thisFeature));
                 edge.getSrc().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
                 seenVertices.add(edge.getSrc().getId());
             }
@@ -162,7 +162,7 @@ public class CoraFull implements Dataset {
                 int index = Integer.parseInt(edge.getDest().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.getDest().setFeature("feature", new Tensor(thisFeature));
+                edge.getDest().setFeature("f", new Tensor(thisFeature));
                 edge.getDest().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
                 seenVertices.add(edge.getDest().getId());
             }

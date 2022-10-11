@@ -18,8 +18,8 @@ public class WindowedRandom extends BasePartitioner {
         DataStream<GraphOp> partitioned = randomPartitioner.partition(inputDataStream, fineGrainedResourceManagementEnabled);
         SingleOutputStreamOperator<GraphOp> out = partitioned
                 .keyBy(new PartKeySelector())
-                .transform(getName(), TypeInformation.of(GraphOp.class), new FullBufferOperator<GraphOp>())
-                .name(getName());
+                .transform("Random+Window", TypeInformation.of(GraphOp.class), new FullBufferOperator<GraphOp>())
+                .name("Random+Window");
         if (fineGrainedResourceManagementEnabled) {
             out.slotSharingGroup("gnn-0");
         }
@@ -27,13 +27,9 @@ public class WindowedRandom extends BasePartitioner {
     }
 
     @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-
+    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
+        return this;
     }
 
-    @Override
-    public String getName() {
-        return "random-windowed";
-    }
 
 }

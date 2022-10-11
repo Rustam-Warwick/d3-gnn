@@ -11,11 +11,7 @@ import ai.djl.translate.StackBatchifier;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteInvoke;
-import operators.events.InferenceBarrier;
-import operators.events.StartTraining;
-import operators.events.StopTraining;
-import operators.events.TrainBarrier;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import operators.events.*;
 import plugins.ModelServer;
 
 import javax.annotation.Nonnull;
@@ -73,13 +69,13 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
         Feature<HashSet<String>, HashSet<String>> readyEdges = (Feature<HashSet<String>, HashSet<String>>) getFeature("readyTrainingEdges");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> srcVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainSrcVertices");
         Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>> destVertexState = (Feature<HashMap<String, HashMap<String, Byte>>, HashMap<String, HashMap<String, Byte>>>) getFeature("trainDestVertices");
-        if (e.getSrc().containsFeature("feature") && e.getDest().containsFeature("feature")) {
+        if (e.getSrc().containsFeature("f") && e.getDest().containsFeature("f")) {
             // All dependecies are here,
             readyEdges.getValue().add(e.getId());
             storage.updateFeature(readyEdges);
             incrementBatchCount();
             return;
-        } else if (e.getSrc().containsFeature("feature") || e.getDest().containsFeature("feature")) {
+        } else if (e.getSrc().containsFeature("f") || e.getDest().containsFeature("f")) {
             // Either sides are not here yet
             srcVertexState.getValue().compute(e.getSrc().getId(), (src, value) -> {
                 if (value == null) value = new HashMap<>(5);
@@ -159,10 +155,10 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
         super.addElementCallback(element);
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.EDGE && "trainLabel".equals(feature.getName())) {
+            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.EDGE && "train_l".equals(feature.getName())) {
                 // Training label arrived
                 mergeTrainingDataState((Edge) feature.getElement());
-            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "feature".equals(feature.getName())) {
+            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 mergeTrainingDataState((Vertex) feature.getElement());
             }
         }
@@ -181,17 +177,17 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
             for (String eId : readyEdges.getValue()) {
                 Edge e = storage.getEdge(eId);
                 vertices.computeIfAbsent(e.getSrc(), (vId) -> {
-                    NDArray srcFeature = ((NDArray) e.getSrc().getFeature("feature").getValue());
+                    NDArray srcFeature = ((NDArray) e.getSrc().getFeature("f").getValue());
                     srcFeature.setRequiresGradient(true);
                     return srcFeature;
                 });
                 vertices.computeIfAbsent(e.getDest(), (vId) -> {
-                    NDArray destFeature = ((NDArray) e.getDest().getFeature("feature").getValue());
+                    NDArray destFeature = ((NDArray) e.getDest().getFeature("f").getValue());
                     destFeature.setRequiresGradient(true);
                     return destFeature;
                 });
                 inputs.add(new NDList(vertices.get(e.getSrc()), vertices.get(e.getDest())));
-                labels.add(new NDList((NDArray) e.getFeature("trainLabel").getValue()));
+                labels.add(new NDList((NDArray) e.getFeature("train_l").getValue()));
             }
             // 2. Local BackProp
             NDList batchedInputs = batchifier.batchify(inputs.toArray(NDList[]::new));
@@ -235,14 +231,14 @@ public class EdgeClassificationTrainingPlugin extends Plugin {
     }
 
     @Override
-    public void onOperatorEvent(OperatorEvent event) {
+    public void onOperatorEvent(BaseOperatorEvent event) {
         super.onOperatorEvent(event);
         try {
             if (event instanceof StartTraining) {
                 storage.layerFunction.runForAllLocalParts(this::startTraining);
                 modelServer.getParameterStore().sync();
-                storage.layerFunction.broadcastMessage(new GraphOp(new TrainBarrier((short) storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks())), MessageDirection.BACKWARD);
-            } else if (event instanceof InferenceBarrier) {
+                storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+            } else if (event instanceof ForwardBarrier) {
                 BATCH_COUNT = 0;
                 storage.layerFunction.operatorEventMessage(new StopTraining());
             }

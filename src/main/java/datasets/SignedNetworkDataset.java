@@ -58,7 +58,7 @@ public class SignedNetworkDataset implements Dataset {
                 Edge e = (Edge) value.getElement();
                 if (ThreadLocalRandom.current().nextFloat() < 0.5) {
                     // Train
-                    e.getFeature("sign").setName("trainLabel");
+                    e.getFeature("sign").setName("train_l");
                 } else {
                     // Test
                     e.getFeature("sign").setName("testLabel");

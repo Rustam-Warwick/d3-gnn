@@ -4,7 +4,7 @@ import ai.djl.ndarray.NDList;
 import elements.Edge;
 import elements.Vertex;
 
-public interface GNNEmbeddingPlugin {
+public interface OldGNNEmbeddingPlugin {
     boolean updateReady(Vertex v);
 
     boolean messageReady(Edge e);

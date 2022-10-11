@@ -22,7 +22,7 @@ import java.util.*;
 /**
  * Storage for a more compressed representation of data, however fetching data has to create new classes which can have some overheads.
  */
-public class CompressedListStorage extends BaseStorage{
+public class CompressedListStorage extends BaseStorage {
 
     // TOPOLOGY RELATED STATES
     protected ListState<Short> vertexMasters; // Master parts of vertices
@@ -43,12 +43,12 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public void open() throws Exception {
-        ListStateDescriptor<Short> vertexMastersDesc = new ListStateDescriptor<>("vertexMasters", Short.class );
+        ListStateDescriptor<Short> vertexMastersDesc = new ListStateDescriptor<>("vertexMasters", Short.class);
         ValueStateDescriptor<Integer> counterDesc = new ValueStateDescriptor<>("counter", Types.INT);
         ListStateDescriptor<List<Tuple2<Integer, String>>> outEdgesDesc = new ListStateDescriptor<>("outEdges", Types.LIST(Types.TUPLE(Types.INT, Types.STRING)));
         ListStateDescriptor<List<Tuple2<Integer, String>>> intEdgesDesc = new ListStateDescriptor<>("inEdges", Types.LIST(Types.TUPLE(Types.INT, Types.STRING)));
-        MapStateDescriptor<String, Integer> vertexIdTranslationDesc = new MapStateDescriptor<String, Integer>("vertexIdTranslation",Types.STRING, Types.INT);
-        MapStateDescriptor<Integer, String> inverseIdTranslationDesc = new MapStateDescriptor<Integer, String>("inverseVertexIdTranslation",Types.INT, Types.STRING);
+        MapStateDescriptor<String, Integer> vertexIdTranslationDesc = new MapStateDescriptor<String, Integer>("vertexIdTranslation", Types.STRING, Types.INT);
+        MapStateDescriptor<Integer, String> inverseIdTranslationDesc = new MapStateDescriptor<Integer, String>("inverseVertexIdTranslation", Types.INT, Types.STRING);
         this.vertexMasters = layerFunction.getRuntimeContext().getListState(vertexMastersDesc);
         this.vId2Int = layerFunction.getRuntimeContext().getMapState(vertexIdTranslationDesc);
         this.vInt2Id = layerFunction.getRuntimeContext().getMapState(inverseIdTranslationDesc);
@@ -58,7 +58,7 @@ public class CompressedListStorage extends BaseStorage{
         this.vFeature = new HashMap<>(); // Single Hashmap holding Feature MapStates for Vertex
 
         // Populate the needed Features for vertex
-        this.vFeature.put("feature", Tuple3.of(
+        this.vFeature.put("f", Tuple3.of(
                 layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_feature", Types.INT, TypeInformation.of(NDArray.class))),
                 false,
                 Tensor.class.getConstructor()
@@ -68,14 +68,14 @@ public class CompressedListStorage extends BaseStorage{
                 true,
                 MeanAggregator.class.getConstructor()
         ));
-        this.vFeature.put("parts", Tuple3.of(
+        this.vFeature.put("p", Tuple3.of(
                 layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_parts", Types.INT, Types.LIST(Types.SHORT))),
                 true,
                 Set.class.getConstructor()
         ));
 
         super.open();
-        layerFunction.getWrapperContext().runForAllKeys(()-> {
+        layerFunction.getWrapperContext().runForAllKeys(() -> {
             try {
                 counter.update(0);
             } catch (IOException e) {
@@ -86,21 +86,21 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean addFeature(Feature<?, ?> feature) {
-        try{
-            if(feature.attachedTo != null){
+        try {
+            if (feature.attachedTo != null) {
                 // Independent Feature
-                if(feature.attachedTo.f0 == ElementType.VERTEX){
+                if (feature.attachedTo.f0 == ElementType.VERTEX) {
                     int vId = vId2Int.get(feature.attachedTo.f1);
-                    MapState<Integer,Object> tmp = (MapState<Integer, Object>) vFeature.get(feature.getName()).f0;
+                    MapState<Integer, Object> tmp = (MapState<Integer, Object>) vFeature.get(feature.getName()).f0;
                     tmp.put(vId, feature.value);
-                }else{
+                } else {
                     throw new NotImplementedException("Other Element Features are not implemented yet!");
                 }
-            }else{
+            } else {
                 throw new NotImplementedException("Non-Attached Features do not exist yet");
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -108,7 +108,7 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean addVertex(Vertex vertex) {
-        try{
+        try {
             vId2Int.put(vertex.getId(), counter.value());
             vInt2Id.put(counter.value(), vertex.getId());
             vertexMasters.add(vertex.masterPart());
@@ -116,7 +116,7 @@ public class CompressedListStorage extends BaseStorage{
             outEdges.add(Collections.emptyList());
             counter.update(counter.value() + 1);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -124,19 +124,23 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean addEdge(Edge edge) {
-        try{
+        try {
             int srcId = vId2Int.get(edge.getSrc().getId());
             int destId = vId2Int.get(edge.getDest().getId());
-            List<Tuple2<Integer, String>> outEdgeList = (List<Tuple2<Integer, String>>) ((List<?>)outEdges.get()).get(srcId);
-            List<Tuple2<Integer, String>> inEdgeList = (List<Tuple2<Integer, String>>) ((List<?>)inEdges.get()).get(destId);
-            if(outEdgeList.size() == 0)outEdgeList = new ArrayList<>(List.of(Tuple2.of(destId, Edge.isAttributed(edge.getId())?Edge.decodeVertexIdsAndAttribute(edge.getId())[2]:null)));
-            else outEdgeList.add(Tuple2.of(destId, Edge.isAttributed(edge.getId())?Edge.decodeVertexIdsAndAttribute(edge.getId())[2]:null));
-            if(inEdgeList.size() == 0)inEdgeList = new ArrayList<>(List.of(Tuple2.of(srcId, Edge.isAttributed(edge.getId())?Edge.decodeVertexIdsAndAttribute(edge.getId())[2]:null)));
-            else inEdgeList.add(Tuple2.of(srcId, Edge.isAttributed(edge.getId())?Edge.decodeVertexIdsAndAttribute(edge.getId())[2]:null));
-            ((List<List<Tuple2<Integer, String>>>)outEdges.get()).set(srcId, outEdgeList);
-            ((List<List<Tuple2<Integer, String>>>)inEdges.get()).set(destId, inEdgeList);
+            List<Tuple2<Integer, String>> outEdgeList = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);
+            List<Tuple2<Integer, String>> inEdgeList = (List<Tuple2<Integer, String>>) ((List<?>) inEdges.get()).get(destId);
+            if (outEdgeList.size() == 0)
+                outEdgeList = new ArrayList<>(List.of(Tuple2.of(destId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null)));
+            else
+                outEdgeList.add(Tuple2.of(destId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null));
+            if (inEdgeList.size() == 0)
+                inEdgeList = new ArrayList<>(List.of(Tuple2.of(srcId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null)));
+            else
+                inEdgeList.add(Tuple2.of(srcId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null));
+            ((List<List<Tuple2<Integer, String>>>) outEdges.get()).set(srcId, outEdgeList);
+            ((List<List<Tuple2<Integer, String>>>) inEdges.get()).set(destId, inEdgeList);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -149,7 +153,7 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean updateFeature(Feature<?, ?> feature) {
-       return addFeature(feature);
+        return addFeature(feature);
     }
 
     @Override
@@ -190,19 +194,19 @@ public class CompressedListStorage extends BaseStorage{
     @Nullable
     @Override
     public Vertex getVertex(String id) {
-        try{
+        try {
             int vId = vId2Int.get(id);
             Vertex v = new Vertex(id, false, ((List<Short>) vertexMasters.get()).get(vId));
             v.setStorage(this);
             return v;
-        }catch (Exception e){
+        } catch (Exception e) {
             return null;
         }
     }
 
     @Override
     public Iterable<Vertex> getVertices() {
-        try{
+        try {
             Iterator<String> keys = vId2Int.keys().iterator();
             return () -> IteratorUtils.transformedIterator(keys, new Transformer() {
                 @Override
@@ -210,7 +214,7 @@ public class CompressedListStorage extends BaseStorage{
                     return getVertex((String) vertexId);
                 }
             });
-        }catch (Exception e){
+        } catch (Exception e) {
             return Collections.emptyList();
         }
     }
@@ -218,11 +222,11 @@ public class CompressedListStorage extends BaseStorage{
     @Nullable
     @Override
     public Edge getEdge(String id) {
-        try{
-            Edge e =  new Edge(id);
+        try {
+            Edge e = new Edge(id);
             e.setStorage(this);
             return e;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -230,18 +234,18 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public Iterable<Edge> getEdges(String src, String dest) {
-        try{
+        try {
             int srcId = vId2Int.get(src);
             int destId = vId2Int.get(dest);
-            List<Tuple2<Integer, String>> srcOutVertices = (List<Tuple2<Integer, String>>) ((List<?>)outEdges.get()).get(srcId);
+            List<Tuple2<Integer, String>> srcOutVertices = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);
             return () -> srcOutVertices.stream().filter(item -> item.f0 == destId).map(item -> {
-                if(item.f1 == null){
+                if (item.f1 == null) {
                     return getEdge(Edge.encodeEdgeId(src, dest));
-                }else{
-                    return getEdge(Edge.encodeEdgeId(src,dest, item.f1));
+                } else {
+                    return getEdge(Edge.encodeEdgeId(src, dest, item.f1));
                 }
             }).iterator();
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
         }
@@ -260,10 +264,10 @@ public class CompressedListStorage extends BaseStorage{
                     try {
                         if (valT.f1 == null) {
                             return getEdge(Edge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0)));
-                        }else{
+                        } else {
                             return getEdge(Edge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0), valT.f1));
                         }
-                    }catch (Exception ignored){
+                    } catch (Exception ignored) {
                         ignored.printStackTrace();
                         return null;
                     }
@@ -275,10 +279,10 @@ public class CompressedListStorage extends BaseStorage{
                     try {
                         if (valT.f1 == null) {
                             return getEdge(Edge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId()));
-                        }else{
+                        } else {
                             return getEdge(Edge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId(), valT.f1));
                         }
-                    }catch (Exception ignored){
+                    } catch (Exception ignored) {
                         ignored.printStackTrace();
                         return null;
                     }
@@ -315,12 +319,12 @@ public class CompressedListStorage extends BaseStorage{
     @Nullable
     @Override
     public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
-        try{
-            if(elementType == ElementType.VERTEX){
+        try {
+            if (elementType == ElementType.VERTEX) {
                 int vId = vId2Int.get(elementId);
                 Object featureValue = vFeature.get(featureName).f0.get(vId);
                 Boolean isHalo = vFeature.get(featureName).f1;
-                Feature<Object,Object> tmpFeature = vFeature.get(featureName).f2.newInstance();
+                Feature<Object, Object> tmpFeature = vFeature.get(featureName).f2.newInstance();
                 tmpFeature.value = featureValue;
                 tmpFeature.halo = isHalo;
                 tmpFeature.attachedTo = Tuple2.of(ElementType.VERTEX, elementId);
@@ -329,7 +333,7 @@ public class CompressedListStorage extends BaseStorage{
                 return tmpFeature;
             }
             return null;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
@@ -358,13 +362,13 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
-        try{
-            if(elementType == ElementType.VERTEX){
+        try {
+            if (elementType == ElementType.VERTEX) {
                 int vId = vId2Int.get(elementId);
                 return vFeature.get(featureName).f0.contains(vId);
             }
             return false;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -372,17 +376,18 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public boolean containsEdge(String id) {
-        try{
+        try {
             boolean isAttr = Edge.isAttributed(id);
             String[] srcDestIds = Edge.decodeVertexIdsAndAttribute(id);
             int srcId = vId2Int.get(srcDestIds[0]);
             int destId = vId2Int.get(srcDestIds[1]);
-            List<Tuple2<Integer, String>> destList = (List<Tuple2<Integer, String>>) ((List<?>)outEdges.get()).get(srcId);
+            List<Tuple2<Integer, String>> destList = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);
             for (Tuple2<Integer, String> integerStringTuple2 : destList) {
-                if(integerStringTuple2.f0.equals(destId) && (!isAttr || integerStringTuple2.f1.equals(srcDestIds[2]))) return true;
+                if (integerStringTuple2.f0.equals(destId) && (!isAttr || integerStringTuple2.f1.equals(srcDestIds[2])))
+                    return true;
             }
             return false;
-        }catch (Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
@@ -394,8 +399,8 @@ public class CompressedListStorage extends BaseStorage{
 
     @Override
     public void cacheFeaturesOf(GraphElement e) {
-        if(e.elementType() == ElementType.VERTEX){
-            e.getFeature("feature");
+        if (e.elementType() == ElementType.VERTEX) {
+            e.getFeature("f");
         }
     }
 }

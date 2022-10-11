@@ -50,9 +50,9 @@ public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        if(state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
+        if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
-        if(callback != null && state() == ReplicaState.REPLICA && !isHalo())
+        if (callback != null && state() == ReplicaState.REPLICA && !isHalo())
             storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
         storage.runCallback(callback);
     }
@@ -60,15 +60,17 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * Master -> Add to part feature, send syncReplicas request
      * Replica -> Accept the sync and update the element
+     *
      * @param newElement New element to sync with
      */
     @Override
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != null;
-            if(!containsFeature("parts")) setFeature("parts", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
+            if (!containsFeature("p"))
+                setFeature("p", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("parts", getId(), elementType()), ElementType.FEATURE)
+                    .toElement(Feature.encodeAttachedFeatureId("p", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("add")
                     .addDestination(masterPart())
@@ -84,6 +86,7 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> update element, if changed send message to replica
      * replica -> Redirect to master, false message
+     *
      * @param newElement newElement to update with
      */
     @Override
@@ -101,7 +104,6 @@ public class ReplicableGraphElement extends GraphElement {
     /**
      * master -> Send delete message to replica, actually delete the element from master immediately
      * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
-     *
      */
     @Override
     public void delete() {
@@ -122,14 +124,15 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
+     *
      * @param notifyMaster should notify it master part after deletion?
      */
     @RemoteFunction
     public void deleteReplica(boolean notifyMaster) {
         if (this.state() == ReplicaState.REPLICA) {
             super.delete();
-            if(notifyMaster) new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("parts", getId(), elementType()), ElementType.FEATURE)
+            if (notifyMaster) new RemoteInvoke()
+                    .toElement(Feature.encodeAttachedFeatureId("p", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("remove")
                     .withArgs(getPartId())
@@ -141,11 +144,12 @@ public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Sends a copy of this element as message to all parts
+     *
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
         assert storage != null;
-        if ((state() != ReplicaState.MASTER) || !isReplicable()|| Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
+        if ((state() != ReplicaState.MASTER) || !isReplicable() || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
             return;
         cacheFeatures(); // retrieve all features of this element
         ReplicableGraphElement cpy = copy(); // Make a copy do not actually send this element
@@ -172,8 +176,8 @@ public class ReplicableGraphElement extends GraphElement {
 
     @Override
     public List<Short> replicaParts() {
-        if(!containsFeature("parts")) return super.replicaParts();
-        return (List<Short>) getFeature("parts").getValue(); // @implNote Never create other Feature with the name parts
+        if (!containsFeature("p")) return super.replicaParts();
+        return (List<Short>) getFeature("p").getValue(); // @implNote Never create other Feature with the name parts
     }
 
     @Override

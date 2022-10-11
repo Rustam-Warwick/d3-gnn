@@ -41,8 +41,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     public static NDArray bulkReduce(NDArray... newElements) {
-        NDArray sum = Arrays.stream(newElements).reduce(NDArray::add).get();
-        return sum;
+        return Arrays.stream(newElements).reduce(NDArray::add).get();
     }
 
     @Override
@@ -82,14 +81,14 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
 
     @Override
     public void reset() {
-        value = new Tuple2<>(value.f0.zerosLike(), 0);
-        storage.updateFeature(this);
+        value.f0.subi(value.f0);
+        value.f1 = 0;
     }
 
     @Override
     public Consumer<Plugin> createElement() {
         Consumer<Plugin> tmp = super.createElement();
-        if(tmp != null) value.f0.postpone();
+        if (tmp != null) value.f0.postpone();
         return tmp;
     }
 
@@ -97,7 +96,7 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
-        if(callback.f0 != null && mementoAggregator.value.f0 != value.f0){
+        if (callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
             value.f0.postpone();
             mementoAggregator.value.f0.prepone();
         }

@@ -43,7 +43,7 @@ public class ParameterSerializer extends Serializer<Parameter> {
             String name = input.readString();
             String id = input.readString();
             NDArray array = kryo.readObject(input, PtNDArray.class);
-            array.postpone();
+            array.detach(); // Detach parameters instead of postponing
             Shape shape = array.getShape();
             Parameter a = Parameter.builder().setName(name).optArray(array).optShape(shape).setType(Parameter.Type.OTHER).build();
             idField.set(a, id);

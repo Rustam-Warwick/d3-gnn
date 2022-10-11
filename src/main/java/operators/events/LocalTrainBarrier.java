@@ -1,8 +1,10 @@
 package operators.events;
 
-public class LocalTrainBarrier extends FlowingOperatorEvent {
-    public LocalTrainBarrier(Short broadcastCount) {
-        super(broadcastCount);
+import elements.iterations.MessageDirection;
+
+public class LocalTrainBarrier extends BaseOperatorEvent {
+    public LocalTrainBarrier(MessageDirection flowDirection) {
+        super(flowDirection);
     }
 
     public LocalTrainBarrier() {

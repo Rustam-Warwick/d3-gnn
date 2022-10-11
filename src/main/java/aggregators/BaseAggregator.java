@@ -8,6 +8,7 @@ import elements.iterations.RemoteFunction;
 /**
  * Base class for all GNN Aggregators,
  * Stored value is a generic while the return valus in always an NDArray of the aggregations seen so far
+ *
  * @param <T> Values to actually store in this baseaggregator
  */
 public abstract class BaseAggregator<T> extends Feature<T, NDArray> {

@@ -94,7 +94,6 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
         if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
             if (element.getValue().getOperatorEvent() instanceof StartTraining) {
                 TRAINING = true;
-                ((StartTraining) element.getValue().getOperatorEvent()).setBroadcastCount(parallelism);
 //                context.broadcastOutput(new GraphOp(element.getValue().getOperatorEvent()));
             } else if (element.getValue().getOperatorEvent() instanceof StopTraining) {
                 try {

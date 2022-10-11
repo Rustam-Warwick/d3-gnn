@@ -23,12 +23,11 @@ import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
+import elements.GraphOp;
+import elements.Op;
 import elements.Plugin;
-import elements.iterations.MessageDirection;
-import elements.iterations.RemoteFunction;
-import elements.iterations.RemoteInvoke;
-import features.MeanGradientCollector;
-import org.apache.flink.api.java.tuple.Tuple2;
+import elements.iterations.*;
+import helpers.GradientCollector;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -50,6 +49,8 @@ public class ModelServer extends Plugin {
 
     private transient ParameterStore parameterStore;
 
+    private transient GradientCollector<String> collectedGradients;
+
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
         this.model = m;
@@ -60,9 +61,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if (getPartId() == 0 && !containsFeature("collectedGradients")) {
-            setFeature("collectedGradients", new MeanGradientCollector<String>(Tuple2.of(new HashMap<>(), new HashMap<>()), true, null));
-        }
+        if(getPartId() == 0) collectedGradients = new GradientCollector<>(5);
     }
 
     public Model getModel() {
@@ -77,67 +76,39 @@ public class ModelServer extends Plugin {
         return parameterStore;
     }
 
-    /**
-     * Update the model of replicas to the sent master parameters
-     */
-    @RemoteFunction
-    public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
-        model.getBlock().getParameters().forEach(parameter -> {
-            if (masterParameters.containsKey(parameter.getValue().getId())) {
-                parameter.getValue().close();
-                parameter.getValue().setShape(null);
-                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
-                parameter.getValue().getArray().detach();
-            }
-        });
-        if (storage.layerFunction.isLast()) {
-            getModel().getBlock().getParameters().forEach(item -> System.out.println(item.getValue().getArray()));
-        }
-    }
+
 
     /**
      * Collect the partial Gradients from replicas,
      *
-     * @param gradients Partial Gradients from various operators
      * @implNote Note that this is only called in the master(0 part) of this operator
      */
     @RemoteFunction
-    public void collect(HashMap<String, NDArray> gradients) {
-
-        MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
-        feature.merge(gradients);
+    public void collect(GradientCollector<String> newGradients) {
+        assert getPartId() == 0;
+        collectedGradients.merge(newGradients);
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
-            feature.clean();
         }
     }
 
     public class ParameterStoreWrapper extends ParameterStore {
+        /**
+         * Method to be called from master part of modelServer to sync all parameters of out model
+         */
         @Override
         public void updateAllParameters() {
-            HashMap<String, NDArray> parameters = new HashMap<>();
-            MeanGradientCollector<String> feature = (MeanGradientCollector<String>) getFeature("collectedGradients");
-            int i = 0;
+            HashMap<String, NDArray> parameters = new GradientCollector<>();
             for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
-                if (feature.getValue().containsKey(parameter.getValue().getId())) {
-                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), feature.getValue().get(parameter.getValue().getId()));
+                if (collectedGradients.containsKey(parameter.getValue().getId())) {
+                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
                     parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
-                    i++;
                 }
             }
-
-            if (storage.layerFunction.isLast()) {
-                getModel().getBlock().getParameters().forEach(item -> System.out.println(item.getValue().getArray()));
-            }
-            new RemoteInvoke()
-                    .method("updateReplicaParameters")
-                    .noUpdate()
-                    .where(MessageDirection.ITERATE)
-                    .toElement(getId(), elementType())
-                    .withArgs(parameters)
-                    .addDestinations(othersMasterParts())
-                    .buildAndRun(storage);
+            Rmi rmi = new Rmi(getId(), "updateAllParameters", new Object[]{parameters}, elementType(), false, null);
+            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, rmi, null, MessageCommunication.BROADCAST),MessageDirection.ITERATE);
+            collectedGradients.clearPrepone();
         }
 
         @Override
@@ -151,16 +122,15 @@ public class ModelServer extends Plugin {
         }
 
         /**
-         * Sending gradients to part 0,
+         * Send local gradients to master part for synchrnization
          */
         @Override
         public void sync() {
-            HashMap<String, NDArray> thisGradients = new HashMap<>();
+            GradientCollector<String> thisGradients = new GradientCollector<>();
             model.getBlock().getParameters().forEach((parameter) -> {
-                if (parameter.getValue().getArray().hasGradient()) {
+                if (parameter.getValue().getArray().hasGradient() && parameter.getValue().getArray().isValid()) {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
                 }
-                parameter.getValue().getArray().setRequiresGradient(false);
             });
             new RemoteInvoke()
                     .withArgs(thisGradients)
@@ -171,5 +141,21 @@ public class ModelServer extends Plugin {
                     .method("collect")
                     .buildAndRun(storage);
         }
+    }
+
+    /**
+     * Update the model of replicas to the sent master parameters
+     */
+    @RemoteFunction
+    public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
+        System.out.println("MODEL UPDATED");
+        model.getBlock().getParameters().forEach(parameter -> {
+            if (masterParameters.containsKey(parameter.getValue().getId())) {
+                parameter.getValue().close();
+                parameter.getValue().setShape(null);
+                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
+                parameter.getValue().getArray().detach();
+            }
+        });
     }
 }

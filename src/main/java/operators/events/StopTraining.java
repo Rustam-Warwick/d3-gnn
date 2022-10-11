@@ -1,5 +1,5 @@
 package operators.events;
 
-public class StopTraining extends FlowingOperatorEvent {
+public class StopTraining extends BaseOperatorEvent {
 
 }

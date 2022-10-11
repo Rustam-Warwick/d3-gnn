@@ -80,6 +80,12 @@ public final class GraphOp {
         this.ts = ts;
     }
 
+    public GraphOp shallowCopy() {
+        return
+                new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
+    }
+
+    // --- GETTERS AND SETTERS
     public @NotNull Op getOp() {
         return op;
     }
@@ -131,12 +137,6 @@ public final class GraphOp {
     public boolean isTopologicalUpdate() {
         return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
     }
-
-    public GraphOp shallowCopy() {
-        return
-                new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
-    }
-
 
     @Override
     public String toString() {

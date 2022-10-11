@@ -37,7 +37,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     }
 
     public CountWindowedGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int BATCH_SIZE) {
-        super(modelName, createVertexEmbeddings);
+        super(modelName, createVertexEmbeddings, true);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
@@ -59,13 +59,13 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     public void forward(Vertex v) {
         Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>> elementUpdates = (Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>>) storage.getFeature("elementUpdates");
         elementUpdates.getValue().f1.add(v.getId());
-        if(elementUpdates.getValue().f0++ >= LOCAL_BATCH_SIZE){
+        if (elementUpdates.getValue().f0++ >= LOCAL_BATCH_SIZE) {
             List<NDList> inputs = new ArrayList<>();
             List<Vertex> vertices = new ArrayList<>();
             elementUpdates.getValue().f1.forEach((key) -> {
                 Vertex tmpV = storage.getVertex(key);
                 if (updateReady(tmpV)) {
-                    NDArray ft = (NDArray) (tmpV.getFeature("feature")).getValue();
+                    NDArray ft = (NDArray) (tmpV.getFeature("f")).getValue();
                     NDArray agg = (NDArray) (tmpV.getFeature("agg")).getValue();
                     inputs.add(new NDList(ft, agg));
                     vertices.add(tmpV);
@@ -75,7 +75,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             NDList batch_inputs = batchifier.batchify(inputs.toArray(NDList[]::new));
             NDList batch_updates = UPDATE(batch_inputs, false);
             NDList[] updates = batchifier.unbatchify(batch_updates);
-            Tensor updateTensor = new Tensor("feature", null, false, getPartId());
+            Tensor updateTensor = new Tensor("f", null, false, getPartId());
             for (int i = 0; i < updates.length; i++) {
                 throughput.inc();
                 Vertex messageVertex = vertices.get(i);
@@ -87,6 +87,6 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             elementUpdates.getValue().f0 = 0;
         }
         storage.updateFeature(elementUpdates);
-    };
+    }
 
 }

@@ -49,16 +49,16 @@ public class MeanGradientCollector<T> extends Feature<Tuple2<HashMap<T, NDArray>
                     return grad;
                 } else {
                     value.f1.merge(localKey, 1, Integer::sum);
-                    return localGrad.add(grad);
+                    return localGrad.addi(grad);
                 }
             });
         });
-        storage.updateFeature(this);
+
     }
 
     public void clean() {
+        value.f0.values().forEach(NDArray::close);
         value.f1.clear();
         value.f0.clear();
-        storage.updateFeature(this);
     }
 }

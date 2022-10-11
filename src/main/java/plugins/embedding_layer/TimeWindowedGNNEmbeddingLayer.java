@@ -35,7 +35,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     }
 
     public TimeWindowedGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int windowInterval) {
-        super(modelName, createVertexEmbeddings);
+        super(modelName, createVertexEmbeddings, true);
         this.windowInterval = windowInterval;
     }
 
@@ -86,7 +86,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                     // Send it
                     Vertex v = storage.getVertex(key);
                     if (updateReady(v)) {
-                        NDArray ft = (NDArray) (v.getFeature("feature")).getValue();
+                        NDArray ft = (NDArray) (v.getFeature("f")).getValue();
                         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
                         inputs.add(new NDList(ft, agg));
                         vertices.add(v);
@@ -103,7 +103,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - timestamps.get(i));
                 elementUpdates.getValue().remove(vertices.get(i).getId());
                 Vertex messageVertex = vertices.get(i);
-                Tensor updateTensor = new Tensor("feature", updates[i].get(0), false, messageVertex.masterPart());
+                Tensor updateTensor = new Tensor("f", updates[i].get(0), false, messageVertex.masterPart());
                 updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, messageVertex.getId());
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD, timestamps.get(i));
             }

@@ -25,23 +25,20 @@ class RandomPartitioner extends BasePartitioner {
     }
 
     @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-
-    }
-
-    @Override
-    public String getName() {
-        return "Random-Partitioner";
+    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
+        return this;
     }
 
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
         public final short partitions;
         public Map<String, List<Short>> masters = new ConcurrentHashMap<>(5000);
+        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
+        public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
+
         public RandomMapFunction(short partitions) {
             this.partitions = partitions;
         }
-        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
-        public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
+
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
@@ -63,20 +60,20 @@ class RandomPartitioner extends BasePartitioner {
             if (value.element.elementType() == ElementType.EDGE) {
                 value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 Edge edge = (Edge) value.element;
-                masters.compute(edge.getSrc().getId(), (srcId, val)->{
-                    if(val == null) val = new ArrayList<>();
-                    if(!val.contains(value.partId)){
-                        if(val.isEmpty())totalNumberOfVertices.incrementAndGet();
+                masters.compute(edge.getSrc().getId(), (srcId, val) -> {
+                    if (val == null) val = new ArrayList<>();
+                    if (!val.contains(value.partId)) {
+                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
                         else totalNumberOfReplicas.incrementAndGet();
                         val.add(value.partId);
                     }
                     return val;
                 });
 
-                masters.compute(edge.getDest().getId(), (destId, val)->{
-                    if(val == null) val = new ArrayList<>();
-                    if(!val.contains(value.partId)){
-                        if(val.isEmpty())totalNumberOfVertices.incrementAndGet();
+                masters.compute(edge.getDest().getId(), (destId, val) -> {
+                    if (val == null) val = new ArrayList<>();
+                    if (!val.contains(value.partId)) {
+                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
                         else totalNumberOfReplicas.incrementAndGet();
                         val.add(value.partId);
                     }
@@ -86,10 +83,10 @@ class RandomPartitioner extends BasePartitioner {
                 edge.getDest().master = this.masters.get(edge.getDest().getId()).get(0);
             } else if (value.element.elementType() == ElementType.VERTEX) {
                 short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-                masters.compute(value.element.getId(), (srcId, val)->{
-                    if(val == null) val = new ArrayList<>();
-                    if(!val.contains(value.partId)){
-                        if(val.isEmpty())totalNumberOfVertices.incrementAndGet();
+                masters.compute(value.element.getId(), (srcId, val) -> {
+                    if (val == null) val = new ArrayList<>();
+                    if (!val.contains(value.partId)) {
+                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
                         else totalNumberOfReplicas.incrementAndGet();
                         val.add(value.partId);
                     }

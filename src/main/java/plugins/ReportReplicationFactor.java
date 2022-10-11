@@ -50,7 +50,7 @@ public class ReportReplicationFactor extends Plugin {
         switch (newElement.elementType()) {
             case FEATURE: {
                 Feature newFeature = (Feature) newElement;
-                if (newFeature.getName().equals("parts")) {
+                if (newFeature.getName().equals("p")) {
                     totalReplicaParts++;
                     replicationFactor = (int) ((float) totalReplicaParts / numberOfMasterVertices * 1000);
                 }

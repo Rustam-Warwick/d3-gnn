@@ -136,7 +136,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
             BaseWrapperOperator.LOG.info(String.format("Watermark Arrived %s", getRuntimeContext().getTaskNameWithSubtasks()));
-            feedbackChannel.getPhaser().arrive();
+            // feedbackChannel.getPhaser().arrive();
         }
         super.processWatermark(mark);
     }

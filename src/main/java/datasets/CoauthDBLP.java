@@ -28,14 +28,19 @@ public class CoauthDBLP implements Dataset {
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        DataStream<String> timestampStream = env.readTextFile(timestampFile.toString()).setParallelism(1);
-        DataStream<String> simplicesStream = env.readTextFile(simplicesFile.toString()).setParallelism(1);
-        DataStream<String> nVertexStream = env.readTextFile(nVertexFile.toString()).setParallelism(1);
+        DataStream<String> timestampStream = env.readTextFile(timestampFile).setParallelism(1);
+        DataStream<String> simplicesStream = env.readTextFile(simplicesFile).setParallelism(1);
+        DataStream<String> nVertexStream = env.readTextFile(nVertexFile).setParallelism(1);
         DataStream<GraphOp> nets = simplicesStream.connect(nVertexStream).process(new CoProcessNets());
         return nets;
     }
 
-    public static class CoProcessNets extends CoProcessFunction<String, String, GraphOp>{
+    @Override
+    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
+        return null;
+    }
+
+    public static class CoProcessNets extends CoProcessFunction<String, String, GraphOp> {
         List<Integer> nVertices = new ArrayList<>();
         List<String> vertices = new ArrayList<>();
         Integer verticesCount = 0;
@@ -44,9 +49,9 @@ public class CoauthDBLP implements Dataset {
         public void processElement1(String value, CoProcessFunction<String, String, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             // Simplex Stream
             vertices.add(value);
-            if(nVertices.size() > 0 && vertices.size() >= nVertices.get(0)){
+            if (nVertices.size() > 0 && vertices.size() >= nVertices.get(0)) {
                 List<Vertex> thisNetVertices = new ArrayList<>();
-                for(int i =0; i < nVertices.get(0); i++){
+                for (int i = 0; i < nVertices.get(0); i++) {
                     String tmp = vertices.remove(0);
                     thisNetVertices.add(new Vertex(tmp));
                 }
@@ -61,10 +66,5 @@ public class CoauthDBLP implements Dataset {
             // NVertex Stream
             nVertices.addAll(List.of(Integer.parseInt(value)));
         }
-    }
-
-    @Override
-    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
-        return null;
     }
 }

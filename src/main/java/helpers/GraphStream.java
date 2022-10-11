@@ -57,19 +57,11 @@ public class GraphStream {
         Arrays.sort(cmdArgs);
         this.env = env;
         this.cmdArgs = cmdArgs;
-        configureSerializers();
-        parseCmdArgs();
+        configureSerializers(env);
+        parseCmdArgs(); // Global job parameter arguments need to be parsed
     }
 
-    public String getPartitionerName() {
-        return partitionerName;
-    }
-
-    public String getDataset() {
-        return dataset;
-    }
-
-    private void configureSerializers() {
+    public static void configureSerializers(StreamExecutionEnvironment env) {
         NDHelper.addSerializers(env.getConfig());
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
@@ -82,6 +74,14 @@ public class GraphStream {
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
         env.registerType(PartNumber.class);
+    }
+
+    public String getPartitionerName() {
+        return partitionerName;
+    }
+
+    public String getDataset() {
+        return dataset;
     }
 
     private void parseCmdArgs() {
@@ -183,9 +183,7 @@ public class GraphStream {
      * @return Partitioned but not-keyed DataStream of GraphOps.
      */
     protected DataStream<GraphOp> partition(DataStream<GraphOp> stream) {
-        BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName);
-        partitioner.parseCmdArgs(cmdArgs);
-        partitioner.partitions = (short) env.getMaxParallelism();
+        BasePartitioner partitioner = BasePartitioner.getPartitioner(partitionerName).parseCmdArgs(cmdArgs).setPartitions((short) env.getMaxParallelism());
         SingleOutputStreamOperator<GraphOp> partitionedOutput = partitioner.partition(stream, fineGrainedResourceManagementEnabled);
         return partitionedOutput;
     }
@@ -283,7 +281,7 @@ public class GraphStream {
                 previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
             } else {
                 if (hasLastLayerTopology && hasBackwardIteration)
-                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit, topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
+                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates, trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
                 else if (hasLastLayerTopology) {
                     previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
                 } else if (hasBackwardIteration) {
@@ -301,7 +299,7 @@ public class GraphStream {
      * Wrapper that enfoernces the use of Dataset from the dataset name
      */
     public DataStream<GraphOp>[] gnnEmbeddings(boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
-        Dataset concreteDataset = Dataset.getDataset(dataset);
+        Dataset concreteDataset = Dataset.getDataset(dataset).parseCmdArgs(cmdArgs);
         DataStream<GraphOp> dataStreamMain = concreteDataset.build(env, fineGrainedResourceManagementEnabled);
         KeyedProcessFunction<PartNumber, GraphOp, GraphOp>[] processFunctionAndTrainTest = new KeyedProcessFunction[processFunctions.length + 1];
         processFunctionAndTrainTest[0] = concreteDataset.trainTestSplitter();

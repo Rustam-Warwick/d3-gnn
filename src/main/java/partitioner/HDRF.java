@@ -16,29 +16,32 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
+
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
+
     public float lambda = 1f; // More means more balance constraint comes into play
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-        // Pass for now
+    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
+        return this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
         int numThreats = 3;
-        SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", getName(), numThreats),
+        SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", getName(), numThreats)).setParallelism(1);
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", "HDRF", numThreats)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
-            res.slotSharingGroup(getName());
+            res.slotSharingGroup("default");
         }
         return res;
-    }
-
-    @Override
-    public String getName() {
-        return "HDRF-Partitioner";
     }
 
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
@@ -111,8 +114,7 @@ public class HDRF extends BasePartitioner {
                     tmp.clear();
                     maxScore = score;
                     tmp.add(i);
-                }
-                else if(score == maxScore) tmp.add(i);
+                } else if (score == maxScore) tmp.add(i);
             }
 
             final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
@@ -178,12 +180,11 @@ public class HDRF extends BasePartitioner {
 
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-//            getRuntimeContext().getMetricGroup().getIOMetricGroup().numRecordsInRate.currentRate
             GraphElement elementToPartition = value.element;
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
                 Edge edge = (Edge) elementToPartition;
-//                while(currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())){
+//                while (currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())) {
 //                    // Wait for completion
 //                }
 //                currentlyProcessing.add(edge.src.getId());

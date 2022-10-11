@@ -22,6 +22,10 @@ import ai.djl.ndarray.types.SparseFormat;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.util.Float16Utils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectOutput;
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -4743,14 +4747,29 @@ public interface NDArray extends NDResource, BytesSupplier {
     NDArray batchDot(NDArray other);
 
     default void postpone() {
-        ((LifeCycleNDManager) getManager()).postpone(this);
+        if(getManager() instanceof LifeCycleNDManager)((LifeCycleNDManager) getManager()).postpone(this);
     }
 
     default void prepone() {
-        ((LifeCycleNDManager) getManager()).prepone(this);
+        if(getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).prepone(this);
     }
 
     default boolean isValid() {
         return !isNaN().any().getBoolean() && !isInfinite().any().getBoolean();
+    }
+
+    default void writeExternal(ObjectOutput out) throws IOException {
+        out.write(NDSerializer.encode(this));
+    }
+
+    default void readExternal(ObjectInput in) throws IOException {
+        InputStream tmp = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                return in.read();
+            }
+        };
+        NDArray array = NDSerializer.decode(LifeCycleNDManager.getInstance(), tmp);
+        this.set(array.toByteBuffer());
     }
 }

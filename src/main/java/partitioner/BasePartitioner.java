@@ -8,7 +8,7 @@ abstract public class BasePartitioner {
     /**
      * Number of partitions we should partition into
      */
-    public short partitions = -1;
+    protected short partitions = -1;
 
     /**
      * Static Helper for getting the desired partitioner from its name
@@ -28,12 +28,30 @@ abstract public class BasePartitioner {
         }
     }
 
+    /**
+     * Partition the incoming stream of {@link GraphOp}
+     * <p>
+     * A partitioned stream in this context is simply a stream of {@link GraphOp} with {@code partId} assigned
+     * Partitioner is expected to gracefully handle out of ordered stream such as vertices or attached features arriving before the actual element.
+     * In such cases it either cache/delay its partitioning or assign parts on the fly usually randomly
+     * </p>
+     *
+     * @return partition stream
+     */
     public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled);
 
-    public abstract void parseCmdArgs(String[] cmdArgs);
-
     /**
-     * Name of this partitioner
+     * Helper method for parsing partitioner specific command line arguments
+     *
+     * @param cmdArgs Array of parameter arguments passed
+     * @return same partitioner
      */
-    abstract public String getName();
+    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
+        return this;
+    }
+
+    public final BasePartitioner setPartitions(short partitions) {
+        this.partitions = partitions;
+        return this;
+    }
 }

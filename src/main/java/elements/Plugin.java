@@ -1,6 +1,6 @@
 package elements;
 
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import operators.events.BaseOperatorEvent;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -133,8 +133,10 @@ public class Plugin extends ReplicableGraphElement {
 
     /**
      * Callback when OperatorSends event to this plugin
+     *
+     * @param event
      */
-    public void onOperatorEvent(OperatorEvent event) {
+    public void onOperatorEvent(BaseOperatorEvent event) {
         // pass
     }
 

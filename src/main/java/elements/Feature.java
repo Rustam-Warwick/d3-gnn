@@ -18,7 +18,7 @@ import java.util.function.Consumer;
  */
 public class Feature<T, V> extends ReplicableGraphElement {
     public static String DELIMITER = "/";
-
+    public static ElementType[] ELEMENT_VALUES = ElementType.values();
     public T value;
     @Nullable
     public transient GraphElement element;
@@ -67,7 +67,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
         String[] val = attachedFeatureId.split(DELIMITER);
-        return Tuple3.of(val[0], val[1], ElementType.values()[Integer.parseInt(val[2])]);
+        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
     }
 
     /**
@@ -92,7 +92,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * hence the different in main logic is that master should then create them on replica parts
      * Handles the case for late Vertex Feature, since they arrive at masters first
      * But not for Edge since edge Vertices can be replicated
-     *
      */
     @Override
     public void create() {
@@ -110,7 +109,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
                 }
             }
             Consumer<Plugin> callback = createElement();
-            if(callback != null) syncReplicas(replicaParts());
+            if (callback != null) syncReplicas(replicaParts());
             storage.runCallback(callback);
         }
     }
@@ -143,6 +142,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Given 2 Ts if they are both equal, required to check an actual feature update
+     *
      * @param v1 first T
      * @param v2 second T
      * @return if v1 === v2
@@ -254,17 +254,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public void setElement(GraphElement attachingElement) {
         if (attachingElement != null) {
-            if (element == attachingElement) return; // Already attached
+            if (element == attachingElement) return; // Already attached to this element
             if (element != null && element.features != null && element.features.contains(this)) {
-                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.featue before proceeding");
+                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.feature before proceeding");
             }
             attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()) : attachedTo;
-            element = attachingElement;
             if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
             if (attachingElement.features.stream().anyMatch(item -> item == this)) return;
             if (attachingElement.features.contains(this)) {
                 throw new IllegalStateException("This Element already has a similar feature, use updateFeature instead");
             }
+            element = attachingElement;
             attachingElement.features.add(this);
         }
     }

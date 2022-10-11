@@ -53,6 +53,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     private final PtNDArrayEx ptNDArrayEx;
+    protected PtNDManager manager;
     private transient Cleaner.Cleanable cleanable;
     private String name;
     private Device device;
@@ -61,7 +62,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
-    protected PtNDManager manager;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
@@ -1817,7 +1817,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if(manager != null) {
+            if (manager != null) {
                 if (manager instanceof LifeCycleNDManager) {
                     ((LifeCycleNDManager) manager).detachInternal(this);
                 } else {
@@ -1853,6 +1853,5 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             }
         }
     }
-
 
 }

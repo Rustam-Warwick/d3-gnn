@@ -8,8 +8,9 @@ import java.util.function.Consumer;
 
 /**
  * Edge class represents an Edge in the Graph.
+ *
  * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multigraphs
- * @implNote  Vertex updates should not happen within edges and they will be ignored
+ * @implNote Vertex updates should not happen within edges and they will be ignored
  */
 public class Edge extends GraphElement {
     public static String DELIMITER = "~";
@@ -26,9 +27,10 @@ public class Edge extends GraphElement {
         super();
     }
 
-    public Edge(String id){
+    public Edge(String id) {
         super(id);
     }
+
     /**
      * Normal Edge Creation
      */

@@ -19,26 +19,10 @@ public class CoauthDBLPVertexStream implements Dataset {
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        DataStream<String> vertexStreamString = env.readTextFile(vertexStreamFile.toString()).setParallelism(1);
+        DataStream<String> vertexStreamString = env.readTextFile(vertexStreamFile).setParallelism(1);
         DataStream<GraphOp> nets = vertexStreamString.map(new ParseVertexStream());
         return nets;
     }
-
-   public static class ParseVertexStream extends RichMapFunction<String, GraphOp>{
-       @Override
-       public GraphOp map(String value) throws Exception {
-            String[] values = value.split(",");
-            Vertex[] src = new Vertex[]{new Vertex(values[0])}; // Center of the vertex
-            HEdge[] hEdges = new HEdge[values.length - 1];
-            for (int i = 1; i < values.length; i++) {
-                String netId = values[i];
-                hEdges[i-1] = new HEdge(netId,src);
-            }
-            HGraph hGraph = new HGraph(src, hEdges);
-            GraphOp op = new GraphOp(Op.COMMIT, hGraph);
-            return op;
-       }
-   }
 
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
@@ -49,5 +33,21 @@ public class CoauthDBLPVertexStream implements Dataset {
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
             }
         };
+    }
+
+    public static class ParseVertexStream extends RichMapFunction<String, GraphOp> {
+        @Override
+        public GraphOp map(String value) throws Exception {
+            String[] values = value.split(",");
+            Vertex[] src = new Vertex[]{new Vertex(values[0])}; // Center of the vertex
+            HEdge[] hEdges = new HEdge[values.length - 1];
+            for (int i = 1; i < values.length; i++) {
+                String netId = values[i];
+                hEdges[i - 1] = new HEdge(netId, src);
+            }
+            HGraph hGraph = new HGraph(src, hEdges);
+            GraphOp op = new GraphOp(Op.COMMIT, hGraph);
+            return op;
+        }
     }
 }

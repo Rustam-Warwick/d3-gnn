@@ -1,6 +1,5 @@
 package functions.gnn_layers;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.iterations.MessageDirection;
@@ -25,7 +24,6 @@ import javax.annotation.Nullable;
  * Real implementation should be tightly coupled with their respective operators
  */
 public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
-    int[] counter = new int[]{0};
     /**
      * @return Attached storage engine
      */
@@ -141,7 +139,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
         return getWrapperContext().getNumberOfOutChannels(tag);
     }
 
-    default void runForAllLocalParts(Runnable o) throws Exception {
+    default void runForAllLocalParts(Runnable o) {
         getWrapperContext().runForAllKeys(o);
     }
 
@@ -157,7 +155,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      * @param value Process The Incoming Value
      */
     default void process(GraphOp value) {
-        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try {
             switch (value.op) {
                 case COMMIT:
                     value.element.setStorage(getStorage());

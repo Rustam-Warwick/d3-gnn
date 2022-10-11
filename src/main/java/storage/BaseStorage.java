@@ -2,12 +2,12 @@ package storage;
 
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
+import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.runtime.state.KeyedStateBackend;
@@ -31,14 +31,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * These are stored separately in operator state store
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
-
-    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
-
     /**
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-
+    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
     /**
      * Plugins in the list state
      */
@@ -96,15 +93,15 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // - Feature
     @Nullable
-    public abstract Feature<?,?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
+    public abstract Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
 
     @Nullable
-    public abstract Feature<?,?> getStandaloneFeature(String id);
+    public abstract Feature<?, ?> getStandaloneFeature(String id);
 
     // -- Contains
     public abstract boolean containsVertex(String id);
 
-    public abstract boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable  String id);
+    public abstract boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
 
     public abstract boolean containsStandaloneFeature(String id);
 
@@ -128,8 +125,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * Register a callback to be fired in the future
      */
-    public void runCallback(@Nullable Consumer<Plugin> a){
-        if(a == null) return;
+    public void runCallback(@Nullable Consumer<Plugin> a) {
+        if (a == null) return;
         for (Plugin value : plugins.values()) {
             a.accept(value);
         }
@@ -174,8 +171,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     /**
      * On OperatorEvent
+     *
+     * @param event
      */
-    public void onOperatorEvent(OperatorEvent event) {
+    public void onOperatorEvent(BaseOperatorEvent event) {
         for (Plugin value : plugins.values()) {
             value.onOperatorEvent(event);
         }
@@ -210,29 +209,29 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      */
 
     @Nullable
-    public final Feature<?,?> getFeature(String id){
-        try{
-            if(Feature.isAttachedId(id)){
+    public final Feature<?, ?> getFeature(String id) {
+        try {
+            if (Feature.isAttachedId(id)) {
                 Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
                 return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
-            }else{
+            } else {
                 return getStandaloneFeature(id);
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    public final boolean containsFeature(String id){
-        try{
-            if(Feature.isAttachedId(id)){
+    public final boolean containsFeature(String id) {
+        try {
+            if (Feature.isAttachedId(id)) {
                 Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
                 return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
-            }else{
+            } else {
                 return containsStandaloneFeature(id);
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }

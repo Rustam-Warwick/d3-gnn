@@ -18,8 +18,8 @@ public class WindowedHDRF extends BasePartitioner {
         DataStream<GraphOp> partitioned = hdrfMain.partition(inputDataStream, fineGrainedResourceManagementEnabled);
         SingleOutputStreamOperator<GraphOp> out = partitioned
                 .keyBy(new PartKeySelector())
-                .transform(getName(), TypeInformation.of(GraphOp.class), new FullBufferOperator<GraphOp>())
-                .name(getName());
+                .transform("HDRF+Window", TypeInformation.of(GraphOp.class), new FullBufferOperator<GraphOp>())
+                .name("HDRF+Window");
         if (fineGrainedResourceManagementEnabled) {
             out.slotSharingGroup("gnn-0");
         }
@@ -27,13 +27,9 @@ public class WindowedHDRF extends BasePartitioner {
     }
 
     @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-
+    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
+        return this;
     }
 
-    @Override
-    public String getName() {
-        return "hdrf-windowed";
-    }
 
 }

@@ -48,7 +48,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
     @Override
     public Consumer<Plugin> createElement() {
         Consumer<Plugin> tmp = super.createElement();
-        if(tmp != null) value.postpone();
+        if (tmp != null) value.postpone();
         return tmp;
     }
 
@@ -56,7 +56,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
-        if(callback.f0 != null && mementoAggregator.value != value){
+        if (callback.f0 != null && mementoAggregator.value != value) {
             value.postpone();
             mementoAggregator.value.prepone();
         }

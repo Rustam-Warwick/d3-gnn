@@ -58,9 +58,9 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public Consumer<Plugin> createElement() {
         vertexIds.clear();
-        if(vertices != null){
+        if (vertices != null) {
             for (int i = 0; i < vertices.length; i++) {
-                if(!storage.containsVertex(vertices[i].getId())) vertices[i].create();
+                if (!storage.containsVertex(vertices[i].getId())) vertices[i].create();
                 vertexIds.add(vertices[i].getId());
             }
         }
@@ -74,15 +74,15 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        if(newHEdge.vertices != null){
+        if (newHEdge.vertices != null) {
             // This is not possible during SYNC phases so we are safe from merging vertexIds across replicas
             // The reason why this is not possible is because SYNC is copying this element which drops the vertices
             // If there is an addition of new vertices to this hyperedge we should update it even if features of it are not updated
             for (Vertex vertex : newHEdge.vertices) {
-                if(!vertexIds.contains(vertex.getId())){
-                    if(memento == null) memento = copy();
+                if (!vertexIds.contains(vertex.getId())) {
+                    if (memento == null) memento = copy();
                     vertexIds.add(vertex.getId());
-                    if(!storage.containsVertex(vertex.getId()))vertex.create();
+                    if (!storage.containsVertex(vertex.getId())) vertex.create();
                 }
             }
         }
@@ -99,7 +99,8 @@ public class HEdge extends ReplicableGraphElement {
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            if(tmp.f0!=null && !isHalo() && newElement.features != null) syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features
+            if (tmp.f0 != null && !isHalo() && newElement.features != null)
+                syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features
         } else throw new IllegalStateException("Replicable element but don't know if master or repica");
     }
 
@@ -108,7 +109,7 @@ public class HEdge extends ReplicableGraphElement {
      */
     @Nullable
     public Vertex[] getVertices() {
-        if((vertices == null || vertices.length != vertexIds.size()) && storage != null){
+        if ((vertices == null || vertices.length != vertexIds.size()) && storage != null) {
             // If there is a mismatch between vertexIds and vertices re-compute the array
             vertices = new Vertex[vertexIds.size()];
             int i = 0;
@@ -122,7 +123,7 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if(vertices != null){
+        if (vertices != null) {
             for (Vertex vertex : vertices) {
                 vertex.setStorage(storage);
             }
@@ -132,7 +133,7 @@ public class HEdge extends ReplicableGraphElement {
     @Override
     public void clearFeatures() {
         super.clearFeatures();
-        if(vertices != null){
+        if (vertices != null) {
             for (Vertex vertex : vertices) {
                 vertex.clearFeatures();
             }
