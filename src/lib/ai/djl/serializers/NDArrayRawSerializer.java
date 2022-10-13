@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
  * Kryo implementation of Tensor Serializer. Works with all NDArrays.
  */
 public class NDArrayRawSerializer extends Serializer<NDArray> {
-    private static final transient DataType[] dataTypes = DataType.values();
+    private static final DataType[] dataTypes = DataType.values();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {

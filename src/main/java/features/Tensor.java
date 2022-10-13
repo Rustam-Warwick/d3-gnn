@@ -26,8 +26,12 @@ public class Tensor extends Feature<NDArray, NDArray> {
         super(value);
     }
 
-    public Tensor(String id, NDArray value, boolean halo, short master) {
+    public Tensor(String id, NDArray value, boolean halo, Short master) {
         super(id, value, halo, master);
+    }
+
+    public Tensor(NDArray value, boolean halo, Short master) {
+        super(value, halo, master);
     }
 
     @Override

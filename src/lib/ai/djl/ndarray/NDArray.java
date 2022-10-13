@@ -4747,11 +4747,11 @@ public interface NDArray extends NDResource, BytesSupplier {
     NDArray batchDot(NDArray other);
 
     default void postpone() {
-        if(getManager() instanceof LifeCycleNDManager)((LifeCycleNDManager) getManager()).postpone(this);
+        if (getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).postpone(this);
     }
 
     default void prepone() {
-        if(getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).prepone(this);
+        if (getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).prepone(this);
     }
 
     default boolean isValid() {

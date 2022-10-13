@@ -2,17 +2,14 @@ package helpers;
 
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
-import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Activation;
-import ai.djl.nn.Parameter;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
-import ai.djl.training.initializer.Initializer;
 import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
@@ -26,7 +23,6 @@ import storage.FlatObjectStorage;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.function.Function;
 
 public class Main {
 
@@ -37,43 +33,31 @@ public class Main {
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(41).optBias(true).build())
-                        .add(new Function<NDList, NDList>() {
-                            @Override
-                            public NDList apply(NDList ndArrays) {
-                                return Activation.relu(ndArrays);
-                            }
-                        })
 
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.WEIGHT);
-        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.BIAS);
-        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.BETA);
-        model.getBlock().setInitializer(Initializer.ONES, Parameter.Type.OTHER);
-        model.getBlock().initialize(model.getNDManager(), DataType.FLOAT32, new Shape(602));
-        model.getBlock().getParameters().forEach(item -> item.getValue().getArray().postpone());
+        model.getBlock().initialize(LifeCycleNDManager.getInstance(), DataType.FLOAT32, new Shape(602));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
             tmp.setBlock(item.getValue());
             models.add(tmp);
         });
-
         return models;
     }
 
     public static void main(String[] args) throws Exception {
         // Configuration
+
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        Integer window = 2000;
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, true, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), true))
+                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName()))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(1)))
@@ -86,7 +70,7 @@ public class Main {
 
         );
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), window == null ? "Streaming" : "Window-" + window);
+        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Training");
         env.execute(jobName);
     }
 }

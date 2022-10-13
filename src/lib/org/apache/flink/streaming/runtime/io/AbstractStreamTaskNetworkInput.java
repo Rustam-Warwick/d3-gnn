@@ -1,21 +1,21 @@
 /*
-        * Licensed to the Apache Software Foundation (ASF) under one or more
-        * contributor license agreements.  See the NOTICE file distributed with
-        * this work for additional information regarding copyright ownership.
-        * The ASF licenses this file to You under the Apache License, Version 2.0
-        * (the "License"); you may not use this file except in compliance with
-        * the License.  You may obtain a copy of the License at
-        *
-        *    http://www.apache.org/licenses/LICENSE-2.0
-        *
-        * Unless required by applicable law or agreed to in writing, software
-        * distributed under the License is distributed on an "AS IS" BASIS,
-        * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-        * See the License for the specific language governing permissions and
-        * limitations under the License.
-        */
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-        package org.apache.flink.streaming.runtime.io;
+package org.apache.flink.streaming.runtime.io;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -56,7 +56,9 @@ public abstract class AbstractStreamTaskNetworkInput<
     protected final TypeSerializer<T> inputSerializer;
     protected final Map<InputChannelInfo, R> recordDeserializers;
     protected final Map<InputChannelInfo, Integer> flattenedChannelIndices = new HashMap<>();
-    /** Valve that controls how watermarks and watermark statuses are forwarded. */
+    /**
+     * Valve that controls how watermarks and watermark statuses are forwarded.
+     */
     protected final StatusWatermarkValve statusWatermarkValve;
 
     protected final int inputIndex;
@@ -90,46 +92,48 @@ public abstract class AbstractStreamTaskNetworkInput<
 
         while (true) {
             // get the stream element from the deserializer
-            if (currentRecordDeserializer != null) {
-                RecordDeserializer.DeserializationResult result;
-                try {
-                    result = currentRecordDeserializer.getNextRecord(deserializationDelegate);
-                } catch (IOException e) {
-                    throw new IOException(
-                            String.format("Can't get next record for channel %s", lastChannel), e);
-                }
-                if (result.isBufferConsumed()) {
-                    currentRecordDeserializer = null;
-                }
-
-                if (result.isFullRecord()) {
-                    try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()){
-                        processElement(deserializationDelegate.getInstance(), output);
+            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+                if (currentRecordDeserializer != null) {
+                    RecordDeserializer.DeserializationResult result;
+                    try {
+                        result = currentRecordDeserializer.getNextRecord(deserializationDelegate);
+                    } catch (IOException e) {
+                        throw new IOException(
+                                String.format("Can't get next record for channel %s", lastChannel), e);
+                    }
+                    if (result.isBufferConsumed()) {
+                        currentRecordDeserializer = null;
                     }
 
-                    return DataInputStatus.MORE_AVAILABLE;
+                    if (result.isFullRecord()) {
+
+                        processElement(deserializationDelegate.getInstance(), output);
+
+                        return DataInputStatus.MORE_AVAILABLE;
+                    }
+                }
+
+                Optional<BufferOrEvent> bufferOrEvent = checkpointedInputGate.pollNext();
+                if (bufferOrEvent.isPresent()) {
+                    // return to the mailbox after receiving a checkpoint barrier to avoid processing of
+                    // data after the barrier before checkpoint is performed for unaligned checkpoint
+                    // mode
+                    if (bufferOrEvent.get().isBuffer()) {
+                        processBuffer(bufferOrEvent.get());
+                    } else {
+                        return processEvent(bufferOrEvent.get());
+                    }
+                } else {
+                    if (checkpointedInputGate.isFinished()) {
+                        checkState(
+                                checkpointedInputGate.getAvailableFuture().isDone(),
+                                "Finished BarrierHandler should be available");
+                        return DataInputStatus.END_OF_INPUT;
+                    }
+                    return DataInputStatus.NOTHING_AVAILABLE;
                 }
             }
 
-            Optional<BufferOrEvent> bufferOrEvent = checkpointedInputGate.pollNext();
-            if (bufferOrEvent.isPresent()) {
-                // return to the mailbox after receiving a checkpoint barrier to avoid processing of
-                // data after the barrier before checkpoint is performed for unaligned checkpoint
-                // mode
-                if (bufferOrEvent.get().isBuffer()) {
-                    processBuffer(bufferOrEvent.get());
-                } else {
-                    return processEvent(bufferOrEvent.get());
-                }
-            } else {
-                if (checkpointedInputGate.isFinished()) {
-                    checkState(
-                            checkpointedInputGate.getAvailableFuture().isDone(),
-                            "Finished BarrierHandler should be available");
-                    return DataInputStatus.END_OF_INPUT;
-                }
-                return DataInputStatus.NOTHING_AVAILABLE;
-            }
         }
     }
 

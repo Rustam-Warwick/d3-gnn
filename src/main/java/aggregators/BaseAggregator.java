@@ -59,4 +59,6 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
      * Called after model update to start everything from scratch
      */
     public abstract void reset();
+
+    public abstract int reduceCount();
 }

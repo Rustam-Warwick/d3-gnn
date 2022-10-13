@@ -37,6 +37,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,15 +64,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
 
     public static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
-
-    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
-
-    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
-
-    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
-
     private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class));
-
+    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
     /**
      * OPERATOR PROPS
      */
@@ -628,7 +624,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 }
                 element.getValue().setPartId(tmp);
                 setKeyContextElement(element);
-            }catch (Exception e){
+            } catch (Exception e) {
+                BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e), e);
                 throw new IllegalStateException(e.getMessage());
             }
         }

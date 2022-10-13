@@ -17,8 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public class Rmi extends GraphElement {
-    public static transient ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
-    public static transient MethodHandles.Lookup globalLookup = MethodHandles.lookup();
+    public static ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
+    public static MethodHandles.Lookup globalLookup = MethodHandles.lookup();
     public Object[] args;
     public ElementType elemType;
     public Boolean hasUpdate = true;
@@ -81,6 +81,7 @@ public class Rmi extends GraphElement {
 
         } catch (Throwable e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
+            BaseWrapperOperator.LOG.error(message.toString());
         }
     }
 
@@ -95,8 +96,8 @@ public class Rmi extends GraphElement {
                 for (NDArray ndArray : tmp) {
                     operation.accept(ndArray);
                 }
-            }else if(arg instanceof GradientCollector<?>){
-                ((GradientCollector<?>) arg).values().forEach(operation::accept);
+            } else if (arg instanceof GradientCollector<?>) {
+                ((GradientCollector<?>) arg).values().forEach(operation);
             }
         }
     }

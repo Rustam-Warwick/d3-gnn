@@ -30,7 +30,7 @@ public class LifeCycleNDManager extends PtNDManager {
     /**
      * HashMap for the Threads
      */
-    private static final transient NonBlockingHashMapLong<Tuple2<Thread, LifeCycleNDManager>> THREADS = new NonBlockingHashMapLong<>();
+    private static final NonBlockingHashMapLong<Tuple2<Thread, LifeCycleNDManager>> THREADS = new NonBlockingHashMapLong<>();
 
     static {
         // Start the Tensor cleaner thread in this JVM globally
@@ -45,6 +45,8 @@ public class LifeCycleNDManager extends PtNDManager {
 
     protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>(); // Map of detached tensors
 
+    public int scopedCount = 0; // Count of opened tensors when we are in a scope
+
     protected long closedCount = 0; // Count of closed tensor for reporting purposes
 
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
@@ -58,7 +60,7 @@ public class LifeCycleNDManager extends PtNDManager {
                 } catch (Exception e) {
                     LOG.error(e.getMessage());
                 }
-            }).expireAfterWrite(5, TimeUnit.NANOSECONDS)
+            }).expireAfterWrite(100, TimeUnit.NANOSECONDS)
             .ticker(ticker)
             .scheduler(Scheduler.systemScheduler())
             .build();
@@ -131,7 +133,7 @@ public class LifeCycleNDManager extends PtNDManager {
     public void postpone(NDArray resource) {
         detached.compute(resource, (key, val) -> {
             if (val == null) {
-                if(!attached.asMap().containsKey(key)) return val;
+                if (!attached.asMap().containsKey(key)) return val;
                 attached.invalidate(key);
                 return 1;
             }
@@ -161,12 +163,13 @@ public class LifeCycleNDManager extends PtNDManager {
     public void attachInternal(String resourceId, AutoCloseable resource) {
         if (!attached.asMap().containsKey(resource) && !detached.containsKey(resource)) {
             if (parentScope.isClosed()) ticker.increment();
+            else scopedCount++;
             attached.put(resource, resource);
         }
     }
 
     /**
-     * @implNote Not implemented
+     * @throws IllegalStateException
      */
     @Override
     public void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
@@ -175,7 +178,7 @@ public class LifeCycleNDManager extends PtNDManager {
     }
 
     /**
-     * @implNote Not implemented
+     * @throws IllegalStateException
      */
     @Override
     public void detachInternal(String resourceId) {
@@ -186,7 +189,7 @@ public class LifeCycleNDManager extends PtNDManager {
     /**
      * Custom method for detaching tensors
      */
-    public void detachInternal(AutoCloseable resource) {
+    public void detachInternal(String resourceId, AutoCloseable resource) {
         detached.remove(resource);
         attached.invalidate(resource); // !This might cause eviction is the time is late
     }
@@ -236,7 +239,8 @@ public class LifeCycleNDManager extends PtNDManager {
             openCount--;
             if (isClosed()) {
                 // Now the scope is closed update the ticker value back to the scope ticker
-                ticker.increment(1);
+                ticker.increment(scopedCount);
+                scopedCount = 0;
             }
         }
 

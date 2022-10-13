@@ -18,13 +18,14 @@ import java.nio.ByteBuffer;
  * Kryo implementation of Tensor Serializer with LZ4 Compression. Works with all NDArrays
  */
 public class NDArrayLZ4Serializer extends Serializer<NDArray> {
-    private static final transient DataType[] dataTypes = DataType.values();
-    private static final transient LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
-    private static final transient LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
-    private static final transient ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
+    private static final DataType[] dataTypes = DataType.values();
+    private static final LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
+    private static final LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
+    private static final ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
+
         ByteBuffer bb = o.toByteBuffer();
         output.writeByte(o.getDataType().ordinal()); // Data Types
         output.writeByte(o.getShape().getShape().length); // Shape length
@@ -40,7 +41,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         thisReuse.limit(actualSize);
         output.writeInts(new int[]{bb.capacity(), actualSize}, true); // Raw Len, Actual Len
         while (thisReuse.hasRemaining()) {
-            output.write(thisReuse.get());
+            output.writeByte(thisReuse.get());
         }
     }
 

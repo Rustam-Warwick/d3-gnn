@@ -28,7 +28,7 @@ public class ReplicableGraphElement extends GraphElement {
         this.halo = element.halo;
     }
 
-    public ReplicableGraphElement(String id, boolean halo, Short master) {
+    public ReplicableGraphElement(String id, boolean halo, @Nullable Short master) {
         super(id);
         this.halo = halo;
         this.master = master;

@@ -33,15 +33,16 @@ import java.util.HashMap;
 import java.util.Objects;
 
 /**
- * Re-define ParameterStore as an interaface, because it is going to be abstracted into a plugin
- * Each ParameterStore stores the parameters of a single Model only.
- * If you want to have multiple Model in the same operator you need to define several ParameterStores for each of them
+ * Plugin that stores a single model withing the GNN Pipieline
+ * <p>
+ * Handles model synchronization through MASTER - REPLICA (2hop process)
+ * </p>
  */
 public class ModelServer extends Plugin {
 
-    protected Model model; // Model attached
+    public Model model; // Model attached
 
-    protected int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
+    public int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
 
     protected transient Optimizer optimizer; // Optimizer
 
@@ -61,7 +62,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if(getPartId() == 0) collectedGradients = new GradientCollector<>(5);
+        if (getPartId() == 0) collectedGradients = new GradientCollector<>(5);
     }
 
     public Model getModel() {
@@ -76,12 +77,11 @@ public class ModelServer extends Plugin {
         return parameterStore;
     }
 
-
-
     /**
-     * Collect the partial Gradients from replicas,
-     *
-     * @implNote Note that this is only called in the master(0 part) of this operator
+     * Collect gradients from replica on the master (part-0) node.
+     * <p>
+     * Upon receiving all gradients updates the models and syncs with the replicas
+     * </p>
      */
     @RemoteFunction
     public void collect(GradientCollector<String> newGradients) {
@@ -91,6 +91,22 @@ public class ModelServer extends Plugin {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
         }
+    }
+
+    /**
+     * Update the model of replicas to the sent master parameters
+     */
+    @RemoteFunction
+    public void updateAllParameters(HashMap<String, NDArray> masterParameters) {
+        System.out.println("MODEL UPDATED");
+        model.getBlock().getParameters().forEach(parameter -> {
+            if (masterParameters.containsKey(parameter.getValue().getId())) {
+                parameter.getValue().close();
+                parameter.getValue().setShape(null);
+                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
+                parameter.getValue().getArray().detach();
+            }
+        });
     }
 
     public class ParameterStoreWrapper extends ParameterStore {
@@ -107,7 +123,7 @@ public class ModelServer extends Plugin {
                 }
             }
             Rmi rmi = new Rmi(getId(), "updateAllParameters", new Object[]{parameters}, elementType(), false, null);
-            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, rmi, null, MessageCommunication.BROADCAST),MessageDirection.ITERATE);
+            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, rmi, null, MessageCommunication.BROADCAST), MessageDirection.ITERATE);
             collectedGradients.clearPrepone();
         }
 
@@ -141,21 +157,5 @@ public class ModelServer extends Plugin {
                     .method("collect")
                     .buildAndRun(storage);
         }
-    }
-
-    /**
-     * Update the model of replicas to the sent master parameters
-     */
-    @RemoteFunction
-    public void updateReplicaParameters(HashMap<String, NDArray> masterParameters) {
-        System.out.println("MODEL UPDATED");
-        model.getBlock().getParameters().forEach(parameter -> {
-            if (masterParameters.containsKey(parameter.getValue().getId())) {
-                parameter.getValue().close();
-                parameter.getValue().setShape(null);
-                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
-                parameter.getValue().getArray().detach();
-            }
-        });
     }
 }

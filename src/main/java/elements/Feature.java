@@ -40,17 +40,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
-    public Feature(T value, boolean halo, Short master) {
+    public Feature(T value, boolean halo, @Nullable Short master) {
         super(null, halo, master);
         this.value = value;
     }
 
     public Feature(String id, T value) {
-        super(id, false, (short) -1);
+        super(id, false, null);
         this.value = value;
     }
 
-    public Feature(String id, T value, boolean halo, Short master) {
+    public Feature(String id, T value, boolean halo, @Nullable Short master) {
         super(id, halo, master);
         this.value = value;
     }

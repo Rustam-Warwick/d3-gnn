@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
 public class GraphElement implements Serializable {
-    protected static final transient Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
+    protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage
     @Nullable

@@ -2,10 +2,10 @@ package helpers;
 
 import ai.djl.ndarray.NDArray;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class GradientCollector<T> extends HashMap<T, NDArray> {
+public class GradientCollector<T> extends LinkedHashMap<T, NDArray> {
     public GradientCollector(int initialCapacity, float loadFactor) {
         super(initialCapacity, loadFactor);
     }
@@ -21,17 +21,17 @@ public class GradientCollector<T> extends HashMap<T, NDArray> {
         super(m);
     }
 
-    public NDArray putPostpone(T key, NDArray value){
+    public NDArray putPostpone(T key, NDArray value) {
         value.postpone();
         return super.put(key, value);
     }
 
-    public void clearPrepone(){
+    public void clearPrepone() {
         values().forEach(NDArray::prepone);
         super.clear();
     }
 
-    public void merge(Map<T, NDArray> incoming){
+    public void merge(Map<T, NDArray> incoming) {
         if (incoming.isEmpty()) return;
         incoming.forEach((key, grad) -> {
             if (!grad.isValid()) return;

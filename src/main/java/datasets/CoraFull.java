@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 public class CoraFull implements Dataset {
-    private static transient final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
+    private static final Pattern p = Pattern.compile("(?<name>\\d*\\.\\d*)");
     private final float trainSplitProbability = 0.4f;
     protected transient Path edgesFile;
     protected transient Path vertexFeatures;
@@ -155,7 +155,7 @@ public class CoraFull implements Dataset {
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
                 edge.getSrc().setFeature("f", new Tensor(thisFeature));
-                edge.getSrc().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
+                edge.getSrc().setFeature("label", new Tensor(thisLabel, true, (short) -1));
                 seenVertices.add(edge.getSrc().getId());
             }
             if (!seenVertices.contains(edge.getDest().getId())) {
@@ -163,7 +163,7 @@ public class CoraFull implements Dataset {
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
                 edge.getDest().setFeature("f", new Tensor(thisFeature));
-                edge.getDest().setFeature("label", new Tensor(null, thisLabel, true, (short) -1));
+                edge.getDest().setFeature("label", new Tensor(thisLabel, true, (short) -1));
                 seenVertices.add(edge.getDest().getId());
             }
             out.collect(value);

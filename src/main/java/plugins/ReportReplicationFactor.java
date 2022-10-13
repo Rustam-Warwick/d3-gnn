@@ -1,9 +1,6 @@
 package plugins;
 
-import elements.Feature;
-import elements.GraphElement;
-import elements.Plugin;
-import elements.ReplicaState;
+import elements.*;
 import org.apache.flink.metrics.Gauge;
 
 @Deprecated
@@ -35,11 +32,9 @@ public class ReportReplicationFactor extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        switch (element.elementType()) {
-            case VERTEX: {
-                if (element.state() == ReplicaState.MASTER) {
-                    numberOfMasterVertices++;
-                }
+        if (element.elementType() == ElementType.VERTEX) {
+            if (element.state() == ReplicaState.MASTER) {
+                numberOfMasterVertices++;
             }
         }
     }
@@ -47,13 +42,11 @@ public class ReportReplicationFactor extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        switch (newElement.elementType()) {
-            case FEATURE: {
-                Feature newFeature = (Feature) newElement;
-                if (newFeature.getName().equals("p")) {
-                    totalReplicaParts++;
-                    replicationFactor = (int) ((float) totalReplicaParts / numberOfMasterVertices * 1000);
-                }
+        if (newElement.elementType() == ElementType.FEATURE) {
+            Feature newFeature = (Feature) newElement;
+            if (newFeature.getName().equals("p")) {
+                totalReplicaParts++;
+                replicationFactor = (int) ((float) totalReplicaParts / numberOfMasterVertices * 1000);
             }
         }
     }

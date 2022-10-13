@@ -31,7 +31,7 @@ import java.util.HashSet;
 public final class LockFreeBatchFeedbackQueue<ElementT> {
     private static final int INITIAL_BUFFER_SIZE = 32 * 1024; // 32k
 
-    protected final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
+    final MpscQueue<ElementT> queue = new MpscQueue<>(INITIAL_BUFFER_SIZE, Locks.spinLock());
 
     private final HashSet<Long> pendingSnapshots = new HashSet<>(4); // Snapshot
 

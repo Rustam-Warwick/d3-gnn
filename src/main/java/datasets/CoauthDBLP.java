@@ -64,7 +64,7 @@ public class CoauthDBLP implements Dataset {
         @Override
         public void processElement2(String value, CoProcessFunction<String, String, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             // NVertex Stream
-            nVertices.addAll(List.of(Integer.parseInt(value)));
+            nVertices.add(Integer.parseInt(value));
         }
     }
 }

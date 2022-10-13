@@ -383,7 +383,7 @@ public interface Model extends AutoCloseable, Externalizable {
     default void readExternal(ObjectInput in) {
         try {
             ExecutionConfig config = NDHelper.addSerializers(new ExecutionConfig());
-            TypeSerializer<Model> serializer = (TypeSerializer<Model>) TypeInformation.of(this.getClass()).createSerializer(config);
+            TypeSerializer<Model> serializer = (TypeSerializer<Model>) TypeInformation.of(getClass()).createSerializer(config);
             InputStream tmp = new InputStream() {
                 @Override
                 public int read() throws IOException {
