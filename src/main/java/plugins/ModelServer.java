@@ -15,7 +15,7 @@ package plugins;
 
 import ai.djl.Device;
 import ai.djl.Model;
-import ai.djl.ndarray.GradientCollector;
+import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
@@ -50,7 +50,7 @@ public class ModelServer extends Plugin {
 
     private transient ParameterStore parameterStore;
 
-    private transient GradientCollector<String> collectedGradients;
+    private transient NDArrayCollector<String> collectedGradients;
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
@@ -62,7 +62,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if (getPartId() == 0) collectedGradients = new GradientCollector<>(true);
+        if (getPartId() == 0) collectedGradients = new NDArrayCollector<>(true);
     }
 
     public Model getModel() {
@@ -84,7 +84,7 @@ public class ModelServer extends Plugin {
      * </p>
      */
     @RemoteFunction
-    public void collect(GradientCollector<String> newGradients) {
+    public void collect(NDArrayCollector<String> newGradients) {
         assert getPartId() == 0;
         collectedGradients.putAll(newGradients);
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
@@ -114,7 +114,7 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void updateAllParameters() {
-            HashMap<String, NDArray> parameters = new GradientCollector<>(false);
+            HashMap<String, NDArray> parameters = new NDArrayCollector<>(false);
             for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
                 if (collectedGradients.containsKey(parameter.getValue().getId())) {
                     optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
@@ -141,7 +141,7 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void sync() {
-            GradientCollector<String> thisGradients = new GradientCollector<>(false);
+            NDArrayCollector<String> thisGradients = new NDArrayCollector<>(false);
             model.getBlock().getParameters().forEach((parameter) -> {
                 if (parameter.getValue().getArray().hasGradient() && parameter.getValue().getArray().isValid()) {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());

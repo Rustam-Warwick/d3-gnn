@@ -4,29 +4,29 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public class GradientCollector<T> extends LinkedHashMap<T, NDArray> implements MayContainNDArray {
+public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements MayContainNDArray {
     public final transient boolean delayManagers;
 
-    public GradientCollector(int initialCapacity, float loadFactor, boolean delayManagers) {
+    public NDArrayCollector(int initialCapacity, float loadFactor, boolean delayManagers) {
         super(initialCapacity, loadFactor);
         this.delayManagers = delayManagers;
     }
 
-    public GradientCollector(int initialCapacity, boolean delayManagers) {
+    public NDArrayCollector(int initialCapacity, boolean delayManagers) {
         super(initialCapacity);
         this.delayManagers = delayManagers;
     }
 
-    public GradientCollector(boolean delayManagers) {
+    public NDArrayCollector(boolean delayManagers) {
         this.delayManagers = delayManagers;
     }
 
-    public GradientCollector(Map<? extends T, ? extends NDArray> m, boolean delayManagers) {
+    public NDArrayCollector(Map<? extends T, ? extends NDArray> m, boolean delayManagers) {
         super(m);
         this.delayManagers = delayManagers;
     }
 
-    public GradientCollector(int initialCapacity, float loadFactor, boolean accessOrder, boolean delayManagers) {
+    public NDArrayCollector(int initialCapacity, float loadFactor, boolean accessOrder, boolean delayManagers) {
         super(initialCapacity, loadFactor, accessOrder);
         this.delayManagers = delayManagers;
     }

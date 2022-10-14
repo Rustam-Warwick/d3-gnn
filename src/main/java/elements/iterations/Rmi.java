@@ -88,11 +88,9 @@ public class Rmi extends GraphElement {
     public void applyForNDArrays(Consumer<NDArray> operation) {
         super.applyForNDArrays(operation);
         for (Object arg : args) {
-            Arrays.stream(args).forEach(item -> {
-                if (arg instanceof MayContainNDArray) {
-                    ((MayContainNDArray) arg).applyForNDArrays(operation);
-                }
-            });
+            if (arg instanceof MayContainNDArray) {
+                ((MayContainNDArray) arg).applyForNDArrays(operation);
+            }
         }
     }
 

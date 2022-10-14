@@ -1,6 +1,6 @@
 package plugins.vertex_classification;
 
-import ai.djl.ndarray.GradientCollector;
+import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
@@ -67,7 +67,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
         NDArray gradient = batchedInputs.get(0).getGradient();
         // 2. Prepare the HashMap for Each Vertex and send to previous layer
-        HashMap<String, NDArray> backwardGrads = new GradientCollector<>(false);
+        HashMap<String, NDArray> backwardGrads = new NDArrayCollector<>(false);
         for (int i = 0; i < vertexIds.size(); i++) {
             backwardGrads.put(vertexIds.get(i), gradient.get(i));
         }

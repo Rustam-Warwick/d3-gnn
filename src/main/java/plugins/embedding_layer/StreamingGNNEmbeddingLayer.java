@@ -7,17 +7,20 @@ import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
 import elements.iterations.MessageDirection;
+import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
+import elements.iterations.Rmi;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.util.Preconditions;
 import plugins.ModelServer;
 
-import java.util.Objects;
+import java.util.*;
 
 public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddingPlugin {
 
@@ -152,24 +155,38 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
     public void reduceOutEdges(Vertex v) {
         Preconditions.checkNotNull(v);
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
-        NDList msg = null;
+        final NDList[] msg  = new NDList[1];
+        HashMap<Short, Tuple2<List<String>, NDList>> reduceMessages = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
-                if (Objects.isNull(msg)) {
-                    msg = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
+                if (Objects.isNull(msg[0])) {
+                    msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
+                    reduceMessages = new HashMap<>();
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msg, 1)
-                        .buildAndRun(storage);
+                reduceMessages.computeIfAbsent(edge.getDest().masterPart(), item -> new Tuple2<>(new ArrayList<>(), msg[0]));
+                reduceMessages.get(edge.getDest().masterPart()).f0.add(edge.getDest().getId());
             }
+        }
+        if(reduceMessages == null) return;
+        for (Map.Entry<Short, Tuple2<List<String>, NDList>> shortTuple2Entry : reduceMessages.entrySet()) {
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(MessageDirection.ITERATE)
+                    .method("receiveReduceOutEdges")
+                    .noUpdate()
+                    .addDestination(shortTuple2Entry.getKey())
+                    .withArgs(shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1)
+                    .buildAndRun(storage);
         }
     }
 
+    @RemoteFunction
+    public void receiveReduceOutEdges(List<String> vertices, NDList message){
+        Rmi rmi = new Rmi(null, "reduce", new Object[]{message, 1}, null,true, null);
+        for (String vertex : vertices) {
+                Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
+        }
+    }
     /**
      * Given oldFeature value and new Feature value update the Out Edged aggregators
      *
@@ -179,26 +196,40 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
         Preconditions.checkNotNull(newFeature.getElement());
         Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDList msgOld = null;
-        NDList msgNew = null;
+        NDList[] msgOld = new NDList[1];
+        NDList[] msgNew = new NDList[1];
+        HashMap<Short, Tuple3<List<String>, NDList, NDList>> replaceMessages = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
-                if (Objects.isNull(msgOld)) {
-                    msgOld = MESSAGE(new NDList(oldFeature.getValue()), false);
-                    msgNew = MESSAGE(new NDList(newFeature.getValue()), false);
+                if (Objects.isNull(msgOld[0])) {
+                    msgOld[0] = MESSAGE(new NDList(oldFeature.getValue()), false);
+                    msgNew[0] = MESSAGE(new NDList(newFeature.getValue()), false);
+                    replaceMessages = new HashMap<>();
                 }
-                new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("replace")
-                        .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
-                        .withArgs(msgNew, msgOld)
-                        .buildAndRun(storage);
+                replaceMessages.computeIfAbsent(edge.getDest().masterPart(), item -> new Tuple3<>(new ArrayList<>(), msgNew[0], msgOld[0]));
+                replaceMessages.get(edge.getDest().masterPart()).f0.add(edge.getDest().getId());
             }
         }
-    }
 
+        if(replaceMessages == null) return;
+        for (Map.Entry<Short, Tuple3<List<String>, NDList, NDList>> shortTuple2Entry : replaceMessages.entrySet()) {
+            new RemoteInvoke()
+                    .toElement(getId(), elementType())
+                    .where(MessageDirection.ITERATE)
+                    .method("receiveReplaceOutEdges")
+                    .noUpdate()
+                    .addDestination(shortTuple2Entry.getKey())
+                    .withArgs(shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1, shortTuple2Entry.getValue().f2)
+                    .buildAndRun(storage);
+        }
+    }
+    @RemoteFunction
+    public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld){
+        Rmi rmi = new Rmi(null, "replace", new Object[]{messageNew, messageOld}, null,true, null);
+        for (String vertex : vertices) {
+            Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
+        }
+    }
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *

@@ -9,14 +9,12 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
-import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.GNNEmbeddingTrainingPlugin;
-import plugins.vertex_classification.VertexClassificationTrainingPlugin;
+import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.io.IOException;
@@ -53,19 +51,21 @@ public class Main {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, true, false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName()))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(),true, true))
+//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName()))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
-                ),
-                new StreamingGNNLayerFunction(new FlatObjectStorage()
-                        .withPlugin(new ModelServer(models.get(2)))
-                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(),true, true))
+//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
                 )
+//                new StreamingGNNLayerFunction(new FlatObjectStorage()
+//                        .withPlugin(new ModelServer(models.get(2)))
+//                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true)))
+//                )
 
         );
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
