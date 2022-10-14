@@ -25,6 +25,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 
 /**
  * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
@@ -33,14 +34,11 @@ public class PtNDManager extends BaseNDManager {
 
     private static final PtNDManager SYSTEM_MANAGER = new SystemManager();
 
-    /**
-     * Made consutrcotr public to not inherit from it
-     */
-    public PtNDManager(NDManager parent, Device device) {
+    protected PtNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
-    public static PtNDManager getSystemManager() {
+    static PtNDManager getSystemManager() {
         return SYSTEM_MANAGER;
     }
 
@@ -77,7 +75,7 @@ public class PtNDManager extends BaseNDManager {
     @Override
     public PtNDArray create(Buffer data, Shape shape, DataType dataType) {
         int size = Math.toIntExact(shape.size());
-        BaseNDManager.validateBufferSize(data, dataType, size);
+        BaseNDManager.validateBuffer(data, dataType, size);
         if (data.isDirect() && data instanceof ByteBuffer) {
             return JniUtils.createNdFromByteBuffer(
                     this, (ByteBuffer) data, shape, dataType, SparseFormat.DENSE, device);
@@ -86,6 +84,14 @@ public class PtNDManager extends BaseNDManager {
         copyBuffer(data, buf);
         return JniUtils.createNdFromByteBuffer(
                 this, buf, shape, dataType, SparseFormat.DENSE, device);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray create(String[] data, Charset charset, Shape shape) {
+        return new PtNDArray(this, data, shape);
     }
 
     /**
@@ -211,15 +217,12 @@ public class PtNDManager extends BaseNDManager {
     /**
      * The SystemManager is the root {@link PtNDManager} of which all others are children.
      */
-    private static final class SystemManager extends PtNDManager {
+    private static final class SystemManager extends PtNDManager implements SystemNDManager {
 
         SystemManager() {
             super(null, null);
         }
 
-        /**
-         * {@inheritDoc}
-         */
         @Override
         public void attachInternal(String resourceId, AutoCloseable resource) {
         }

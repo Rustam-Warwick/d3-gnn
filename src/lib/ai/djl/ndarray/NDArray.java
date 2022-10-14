@@ -30,6 +30,7 @@ import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -44,7 +45,7 @@ import java.util.stream.LongStream;
  * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
  * Memory Management Guide</a>
  */
-public interface NDArray extends NDResource, BytesSupplier {
+public interface NDArray extends NDResource, BytesSupplier, MayContainNDArray {
 
     /**
      * Decodes {@code NDArray} from bytes.
@@ -400,9 +401,9 @@ public interface NDArray extends NDResource, BytesSupplier {
     /**
      * Sets this {@code NDArray} value from {@link Buffer}.
      *
-     * @param data the input buffered data
+     * @param buffer the input buffered data
      */
-    void set(Buffer data);
+    void set(Buffer buffer);
 
     /**
      * Sets this {@code NDArray} value from an array of floats.
@@ -457,7 +458,7 @@ public interface NDArray extends NDResource, BytesSupplier {
      *              index
      */
     default void set(NDIndex index, NDArray value) {
-        getNDArrayInternal().getIndexer().set(this, index, value);
+        getNDArrayInternal().getIndexer(getManager()).set(this, index, value);
     }
 
     /**
@@ -467,7 +468,7 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @param value the value to replace with
      */
     default void set(NDIndex index, Number value) {
-        getNDArrayInternal().getIndexer().set(this, index, value);
+        getNDArrayInternal().getIndexer(getManager()).set(this, index, value);
     }
 
     /**
@@ -482,13 +483,13 @@ public interface NDArray extends NDResource, BytesSupplier {
     }
 
     /**
-     * Sets the {@code NDArray} by boolean mask.
+     * Sets the {@code NDArray} by boolean mask or integer index.
      *
-     * @param index the boolean {@code NDArray} that indicates what to get
+     * @param index the boolean or integer {@code NDArray} that indicates what to get
      * @param value the value to replace with
      */
     default void set(NDArray index, Number value) {
-        set(new NDIndex().addBooleanIndex(index), value);
+        set(new NDIndex("{}", index), value);
     }
 
     /**
@@ -499,7 +500,7 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @throws IllegalArgumentException thrown if the index does not correspond to a single element
      */
     default void setScalar(NDIndex index, Number value) {
-        getNDArrayInternal().getIndexer().setScalar(this, index, value);
+        getNDArrayInternal().getIndexer(getManager()).setScalar(this, index, value);
     }
 
     /**
@@ -509,7 +510,28 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @return the partial {@code NDArray}
      */
     default NDArray get(NDIndex index) {
-        return getNDArrayInternal().getIndexer().get(this, index);
+        return get(getManager(), index);
+    }
+
+    /**
+     * Returns a partial {@code NDArray}.
+     *
+     * @param manager the manager used to create the arrays
+     * @param index   the section of this {@code NDArray} to return
+     * @return the partial {@code NDArray}
+     */
+    default NDArray get(NDManager manager, NDIndex index) {
+        return getNDArrayInternal().getIndexer(manager).get(this, index);
+    }
+
+    /**
+     * Returns a partial {@code NDArray}.
+     *
+     * @param index the boolean or integer {@code NDArray} that indicates what to get
+     * @return the partial {@code NDArray}
+     */
+    default NDArray get(NDArray index) {
+        return get(new NDIndex("{}", index));
     }
 
     /**
@@ -539,11 +561,13 @@ public interface NDArray extends NDResource, BytesSupplier {
     /**
      * Returns a partial {@code NDArray}.
      *
-     * @param index the boolean {@code NDArray} that indicates what to get
+     * @param manager the manager used to create the arrays
+     * @param indices the indices with each index corresponding to the dimensions and negative
+     *                indices starting from the end
      * @return the partial {@code NDArray}
      */
-    default NDArray get(NDArray index) {
-        return get(new NDIndex().addBooleanIndex(index));
+    default NDArray get(NDManager manager, long... indices) {
+        return get(manager, new NDIndex(indices));
     }
 
     /**
@@ -556,6 +580,37 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @return the partial {@code NDArray} of the same shape as index
      */
     NDArray gather(NDArray index, int axis);
+
+    /**
+     * Returns a partial {@code NDArray} pointed by index according to linear indexing, and the of
+     * output is of the same shape as index.
+     *
+     * @param index picks the elements of an NDArray and output to the same entry as in index
+     * @return the partial {@code NDArray} of the same shape as index
+     */
+    default NDArray take(NDArray index) {
+        return take(this.getManager(), index);
+    }
+
+    /**
+     * Returns a partial {@code NDArray} pointed by index according to linear indexing, and the of
+     * output is of the same shape as index.
+     *
+     * @param manager the manager used to create the arrays
+     * @param index   picks the elements of an NDArray and output to the same entry as in index
+     * @return the partial {@code NDArray} of the same shape as index
+     */
+    NDArray take(NDManager manager, NDArray index);
+
+    /**
+     * Set the entries of {@code NDArray} pointed by index according to linear indexing, to be the
+     * numbers in data, which is of the same shape as index.
+     *
+     * @param index select the entries of an {@code NDArray}
+     * @param data  numbers to assign to the indexed entries
+     * @return the NDArray with updated values
+     */
+    NDArray put(NDArray index, NDArray data);
 
     /**
      * Returns a scalar {@code NDArray} corresponding to a single element.
@@ -1971,6 +2026,23 @@ public interface NDArray extends NDResource, BytesSupplier {
     NDArray exp();
 
     /**
+     * Return the log of the absolute value of the gamma function of this {@code NDArray}
+     * element-wise.
+     *
+     * <p>Examples
+     *
+     * <pre>
+     * jshell&gt; NDArray array = manager.create(new float[] {0.5f, 1f, 1.5f});
+     * jshell&gt; array.gammaln();
+     * ND: (2) cpu() float32
+     * [ 0.5724,  0.0000, -0.1208]
+     * </pre>
+     *
+     * @return the result {@code NDArray}
+     */
+    NDArray gammaln();
+
+    /**
      * Returns the natural logarithmic value of this {@code NDArray} element-wise.
      *
      * <p>Examples
@@ -2674,6 +2746,84 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @return the average of this {@code NDArray}
      */
     NDArray mean(int[] axes, boolean keepDims);
+
+    /**
+     * Performs Lp normalization of the array over specified dimension.
+     *
+     * <p>Examples
+     *
+     * <pre>
+     * jshell&gt; NDArray array = manager.create(new float[] {1, 2, 3, 4, 5, 6}, new Shape(2, 3));
+     * jshell&gt; array;
+     * ND: (2, 2) cpu() float32
+     * [[1., 2., 3.],
+     *  [4., 5., 6.],
+     * ]
+     * jshell&gt; array.normalize();
+     * ND: (2, 3) cpu() float32
+     * [[0.2673, 0.5345, 0.8018],
+     *  [0.4558, 0.5698, 0.6838],
+     * ]
+     * </pre>
+     *
+     * @return the normalized {@code NDArray}
+     */
+    default NDArray normalize() {
+        return normalize(2, 1, 1e-12);
+    }
+
+    /**
+     * Performs Lp normalization of the array over specified dimension.
+     *
+     * <p>Examples
+     *
+     * <pre>
+     * jshell&gt; NDArray array = manager.create(new float[] {1, 2, 3, 4, 5, 6}, new Shape(2, 3));
+     * jshell&gt; array;
+     * ND: (2, 2) cpu() float32
+     * [[1., 2., 3.],
+     *  [4., 5., 6.],
+     * ]
+     * jshell&gt; array.normalize(2, 1);
+     * ND: (2, 3) cpu() float32
+     * [[0.2673, 0.5345, 0.8018],
+     *  [0.4558, 0.5698, 0.6838],
+     * ]
+     * </pre>
+     *
+     * @param exponent the exponent value in the norm formulation
+     * @param dim      the dimension to reduce
+     * @return the normalized {@code NDArray}
+     */
+    default NDArray normalize(double exponent, long dim) {
+        return normalize(exponent, dim, 1e-12);
+    }
+
+    /**
+     * Performs Lp normalization of the array over specified dimension.
+     *
+     * <p>Examples
+     *
+     * <pre>
+     * jshell&gt; NDArray array = manager.create(new float[] {1, 2, 3, 4, 5, 6}, new Shape(2, 3));
+     * jshell&gt; array;
+     * ND: (2, 2) cpu() float32
+     * [[1., 2., 3.],
+     *  [4., 5., 6.],
+     * ]
+     * jshell&gt; array.normalize(2, 1, 1e-12);
+     * ND: (2, 3) cpu() float32
+     * [[0.2673, 0.5345, 0.8018],
+     *  [0.4558, 0.5698, 0.6838],
+     * ]
+     * </pre>
+     *
+     * @param exponent the exponent value in the norm formulation
+     * @param dim      the dimension to reduce
+     * @param eps      the small value to avoid division by zero
+     * @return the normalized {@code NDArray}
+     */
+    NDArray normalize(double exponent, long dim, double eps);
 
     /**
      * Rotates an array by 90 degrees in the plane specified by axes.
@@ -3601,6 +3751,13 @@ public interface NDArray extends NDResource, BytesSupplier {
      * are infinite
      */
     NDArray isInfinite();
+
+    /**
+     * Computes the inverse of square {@code NDArray} if it exists.
+     *
+     * @return the inverse of square {@code NDArray}.
+     */
+    NDArray inverse();
 
     /**
      * Returns the boolean {@code NDArray} with value {@code true} where this {@code NDArray}'s
@@ -4674,7 +4831,7 @@ public interface NDArray extends NDResource, BytesSupplier {
      * href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
      */
     default NDArray oneHot(int depth, DataType dataType) {
-        return oneHot(depth, 0f, 1f, dataType);
+        return oneHot(depth, 1f, 0f, dataType);
     }
 
     /**
@@ -4745,6 +4902,11 @@ public interface NDArray extends NDResource, BytesSupplier {
      * @return the result {@code NDArray}
      */
     NDArray batchDot(NDArray other);
+
+    @Override
+    default void applyForNDArrays(Consumer<NDArray> operation) {
+        operation.accept(this);
+    }
 
     default void postpone() {
         if (getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).postpone(this);

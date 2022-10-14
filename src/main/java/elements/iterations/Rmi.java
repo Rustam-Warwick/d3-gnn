@@ -1,10 +1,9 @@
 package elements.iterations;
 
+import ai.djl.ndarray.MayContainNDArray;
 import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDList;
 import elements.ElementType;
 import elements.GraphElement;
-import helpers.GradientCollector;
 import operators.BaseWrapperOperator;
 import org.apache.flink.util.ExceptionUtils;
 
@@ -89,16 +88,11 @@ public class Rmi extends GraphElement {
     public void applyForNDArrays(Consumer<NDArray> operation) {
         super.applyForNDArrays(operation);
         for (Object arg : args) {
-            if (arg instanceof NDArray) {
-                operation.accept((NDArray) arg);
-            } else if (arg instanceof NDList) {
-                NDList tmp = (NDList) arg;
-                for (NDArray ndArray : tmp) {
-                    operation.accept(ndArray);
+            Arrays.stream(args).forEach(item -> {
+                if (arg instanceof MayContainNDArray) {
+                    ((MayContainNDArray) arg).applyForNDArrays(operation);
                 }
-            } else if (arg instanceof GradientCollector<?>) {
-                ((GradientCollector<?>) arg).values().forEach(operation);
-            }
+            });
         }
     }
 

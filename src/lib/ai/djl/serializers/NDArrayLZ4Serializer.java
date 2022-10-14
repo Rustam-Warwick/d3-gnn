@@ -25,7 +25,6 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
-
         ByteBuffer bb = o.toByteBuffer();
         output.writeByte(o.getDataType().ordinal()); // Data Types
         output.writeByte(o.getShape().getShape().length); // Shape length
@@ -36,6 +35,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         thisReuse.position(0);
         thisReuse.limit(thisReuse.capacity());
         lz4Compressor.compress(bb.rewind(), thisReuse);
+        bb.rewind();
         int actualSize = thisReuse.position();
         thisReuse.position(0);
         thisReuse.limit(actualSize);
@@ -43,6 +43,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         while (thisReuse.hasRemaining()) {
             output.writeByte(thisReuse.get());
         }
+
     }
 
     @Override

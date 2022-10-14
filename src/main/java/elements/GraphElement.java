@@ -1,5 +1,6 @@
 package elements;
 
+import ai.djl.ndarray.MayContainNDArray;
 import ai.djl.ndarray.NDArray;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -16,7 +17,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
-public class GraphElement implements Serializable {
+public class GraphElement implements Serializable, MayContainNDArray {
     protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage

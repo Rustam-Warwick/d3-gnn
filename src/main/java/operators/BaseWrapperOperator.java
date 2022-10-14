@@ -358,6 +358,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 processActualElement(element);
             }
         } else {
+            if(element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST){
+                element.getValue().setPartId(thisParts.get(0));
+                setKeyContextElement(element);
+            }
             processActualElement(element);
         }
     }

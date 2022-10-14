@@ -7,7 +7,6 @@ import elements.Plugin;
 import elements.iterations.RemoteFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
-import java.util.Arrays;
 import java.util.function.Consumer;
 
 public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
@@ -40,8 +39,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
         super(id, value, halo, master);
     }
 
-    public static NDArray bulkReduce(NDArray... newElements) {
-        return Arrays.stream(newElements).reduce(NDArray::add).get();
+    public static NDArray bulkReduce(NDArray newMessages) {
+        return newMessages.sum(new int[]{0});
     }
 
     @Override
@@ -68,8 +67,8 @@ public class MeanAggregator extends BaseAggregator<Tuple2<NDArray, Integer>> {
     }
 
     @Override
-    public NDArray grad(NDArray aggGradient, NDList messages) {
-        return aggGradient.div(value.f1).expandDims(0).repeat(0, messages.get(0).getShape().get(0)); // (batch_size, gradient)
+    public NDArray grad(NDArray aggGradient) {
+        return aggGradient.div(value.f1);
     }
 
     @Override

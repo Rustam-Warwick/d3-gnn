@@ -108,6 +108,8 @@ public class Reddit implements Dataset {
 
         public Set<Integer> seenVertices;
 
+        private int count = 0;
+
         public Parser(String labelFileName, String featureFileName) throws Exception {
             this.labelFileName = labelFileName;
             this.featureFileName = featureFileName;
@@ -125,7 +127,14 @@ public class Reddit implements Dataset {
         }
 
         @Override
+        public void close() throws Exception {
+            super.close();
+            System.out.println("Seen " + count + "Number of Edges");
+        }
+
+        @Override
         public void processElement(String value, ProcessFunction<String, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
+            count++;
             if (seenVertices.size() > 5000) return;
             String[] vIds = value.split("\t");
             Vertex src = new Vertex(vIds[0]);
@@ -138,7 +147,7 @@ public class Reddit implements Dataset {
             }
             if (!seenVertices.contains(vIdInt[1])) {
                 dest.setFeature("f", new Tensor(vertexFeatures.get(vIdInt[1])));
-                dest.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[1]),true, null));
+                dest.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[1]), true, null));
                 seenVertices.add(vIdInt[1]);
             }
             out.collect(new GraphOp(Op.COMMIT, new Edge(src, dest)));

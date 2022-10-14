@@ -36,10 +36,11 @@ import java.util.stream.IntStream;
 
 /**
  * {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
- * Added extra cleaner for this NDArray, works with explicit call as well as Cleaner for GC
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
+
     protected static final Cleaner cleaner = Cleaner.create();
+
     private static Unsafe UNSAFE;
 
     static {
@@ -52,7 +53,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    private final PtNDArrayEx ptNDArrayEx;
     protected PtNDManager manager;
     private transient Cleaner.Cleanable cleanable;
     private String name;
@@ -62,9 +62,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private Boolean hasGradient;
+    private PtNDArrayEx ptNDArrayEx;
+    private String[] strs;
+
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
+
     private ByteBuffer[] dataRef;
+
 
     /**
      * Constructs a PyTorch {@code NDArray} from a native handle (internal. Use {@link NDManager}
@@ -94,6 +99,22 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         this.ptNDArrayEx = new PtNDArrayEx(this);
         manager.attachInternal(getUid(), this);
         dataRef = new ByteBuffer[]{data};
+    }
+
+    /**
+     * Constructs a PyTorch {@code NDArray} to hold string array with a dummy native handle
+     * (internal. Use {@link NDManager} instead) with the data that is hold on Java side.
+     *
+     * @param manager the manager to attach the new array to
+     * @param strs    the string array
+     * @param shape   the {@link Shape} of the {@link NDArray}
+     */
+    public PtNDArray(PtNDManager manager, String[] strs, Shape shape) {
+        super(-1L);
+        this.manager = manager;
+        this.strs = strs;
+        this.shape = shape;
+        this.dataType = DataType.STRING;
     }
 
     /**
@@ -248,31 +269,31 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public String[] toStringArray(Charset charset) {
-        throw new UnsupportedOperationException("String NDArray is not supported!");
+        return strs;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void set(Buffer data) {
+    public void set(Buffer buffer) {
         int size = Math.toIntExact(size());
-        BaseNDManager.validateBufferSize(data, getDataType(), size);
+        DataType type = getDataType();
+        BaseNDManager.validateBuffer(buffer, type, size);
         // TODO how do we handle the exception happened in the middle
         dataRef = null;
-        if (data.isDirect() && data instanceof ByteBuffer) {
+        if (buffer.isDirect() && buffer instanceof ByteBuffer) {
             // If NDArray is on the GPU, it is native code responsibility to control the data life
             // cycle
             if (!getDevice().isGpu()) {
-                dataRef = new ByteBuffer[]{(ByteBuffer) data};
+                dataRef = new ByteBuffer[]{(ByteBuffer) buffer};
             }
-            JniUtils.set(this, (ByteBuffer) data);
+            JniUtils.set(this, (ByteBuffer) buffer);
             return;
         }
         // int8, uint8, boolean use ByteBuffer, so need to explicitly input DataType
-        DataType inputType = DataType.fromBuffer(data);
-        ByteBuffer buf = manager.allocateDirect(size * inputType.getNumOfBytes());
-        BaseNDManager.copyBuffer(data, buf);
+        ByteBuffer buf = manager.allocateDirect(size * type.getNumOfBytes());
+        BaseNDManager.copyBuffer(buffer, buf);
 
         // If NDArray is on the GPU, it is native code responsibility to control the data life cycle
         if (!getDevice().isGpu()) {
@@ -285,8 +306,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
-    public NDArray get(long... indices) {
-        return JniUtils.getItem(this, indices);
+    public NDArray get(NDManager manager, long... indices) {
+        return JniUtils.getItem(this, indices, (PtNDManager) manager);
     }
 
     /**
@@ -298,6 +319,28 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             throw new IllegalArgumentException("Only PtNDArray is supported.");
         }
         return JniUtils.gather(this, (PtNDArray) index, axis);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray take(NDManager manager, NDArray index) {
+        if (!(index instanceof PtNDArray)) {
+            throw new IllegalArgumentException("Only PtNDArray is supported.");
+        }
+        return JniUtils.take(this, (PtNDArray) index, (PtNDManager) manager);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray put(NDArray index, NDArray data) {
+        if (!(index instanceof PtNDArray) || !(data instanceof PtNDArray)) {
+            throw new IllegalArgumentException("Only PtNDArray is supported.");
+        }
+        return JniUtils.put(this, (PtNDArray) index, (PtNDArray) data);
     }
 
     /**
@@ -323,6 +366,16 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public void returnResource(NDManager manager) {
+        detach();
+        this.manager = (PtNDManager) manager;
+        manager.attachUncappedInternal(getUid(), this);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void tempAttach(NDManager manager) {
         if (this.manager == manager) return;
         manager.detachInternal(getUid(), this);
@@ -339,7 +392,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         manager.detachInternal(getUid(), this);
         manager = PtNDManager.getSystemManager();
         if (cleanable == null)
-            cleanable = cleaner.register(this, new PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
+            cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
+
     }
 
     /**
@@ -360,7 +414,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             // Result is flattened since shape is undetermined
             return JniUtils.booleanMask(this, manager.from(index));
         } else if (indexShape.equals(getShape().slice(axis))) {
-            // index will be broadcasted by default
+            // index will be broadcast by default
             try (PtNDArray flattedResult = JniUtils.booleanMask(this, manager.from(index))) {
                 // Shape recovery
                 Shape remainder = getShape().slice(0, axis);
@@ -920,6 +974,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public NDArray gammaln() {
+        throw new UnsupportedOperationException("Not implemented yet.");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public PtNDArray log() {
         return JniUtils.log(this);
     }
@@ -1151,6 +1213,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public PtNDArray normalize(double p, long dim, double eps) {
+        return JniUtils.normalize(this, p, dim, eps);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public PtNDArray rotate90(int times, int[] axes) {
         if (axes.length != 2) {
             throw new IllegalArgumentException("Axes must be 2");
@@ -1300,10 +1370,13 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray argSort(int axis, boolean ascending) {
-        if (!ascending) {
-            throw new UnsupportedOperationException("Only support ascending!");
+        PtNDArray arr = JniUtils.argSort(this, axis, false);
+        if (ascending) {
+            return arr;
         }
-        return JniUtils.argSort(this, axis, false);
+        PtNDArray flip = JniUtils.flip(arr, new long[]{axis});
+        arr.close();
+        return flip;
     }
 
     /**
@@ -1507,7 +1580,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         int otherDim = other.getShape().dimension();
         if (selfDim != otherDim || selfDim > 2) {
             throw new UnsupportedOperationException(
-                    "Dimension mismatch or high dimensional dot operation is not supported. Please use .matMul instead.");
+                    "Dimension mismatch or high dimensional dot operation is not supported. Please"
+                            + " use .matMul instead.");
         }
         return JniUtils.dot(this, manager.from(other));
     }
@@ -1708,6 +1782,14 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public PtNDArray inverse() {
+        return JniUtils.inverse(this);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public NDArray norm(boolean keepDims) {
         return JniUtils.norm(this, 2, new int[]{}, keepDims);
     }
@@ -1778,7 +1860,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     /**
-     * Only check the reference
+     * {@inheritDoc}
      */
     @Override
     public boolean equals(Object obj) {
@@ -1797,7 +1879,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     /**
-     * Added UNSAFE native memory deallocation + special detach method for the LifeCycleManager
      * {@inheritDoc}
      */
     @Override
@@ -1835,5 +1916,4 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             }
         }
     }
-
 }

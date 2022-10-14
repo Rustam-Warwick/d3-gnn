@@ -15,6 +15,7 @@ package plugins;
 
 import ai.djl.Device;
 import ai.djl.Model;
+import ai.djl.ndarray.GradientCollector;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
@@ -27,7 +28,6 @@ import elements.GraphOp;
 import elements.Op;
 import elements.Plugin;
 import elements.iterations.*;
-import helpers.GradientCollector;
 
 import java.util.HashMap;
 import java.util.Objects;
@@ -62,7 +62,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if (getPartId() == 0) collectedGradients = new GradientCollector<>(5);
+        if (getPartId() == 0) collectedGradients = new GradientCollector<>(true);
     }
 
     public Model getModel() {
@@ -86,7 +86,7 @@ public class ModelServer extends Plugin {
     @RemoteFunction
     public void collect(GradientCollector<String> newGradients) {
         assert getPartId() == 0;
-        collectedGradients.merge(newGradients);
+        collectedGradients.putAll(newGradients);
         if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_GRADIENTS = 0;
@@ -98,13 +98,12 @@ public class ModelServer extends Plugin {
      */
     @RemoteFunction
     public void updateAllParameters(HashMap<String, NDArray> masterParameters) {
-        System.out.println("MODEL UPDATED");
         model.getBlock().getParameters().forEach(parameter -> {
             if (masterParameters.containsKey(parameter.getValue().getId())) {
-                parameter.getValue().close();
-                parameter.getValue().setShape(null);
-                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
-                parameter.getValue().getArray().detach();
+                parameter.getValue().getArray().set(masterParameters.get(parameter.getValue().getId()).toByteBuffer());
+//                parameter.getValue().setShape(null);
+//                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
+//                parameter.getValue().getArray().detach();
             }
         });
     }
@@ -115,7 +114,7 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void updateAllParameters() {
-            HashMap<String, NDArray> parameters = new GradientCollector<>();
+            HashMap<String, NDArray> parameters = new GradientCollector<>(false);
             for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
                 if (collectedGradients.containsKey(parameter.getValue().getId())) {
                     optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
@@ -124,7 +123,7 @@ public class ModelServer extends Plugin {
             }
             Rmi rmi = new Rmi(getId(), "updateAllParameters", new Object[]{parameters}, elementType(), false, null);
             storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, rmi, null, MessageCommunication.BROADCAST), MessageDirection.ITERATE);
-            collectedGradients.clearPrepone();
+            collectedGradients.clear();
         }
 
         @Override
@@ -142,7 +141,7 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void sync() {
-            GradientCollector<String> thisGradients = new GradientCollector<>();
+            GradientCollector<String> thisGradients = new GradientCollector<>(false);
             model.getBlock().getParameters().forEach((parameter) -> {
                 if (parameter.getValue().getArray().hasGradient() && parameter.getValue().getArray().isValid()) {
                     thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());

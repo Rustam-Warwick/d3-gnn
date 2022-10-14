@@ -2,7 +2,6 @@ package helpers;
 
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
-import ai.djl.ndarray.SerializableLoss;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.SequentialBlock;
@@ -49,8 +48,8 @@ public class Main {
 
     public static void main(String[] args) throws Exception {
         // Configuration
-
         ArrayList<Model> models = layeredModel(); // Get the model to be served
+
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
@@ -65,7 +64,7 @@ public class Main {
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(2)))
-                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SerializableLoss(new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true))))
+                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true)))
                 )
 
         );

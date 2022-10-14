@@ -52,7 +52,7 @@ public abstract class BaseAggregator<T> extends Feature<T, NDArray> {
      * @param aggGradient dLoss/dAgg
      * @return dLoss/dmessages
      */
-    public abstract NDArray grad(NDArray aggGradient, NDList messages);
+    public abstract NDArray grad(NDArray aggGradient);
 
     /**
      * Reset the aggregator to its initial zero value state
