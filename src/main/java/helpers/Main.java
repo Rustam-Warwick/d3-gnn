@@ -2,34 +2,45 @@ package helpers;
 
 import ai.djl.MalformedModelException;
 import ai.djl.Model;
+import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
+import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.embedding_layer.StreamingGNNEmbeddingLayer;
+import plugins.embedding_layer.GNNEmbeddingTrainingPlugin;
+import plugins.vertex_classification.VertexClassificationTrainingPlugin;
 import storage.FlatObjectStorage;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.function.Function;
 
 public class Main {
 
     public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new SAGEConv(128, true));
         sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(41).optBias(true).build())
+                        .add(new Function<NDList, NDList>() {
+                            @Override
+                            public NDList apply(NDList ndArrays) {
+                                return Activation.relu(ndArrays);
+                            }
+                        })
 
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
@@ -49,23 +60,24 @@ public class Main {
         ArrayList<Model> models = layeredModel(); // Get the model to be served
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
+        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, true, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(),true, true))
-//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName()))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(),true, true))
+                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(),true, true))
-//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
+//                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(),true, true))
+                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
+                ),
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
+                        .withPlugin(new ModelServer(models.get(2)))
+                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true)))
                 )
-//                new StreamingGNNLayerFunction(new FlatObjectStorage()
-//                        .withPlugin(new ModelServer(models.get(2)))
-//                        .withPlugin(new VertexClassificationTrainingPlugin(models.get(2).getName(), new SoftmaxCrossEntropyLoss("crossEntropy", 1, -1, true, true)))
-//                )
 
         );
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

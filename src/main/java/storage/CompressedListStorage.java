@@ -74,6 +74,11 @@ public class CompressedListStorage extends BaseStorage {
                 Set.class.getConstructor()
         ));
 
+        this.vFeature.put("train_l", Tuple3.of(
+                layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vFeature_parts", Types.INT, Types.LIST(Types.SHORT))),
+                true,
+                Set.class.getConstructor()
+        ));
         super.open();
         layerFunction.getWrapperContext().runForAllKeys(() -> {
             try {

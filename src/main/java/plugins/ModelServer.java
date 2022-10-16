@@ -15,8 +15,8 @@ package plugins;
 
 import ai.djl.Device;
 import ai.djl.Model;
-import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import ai.djl.training.ParameterStore;
@@ -24,12 +24,9 @@ import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
-import elements.GraphOp;
-import elements.Op;
 import elements.Plugin;
-import elements.iterations.*;
+import elements.iterations.RemoteFunction;
 
-import java.util.HashMap;
 import java.util.Objects;
 
 /**
@@ -42,7 +39,7 @@ public class ModelServer extends Plugin {
 
     public Model model; // Model attached
 
-    public int NUMBER_OF_COLLECTED_GRADIENTS; // How many gradients have been collected so far
+    public int NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
 
     protected transient Optimizer optimizer; // Optimizer
 
@@ -50,7 +47,7 @@ public class ModelServer extends Plugin {
 
     private transient ParameterStore parameterStore;
 
-    private transient NDArrayCollector<String> collectedGradients;
+    private transient NDArrayCollector<String> collectedParameters;
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
@@ -62,7 +59,7 @@ public class ModelServer extends Plugin {
         inputShape = model.describeInput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
-        if (getPartId() == 0) collectedGradients = new NDArrayCollector<>(true);
+        collectedParameters = new NDArrayCollector<>(true);
     }
 
     public Model getModel() {
@@ -84,29 +81,15 @@ public class ModelServer extends Plugin {
      * </p>
      */
     @RemoteFunction
-    public void collect(NDArrayCollector<String> newGradients) {
-        assert getPartId() == 0;
-        collectedGradients.putAll(newGradients);
-        if (++NUMBER_OF_COLLECTED_GRADIENTS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
+    public void collectParameters(NDArrayCollector<String> newParameters) {
+        collectedParameters.putAll(newParameters);
+        if (++NUMBER_OF_COLLECTED_PARAMETERS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
-            NUMBER_OF_COLLECTED_GRADIENTS = 0;
+            NUMBER_OF_COLLECTED_PARAMETERS = 0;
+            collectedParameters.clear();
         }
     }
 
-    /**
-     * Update the model of replicas to the sent master parameters
-     */
-    @RemoteFunction
-    public void updateAllParameters(HashMap<String, NDArray> masterParameters) {
-        model.getBlock().getParameters().forEach(parameter -> {
-            if (masterParameters.containsKey(parameter.getValue().getId())) {
-                parameter.getValue().getArray().set(masterParameters.get(parameter.getValue().getId()).toByteBuffer());
-//                parameter.getValue().setShape(null);
-//                parameter.getValue().setArray(masterParameters.get(parameter.getValue().getId()));
-//                parameter.getValue().getArray().detach();
-            }
-        });
-    }
 
     public class ParameterStoreWrapper extends ParameterStore {
         /**
@@ -114,22 +97,17 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void updateAllParameters() {
-            HashMap<String, NDArray> parameters = new NDArrayCollector<>(false);
             for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
-                if (collectedGradients.containsKey(parameter.getValue().getId())) {
-                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), collectedGradients.get(parameter.getValue().getId()));
-                    parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
-                }
+                parameter.getValue().getArray().set(collectedParameters.get(parameter.getValue().getId()).divi(NUMBER_OF_COLLECTED_PARAMETERS).toByteBuffer());
             }
-            Rmi rmi = new Rmi(getId(), "updateAllParameters", new Object[]{parameters}, elementType(), false, null);
-            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, null, rmi, null, MessageCommunication.BROADCAST), MessageDirection.ITERATE);
-            collectedGradients.clear();
         }
 
         @Override
         public NDArray getValue(Parameter parameter, Device device, boolean training) {
             if (Objects.nonNull(parameter)) {
-                parameter.getArray().setRequiresGradient(training);
+                if(parameter.getArray().hasGradient() != training){
+                    parameter.getArray().setRequiresGradient(training);
+                }
                 return parameter.getArray();
             } else {
                 return null;
@@ -141,20 +119,15 @@ public class ModelServer extends Plugin {
          */
         @Override
         public void sync() {
-            NDArrayCollector<String> thisGradients = new NDArrayCollector<>(false);
-            model.getBlock().getParameters().forEach((parameter) -> {
-                if (parameter.getValue().getArray().hasGradient() && parameter.getValue().getArray().isValid()) {
-                    thisGradients.put(parameter.getValue().getId(), parameter.getValue().getArray().getGradient());
-                }
-            });
-            new RemoteInvoke()
-                    .withArgs(thisGradients)
-                    .where(MessageDirection.ITERATE)
-                    .toElement(getId(), elementType())
-                    .noUpdate()
-                    .addDestination((short) 0)
-                    .method("collect")
-                    .buildAndRun(storage);
+//            HashMap<String, NDArray> parameters = new NDArrayCollector<>(false);
+//            for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
+//                if (parameter.getValue().getArray().hasGradient()) {
+//                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
+//                }
+//                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
+//            }
+//            Rmi rmi = new Rmi(getId(), "collectParameters", new Object[]{parameters}, elementType(), false, null);
+//            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, rmi).setMessageCommunication(MessageCommunication.BROADCAST), MessageDirection.ITERATE);
         }
     }
 }

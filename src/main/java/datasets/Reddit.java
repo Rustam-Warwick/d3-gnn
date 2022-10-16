@@ -120,22 +120,16 @@ public class Reddit implements Dataset {
             FileInputStream vertexFeaturesIn = new FileInputStream(featureFileName);
             FileInputStream vertexLabelsIn = new FileInputStream(labelFileName);
             vertexFeatures = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexFeaturesIn);
-            vertexLabels = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexLabelsIn).expandDims(1);
+            vertexLabels = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexLabelsIn);
             vertexFeatures.postpone();
             vertexLabels.postpone();
             seenVertices = new HashSet<>(10000);
         }
 
         @Override
-        public void close() throws Exception {
-            super.close();
-            System.out.println("Seen " + count + "Number of Edges");
-        }
-
-        @Override
         public void processElement(String value, ProcessFunction<String, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            count++;
-            if (seenVertices.size() > 5000) return;
+            if(count == 20000000) System.out.println(seenVertices.size() + "FINISHEDDDD");
+            if(count++ > 20000000) return;
             String[] vIds = value.split("\t");
             Vertex src = new Vertex(vIds[0]);
             Vertex dest = new Vertex(vIds[1]);

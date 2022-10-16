@@ -1,7 +1,7 @@
 package plugins.vertex_classification;
 
-import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.Shape;
@@ -17,6 +17,10 @@ import elements.iterations.RemoteInvoke;
 import operators.events.BackwardBarrier;
 import operators.events.BaseOperatorEvent;
 import operators.events.ForwardBarrier;
+import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Gauge;
+import org.apache.flink.metrics.MeterView;
+import org.apache.flink.metrics.SimpleCounter;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +33,10 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
 
     public final Loss loss;
 
+    protected transient Counter epochThroughput; // Epoch Trhoughput counter
+
+    protected transient float previousLoss;
+
     public VertexClassificationTrainingPlugin(String modelName, Loss loss) {
         super(modelName, "trainer");
         this.loss = loss;
@@ -37,7 +45,23 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     @Override
     public void open() throws Exception {
         super.open();
+        epochThroughput = new SimpleCounter();
+        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
+        storage.layerFunction.getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
+            @Override
+            public Integer getValue() {
+                return (int) previousLoss * 100;
+            }
+        });
     }
+
+//    @Override
+//    public void addElementCallback(GraphElement element) {
+//        super.addElementCallback(element);
+//        if(element.elementType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
+//            element.setFeature("train_l", new Tensor(LifeCycleNDManager.getInstance().ones(new Shape()),false, null));
+//        }
+//    }
 
     /**
      * For all the trainVertices compute the backward pass and send the collected gradients to previous layer
@@ -52,7 +76,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList labels = new NDList();
         List<String> vertexIds = new ArrayList<>();
         for (Vertex vertex : storage.getVertices()) {
-            if (vertex.state() != ReplicaState.MASTER) continue;
+            if (vertex.state() != ReplicaState.MASTER || !vertex.containsFeature("train_l")) continue;
             inputs.add((NDArray) vertex.getFeature("f").getValue());
             labels.add((NDArray) vertex.getFeature("train_l").getValue());
             vertexIds.add(vertex.getId());
@@ -63,7 +87,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-        System.out.println(meanLoss);
+        previousLoss = meanLoss.getFloat();
         JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
         NDArray gradient = batchedInputs.get(0).getGradient();
         // 2. Prepare the HashMap for Each Vertex and send to previous layer
@@ -92,6 +116,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     public void onOperatorEvent(BaseOperatorEvent event) {
         super.onOperatorEvent(event);
         if (event instanceof ForwardBarrier) {
+            epochThroughput.inc(10000);
             storage.layerFunction.runForAllLocalParts(this::startTraining);
             storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
             modelServer.getParameterStore().sync();

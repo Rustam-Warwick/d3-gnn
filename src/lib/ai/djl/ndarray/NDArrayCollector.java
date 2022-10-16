@@ -39,19 +39,22 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ma
     }
 
     public NDArray put(T key, NDArray value) {
-        return compute(key, (localKey, localValue) -> {
-            if (localValue == null) {
-                if(delayManagers) value.postpone();
-                return value;
-            } else {
-                NDArray newValue = localValue.add(value);
-                if(delayManagers){
-                    newValue.postpone();
-                    localValue.prepone();
-                }
-                return newValue;
-            }
-        });
+        if(!containsKey(key) && delayManagers) value.postpone();
+        merge(key, value, NDArray::addi);
+//        return compute(key, (localKey, localValue) -> {
+//            if (localValue == null) {
+//                if(delayManagers) value.postpone();
+//                return value;
+//            } else {
+//                NDArray newValue = localValue.add(value);
+//                if(delayManagers){
+//                    newValue.postpone();
+//                    localValue.prepone();
+//                }
+//                return newValue;
+//            }
+//        });
+        return get(key);
     }
 
     //    public void put(T key, NDArray value){

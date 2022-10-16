@@ -47,13 +47,11 @@ public class LifeCycleNDManager extends PtNDManager {
 
     public int scopedCount = 0; // Count of opened tensors when we are in a scope
 
-    protected long closedCount = 0; // Count of closed tensor for reporting purposes
 
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
-                        closedCount++;
                         if (key instanceof PtNDArray) ((PtNDArray) key).manager = null;
                         key.close();
                     }
@@ -105,8 +103,6 @@ public class LifeCycleNDManager extends PtNDManager {
                     } catch (Exception ignored) {
                         LOG.error("Exception in trying to close all Tensors");
                     }
-                } else {
-                    LOG.info(String.format("Thread:%s, attached:%s detached:%s closed:%s", val.f0, val.f1.attached.asMap().size(), val.f1.detached.size(), val.f1.closedCount));
                 }
             }
 

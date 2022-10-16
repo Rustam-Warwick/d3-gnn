@@ -90,48 +90,53 @@ public final class GraphOp {
         return op;
     }
 
-    public void setOp(@NotNull Op op) {
-        this.op = op;
+    public GraphOp setOp(@NotNull Op op) {
+        this.op = op; return this;
     }
 
     public Short getPartId() {
         return partId;
     }
 
-    public void setPartId(Short partId) {
+    public GraphOp setPartId(Short partId) {
         this.partId = partId;
+        return this;
     }
 
     public GraphElement getElement() {
         return element;
     }
 
-    public void setElement(GraphElement element) {
+    public GraphOp setElement(GraphElement element) {
         this.element = element;
+        return this;
     }
 
     public Long getTimestamp() {
         return ts;
     }
 
-    public void setTimestamp(Long ts) {
+    public GraphOp setTimestamp(Long ts) {
         this.ts = ts;
+        return this;
     }
 
     public @NotNull MessageCommunication getMessageCommunication() {
         return messageCommunication;
     }
 
-    public void setMessageCommunication(@NotNull MessageCommunication messageCommunication) {
+    public GraphOp setMessageCommunication(@NotNull MessageCommunication messageCommunication) {
         this.messageCommunication = messageCommunication;
+        return this;
     }
 
     public BaseOperatorEvent getOperatorEvent() {
         return operatorEvent;
     }
 
-    public void setOperatorEvent(BaseOperatorEvent operatorEvent) {
+    public GraphOp setOperatorEvent(BaseOperatorEvent operatorEvent) {
         this.operatorEvent = operatorEvent;
+        return this;
     }
 
     public boolean isTopologicalUpdate() {
