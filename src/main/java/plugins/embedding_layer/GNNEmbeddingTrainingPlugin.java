@@ -31,8 +31,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
 
     public int numTrainingSyncMessages; // #Sync messages sent for backward messages
 
-    public double sampleProb = 0.6; // Sample this many elements only
-
     public transient Map<Short, Tuple2<NDArrayCollector<String>, NDArrayCollector<String>>> collectors;
 
     public GNNEmbeddingTrainingPlugin(String modelName) {
