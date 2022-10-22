@@ -55,16 +55,13 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     protected PtNDManager manager;
     private transient Cleaner.Cleanable cleanable;
-    private String name;
     private Device device;
     private DataType dataType;
     private Shape shape;
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
-    private Boolean hasGradient;
+    private transient Boolean hasGradient;
     private PtNDArrayEx ptNDArrayEx;
-    private String[] strs;
-
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
 
@@ -112,7 +109,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public PtNDArray(PtNDManager manager, String[] strs, Shape shape) {
         super(-1L);
         this.manager = manager;
-        this.strs = strs;
         this.shape = shape;
         this.dataType = DataType.STRING;
     }
@@ -130,7 +126,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public String getName() {
-        return name;
+        throw new IllegalStateException("No name for PtNDArray");
     }
 
     /**
@@ -138,7 +134,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void setName(String name) {
-        this.name = name;
     }
 
     /**
@@ -269,7 +264,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public String[] toStringArray(Charset charset) {
-        return strs;
+        throw new IllegalStateException("String array feature is disabled");
     }
 
     /**

@@ -60,7 +60,6 @@ public class Main {
         ArrayList<Model> models = layeredModel(); // Get the model to be served
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, true, false,
