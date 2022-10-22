@@ -66,8 +66,8 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     /**
      * For all the trainVertices compute the backward pass and send the collected gradients to previous layer
      * <p>
-     *      Only works with Master vertices of this storage layer which have train labels.
-     *      Because of flushing before training assumes that all vertices have their features in place here.
+     * Only works with Master vertices of this storage layer which have train labels.
+     * Because of flushing before training assumes that all vertices have their features in place here.
      * </p>
      */
     public void startTraining() {
@@ -81,7 +81,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
             labels.add((NDArray) vertex.getFeature("train_l").getValue());
             vertexIds.add(vertex.getId());
         }
-        if(inputs.isEmpty()) return;
+        if (inputs.isEmpty()) return;
         NDList batchedInputs = new NDList(NDArrays.stack(inputs));
         batchedInputs.get(0).setRequiresGradient(true);
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
@@ -109,7 +109,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     /**
      * Handle Training Start
      * <p>
-     *     ForwardBarrier -> Send Training Grads back, Send BackwardBarrier backwards, Call for model sync
+     * ForwardBarrier -> Send Training Grads back, Send BackwardBarrier backwards, Call for model sync
      * </p>
      */
     @Override

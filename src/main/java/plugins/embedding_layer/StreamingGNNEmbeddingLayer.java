@@ -155,7 +155,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
     public void reduceOutEdges(Vertex v) {
         Preconditions.checkNotNull(v);
         Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
-        final NDList[] msg  = new NDList[1];
+        final NDList[] msg = new NDList[1];
         HashMap<Short, Tuple2<List<String>, NDList>> reduceMessages = null;
         for (Edge edge : outEdges) {
             if (this.messageReady(edge)) {
@@ -167,7 +167,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
                 reduceMessages.get(edge.getDest().masterPart()).f0.add(edge.getDest().getId());
             }
         }
-        if(reduceMessages == null) return;
+        if (reduceMessages == null) return;
         for (Map.Entry<Short, Tuple2<List<String>, NDList>> shortTuple2Entry : reduceMessages.entrySet()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
@@ -181,12 +181,13 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
     }
 
     @RemoteFunction
-    public void receiveReduceOutEdges(List<String> vertices, NDList message){
-        Rmi rmi = new Rmi(null, "reduce", new Object[]{message, 1}, null,true, null);
+    public void receiveReduceOutEdges(List<String> vertices, NDList message) {
+        Rmi rmi = new Rmi(null, "reduce", new Object[]{message, 1}, null, true, null);
         for (String vertex : vertices) {
-                Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
+            Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
         }
     }
+
     /**
      * Given oldFeature value and new Feature value update the Out Edged aggregators
      *
@@ -211,7 +212,7 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
             }
         }
 
-        if(replaceMessages == null) return;
+        if (replaceMessages == null) return;
         for (Map.Entry<Short, Tuple3<List<String>, NDList, NDList>> shortTuple2Entry : replaceMessages.entrySet()) {
             new RemoteInvoke()
                     .toElement(getId(), elementType())
@@ -223,13 +224,15 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
                     .buildAndRun(storage);
         }
     }
+
     @RemoteFunction
-    public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld){
-        Rmi rmi = new Rmi(null, "replace", new Object[]{messageNew, messageOld}, null,true, null);
+    public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
+        Rmi rmi = new Rmi(null, "replace", new Object[]{messageNew, messageOld}, null, true, null);
         for (String vertex : vertices) {
             Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
         }
     }
+
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
      *

@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public abstract class NativeResource<T> implements AutoCloseable {
 
     protected final AtomicReference<T> handle;
+
     protected NativeResource(T handle) {
         this.handle = new AtomicReference<>(handle);
 

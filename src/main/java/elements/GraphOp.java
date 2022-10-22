@@ -91,7 +91,8 @@ public final class GraphOp {
     }
 
     public GraphOp setOp(@NotNull Op op) {
-        this.op = op; return this;
+        this.op = op;
+        return this;
     }
 
     public Short getPartId() {

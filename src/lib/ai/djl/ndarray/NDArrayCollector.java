@@ -39,7 +39,7 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ma
     }
 
     public NDArray put(T key, NDArray value) {
-        if(!containsKey(key) && delayManagers) value.postpone();
+        if (!containsKey(key) && delayManagers) value.postpone();
         merge(key, value, NDArray::addi);
 //        return compute(key, (localKey, localValue) -> {
 //            if (localValue == null) {
@@ -61,9 +61,10 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ma
 //
 //    }
     public void clear() {
-        if(delayManagers) values().forEach(NDArray::prepone);
+        if (delayManagers) values().forEach(NDArray::prepone);
         super.clear();
     }
+
     @Override
     public void applyForNDArrays(Consumer<NDArray> operation) {
         values().forEach(operation);

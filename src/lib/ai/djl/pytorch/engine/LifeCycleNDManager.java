@@ -44,10 +44,6 @@ public class LifeCycleNDManager extends PtNDManager {
     protected final ManualTicker ticker = new ManualTicker(); // Logical timer depending on the data-rate
 
     protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>(); // Map of detached tensors
-
-    public int scopedCount = 0; // Count of opened tensors when we are in a scope
-
-
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
@@ -62,6 +58,7 @@ public class LifeCycleNDManager extends PtNDManager {
             .ticker(ticker)
             .scheduler(Scheduler.systemScheduler())
             .build();
+    public int scopedCount = 0; // Count of opened tensors when we are in a scope
 
     private LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);

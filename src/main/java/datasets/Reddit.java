@@ -128,8 +128,8 @@ public class Reddit implements Dataset {
 
         @Override
         public void processElement(String value, ProcessFunction<String, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            if(count == 20000000) System.out.println(seenVertices.size() + "FINISHEDDDD");
-            if(count++ > 20000000) return;
+            if (count == 20000000) System.out.println(seenVertices.size() + "FINISHEDDDD");
+            if (count++ > 20000000) return;
             String[] vIds = value.split("\t");
             Vertex src = new Vertex(vIds[0]);
             Vertex dest = new Vertex(vIds[1]);

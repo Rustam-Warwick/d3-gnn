@@ -54,7 +54,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
      */
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients) {
-        if(gradients.isEmpty())return;
+        if (gradients.isEmpty()) return;
         collectors.computeIfAbsent(getPartId(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
         collectors.get(getPartId()).f0.putAll(gradients);
     }
@@ -64,7 +64,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
      */
     @RemoteFunction
     public void collectAggregators(HashMap<String, NDArray> gradients) {
-        if(gradients.isEmpty())return;
+        if (gradients.isEmpty()) return;
         collectors.computeIfAbsent(getPartId(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
         NDArrayCollector<String> collector = collectors.get(getPartId()).f1;
         for (Map.Entry<String, NDArray> stringNDArrayEntry : gradients.entrySet()) {
@@ -78,7 +78,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     /**
      * First part of training resposible for getting update gradients and message gradients
      * <p>
-     *     Assumes to contain only gradients for master vertices with aggregators allocated already
+     * Assumes to contain only gradients for master vertices with aggregators allocated already
      * </p>
      */
     public void trainFirstPart() {
@@ -164,7 +164,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             }
 
             collectedGradients.clear();
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -172,8 +172,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     /**
      * Second part of training responsible for getting message gradients
      * <p>
-     *     Batch compute gradients for message function as well as previous layer updates
-     *     Previous layer updates are needed only if this is not First layer of GNN
+     * Batch compute gradients for message function as well as previous layer updates
+     * Previous layer updates are needed only if this is not First layer of GNN
      * </p>
      */
     public void trainSecondPart() {
@@ -215,7 +215,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                 }
             }
             collectedAggregators.clear();
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -223,7 +223,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     /**
      * Do the first aggregation cycle of the inference.
      * <p>
-     *     Reset local aggregators, Collect local vertices, batch messages going to a vertex and send RMI reduce messages
+     * Reset local aggregators, Collect local vertices, batch messages going to a vertex and send RMI reduce messages
      * </p>
      */
     public void inferenceFirstPartStart() {
@@ -289,8 +289,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     /**
      * Manager training and batched inference script
      * <p>
-     *     BackwardBarrier -> FirstTrainingPart then Second Training Part and sync model
-     *     ForwardBarrier -> Skip one iteration for propegating features -> Inference FirstPart(reduce) -> Inference Second Part(forward)
+     * BackwardBarrier -> FirstTrainingPart then Second Training Part and sync model
+     * ForwardBarrier -> Skip one iteration for propegating features -> Inference FirstPart(reduce) -> Inference Second Part(forward)
      * </p>
      */
     @Override
@@ -300,10 +300,12 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             if (++numTrainingSyncMessages == 1) {
                 storage.layerFunction.runForAllLocalParts(this::trainFirstPart);
                 storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
-            } else{
+            } else {
                 storage.layerFunction.runForAllLocalParts(this::trainSecondPart);
-                if(storage.layerFunction.isFirst())storage.layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
-                else storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+                if (storage.layerFunction.isFirst())
+                    storage.layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                else
+                    storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
                 numTrainingSyncMessages = 0;
                 modelServer.getParameterStore().sync();
             }

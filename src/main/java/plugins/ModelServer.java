@@ -105,7 +105,7 @@ public class ModelServer extends Plugin {
         @Override
         public NDArray getValue(Parameter parameter, Device device, boolean training) {
             if (Objects.nonNull(parameter)) {
-                if(parameter.getArray().hasGradient() != training){
+                if (parameter.getArray().hasGradient() != training) {
                     parameter.getArray().setRequiresGradient(training);
                 }
                 return parameter.getArray();

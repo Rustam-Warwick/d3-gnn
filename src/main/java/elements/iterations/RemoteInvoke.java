@@ -83,12 +83,12 @@ public class RemoteInvoke {
     }
 
     public void buildAndRun(BaseStorage storage) {
-        if(!verify()) throw new IllegalArgumentException("Incorrect RMI format");
+        if (!verify()) throw new IllegalArgumentException("Incorrect RMI format");
         for (Short destination : destinations) {
-            if(destination.equals(storage.layerFunction.getCurrentPart()) && messageDirection == MessageDirection.ITERATE){
+            if (destination.equals(storage.layerFunction.getCurrentPart()) && messageDirection == MessageDirection.ITERATE) {
                 Rmi.execute(storage.getElement(elementId, elementType), new Rmi(elementId, methodName, args, elementType, hasUpdate, ts));
-            }else{
-                storage.layerFunction.message(new GraphOp(Op.RMI, destination,new Rmi(elementId, methodName, args, elementType, hasUpdate, ts)), messageDirection);
+            } else {
+                storage.layerFunction.message(new GraphOp(Op.RMI, destination, new Rmi(elementId, methodName, args, elementType, hasUpdate, ts)), messageDirection);
             }
         }
     }
