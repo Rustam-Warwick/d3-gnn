@@ -2,7 +2,6 @@ package elements;
 
 import operators.events.BaseOperatorEvent;
 
-import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,14 +32,13 @@ public class Plugin extends ReplicableGraphElement {
         throw new IllegalStateException("Plugins are not created");
     }
 
-    @Nullable
     @Override
-    public Short getPartId() {
+    public short getPartId() {
         return storage.layerFunction.getCurrentPart();
     }
 
     @Override
-    public void setPartId(@Nullable Short partId) {
+    public void setPartId(short partId) {
         // Do not set instead fetch from the stroage
     }
 

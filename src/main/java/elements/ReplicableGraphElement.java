@@ -6,20 +6,25 @@ import elements.iterations.RemoteInvoke;
 import features.Set;
 import org.apache.flink.api.java.tuple.Tuple2;
 
-import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
 public class ReplicableGraphElement extends GraphElement {
-    @Nullable
-    public Short master;
+
+    public short master = -1;
 
     public Boolean halo = false;
 
     public ReplicableGraphElement() {
         super();
+    }
+
+    public ReplicableGraphElement(String id, boolean halo, short master) {
+        super(id);
+        this.halo = halo;
+        this.master = master;
     }
 
     public ReplicableGraphElement(ReplicableGraphElement element, boolean deepCopy) {
@@ -28,11 +33,7 @@ public class ReplicableGraphElement extends GraphElement {
         this.halo = element.halo;
     }
 
-    public ReplicableGraphElement(String id, boolean halo, @Nullable Short master) {
-        super(id);
-        this.halo = halo;
-        this.master = master;
-    }
+
 
     @Override
     public ReplicableGraphElement copy() {
@@ -66,7 +67,7 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            assert newElement.getPartId() != null;
+            assert newElement.getPartId() != -1;
             if (!containsFeature("p"))
                 setFeature("p", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
             new RemoteInvoke()
@@ -164,13 +165,12 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    @Nullable
-    public Short masterPart() {
+    public short masterPart() {
         return this.master;
     }
 
     @Override
-    public Boolean isHalo() {
+    public boolean isHalo() {
         return this.halo;
     }
 
@@ -181,7 +181,7 @@ public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    public Boolean isReplicable() {
+    public boolean isReplicable() {
         return true;
     }
 }

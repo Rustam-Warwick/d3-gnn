@@ -25,10 +25,8 @@ public class GraphElement implements Serializable, MayContainNDArray {
     public String id;
 
     @OmitStorage
-    @Nullable
-    public Short partId;
+    public short partId = -1;
 
-    @Nullable
     public Long ts;
 
     @Nullable
@@ -45,9 +43,6 @@ public class GraphElement implements Serializable, MayContainNDArray {
 
     public GraphElement(@Nullable String id) {
         this.id = id;
-        this.partId = null;
-        this.storage = null;
-        this.features = null;
     }
 
     public GraphElement(GraphElement element, boolean deepCopy) {
@@ -196,7 +191,7 @@ public class GraphElement implements Serializable, MayContainNDArray {
     /**
      * @return is this element replicable
      */
-    public Boolean isReplicable() {
+    public boolean isReplicable() {
         return false;
     }
 
@@ -205,8 +200,7 @@ public class GraphElement implements Serializable, MayContainNDArray {
      *
      * @return master part of this element
      */
-    @Nullable
-    public Short masterPart() {
+    public short masterPart() {
         return getPartId();
     }
 
@@ -215,7 +209,7 @@ public class GraphElement implements Serializable, MayContainNDArray {
      *
      * @return is this element Halo()
      */
-    public Boolean isHalo() {
+    public boolean isHalo() {
         return false;
     }
 
@@ -225,8 +219,8 @@ public class GraphElement implements Serializable, MayContainNDArray {
      * @return state of this element
      */
     public ReplicaState state() {
-        if (getPartId() == null || masterPart() == null) return ReplicaState.UNDEFINED;
-        if (Objects.equals(getPartId(), this.masterPart())) return ReplicaState.MASTER;
+        if (getPartId() == -1) return ReplicaState.UNDEFINED;
+        if (getPartId() == masterPart()) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
 
@@ -283,17 +277,15 @@ public class GraphElement implements Serializable, MayContainNDArray {
      *
      * @return Element part id
      */
-    @Nullable
-    public Short getPartId() {
+    public short getPartId() {
         return partId;
     }
 
     /**
      * Set the part id of this element
-     *
      * @param partId part id
      */
-    public void setPartId(@Nullable Short partId) {
+    public void setPartId(short partId) {
         this.partId = partId;
     }
 

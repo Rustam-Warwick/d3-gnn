@@ -10,12 +10,12 @@ public class Vertex extends ReplicableGraphElement {
         super(id, false, (short) -1);
     }
 
-    public Vertex(Vertex v, boolean deepCopy) {
-        super(v, deepCopy);
-    }
-
     public Vertex(String id, boolean halo, short master) {
         super(id, halo, master);
+    }
+
+    public Vertex(Vertex v, boolean deepCopy) {
+        super(v, deepCopy);
     }
 
     @Override

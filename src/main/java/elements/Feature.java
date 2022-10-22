@@ -183,7 +183,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     @Override
-    public Boolean isReplicable() {
+    public boolean isReplicable() {
         if (attachedTo != null) {
             if (Objects.nonNull(getElement())) {
                 return getElement().isReplicable();

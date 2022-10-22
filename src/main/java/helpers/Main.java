@@ -13,9 +13,11 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import ai.djl.training.loss.SoftmaxCrossEntropyLoss;
 import elements.GraphOp;
+import elements.Vertex;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.openjdk.jol.info.ClassLayout;
 import plugins.ModelServer;
 import plugins.embedding_layer.GNNEmbeddingTrainingPlugin;
 import plugins.vertex_classification.VertexClassificationTrainingPlugin;
@@ -54,13 +56,31 @@ public class Main {
         });
         return models;
     }
+    public static void benchmarkObjectCreation(){
+        long being = System.currentTimeMillis();
+        Vertex v = null;
+        for (int i = 0; i < 1000000; i++) {
+            v = new Vertex("222");
+        }
+        System.out.format("Time elapsed is %s\n", -(being - System.currentTimeMillis()));
+        being = System.currentTimeMillis();
+        for (int i = 0; i < 1000000; i++) {
+            v.id = "333";
+            v.storage = null;
+            v.features = null;
+            v.halo = false;
+        }
+        System.out.format("Time elapsed is %s\n", -(being - System.currentTimeMillis()));
+    }
 
     public static void main(String[] args) throws Exception {
         // Configuration
+        benchmarkObjectCreation();
         ArrayList<Model> models = layeredModel(); // Get the model to be served
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
+        System.out.println(ClassLayout.parseInstance(new Vertex("s")).toPrintable());
+        System.out.println(ClassLayout.parseInstance(LifeCycleNDManager.getInstance().create(3)).toPrintable());
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, true, false,
