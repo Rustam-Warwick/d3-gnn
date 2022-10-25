@@ -10,7 +10,7 @@ from os.path import abspath, join
 
 
 class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
-    """ Sampler for edges with temporal ids """
+    """ Sampler for uniEdges with temporal ids """
 
     def __init__(self, num_layers=None, sample_size=None, **kwargs):
         assert num_layers is not None or sample_size is not None, "Either sample sample or num_layers should be not None"
@@ -24,14 +24,14 @@ class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
         """ Call this method to update the time """
         self.T = new_T
 
-    def filter_timestamp(self, edge):
-        """ Filter function for edges according to timestamp """
-        return edge.data["_ID"] > self.T
+    def filter_timestamp(self, uniEdge):
+        """ Filter function for uniEdges according to timestamp """
+        return uniEdge.data["_ID"] > self.T
 
     def sample_neighbors(self, graph, seed_nodes, fanout, edge_dir='in', prob=None,
                          exclude_edges=None, replace=False, etype_sorted=True,
                          output_device=None):
-        """ Changed the method for sampling because the default one did not fetch the out edges """
+        """ Changed the method for sampling because the default one did not fetch the out uniEdges """
         if len(graph.etypes) > 1:
             frontier = dgl.distributed.graph_services.sample_etype_neighbors(
                 graph, seed_nodes, dgl.distributed.graph_services.ETYPE, fanout, prob=prob, replace=replace,
@@ -53,7 +53,7 @@ class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
                                                                  replace=self.replace, output_device=self.output_device,
                                                                  exclude_edges=exclude_eids)
             frontier.remove_edges(frontier.filter_edges(self.filter_timestamp))
-            seed_nodes = frontier.edges()[1]
+            seed_nodes = frontier.uniEdges()[1]
             for i in seed_nodes:
                 if i not in output_nodes:
                     output_nodes.append(i)
@@ -108,7 +108,7 @@ class Tester:
         sampler = TemporalEdgeSampler(num_layers=NUM_LAYERS, edge_dir="in")
 
         for i in range(local_graph.number_of_edges()):
-            new_src, new_dest, time = local_graph.edges()[0][i], local_graph.edges()[1][i], \
+            new_src, new_dest, time = local_graph.uniEdges()[0][i], local_graph.uniEdges()[1][i], \
                                       local_graph.edata["orig_id"][i]
             sampler.update_T(time)
             if time == 17386:

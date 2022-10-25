@@ -87,12 +87,12 @@ public class HDRF extends BasePartitioner {
             } else return 0;
         }
 
-        public float REP(Edge edge, short partition) {
-            int srcDeg = partialDegTable.get(edge.getSrc().getId());
-            int destDeg = partialDegTable.get(edge.getDest().getId());
+        public float REP(UniEdge uniEdge, short partition) {
+            int srcDeg = partialDegTable.get(uniEdge.getSrc().getId());
+            int destDeg = partialDegTable.get(uniEdge.getDest().getId());
             float srcDegNormal = (float) srcDeg / (srcDeg + destDeg);
             float destDegNormal = 1 - srcDegNormal;
-            return this.G(edge.getSrc().getId(), srcDegNormal, partition) + this.G(edge.getDest().getId(), destDegNormal, partition);
+            return this.G(uniEdge.getSrc().getId(), srcDegNormal, partition) + this.G(uniEdge.getDest().getId(), destDegNormal, partition);
         }
 
         public float BAL(short partition) {
@@ -100,16 +100,16 @@ public class HDRF extends BasePartitioner {
             return lamb * res;
         }
 
-        public short computePartition(Edge edge) {
+        public short computePartition(UniEdge uniEdge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(edge.getSrc().getId(), 1, Integer::sum);
-            partialDegTable.merge(edge.getDest().getId(), 1, Integer::sum);
+            partialDegTable.merge(uniEdge.getSrc().getId(), 1, Integer::sum);
+            partialDegTable.merge(uniEdge.getDest().getId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
             List<Short> tmp = new ArrayList<>();
             for (short i = 0; i < this.numPartitions; i++) {
-                float score = REP(edge, i) + BAL(i);
+                float score = REP(uniEdge, i) + BAL(i);
                 if (score > maxScore) {
                     tmp.clear();
                     maxScore = score;
@@ -124,7 +124,7 @@ public class HDRF extends BasePartitioner {
 
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
-            partitionTable.compute(edge.getSrc().getId(), (key, val) -> {
+            partitionTable.compute(uniEdge.getSrc().getId(), (key, val) -> {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
                     totalNumberOfVertices.incrementAndGet();
@@ -139,7 +139,7 @@ public class HDRF extends BasePartitioner {
                 }
             });
             // Same as previous
-            partitionTable.compute(edge.getDest().getId(), (key, val) -> {
+            partitionTable.compute(uniEdge.getDest().getId(), (key, val) -> {
                 if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
                     return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
@@ -183,15 +183,15 @@ public class HDRF extends BasePartitioner {
             GraphElement elementToPartition = value.element;
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
-                Edge edge = (Edge) elementToPartition;
+                UniEdge uniEdge = (UniEdge) elementToPartition;
 //                while (currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())) {
 //                    // Wait for completion
 //                }
 //                currentlyProcessing.add(edge.src.getId());
 //                currentlyProcessing.add(edge.dest.getId());
-                short partition = this.computePartition(edge);
-                edge.getSrc().master = this.partitionTable.get(edge.getSrc().getId()).get(0);
-                edge.getDest().master = this.partitionTable.get(edge.getDest().getId()).get(0);
+                short partition = this.computePartition(uniEdge);
+                uniEdge.getSrc().master = this.partitionTable.get(uniEdge.getSrc().getId()).get(0);
+                uniEdge.getDest().master = this.partitionTable.get(uniEdge.getDest().getId()).get(0);
 //                currentlyProcessing.remove(edge.src.getId());
 //                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;

@@ -1,10 +1,7 @@
-package plugins.embedding_layer;
+package plugins.gnn_embedding;
 
-import aggregators.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
@@ -18,94 +15,61 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.util.Preconditions;
-import plugins.ModelServer;
 
 import java.util.*;
 
-public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddingPlugin {
-
-    public final String modelName; // Model name to identify the ParameterStore
-
-    public final boolean createVertexEmbeddings; // Do we feed external features or should this generate by itself
-
-    protected transient ModelServer modelServer; // ParameterServer Plugin
-
-    protected boolean RUNNING = true; // Running is true of false
+public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin{
 
     protected transient Counter throughput; // Throughput counter, only used for last layer
 
     protected transient Counter latency; // Throughput counter, only used for last layer
 
-    public StreamingGNNEmbeddingLayer() {
-        super();
-        modelName = null;
-        createVertexEmbeddings = false;
-    }
-
     public StreamingGNNEmbeddingLayer(String modelName) {
-        this(modelName, false, true);
+        super(modelName, "inferencer");
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, boolean isRunning) {
-        super(String.format("%s-inferencer", modelName));
-        this.createVertexEmbeddings = createVertexEmbeddings;
-        this.modelName = modelName;
-        this.RUNNING = isRunning;
+    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
+        super(modelName, "inferencer", trainableVertexEmbeddings);
+    }
+
+    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+        super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
     @Override
     public void open() throws Exception {
         super.open();
         assert storage != null;
-        modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
         storage.layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
-    /**
-     * Given newly created vertex init the aggregator and other values of it
-     *
-     * @param element Vertex to be initialized
-     */
-    public void initVertex(Vertex element) {
-        if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new MeanAggregator(aggStart, true));
-            if (createVertexEmbeddings && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = LifeCycleNDManager.getInstance().ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-                // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("f", new Tensor(embeddingRandom));
-            }
-        }
-    }
-
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if (!RUNNING) return;
         if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.elementType() == ElementType.EDGE) {
-            Edge edge = (Edge) element;
-            if (messageReady(edge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) edge.getSrc().getFeature("f").getValue()), false);
+            UniEdge uniEdge = (UniEdge) element;
+            if (messageReady(uniEdge)) {
+                NDList msg = MESSAGE(new NDList((NDArray) uniEdge.getSrc().getFeature("f").getValue()), false);
                 new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", edge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
+                        .toElement(Feature.encodeAttachedFeatureId("agg", uniEdge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()
-                        .addDestination(edge.getDest().masterPart())
+                        .addDestination(uniEdge.getDest().masterPart())
                         .withArgs(msg, 1)
                         .buildAndRun(storage);
             }
         } else if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
-            } else if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            } else if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -114,15 +78,14 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if (!RUNNING) return;
         if (newElement.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
-            if (feature.attachedTo != null && feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }
@@ -141,7 +104,8 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false, v.masterPart());
-        tmp.attachedTo = Tuple2.of(ElementType.VERTEX, v.getId());
+        tmp.attachedTo.f0 = ElementType.VERTEX;
+        tmp.attachedTo.f1 = v.getId();
         throughput.inc();
         latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - storage.layerFunction.currentTimestamp());
         storage.layerFunction.message(new GraphOp(Op.COMMIT, tmp.masterPart(), tmp), MessageDirection.FORWARD);
@@ -154,17 +118,17 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
      */
     public void reduceOutEdges(Vertex v) {
         Preconditions.checkNotNull(v);
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
+        Iterable<UniEdge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
         final NDList[] msg = new NDList[1];
         HashMap<Short, Tuple2<List<String>, NDList>> reduceMessages = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
+        for (UniEdge uniEdge : outEdges) {
+            if (this.messageReady(uniEdge)) {
                 if (Objects.isNull(msg[0])) {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                     reduceMessages = new HashMap<>();
                 }
-                reduceMessages.computeIfAbsent(edge.getDest().masterPart(), item -> new Tuple2<>(new ArrayList<>(), msg[0]));
-                reduceMessages.get(edge.getDest().masterPart()).f0.add(edge.getDest().getId());
+                reduceMessages.computeIfAbsent(uniEdge.getDest().masterPart(), item -> new Tuple2<>(new ArrayList<>(), msg[0]));
+                reduceMessages.get(uniEdge.getDest().masterPart()).f0.add(uniEdge.getDest().getId());
             }
         }
         if (reduceMessages == null) return;
@@ -196,19 +160,19 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
         Preconditions.checkNotNull(newFeature.getElement());
-        Iterable<Edge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        Iterable<UniEdge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList[] msgOld = new NDList[1];
         NDList[] msgNew = new NDList[1];
         HashMap<Short, Tuple3<List<String>, NDList, NDList>> replaceMessages = null;
-        for (Edge edge : outEdges) {
-            if (this.messageReady(edge)) {
+        for (UniEdge uniEdge : outEdges) {
+            if (this.messageReady(uniEdge)) {
                 if (Objects.isNull(msgOld[0])) {
                     msgOld[0] = MESSAGE(new NDList(oldFeature.getValue()), false);
                     msgNew[0] = MESSAGE(new NDList(newFeature.getValue()), false);
                     replaceMessages = new HashMap<>();
                 }
-                replaceMessages.computeIfAbsent(edge.getDest().masterPart(), item -> new Tuple3<>(new ArrayList<>(), msgNew[0], msgOld[0]));
-                replaceMessages.get(edge.getDest().masterPart()).f0.add(edge.getDest().getId());
+                replaceMessages.computeIfAbsent(uniEdge.getDest().masterPart(), item -> new Tuple3<>(new ArrayList<>(), msgNew[0], msgOld[0]));
+                replaceMessages.get(uniEdge.getDest().masterPart()).f0.add(uniEdge.getDest().getId());
             }
         }
 
@@ -231,68 +195,5 @@ public class StreamingGNNEmbeddingLayer extends Plugin implements OldGNNEmbeddin
         for (String vertex : vertices) {
             Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
         }
-    }
-
-    /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
-     *
-     * @param feature  Source Feature list
-     * @param training training enabled
-     * @return Next layer feature
-     */
-    @Override
-    public NDList UPDATE(NDList feature, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
-    }
-
-    /**
-     * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
-     *
-     * @param features Source vertex Features or Batch
-     * @param training Should we construct the training graph
-     * @return Message Tensor to be send to the aggregator
-     */
-    @Override
-    public NDList MESSAGE(NDList features, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
-
-    }
-
-    /**
-     * @param edge Edge
-     * @return Is the Edge ready to pass on the message
-     */
-    @Override
-    public boolean messageReady(Edge edge) {
-        return edge.getSrc().containsFeature("f");
-    }
-
-    /**
-     * @param vertex Vertex
-     * @return Is the Vertex ready to be updated
-     */
-    @Override
-    public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
-    }
-
-    @Override
-    public boolean usingTrainableEmbeddings() {
-        return createVertexEmbeddings;
-    }
-
-    @Override
-    public boolean usingBatchingOutput() {
-        return false;
-    }
-
-    @Override
-    public void stop() {
-        RUNNING = false;
-    }
-
-    @Override
-    public void start() {
-        RUNNING = true;
     }
 }

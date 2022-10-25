@@ -1,4 +1,4 @@
-""" Script for emulating streaming edges in DGL """
+""" Script for emulating streaming uniEdges in DGL """
 import torch
 import pandas as pd
 import dgl

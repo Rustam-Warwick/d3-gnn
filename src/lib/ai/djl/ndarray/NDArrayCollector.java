@@ -2,9 +2,8 @@ package ai.djl.ndarray;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Consumer;
 
-public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements MayContainNDArray {
+public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements ObjectPoolControl {
     public final transient boolean delayManagers;
 
     public NDArrayCollector(int initialCapacity, float loadFactor, boolean delayManagers) {
@@ -39,7 +38,7 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ma
     }
 
     public NDArray put(T key, NDArray value) {
-        if (!containsKey(key) && delayManagers) value.postpone();
+        if (!containsKey(key) && delayManagers) value.delay();
         merge(key, value, NDArray::addi);
 //        return compute(key, (localKey, localValue) -> {
 //            if (localValue == null) {
@@ -61,12 +60,17 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ma
 //
 //    }
     public void clear() {
-        if (delayManagers) values().forEach(NDArray::prepone);
+        if (delayManagers) values().forEach(NDArray::resume);
         super.clear();
     }
 
     @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        values().forEach(operation);
+    public void delay() {
+        values().forEach(ObjectPoolControl::delay);
+    }
+
+    @Override
+    public void resume() {
+        values().forEach(ObjectPoolControl::resume);
     }
 }

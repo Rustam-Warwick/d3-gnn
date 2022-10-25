@@ -3055,7 +3055,7 @@ public interface NDManager extends AutoCloseable {
      * @param resourceId the unique resourceId
      * @param resource   the {@link AutoCloseable} resource to be attached
      */
-    void attachInternal(String resourceId, AutoCloseable resource);
+    default void attachInternal(String resourceId, AutoCloseable resource){};
 
     /**
      * Attaches a resource to this {@code NDManager} circumventing any cap protection.
@@ -3069,7 +3069,7 @@ public interface NDManager extends AutoCloseable {
      * @param resourceId the unique resourceId
      * @param resource   the {@link AutoCloseable} resource to be attached
      */
-    void attachUncappedInternal(String resourceId, AutoCloseable resource);
+    default void attachUncappedInternal(String resourceId, AutoCloseable resource){};
 
     /**
      * Temporarily attaches a resource to this {@code NDManager} to be returned when this is closed.
@@ -3085,7 +3085,7 @@ public interface NDManager extends AutoCloseable {
      * @param resourceId      the unique resourceId
      * @param resource        the {@link AutoCloseable} resource to be attached
      */
-    void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource);
+    default void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource){};
 
     /**
      * Detaches a {@link NDArray} from this {@code NDManager}'s lifecycle.
@@ -3100,13 +3100,15 @@ public interface NDManager extends AutoCloseable {
      *
      * @param resourceId the resourceId to be removed from this {@code NDManager}'s lifecycle
      */
-    void detachInternal(String resourceId);
+    default void detachInternal(String resourceId){};
 
     /**
+     * #modified
      * @see NDManager detachInternal(String)
+     *
      */
     default void detachInternal(String resourceId, AutoCloseable resource) {
-
+        detachInternal(resourceId);
     }
 
     /**

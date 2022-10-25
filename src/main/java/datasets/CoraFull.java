@@ -41,7 +41,7 @@ public class CoraFull implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
-                Edge e = (Edge) value.element;
+                UniEdge e = (UniEdge) value.element;
 //                if (e.src.getFeature("label") != null) {
 //                    Feature<?, ?> label = e.src.getFeature("label"); // Get label
 //                    e.src.features.removeIf(item -> "label".equals(item.getName()));
@@ -110,7 +110,7 @@ public class CoraFull implements Dataset {
         public GraphOp map(String value) throws Exception {
             System.out.println(value);
             String[] edges = value.split(",");
-            Edge e = new Edge(new Vertex(edges[0]), new Vertex(edges[1]));
+            UniEdge e = new UniEdge(new Vertex(edges[0]), new Vertex(edges[1]));
             return new GraphOp(Op.COMMIT, e, null);
         }
     }
@@ -147,24 +147,23 @@ public class CoraFull implements Dataset {
         public void flatMap(GraphOp value, Collector<GraphOp> out) throws Exception {
             assert value.element.elementType() == ElementType.EDGE; // No other thing is expected for this dataset
             timestamp++;
-            Edge edge = (Edge) value.element;
-            edge.setTimestamp(timestamp);
+            UniEdge uniEdge = (UniEdge) value.element;
             value.setTimestamp(timestamp);
-            if (!seenVertices.contains(edge.getSrc().getId())) {
-                int index = Integer.parseInt(edge.getSrc().getId());
+            if (!seenVertices.contains(uniEdge.getSrc().getId())) {
+                int index = Integer.parseInt(uniEdge.getSrc().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.getSrc().setFeature("f", new Tensor(thisFeature));
-                edge.getSrc().setFeature("label", new Tensor(thisLabel, true, (short) -1));
-                seenVertices.add(edge.getSrc().getId());
+                uniEdge.getSrc().setFeature("f", new Tensor(thisFeature));
+                uniEdge.getSrc().setFeature("label", new Tensor(thisLabel, true, (short) -1));
+                seenVertices.add(uniEdge.getSrc().getId());
             }
-            if (!seenVertices.contains(edge.getDest().getId())) {
-                int index = Integer.parseInt(edge.getDest().getId());
+            if (!seenVertices.contains(uniEdge.getDest().getId())) {
+                int index = Integer.parseInt(uniEdge.getDest().getId());
                 NDArray thisFeature = vertexFeatures.get(index);
                 NDArray thisLabel = vertexLabels.get(index);
-                edge.getDest().setFeature("f", new Tensor(thisFeature));
-                edge.getDest().setFeature("label", new Tensor(thisLabel, true, (short) -1));
-                seenVertices.add(edge.getDest().getId());
+                uniEdge.getDest().setFeature("f", new Tensor(thisFeature));
+                uniEdge.getDest().setFeature("label", new Tensor(thisLabel, true, (short) -1));
+                seenVertices.add(uniEdge.getDest().getId());
             }
             out.collect(value);
         }

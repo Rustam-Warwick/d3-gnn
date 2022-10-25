@@ -1,6 +1,5 @@
 package elements;
 
-import ai.djl.ndarray.NDArray;
 import storage.BaseStorage;
 
 import java.util.HashMap;
@@ -19,8 +18,18 @@ public class HGraph extends GraphElement {
 
     }
 
+    @Override
+    public GraphElement copy() {
+        return null;
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        return null;
+    }
+
     public HGraph(Vertex[] vertices, HEdge[] hEdges) {
-        super("graph");
+        super();
         HashMap<String, Vertex> setVertices = new HashMap<>();
         for (Vertex vertex : vertices) {
             setVertices.putIfAbsent(vertex.getId(), vertex);
@@ -82,15 +91,10 @@ public class HGraph extends GraphElement {
     }
 
     @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        super.applyForNDArrays(operation);
-        for (Vertex vertex : vertices) {
-            vertex.applyForNDArrays(operation);
-        }
-        for (HEdge hEdge : hEdges) {
-            hEdge.applyForNDArrays(operation);
-        }
+    public String getId() {
+        return null;
     }
+
 
     @Override
     public ElementType elementType() {

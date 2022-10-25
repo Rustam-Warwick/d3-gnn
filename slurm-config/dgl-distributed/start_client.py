@@ -8,7 +8,7 @@ import time
 # DGL_DIST_MODE=distributed DGL_IP_CONFIG=ip_config.txt DGL_GRAPH_FORMAT=csc DGL_KEEP_ALIVE=0 DGL_DIST_MAX_TRY_TIMES=300 DGL_NUM_SERVER=1 DGL_DATASET_NAME=reddit-hyperlink DGL_CONF_PATH=/home/rustambaku13/Documents/Warwick/flink-streaming-gnn/helper-scripts/python/reddit-hyperlink/reddit-hyperlink.json DGL_NUM_SAMPLER=1
 
 class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
-    """ Sampler for edges with temporal ids """
+    """ Sampler for uniEdges with temporal ids """
 
     def __init__(self, num_layers=None, sample_size=None, **kwargs):
         assert num_layers is not None or sample_size is not None, "Either sample sample or num_layers should be not None"
@@ -25,7 +25,7 @@ class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
     def sample_neighbors(self, graph, seed_nodes, fanout, edge_dir='in', prob=None,
                          exclude_edges=None, replace=False, etype_sorted=True,
                          output_device=None):
-        """ Changed the method for sampling because the default one did not fetch the out edges """
+        """ Changed the method for sampling because the default one did not fetch the out uniEdges """
         if len(graph.etypes) > 1:
             frontier = dgl.distributed.graph_services.sample_etype_neighbors(
                 graph, seed_nodes, dgl.distributed.graph_services.ETYPE, fanout, prob=prob, replace=replace,
@@ -48,7 +48,7 @@ class TemporalEdgeSampler(dgl.dataloading.NeighborSampler):
                                                                  exclude_edges=exclude_eids)
             if frontier.number_of_edges():
                 frontier.remove_edges(frontier.filter_edges(lambda a: g.edata["T"][frontier.edata["_ID"]] > self.T))
-            seed_nodes = frontier.edges()[1]
+            seed_nodes = frontier.uniEdges()[1]
             for i in seed_nodes.tolist():
                 output_nodes.add(i)
         return torch.tensor(list(output_nodes), dtype=torch.int64)
@@ -125,12 +125,12 @@ if __name__ == '__main__':
 
     sampler = TemporalEdgeSampler(num_layers=2, edge_dir="in")
 
-    print("Starting Client on Part_id %s with %s edges" % (pbook.partid, (max_id - min_id)))
+    print("Starting Client on Part_id %s with %s uniEdges" % (pbook.partid, (max_id - min_id)))
 
     if args.W is None:
         for i in range(max_id - min_id):
 
-            new_dest, T, Gid = local_graph.ndata["_ID"][local_graph.nodes() == local_graph.edges()[1][i]], \
+            new_dest, T, Gid = local_graph.ndata["_ID"][local_graph.nodes() == local_graph.uniEdges()[1][i]], \
                                       g.edata["T"][local_graph.edata["_ID"][i]], g.edata["T"][local_graph.edata["_ID"][i]]
 
             sampler.update_T(T)
@@ -162,12 +162,12 @@ if __name__ == '__main__':
         W_local = args.W // g.get_partition_book().num_partitions()
         for i in range(0, (max_id - min_id - 1) // W_local + 1):
             if i == local_graph.number_of_edges() // W_local:
-                new_dests, Ts = local_graph.ndata["_ID"][torch.isin(local_graph.nodes(), local_graph.edges()[1][i * W_local:(max_id - min_id)])], \
+                new_dests, Ts = local_graph.ndata["_ID"][torch.isin(local_graph.nodes(), local_graph.uniEdges()[1][i * W_local:(max_id - min_id)])], \
                                 g.edata["T"][local_graph.edata["_ID"][i * W_local:(max_id - min_id)]]
                 if not len(new_dests):
                     break
             else:
-                new_dests, Ts = local_graph.ndata["_ID"][torch.isin(local_graph.nodes(), local_graph.edges()[1][i*W_local:(i+1)*W_local])], \
+                new_dests, Ts = local_graph.ndata["_ID"][torch.isin(local_graph.nodes(), local_graph.uniEdges()[1][i*W_local:(i+1)*W_local])], \
                               g.edata["T"][local_graph.edata["_ID"][i*W_local:(i+1)*W_local]]
 
             sampler.update_T(Ts.max())

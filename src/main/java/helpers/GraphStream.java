@@ -1,7 +1,6 @@
 package helpers;
 
-import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
+import features.MeanAggregator;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.serializers.NDArrayRawSerializer;
@@ -66,11 +65,10 @@ public class GraphStream {
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);
-        env.registerType(Edge.class);
+        env.registerType(UniEdge.class);
         env.registerType(Feature.class);
         env.registerType(Set.class);
         env.registerType(Tensor.class);
-        env.registerType(BaseAggregator.class);
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
         env.registerType(PartNumber.class);

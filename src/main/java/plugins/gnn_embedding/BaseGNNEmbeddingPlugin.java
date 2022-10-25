@@ -1,6 +1,6 @@
-package plugins.embedding_layer;
+package plugins.gnn_embedding;
 
-import aggregators.MeanAggregator;
+import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
@@ -69,11 +69,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     /**
      * Is Edge ready for message passing
      *
-     * @param edge Edge
+     * @param uniEdge Edge
      * @return edge_ready
      */
-    public boolean messageReady(Edge edge) {
-        return edge.getSrc().containsFeature("f");
+    public boolean messageReady(UniEdge uniEdge) {
+        return uniEdge.getSrc().containsFeature("f");
     }
 
     /**
@@ -118,17 +118,16 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
         IS_ACTIVE = true;
     }
 
-    @Override
-    public void addElementCallback(GraphElement element) {
-        super.addElementCallback(element);
-        if (IS_ACTIVE && element.elementType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new MeanAggregator(aggStart, true));
-            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-                // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("f", new Tensor(embeddingRandom));
-            }
+    /**
+     * Initialize the vertex aggregators and possible embeddings
+     */
+    public void initVertex(Vertex element) {
+        NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
+        element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
+        if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
+            NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+            // @todo Can make it as mean of some existing features to tackle the cold-start problem
+            element.setFeature("f", new Tensor(embeddingRandom));
         }
     }
 }

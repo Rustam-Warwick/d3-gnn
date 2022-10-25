@@ -1,6 +1,6 @@
-package plugins.embedding_layer;
+package plugins.hgnn_embedding;
 
-import aggregators.MeanAggregator;
+import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
@@ -56,14 +56,14 @@ public class StreamingHGNNEmbeddingLayer extends Plugin {
     public void initHyperEdge(HEdge edge) {
         if (edge.state() == ReplicaState.MASTER) {
             NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-            edge.setFeature("agg", new MeanAggregator(aggStart, false));
+            edge.setFeature("agg", new MeanAggregator(aggStart, false, (short)-1));
         }
     }
 
     public void initVertex(Vertex vertex) {
         if (vertex.state() == ReplicaState.MASTER) {
             NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-            vertex.setFeature("agg", new MeanAggregator(aggStart, true));
+            vertex.setFeature("agg", new MeanAggregator(aggStart, true, (short)-1));
             if (createVertexEmbedding && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = LifeCycleNDManager.getInstance().ones(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem

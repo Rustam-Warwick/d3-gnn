@@ -19,20 +19,16 @@ import java.util.function.Consumer;
 public class Feature<T, V> extends ReplicableGraphElement {
     public static String DELIMITER = "/";
     public static ElementType[] ELEMENT_VALUES = ElementType.values();
-    public T value;
+
+    public T value; // Value stored in this feature
+
     @Nullable
-    public transient GraphElement element;
-    @Nullable
-    public Tuple2<ElementType, String> attachedTo;
+    public transient GraphElement element; // GraphElement attached
+
+    public Tuple3<ElementType, String, String> attachedTo = Tuple3.of(ElementType.NONE, null, null); // [ElementType, attached id, feature name]
 
     public Feature() {
         super();
-    }
-
-    public Feature(Feature<T, V> f, boolean deepCopy) {
-        super(f, deepCopy);
-        this.attachedTo = f.attachedTo;
-        this.value = f.value;
     }
 
     public Feature(T value) {
@@ -40,41 +36,29 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = value;
     }
 
-    public Feature(T value, boolean halo, @Nullable Short master) {
-        super(null, halo, master);
+    public Feature(T value, boolean halo, short master) {
+        super(halo, master);
         this.value = value;
     }
 
     public Feature(String id, T value) {
-        super(id, false, null);
+        super();
         this.value = value;
+        attachedTo.f2 = id;
     }
 
-    public Feature(String id, T value, boolean halo, @Nullable Short master) {
-        super(id, halo, master);
+    public Feature(String id, T value, boolean halo, short master) {
+        super(halo, master);
         this.value = value;
+        attachedTo.f2 = id;
     }
 
-    /**
-     * Given featureName and attached Element Id return the unique id for this feature
-     */
-    public static String encodeAttachedFeatureId(String featureName, String attachedElementId, ElementType type) {
-        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
-    }
-
-    /**
-     * Given an attached Feature Id, decode it returns an array of <elementId, featureName, ElementType>
-     */
-    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
-        String[] val = attachedFeatureId.split(DELIMITER);
-        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
-    }
-
-    /**
-     * Does this Id belong to attached feature or not
-     */
-    public static boolean isAttachedId(String featureId) {
-        return featureId.contains(DELIMITER);
+    public Feature(Feature<T, V> f, boolean deepCopy) {
+        super(f, deepCopy);
+        this.attachedTo.f0 = f.attachedTo.f0;
+        this.attachedTo.f1 = f.attachedTo.f1;
+        this.attachedTo.f2 = f.attachedTo.f2;
+        this.value = f.value;
     }
 
     @Override
@@ -87,6 +71,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return new Feature<>(this, true);
     }
 
+
+    // CRUD METHODS
+
     /**
      * Features attached to elements should arrive at corresponding masters first,
      * hence the different in main logic is that master should then create them on replica parts
@@ -95,8 +82,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public void create() {
-        if (this.attachedTo == null) super.create();
+        if (attachedTo.f0 == ElementType.NONE) super.create();
         else {
+            assert storage != null;
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Sometimes element attached can arrive later that the feature,
                 // We can create a dummy version of the element here since we already have the master part
@@ -131,22 +119,18 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.updateElement(newElement, memento);
     }
 
+
+    // REGULAR METHODS
+
     /**
-     * Gets the value of the interface V that is stored here
-     *
-     * @return V
+     * @return V value of this element
      */
     public V getValue() {
         return (V) this.value;
     }
 
     /**
-     * Given 2 Ts if they are both equal, required to check an actual feature update
-     *
-     * @param v1 first T
-     * @param v2 second T
-     * @return if v1 === v2
-     * @implNote This function is used to decide if an update is really needed
+     * @return if 2 values are equal, or updated
      */
     public boolean valuesEqual(T v1, T v2) {
         return false;
@@ -158,7 +142,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return master part
      */
     @Override
-    public Short masterPart() {
+    public short masterPart() {
         if (Objects.nonNull(getElement())) {
             return getElement().masterPart();
         }
@@ -172,26 +156,20 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public List<Short> replicaParts() {
-        if (attachedTo != null) {
-            if (Objects.nonNull(getElement())) {
-                return getElement().replicaParts();
-            } else {
-                Collections.emptyList();
-            }
+        if (Objects.nonNull(getElement())) {
+            return getElement().replicaParts();
+        } else {
+            return Collections.emptyList();
         }
-        return super.replicaParts();
     }
 
     @Override
     public boolean isReplicable() {
-        if (attachedTo != null) {
-            if (Objects.nonNull(getElement())) {
-                return getElement().isReplicable();
-            } else {
-                return false;
-            }
+        if (Objects.nonNull(getElement())) {
+            return getElement().isReplicable();
+        } else {
+            return false;
         }
-        return super.isReplicable();
     }
 
     /**
@@ -202,29 +180,23 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        if (this.attachedTo == null) return super.getId();
-        return encodeAttachedFeatureId(id, attachedTo.f1, attachedTo.f0);
-    }
-
-    @Override
-    public void setId(@Nullable String id) {
-        throw new IllegalStateException("Use .setName() for Features");
+        return encodeAttachedFeatureId(attachedTo.f2, attachedTo.f1, attachedTo.f0);
     }
 
     /**
-     * Name is the actualy feature name, this is equal id if not attached feature
+     * Name is the feature name, this is equal id if not attached feature
      *
      * @return name of the feature
      */
     public String getName() {
-        return this.id;
+        return attachedTo.f2;
     }
 
     /**
      * Set the name(actually id). SetId is made private to not have confusion
      */
-    public void setName(@Nullable String name) {
-        this.id = name;
+    public void setName(String name) {
+        attachedTo.f2 = name;
     }
 
     /**
@@ -234,7 +206,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Nullable
     public GraphElement getElement() {
-        if (attachedTo == null) return null;
+        if (attachedTo.f0 == ElementType.NONE) return null;
         if (element == null && storage != null) {
             setElement(storage.getElement(attachedTo.f1, attachedTo.f0));
         }
@@ -249,29 +221,24 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @implNote Make sure to properly track the change of references from Graph Elements
      * @implNote If this element is already attached to some other element, it should be removed from that elements feature list before attaching this to other element
      * @implNote Attaching element cannot contain a Feature with the same id.
-     * @implNote Attaching a feature to element is done here, reasing is that we want to have rigid link
+     * @implNote Attaching a feature to element is done here, realising is that we want to have rigid link
      * between element.features <--> feature.element.
      */
     public void setElement(GraphElement attachingElement) {
-        if (attachingElement != null) {
-            if (element == attachingElement) return; // Already attached to this element
-            if (element != null && element.features != null && element.features.contains(this)) {
-                throw new IllegalStateException("This Feature has an attachee, make sure to remove it from element.feature before proceeding");
-            }
-            attachedTo = attachedTo == null ? new Tuple2<>(attachingElement.elementType(), attachingElement.getId()) : attachedTo;
-            if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
-            if (attachingElement.features.stream().anyMatch(item -> item == this)) return;
-            if (attachingElement.features.contains(this)) {
-                throw new IllegalStateException("This Element already has a similar feature, use updateFeature instead");
-            }
-            element = attachingElement;
-            attachingElement.features.add(this);
+        if (element == attachingElement) return; // Already attached to this element
+        if (attachingElement.features != null && attachingElement.features.contains(this)) throw new IllegalStateException("Already attached to this element");
+        if(attachedTo.f0 == ElementType.NONE) {
+            attachedTo.f0 = attachingElement.elementType();
+            attachedTo.f1 = attachingElement.getId();
         }
+        if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
+        element = attachingElement;
+        attachingElement.features.add(this);
     }
 
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo != null)
+        if (attachedTo.f0 != ElementType.NONE )
             throw new IllegalStateException("Instead of using nested Features, go with flat design");
         super.setFeature(name, feature);
     }
@@ -279,7 +246,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String name) {
-        if (attachedTo != null) return null;
+        if (attachedTo.f0 != ElementType.NONE) return null;
         return super.getFeature(name);
     }
 
@@ -288,5 +255,29 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return ElementType.FEATURE;
     }
 
+
+    // STATIC METHODS
+
+    /**
+     * Given featureName and attached Element id return the unique id for this feature
+     */
+    public static String encodeAttachedFeatureId(String featureName, String attachedElementId, ElementType type) {
+        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
+    }
+
+    /**
+     * Given an attached Feature id, decode it returns an array of <elementId, featureName, ElementType>
+     */
+    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
+        String[] val = attachedFeatureId.split(DELIMITER);
+        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
+    }
+
+    /**
+     * Does this id belong to attached feature or not
+     */
+    public static boolean isAttachedId(String featureId) {
+        return featureId.contains(DELIMITER);
+    }
 
 }

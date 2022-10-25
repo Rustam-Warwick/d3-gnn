@@ -30,6 +30,7 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,18 +54,22 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
+
+    // FIELDS
+
     protected PtNDManager manager;
     private transient Cleaner.Cleanable cleanable;
     private Device device;
     private DataType dataType;
     private Shape shape;
+
+    private AtomicInteger delayed;
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private transient Boolean hasGradient;
     private PtNDArrayEx ptNDArrayEx;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
-
     private ByteBuffer[] dataRef;
 
 
@@ -126,7 +131,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public String getName() {
-        throw new IllegalStateException("No name for PtNDArray");
+        return "";
     }
 
     /**
@@ -134,6 +139,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void setName(String name) {
+
     }
 
     /**
@@ -346,15 +352,18 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         throw new UnsupportedOperationException("Not implemented");
     }
 
+
+    // NDMANAGER CONTROL
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void attach(NDManager manager) {
         if (this.manager == manager) return;
-        manager.detachInternal(getUid(), this);
+        this.manager.detachInternal(getUid(), this);
         this.manager = (PtNDManager) manager;
-        manager.attachInternal(getUid(), this);
+        this.manager.attachInternal(getUid(), this);
     }
 
     /**
@@ -373,7 +382,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public void tempAttach(NDManager manager) {
         if (this.manager == manager) return;
-        manager.detachInternal(getUid(), this);
+        this.manager.detachInternal(getUid(), this);
         NDManager original = this.manager;
         this.manager = (PtNDManager) manager;
         manager.tempAttachInternal(original, getUid(), this);
@@ -390,6 +399,26 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
 
     }
+
+    @Override
+    public void delay() {
+        if(delayed == null) delayed = new AtomicInteger(0);
+        if(delayed.incrementAndGet() == 1){
+            manager.detachInternal(getUid(), this);
+        };
+    }
+
+    @Override
+    public void resume() {
+        if(delayed != null){
+            if(delayed.decrementAndGet() == 0){
+                manager.attachInternal(getUid(), this);
+            }
+        }
+    }
+
+    // NDMANAGER CONTROL
+
 
     /**
      * {@inheritDoc}

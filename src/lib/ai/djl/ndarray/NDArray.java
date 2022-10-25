@@ -19,14 +19,12 @@ import ai.djl.ndarray.internal.NDFormat;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.ndarray.types.SparseFormat;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.util.Float16Utils;
 
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -41,7 +39,7 @@ import java.util.stream.LongStream;
  * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
  * Memory Management Guide</a>
  */
-public interface NDArray extends NDResource, BytesSupplier, MayContainNDArray {
+public interface NDArray extends NDResource, BytesSupplier, ObjectPoolControl {
 
     /**
      * Decodes {@code NDArray} from bytes.
@@ -4898,19 +4896,6 @@ public interface NDArray extends NDResource, BytesSupplier, MayContainNDArray {
      * @return the result {@code NDArray}
      */
     NDArray batchDot(NDArray other);
-
-    @Override
-    default void applyForNDArrays(Consumer<NDArray> operation) {
-        operation.accept(this);
-    }
-
-    default void postpone() {
-        if (getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).postpone(this);
-    }
-
-    default void prepone() {
-        if (getManager() instanceof LifeCycleNDManager) ((LifeCycleNDManager) getManager()).prepone(this);
-    }
 
     default boolean isValid() {
         return !isNaN().any().getBoolean() && !isInfinite().any().getBoolean();

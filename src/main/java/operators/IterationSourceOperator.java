@@ -18,7 +18,6 @@
 
 package operators;
 
-import ai.djl.ndarray.NDArray;
 import elements.GraphOp;
 import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
@@ -128,7 +127,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             BaseWrapperOperator.LOG.error(element.getValue().toString());
         } finally {
             if (element.getValue().getElement() != null) {
-                element.getValue().getElement().applyForNDArrays(NDArray::prepone);
+                element.getValue().getElement().resume();
             }
         }
     }

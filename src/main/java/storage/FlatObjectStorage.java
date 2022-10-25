@@ -19,7 +19,7 @@ public class FlatObjectStorage extends BaseStorage {
     protected MapState<String, Feature<?, ?>> independentFeatureTable;
     protected MapState<String, Map<String, List<String>>> outEdgeTable;
     protected MapState<String, Map<String, List<String>>> inEdgeTable;
-    protected MapState<String, Edge> edgeTable;
+    protected MapState<String, UniEdge> edgeTable;
     protected MapState<String, HEdge> hyperEdgeTable;
     protected MapState<String, List<String>> vertex2HyperEdge;
 
@@ -32,7 +32,7 @@ public class FlatObjectStorage extends BaseStorage {
         MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
         MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, Edge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Edge>().createTypeInfo(Edge.class, null, true));
+        MapStateDescriptor<String, UniEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<UniEdge>().createTypeInfo(UniEdge.class, null, true));
         MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
         MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
@@ -77,19 +77,19 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addEdge(Edge edge) {
+    public boolean addEdge(UniEdge uniEdge) {
         try {
-            edgeTable.put(edge.getId(), edge);
-            if (!outEdgeTable.contains(edge.getSrc().getId())) outEdgeTable.put(edge.getSrc().getId(), new HashMap<>());
-            if (!inEdgeTable.contains(edge.getDest().getId())) inEdgeTable.put(edge.getDest().getId(), new HashMap<>());
-            Map<String, List<String>> outEdges = outEdgeTable.get(edge.getSrc().getId());
-            Map<String, List<String>> inEdges = inEdgeTable.get(edge.getDest().getId());
-            if (!outEdges.containsKey(edge.getDest().getId())) outEdges.put(edge.getDest().getId(), new ArrayList());
-            if (!inEdges.containsKey(edge.getSrc().getId())) inEdges.put(edge.getSrc().getId(), new ArrayList());
-            outEdges.get(edge.getDest().getId()).add(edge.getId());
-            inEdges.get(edge.getSrc().getId()).add(edge.getId());
-            outEdgeTable.put(edge.getSrc().getId(), outEdges);
-            inEdgeTable.put(edge.getDest().getId(), inEdges);
+            edgeTable.put(uniEdge.getId(), uniEdge);
+            if (!outEdgeTable.contains(uniEdge.getSrc().getId())) outEdgeTable.put(uniEdge.getSrc().getId(), new HashMap<>());
+            if (!inEdgeTable.contains(uniEdge.getDest().getId())) inEdgeTable.put(uniEdge.getDest().getId(), new HashMap<>());
+            Map<String, List<String>> outEdges = outEdgeTable.get(uniEdge.getSrc().getId());
+            Map<String, List<String>> inEdges = inEdgeTable.get(uniEdge.getDest().getId());
+            if (!outEdges.containsKey(uniEdge.getDest().getId())) outEdges.put(uniEdge.getDest().getId(), new ArrayList());
+            if (!inEdges.containsKey(uniEdge.getSrc().getId())) inEdges.put(uniEdge.getSrc().getId(), new ArrayList());
+            outEdges.get(uniEdge.getDest().getId()).add(uniEdge.getId());
+            inEdges.get(uniEdge.getSrc().getId()).add(uniEdge.getId());
+            outEdgeTable.put(uniEdge.getSrc().getId(), outEdges);
+            inEdgeTable.put(uniEdge.getDest().getId(), inEdges);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -137,7 +137,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateEdge(Edge edge) {
+    public boolean updateEdge(UniEdge uniEdge) {
         return true;
     }
 
@@ -157,7 +157,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteEdge(Edge edge) {
+    public boolean deleteEdge(UniEdge uniEdge) {
         return false;
     }
 
@@ -173,7 +173,6 @@ public class FlatObjectStorage extends BaseStorage {
             Vertex v = vertexTable.get(id);
             if (v == null) return null;
             if (v.storage == null) {
-                v.setId(id);
                 v.setStorage(this);
             }
             return v;
@@ -199,11 +198,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Edge getEdge(String id) {
+    public UniEdge getEdge(String id) {
         try {
-            Edge e = edgeTable.get(id);
+            UniEdge e = edgeTable.get(id);
             if (e.storage == null) {
-                e.setId(id);
                 e.setStorage(this);
             }
             return e;
@@ -213,7 +211,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<Edge> getEdges(String src, String dest) {
+    public Iterable<UniEdge> getEdges(String src, String dest) {
         try {
             if (outEdgeTable.contains(src)) {
                 Map<String, List<String>> outEdges = outEdgeTable.get(src);
@@ -234,10 +232,10 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<UniEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
-            Iterator<Edge> outEdgesIterator = null;
-            Iterator<Edge> inEdgesIterator = null;
+            Iterator<UniEdge> outEdgesIterator = null;
+            Iterator<UniEdge> inEdgesIterator = null;
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (outEdgeTable.contains(vertex.getId())) {
                     Map<String, List<String>> outEdges = outEdgeTable.get(vertex.getId());
@@ -251,14 +249,14 @@ public class FlatObjectStorage extends BaseStorage {
                 }
             }
             if (outEdgesIterator != null && inEdgesIterator != null) {
-                Iterator<Edge> finalOutEdgesIterator = outEdgesIterator;
-                Iterator<Edge> finalInEdgesIterator = inEdgesIterator;
+                Iterator<UniEdge> finalOutEdgesIterator = outEdgesIterator;
+                Iterator<UniEdge> finalInEdgesIterator = inEdgesIterator;
                 return () -> IteratorUtils.chainedIterator(finalOutEdgesIterator, finalInEdgesIterator);
             } else if (outEdgesIterator != null) {
-                Iterator<Edge> finalOutEdgesIterator1 = outEdgesIterator;
+                Iterator<UniEdge> finalOutEdgesIterator1 = outEdgesIterator;
                 return () -> finalOutEdgesIterator1;
             } else if (inEdgesIterator != null) {
-                Iterator<Edge> finalInEdgesIterator1 = inEdgesIterator;
+                Iterator<UniEdge> finalInEdgesIterator1 = inEdgesIterator;
                 return () -> finalInEdgesIterator1;
             } else return Collections.emptyList();
 

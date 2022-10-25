@@ -11,18 +11,21 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public class ReplicableGraphElement extends GraphElement {
+/**
+ * GraphElement that are replicable. Added halo and master logic
+ */
+abstract public class ReplicableGraphElement extends GraphElement {
 
     public short master = -1;
 
-    public Boolean halo = false;
+    public boolean halo = false;
 
     public ReplicableGraphElement() {
         super();
     }
 
-    public ReplicableGraphElement(String id, boolean halo, short master) {
-        super(id);
+    public ReplicableGraphElement(boolean halo, short master) {
+        super();
         this.halo = halo;
         this.master = master;
     }
@@ -33,17 +36,14 @@ public class ReplicableGraphElement extends GraphElement {
         this.halo = element.halo;
     }
 
-
+    @Override
+    abstract public ReplicableGraphElement copy();
 
     @Override
-    public ReplicableGraphElement copy() {
-        return new ReplicableGraphElement(this, false);
-    }
+    abstract public ReplicableGraphElement deepCopy();
 
-    @Override
-    public ReplicableGraphElement deepCopy() {
-        return new ReplicableGraphElement(this, true);
-    }
+
+    // CRUD Methods
 
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
@@ -51,6 +51,7 @@ public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
+        assert storage != null;
         if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo())
@@ -93,8 +94,8 @@ public class ReplicableGraphElement extends GraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
+            assert storage != null;
             Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            // @todo Think about how to organize this sync logic, right now if the callback function assumes that replicas have the same state they will be wrong
             if (tmp.f0 != null && !isHalo()) syncReplicas(replicaParts());
             storage.runCallback(tmp.f0);
         } else {
@@ -119,13 +120,13 @@ public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
             super.delete();
         } else if (state() == ReplicaState.REPLICA) {
+            assert storage != null;
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
         }
     }
 
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
-     *
      * @param notifyMaster should notify it master part after deletion?
      */
     @RemoteFunction
@@ -143,43 +144,38 @@ public class ReplicableGraphElement extends GraphElement {
         }
     }
 
-    /**
-     * Sends a copy of this element as message to all parts
-     *
-     * @param parts where should the message be sent
-     */
-    public void syncReplicas(List<Short> parts) {
-        assert storage != null;
-        if ((state() != ReplicaState.MASTER) || !isReplicable() || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
-            return;
-        cacheFeatures(); // retrieve all features of this element
-        ReplicableGraphElement cpy = copy(); // Make a copy do not actually send this element
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                if (feature.isHalo()) continue;
-                Feature<?, ?> tmp = feature.copy();
-                cpy.setFeature(feature.getName(), tmp);
-            }
-        }
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
-    }
 
+
+    // NORMAL OPERATIONS
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public short masterPart() {
         return this.master;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isHalo() {
         return this.halo;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<Short> replicaParts() {
         if (!containsFeature("p")) return super.replicaParts();
-        return (List<Short>) getFeature("p").getValue(); // @implNote Never create other Feature with the name parts
+        return (List<Short>) Objects.requireNonNull(getFeature("p")).getValue(); // @implNote Never create other Feature with the name parts
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isReplicable() {
         return true;

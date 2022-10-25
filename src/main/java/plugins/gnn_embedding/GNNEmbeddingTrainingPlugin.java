@@ -1,7 +1,7 @@
-package plugins.embedding_layer;
+package plugins.gnn_embedding;
 
-import aggregators.BaseAggregator;
-import aggregators.MeanAggregator;
+import features.Aggregator;
+import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArrays;
@@ -19,6 +19,7 @@ import operators.events.BackwardBarrier;
 import operators.events.BaseOperatorEvent;
 import operators.events.ForwardBarrier;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.shaded.guava30.com.google.common.primitives.Longs;
 
 import java.util.*;
@@ -69,8 +70,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDArrayCollector<String> collector = collectors.get(getPartId()).f1;
         for (Map.Entry<String, NDArray> stringNDArrayEntry : gradients.entrySet()) {
             Vertex v = storage.getVertex(stringNDArrayEntry.getKey());
-            for (Edge incidentEdge : storage.getIncidentEdges(v, EdgeType.IN)) {
-                collector.put(incidentEdge.getSrc().getId(), stringNDArrayEntry.getValue());
+            for (UniEdge incidentUniEdge : storage.getIncidentEdges(v, EdgeType.IN)) {
+                collector.put(incidentUniEdge.getSrc().getId(), stringNDArrayEntry.getValue());
             }
         }
     }
@@ -121,7 +122,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             for (int i = 0; i < collectedGradients.size(); i++) {
                 NDArray previousFeatureGrad = gradients.get(0).get(i);
                 NDArray aggGrad = gradients.get(1).get(i);
-                BaseAggregator<?> aggregator = (BaseAggregator<?>) vertices.get(i).getFeature("agg");
+                Aggregator aggregator = (Aggregator) vertices.get(i).getFeature("agg");
                 if (backwardGrads != null) {
                     backwardGrads.put(vertices.get(i).getId(), previousFeatureGrad);
                 }
@@ -231,18 +232,18 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         HashMap<Vertex, List<Integer>> destVertices = new HashMap<>();
         NDList srcFeatures = new NDList();
         for (Vertex vertex : storage.getVertices()) {
-            if (vertex.state() == ReplicaState.MASTER) ((BaseAggregator<?>) vertex.getFeature("agg")).reset();
-            Iterable<Edge> localInEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
-            for (Edge localInEdge : localInEdges) {
-                if (!srcVertices.containsKey(localInEdge.getSrc())) {
-                    srcVertices.put(localInEdge.getSrc(), srcFeatures.size());
-                    srcFeatures.add((NDArray) localInEdge.getSrc().getFeature("f").getValue());
+            if (vertex.state() == ReplicaState.MASTER) ((Aggregator) vertex.getFeature("agg")).reset();
+            Iterable<UniEdge> localInEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
+            for (UniEdge localInUniEdge : localInEdges) {
+                if (!srcVertices.containsKey(localInUniEdge.getSrc())) {
+                    srcVertices.put(localInUniEdge.getSrc(), srcFeatures.size());
+                    srcFeatures.add((NDArray) localInUniEdge.getSrc().getFeature("f").getValue());
                 }
                 destVertices.compute(vertex, (v, l) -> {
                     if (l == null) {
-                        return new ArrayList<>(List.of(srcVertices.get(localInEdge.getSrc())));
+                        return new ArrayList<>(List.of(srcVertices.get(localInUniEdge.getSrc())));
                     }
-                    l.add(srcVertices.get(localInEdge.getSrc()));
+                    l.add(srcVertices.get(localInUniEdge.getSrc()));
                     return l;
                 });
             }
@@ -280,8 +281,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList inputsBatched = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
         NDArray updatesBatched = UPDATE(inputsBatched, false).get(0);
         for (int i = 0; i < vertexIds.size(); i++) {
-            Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, null);
-            updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, vertexIds.get(i));
+            Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
+            updateTensor.attachedTo = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
             storage.layerFunction.message(new GraphOp(Op.COMMIT, storage.layerFunction.getCurrentPart(), updateTensor), MessageDirection.FORWARD);
         }
     }

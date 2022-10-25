@@ -8,8 +8,10 @@ import org.apache.flink.core.memory.DataOutputViewStreamWrapper;
 
 import java.io.*;
 
+/**
+ * Interface for serializing objects based on KryoSerialization
+ */
 public interface KryoExternalizable extends Externalizable {
-
     @Override
     default void writeExternal(ObjectOutput out) {
         try {

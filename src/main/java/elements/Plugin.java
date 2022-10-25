@@ -9,13 +9,30 @@ import java.util.Objects;
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement {
+
+    public String id;
+
     public Plugin() {
-        super(null, false, (short) 0);
+        super(false, (short) 0);
     }
 
     public Plugin(String id) {
-        super(id, false, (short) 0);
+        super(false, (short) 0);
+        this.id = id;
     }
+
+    @Override
+    public ReplicableGraphElement copy() {
+        throw new IllegalStateException("No copy");
+    }
+
+    @Override
+    public ReplicableGraphElement deepCopy() {
+        throw new IllegalStateException("No deepcopy");
+    }
+
+
+    // CRUD METHODS
 
     @Override
     public void create() {
@@ -33,28 +50,16 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     @Override
-    public short getPartId() {
-        return storage.layerFunction.getCurrentPart();
-    }
-
-    @Override
-    public void setPartId(short partId) {
-        // Do not set instead fetch from the stroage
-    }
-
-    @Override
     public void delete() {
         throw new IllegalStateException("Plugins are not created");
     }
 
-    @Override
-    public ReplicableGraphElement copy() {
-        throw new IllegalStateException("No copy");
-    }
+
+    // OTHER METHODS
 
     @Override
-    public ReplicableGraphElement deepCopy() {
-        throw new IllegalStateException("No deepcopy");
+    public short getPartId() {
+        return storage.layerFunction.getCurrentPart();
     }
 
     /**
@@ -85,6 +90,11 @@ public class Plugin extends ReplicableGraphElement {
     @Override
     public ElementType elementType() {
         return ElementType.PLUGIN;
+    }
+
+    @Override
+    public String getId() {
+        return id;
     }
 
 

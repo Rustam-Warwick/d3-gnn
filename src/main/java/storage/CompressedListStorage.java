@@ -1,6 +1,6 @@
 package storage;
 
-import aggregators.MeanAggregator;
+import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import elements.*;
 import features.Set;
@@ -128,20 +128,20 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addEdge(Edge edge) {
+    public boolean addEdge(UniEdge uniEdge) {
         try {
-            int srcId = vId2Int.get(edge.getSrc().getId());
-            int destId = vId2Int.get(edge.getDest().getId());
+            int srcId = vId2Int.get(uniEdge.getSrc().getId());
+            int destId = vId2Int.get(uniEdge.getDest().getId());
             List<Tuple2<Integer, String>> outEdgeList = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);
             List<Tuple2<Integer, String>> inEdgeList = (List<Tuple2<Integer, String>>) ((List<?>) inEdges.get()).get(destId);
             if (outEdgeList.size() == 0)
-                outEdgeList = new ArrayList<>(List.of(Tuple2.of(destId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null)));
+                outEdgeList = new ArrayList<>(List.of(Tuple2.of(destId, UniEdge.isAttributed(uniEdge.getId()) ? UniEdge.decodeVertexIdsAndAttribute(uniEdge.getId())[2] : null)));
             else
-                outEdgeList.add(Tuple2.of(destId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null));
+                outEdgeList.add(Tuple2.of(destId, UniEdge.isAttributed(uniEdge.getId()) ? UniEdge.decodeVertexIdsAndAttribute(uniEdge.getId())[2] : null));
             if (inEdgeList.size() == 0)
-                inEdgeList = new ArrayList<>(List.of(Tuple2.of(srcId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null)));
+                inEdgeList = new ArrayList<>(List.of(Tuple2.of(srcId, UniEdge.isAttributed(uniEdge.getId()) ? UniEdge.decodeVertexIdsAndAttribute(uniEdge.getId())[2] : null)));
             else
-                inEdgeList.add(Tuple2.of(srcId, Edge.isAttributed(edge.getId()) ? Edge.decodeVertexIdsAndAttribute(edge.getId())[2] : null));
+                inEdgeList.add(Tuple2.of(srcId, UniEdge.isAttributed(uniEdge.getId()) ? UniEdge.decodeVertexIdsAndAttribute(uniEdge.getId())[2] : null));
             ((List<List<Tuple2<Integer, String>>>) outEdges.get()).set(srcId, outEdgeList);
             ((List<List<Tuple2<Integer, String>>>) inEdges.get()).set(destId, inEdgeList);
             return true;
@@ -167,7 +167,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateEdge(Edge edge) {
+    public boolean updateEdge(UniEdge uniEdge) {
         return true;
     }
 
@@ -187,7 +187,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteEdge(Edge edge) {
+    public boolean deleteEdge(UniEdge uniEdge) {
         throw new NotImplementedException("Not implemented");
     }
 
@@ -226,9 +226,9 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Edge getEdge(String id) {
+    public UniEdge getEdge(String id) {
         try {
-            Edge e = new Edge(id);
+            UniEdge e = new UniEdge(id);
             e.setStorage(this);
             return e;
         } catch (Exception e) {
@@ -238,16 +238,16 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<Edge> getEdges(String src, String dest) {
+    public Iterable<UniEdge> getEdges(String src, String dest) {
         try {
             int srcId = vId2Int.get(src);
             int destId = vId2Int.get(dest);
             List<Tuple2<Integer, String>> srcOutVertices = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);
             return () -> srcOutVertices.stream().filter(item -> item.f0 == destId).map(item -> {
                 if (item.f1 == null) {
-                    return getEdge(Edge.encodeEdgeId(src, dest));
+                    return getEdge(UniEdge.encodeEdgeId(src, dest));
                 } else {
-                    return getEdge(Edge.encodeEdgeId(src, dest, item.f1));
+                    return getEdge(UniEdge.encodeEdgeId(src, dest, item.f1));
                 }
             }).iterator();
         } catch (Exception e) {
@@ -257,20 +257,20 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<UniEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
             int vId = vId2Int.get(vertex.getId());
-            Iterator<Edge> outEdgesIterator = null;
-            Iterator<Edge> inEdgesIterator = null;
+            Iterator<UniEdge> outEdgesIterator = null;
+            Iterator<UniEdge> inEdgesIterator = null;
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 List<Tuple2<Integer, String>> outEdgesList = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(vId);
                 outEdgesIterator = IteratorUtils.transformedIterator(outEdgesList.iterator(), val -> {
                     Tuple2<Integer, String> valT = (Tuple2<Integer, String>) val;
                     try {
                         if (valT.f1 == null) {
-                            return getEdge(Edge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0)));
+                            return getEdge(UniEdge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0)));
                         } else {
-                            return getEdge(Edge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0), valT.f1));
+                            return getEdge(UniEdge.encodeEdgeId(vertex.getId(), vInt2Id.get(valT.f0), valT.f1));
                         }
                     } catch (Exception ignored) {
                         ignored.printStackTrace();
@@ -283,9 +283,9 @@ public class CompressedListStorage extends BaseStorage {
                     Tuple2<Integer, String> valT = (Tuple2<Integer, String>) val;
                     try {
                         if (valT.f1 == null) {
-                            return getEdge(Edge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId()));
+                            return getEdge(UniEdge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId()));
                         } else {
-                            return getEdge(Edge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId(), valT.f1));
+                            return getEdge(UniEdge.encodeEdgeId(vInt2Id.get(valT.f0), vertex.getId(), valT.f1));
                         }
                     } catch (Exception ignored) {
                         ignored.printStackTrace();
@@ -294,14 +294,14 @@ public class CompressedListStorage extends BaseStorage {
                 });
             }
             if (outEdgesIterator != null && inEdgesIterator != null) {
-                Iterator<Edge> finalOutEdgesIterator = outEdgesIterator;
-                Iterator<Edge> finalInEdgesIterator = inEdgesIterator;
+                Iterator<UniEdge> finalOutEdgesIterator = outEdgesIterator;
+                Iterator<UniEdge> finalInEdgesIterator = inEdgesIterator;
                 return () -> IteratorUtils.chainedIterator(finalOutEdgesIterator, finalInEdgesIterator);
             } else if (outEdgesIterator != null) {
-                Iterator<Edge> finalOutEdgesIterator1 = outEdgesIterator;
+                Iterator<UniEdge> finalOutEdgesIterator1 = outEdgesIterator;
                 return () -> finalOutEdgesIterator1;
             } else if (inEdgesIterator != null) {
-                Iterator<Edge> finalInEdgesIterator1 = inEdgesIterator;
+                Iterator<UniEdge> finalInEdgesIterator1 = inEdgesIterator;
                 return () -> finalInEdgesIterator1;
             } else return Collections.emptyList();
 
@@ -332,8 +332,6 @@ public class CompressedListStorage extends BaseStorage {
                 Feature<Object, Object> tmpFeature = vFeature.get(featureName).f2.newInstance();
                 tmpFeature.value = featureValue;
                 tmpFeature.halo = isHalo;
-                tmpFeature.attachedTo = Tuple2.of(ElementType.VERTEX, elementId);
-                tmpFeature.id = featureName;
                 tmpFeature.setStorage(this);
                 return tmpFeature;
             }
@@ -382,8 +380,8 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public boolean containsEdge(String id) {
         try {
-            boolean isAttr = Edge.isAttributed(id);
-            String[] srcDestIds = Edge.decodeVertexIdsAndAttribute(id);
+            boolean isAttr = UniEdge.isAttributed(id);
+            String[] srcDestIds = UniEdge.decodeVertexIdsAndAttribute(id);
             int srcId = vId2Int.get(srcDestIds[0]);
             int destId = vId2Int.get(srcDestIds[1]);
             List<Tuple2<Integer, String>> destList = (List<Tuple2<Integer, String>>) ((List<?>) outEdges.get()).get(srcId);

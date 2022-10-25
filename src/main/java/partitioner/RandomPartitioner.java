@@ -1,7 +1,7 @@
 package partitioner;
 
 
-import elements.Edge;
+import elements.UniEdge;
 import elements.ElementType;
 import elements.GraphOp;
 import elements.Vertex;
@@ -59,8 +59,8 @@ class RandomPartitioner extends BasePartitioner {
         public GraphOp map(GraphOp value) throws Exception {
             if (value.element.elementType() == ElementType.EDGE) {
                 value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-                Edge edge = (Edge) value.element;
-                masters.compute(edge.getSrc().getId(), (srcId, val) -> {
+                UniEdge uniEdge = (UniEdge) value.element;
+                masters.compute(uniEdge.getSrc().getId(), (srcId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -70,7 +70,7 @@ class RandomPartitioner extends BasePartitioner {
                     return val;
                 });
 
-                masters.compute(edge.getDest().getId(), (destId, val) -> {
+                masters.compute(uniEdge.getDest().getId(), (destId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -79,8 +79,8 @@ class RandomPartitioner extends BasePartitioner {
                     }
                     return val;
                 });
-                edge.getSrc().master = this.masters.get(edge.getSrc().getId()).get(0);
-                edge.getDest().master = this.masters.get(edge.getDest().getId()).get(0);
+                uniEdge.getSrc().master = this.masters.get(uniEdge.getSrc().getId()).get(0);
+                uniEdge.getDest().master = this.masters.get(uniEdge.getDest().getId()).get(0);
             } else if (value.element.elementType() == ElementType.VERTEX) {
                 short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 masters.compute(value.element.getId(), (srcId, val) -> {

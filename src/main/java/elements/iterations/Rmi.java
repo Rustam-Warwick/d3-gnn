@@ -1,7 +1,6 @@
 package elements.iterations;
 
-import ai.djl.ndarray.MayContainNDArray;
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.ObjectPoolControl;
 import elements.ElementType;
 import elements.GraphElement;
 import operators.BaseWrapperOperator;
@@ -13,7 +12,6 @@ import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 public class Rmi extends GraphElement {
     public static ConcurrentHashMap<Class<?>, ConcurrentHashMap<String, MethodHandle>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
@@ -23,17 +21,28 @@ public class Rmi extends GraphElement {
     public Boolean hasUpdate = true;
     public String methodName;
 
+    public String id;
+
     public Rmi() {
         super();
     }
 
+    @Override
+    public GraphElement copy() {
+        throw new IllegalStateException("RMI Not copied");
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        throw new IllegalStateException("RMI Not copied");
+    }
+
     public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate, Long ts) {
-        super(id);
+        this.id = id;
         this.args = args;
         this.methodName = methodName;
         this.elemType = elemType;
         this.hasUpdate = hasUpdate;
-        this.ts = ts;
     }
 
     public static void cacheClassIfNotExists(Class<?> clazz) {
@@ -67,7 +76,6 @@ public class Rmi extends GraphElement {
             cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
             if (message.hasUpdate) {
                 GraphElement deepCopyElement = element.deepCopy(); // Creates a full copy of the element
-                deepCopyElement.setTimestamp(message.getTimestamp()); // Replace element timestamp with model timestamp
                 MethodHandle method = classRemoteMethods.get(element.getClass()).get(message.methodName);
                 Object[] args = generateVarargs(message.args, deepCopyElement);
                 method.invokeWithArguments(args);
@@ -85,28 +93,36 @@ public class Rmi extends GraphElement {
     }
 
     @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        super.applyForNDArrays(operation);
+    public void delay() {
+        super.delay();
         for (Object arg : args) {
-            if (arg instanceof MayContainNDArray) {
-                ((MayContainNDArray) arg).applyForNDArrays(operation);
-            }
+            if(arg instanceof ObjectPoolControl) ((ObjectPoolControl) arg).delay();
         }
     }
-
     @Override
-    public String toString() {
-        return "Rmi{" +
-                "id='" + id + '\'' +
-                ", args=" + Arrays.toString(args) +
-                ", elemType=" + elemType +
-                ", hasUpdate=" + hasUpdate +
-                ", methodName='" + methodName + '\'' +
-                '}';
+    public void resume() {
+        super.resume();
+        for (Object arg : args) {
+            if(arg instanceof ObjectPoolControl) ((ObjectPoolControl) arg).resume();
+        }
     }
 
     @Override
     public ElementType elementType() {
         return this.elemType;
+    }
+
+    @Override
+    public String getId() {
+        return id;
+    }
+    @Override
+    public String toString() {
+        return "Rmi{" +
+                ", args=" + Arrays.toString(args) +
+                ", elemType=" + elemType +
+                ", hasUpdate=" + hasUpdate +
+                ", methodName='" + methodName + '\'' +
+                '}';
     }
 }

@@ -28,7 +28,6 @@ public abstract class NativeResource<T> implements AutoCloseable {
 
     protected NativeResource(T handle) {
         this.handle = new AtomicReference<>(handle);
-
     }
 
     /**

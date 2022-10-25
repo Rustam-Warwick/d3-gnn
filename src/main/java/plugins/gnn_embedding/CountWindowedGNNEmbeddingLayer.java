@@ -1,4 +1,4 @@
-package plugins.embedding_layer;
+package plugins.gnn_embedding;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
@@ -8,6 +8,7 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import features.Tensor;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
@@ -27,17 +28,18 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public CountWindowedGNNEmbeddingLayer(int BATCH_SIZE) {
-        this.BATCH_SIZE = BATCH_SIZE;
-    }
-
     public CountWindowedGNNEmbeddingLayer(String modelName, int BATCH_SIZE) {
         super(modelName);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int BATCH_SIZE) {
-        super(modelName, createVertexEmbeddings, true);
+    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
+        super(modelName, trainableVertexEmbeddings);
+        this.BATCH_SIZE = BATCH_SIZE;
+    }
+
+    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
+        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
@@ -79,7 +81,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             for (int i = 0; i < updates.length; i++) {
                 throughput.inc();
                 Vertex messageVertex = vertices.get(i);
-                updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, messageVertex.getId());
+                updateTensor.attachedTo = Tuple3.of(ElementType.VERTEX, messageVertex.getId(), null);
                 updateTensor.value = updates[i].get(0);
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD);
             }

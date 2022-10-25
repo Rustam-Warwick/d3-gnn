@@ -1,6 +1,5 @@
 package elements;
 
-import ai.djl.ndarray.NDArray;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
@@ -34,7 +33,7 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     public HEdge(String id, boolean halo, Short master, Vertex[] vertices) {
-        super(id, halo, master);
+        super(halo, master);
         this.vertices = vertices;
         vertexIds = new HashSet<>();
         for (int i = 0; i < vertices.length; i++) {
@@ -141,13 +140,8 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        super.applyForNDArrays(operation);
-//        if(vertices != null){
-//            for (Vertex vertex : vertices) {
-//                vertex.applyForNDArrays(operation);
-//            }
-//        }
+    public String getId() {
+        return null;
     }
 
     @Override

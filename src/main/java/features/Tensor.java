@@ -15,23 +15,26 @@ import java.util.function.Consumer;
 public class Tensor extends Feature<NDArray, NDArray> {
 
     public Tensor() {
-        super();
-    }
-
-    public Tensor(Tensor s, boolean deepCopy) {
-        super(s, deepCopy);
     }
 
     public Tensor(NDArray value) {
         super(value);
     }
 
-    public Tensor(String id, NDArray value, boolean halo, Short master) {
+    public Tensor(NDArray value, boolean halo, short master) {
+        super(value, halo, master);
+    }
+
+    public Tensor(String id, NDArray value) {
+        super(id, value);
+    }
+
+    public Tensor(String id, NDArray value, boolean halo, short master) {
         super(id, value, halo, master);
     }
 
-    public Tensor(NDArray value, boolean halo, Short master) {
-        super(value, halo, master);
+    public Tensor(Feature<NDArray, NDArray> f, boolean deepCopy) {
+        super(f, deepCopy);
     }
 
     @Override
@@ -44,16 +47,14 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return new Tensor(this, true);
     }
 
-    @Override
-    public NDArray getValue() {
-        return this.value;
-    }
+    // CRUD METHODS
+
 
     @Override
     public Consumer<Plugin> createElement() {
-        Consumer<Plugin> tmp = super.createElement();
-        if (tmp != null) value.postpone();
-        return tmp;
+        Consumer<Plugin> callback = super.createElement();
+        if (callback != null) value.delay();
+        return callback;
     }
 
     @Override
@@ -61,10 +62,18 @@ public class Tensor extends Feature<NDArray, NDArray> {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
         if (callback.f0 != null && mementoAggregator.value != value) {
-            value.postpone();
-            mementoAggregator.value.prepone();
+            value.delay();
+            mementoAggregator.value.resume();
         }
         return callback;
+    }
+
+
+    // OTHER METHODS
+
+    @Override
+    public NDArray getValue() {
+        return this.value;
     }
 
     @Override
@@ -73,9 +82,14 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        super.applyForNDArrays(operation);
-        operation.accept(value);
+    public void delay() {
+        super.delay();
+        value.delay();
     }
 
+    @Override
+    public void resume() {
+        super.resume();
+        value.resume();
+    }
 }

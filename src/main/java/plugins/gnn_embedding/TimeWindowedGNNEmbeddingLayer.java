@@ -1,4 +1,4 @@
-package plugins.embedding_layer;
+package plugins.gnn_embedding;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
@@ -10,6 +10,7 @@ import elements.iterations.MessageDirection;
 import features.Tensor;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
@@ -25,17 +26,18 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     public transient Batchifier batchifier; // Batchifier for the windowed data
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public TimeWindowedGNNEmbeddingLayer(int windowInterval) {
-        this.windowInterval = windowInterval;
-    }
-
     public TimeWindowedGNNEmbeddingLayer(String modelName, int windowInterval) {
         super(modelName);
         this.windowInterval = windowInterval;
     }
 
-    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean createVertexEmbeddings, int windowInterval) {
-        super(modelName, createVertexEmbeddings, true);
+    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int windowInterval) {
+        super(modelName, trainableVertexEmbeddings);
+        this.windowInterval = windowInterval;
+    }
+
+    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int windowInterval) {
+        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.windowInterval = windowInterval;
     }
 
@@ -104,7 +106,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 elementUpdates.getValue().remove(vertices.get(i).getId());
                 Vertex messageVertex = vertices.get(i);
                 Tensor updateTensor = new Tensor("f", updates[i].get(0), false, messageVertex.masterPart());
-                updateTensor.attachedTo = Tuple2.of(ElementType.VERTEX, messageVertex.getId());
+                updateTensor.attachedTo = Tuple3.of(ElementType.VERTEX, messageVertex.getId(), null);
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD, timestamps.get(i));
             }
             storage.updateFeature(elementUpdates);

@@ -1,6 +1,6 @@
 package datasets;
 
-import elements.Edge;
+import elements.UniEdge;
 import elements.GraphOp;
 import elements.Op;
 import elements.Vertex;
@@ -64,14 +64,14 @@ public class RedditHyperlink implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split("\t");
-            Edge edge = new Edge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
+            UniEdge uniEdge = new UniEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){
 //                String processed = values[i].replaceAll("[^0-9.]", "");
 //                features[i-4] =  Float.valueOf(processed);
 //            }
 //            edge.setFeature("f", new Tensor(LifeCycleNDManager.getInstance().create(features)));
-            return new GraphOp(Op.COMMIT, edge);
+            return new GraphOp(Op.COMMIT, uniEdge);
         }
     }
 

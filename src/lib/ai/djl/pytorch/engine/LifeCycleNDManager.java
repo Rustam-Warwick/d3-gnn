@@ -1,7 +1,6 @@
 package ai.djl.pytorch.engine;
 
 import ai.djl.Device;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.NDResource;
 import com.github.benmanes.caffeine.cache.*;
@@ -11,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Iterator;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -23,13 +21,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class LifeCycleNDManager extends PtNDManager {
 
-    /**
-     * Logged
-     */
     public static final Logger LOG = LoggerFactory.getLogger(NDManager.class);
-    /**
-     * HashMap for the Threads
-     */
+
     private static final NonBlockingHashMapLong<Tuple2<Thread, LifeCycleNDManager>> THREADS = new NonBlockingHashMapLong<>();
 
     static {
@@ -39,11 +32,12 @@ public class LifeCycleNDManager extends PtNDManager {
         cleanerThread.start();
     }
 
+    // STATIC METHODS
+
     protected final Scope parentScope = new Scope(); // Scope to delay the tensor removing
 
     protected final ManualTicker ticker = new ManualTicker(); // Logical timer depending on the data-rate
 
-    protected final ConcurrentHashMap<AutoCloseable, Integer> detached = new ConcurrentHashMap<>(); // Map of detached tensors
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
@@ -62,8 +56,6 @@ public class LifeCycleNDManager extends PtNDManager {
 
     private LifeCycleNDManager(NDManager parent, Device device) {
         super(parent, device);
-        this.resources = null;
-        this.tempResources = null;
     }
 
     /**
@@ -89,11 +81,7 @@ public class LifeCycleNDManager extends PtNDManager {
                         for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
                             value.close();
                         }
-                        for (AutoCloseable value : val.f1.detached.keySet()) {
-                            value.close();
-                        }
                         val.f1.attached.asMap().clear();
-                        val.f1.detached.clear();
                         threadLocal.remove();
                         System.gc();
                         LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
@@ -121,40 +109,11 @@ public class LifeCycleNDManager extends PtNDManager {
     }
 
     /**
-     * Postponed tensor are detached from cache untill prepone exactly as many times as they were postponed
-     */
-    public void postpone(NDArray resource) {
-        detached.compute(resource, (key, val) -> {
-            if (val == null) {
-                if (!attached.asMap().containsKey(key)) return val;
-                attached.invalidate(key);
-                return 1;
-            }
-            return val + 1;
-        });
-    }
-
-    /**
-     * Prepone the tensor trying to merge it into the cache.
-     */
-    public void prepone(NDArray resource) {
-        detached.compute(resource, (key, val) -> {
-            if (val == null) return val;
-            if (--val == 0) {
-                // no longer detached
-                attached.put(key, key); // Do not increment here!
-                return null;
-            }
-            return val;
-        });
-    }
-
-    /**
      * Called when the Tensor is constructed or re-attached
      */
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
-        if (!attached.asMap().containsKey(resource) && !detached.containsKey(resource)) {
+        if (!attached.asMap().containsKey(resource)) {
             if (parentScope.isClosed()) ticker.increment();
             else scopedCount++;
             attached.put(resource, resource);
@@ -183,7 +142,6 @@ public class LifeCycleNDManager extends PtNDManager {
      * Custom method for detaching tensors
      */
     public void detachInternal(String resourceId, AutoCloseable resource) {
-        detached.remove(resource);
         attached.invalidate(resource); // !This might cause eviction is the time is late
     }
 

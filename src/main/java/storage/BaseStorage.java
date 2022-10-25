@@ -49,7 +49,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean addVertex(Vertex vertex);
 
-    public abstract boolean addEdge(Edge edge);
+    public abstract boolean addEdge(UniEdge uniEdge);
 
     public abstract boolean addHyperEdge(HEdge hEdge);
 
@@ -58,7 +58,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean updateVertex(Vertex vertex);
 
-    public abstract boolean updateEdge(Edge edge);
+    public abstract boolean updateEdge(UniEdge uniEdge);
 
     public abstract boolean updateHyperEdge(HEdge hEdge);
 
@@ -67,7 +67,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean deleteVertex(Vertex vertex);
 
-    public abstract boolean deleteEdge(Edge edge);
+    public abstract boolean deleteEdge(UniEdge uniEdge);
 
     public abstract boolean deleteHyperEdge(HEdge hEdge);
 
@@ -80,11 +80,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // - Edge
     @Nullable
-    public abstract Edge getEdge(String id);
+    public abstract UniEdge getEdge(String id);
 
-    public abstract Iterable<Edge> getEdges(String src, String dest); // Possible-multigraph
+    public abstract Iterable<UniEdge> getEdges(String src, String dest); // Possible-multigraph
 
-    public abstract Iterable<Edge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+    public abstract Iterable<UniEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
     // - HyperEdge
     public abstract HEdge getHyperEdge(String id);
@@ -242,7 +242,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case VERTEX:
                 return this.addVertex((Vertex) element);
             case EDGE:
-                return this.addEdge((Edge) element);
+                return this.addEdge((UniEdge) element);
             case FEATURE:
                 return this.addFeature((Feature<?, ?>) element);
             case HYPEREDGE:
@@ -257,7 +257,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case VERTEX:
                 return this.deleteVertex((Vertex) element);
             case EDGE:
-                return this.deleteEdge((Edge) element);
+                return this.deleteEdge((UniEdge) element);
             case FEATURE:
                 return this.deleteFeature((Feature<?, ?>) element);
             case HYPEREDGE:
@@ -272,7 +272,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case VERTEX:
                 return this.updateVertex((Vertex) element);
             case EDGE:
-                return this.updateEdge((Edge) element);
+                return this.updateEdge((UniEdge) element);
             case FEATURE:
                 return this.updateFeature((Feature) element);
             case HYPEREDGE:

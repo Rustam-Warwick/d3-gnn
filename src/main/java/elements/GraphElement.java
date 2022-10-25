@@ -1,7 +1,7 @@
 package elements;
 
-import ai.djl.ndarray.MayContainNDArray;
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.ObjectPoolControl;
+import elements.iterations.MessageDirection;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -16,18 +16,16 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+/**
+ * Abstract class representing a GraphElement.
+ * CRUD Methods for interacting with the storage layer
+ */
 @TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
-public class GraphElement implements Serializable, MayContainNDArray {
+public abstract class GraphElement implements Serializable, ObjectPoolControl {
     protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage
-    @Nullable
-    public String id;
-
-    @OmitStorage
-    public short partId = -1;
-
-    public Long ts;
+    public short partId = -1; // Part id where this object is located
 
     @Nullable
     public transient BaseStorage storage;
@@ -41,36 +39,27 @@ public class GraphElement implements Serializable, MayContainNDArray {
 
     }
 
-    public GraphElement(@Nullable String id) {
-        this.id = id;
-    }
-
-    public GraphElement(GraphElement element, boolean deepCopy) {
-        this.id = element.id;
+    public GraphElement(GraphElement element, boolean ignoredDeepCopy) {
         this.partId = element.partId;
-        this.ts = element.ts;
     }
 
     /**
-     * Copy bare element, without storage and features
-     *
-     * @return copied element
+     * Copy this element to new GraphElement
      */
-    public GraphElement copy() {
-        return new GraphElement(this, false);
-    }
+    abstract public GraphElement copy();
 
     /**
-     * Copy everything including storage, element features
-     *
-     * @return copied element
+     * Deep Copy this element to new GraphElement
      */
-    public GraphElement deepCopy() {
-        return new GraphElement(this, true);
-    }
+    abstract public GraphElement deepCopy();
+
+
+
+    // CRUD Operations
 
     /**
-     * Tries to create the element returns null if not created otherwise returns the callback to be fired
+     * Create this element and all its features
+     * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> createElement() {
         assert storage != null;
@@ -87,7 +76,8 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * Deletes element and all attached Features
+     * Deleted this element and all its features
+     * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> deleteElement() {
         assert storage != null;
@@ -104,9 +94,8 @@ public class GraphElement implements Serializable, MayContainNDArray {
 
     /**
      * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
-     * If memnto is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your sub-class has some additional data that should be updated.
+     * If memento is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your subclass has some additional data that should be updated.
      * Memento stores the difference between the updated value of this element vs the old value.
-     *
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
@@ -139,7 +128,6 @@ public class GraphElement implements Serializable, MayContainNDArray {
         }
 
         if (memento != null) {
-            resolveTimestamp(newElement.getTimestamp());
             storage.updateElement(this);
             GraphElement finalMemento = memento;
             Consumer<Plugin> tmp = item -> item.updateElementCallback(this, finalMemento);
@@ -150,22 +138,23 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * External delete query
-     */
-    public void delete() {
-        storage.runCallback(deleteElement());
-    }
-
-    /**
-     * External Create logic
+     * External Create GraphElement
      */
     public void create() {
+        assert storage != null;
         storage.runCallback(createElement());
     }
 
     /**
-     * External Sync logic
-     *
+     * External Query to delete GraphElement
+     */
+    public void delete() {
+        assert storage != null;
+        storage.runCallback(deleteElement());
+    }
+
+    /**
+     * External Query to sync masters and replicas
      * @param newElement element that requires syncing
      */
     public void sync(GraphElement newElement) {
@@ -173,12 +162,36 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * External Update logic
-     *
+     * External Query to update GraphElement
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
+        assert storage != null;
         storage.runCallback(updateElement(newElement, null).f0);
+    }
+
+
+    // NORMAL OPERATIONS
+
+    /**
+     * Sends a copy of this element as message to all parts
+     *
+     * @param parts where should the message be sent
+     */
+    public void syncReplicas(List<Short> parts) {
+        assert storage != null;
+        if ((state() != ReplicaState.MASTER) || !isReplicable() || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
+            return;
+        cacheFeatures(); // retrieve all features of this element
+        GraphElement cpy = copy(); // Make a copy do not actually send this element
+        if (features != null) {
+            for (Feature<?, ?> feature : features) {
+                if (feature.isHalo()) continue;
+                Feature<?, ?> tmp = feature.copy();
+                cpy.setFeature(feature.getName(), tmp);
+            }
+        }
+        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
     }
 
     /**
@@ -196,8 +209,6 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * Master part of this element, default is current part
-     *
      * @return master part of this element
      */
     public short masterPart() {
@@ -205,18 +216,14 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * Default is false, halo does make sense only for replicableElements
-     *
-     * @return is this element Halo()
+     * @return if this element is HALO
      */
     public boolean isHalo() {
         return false;
     }
 
     /**
-     * MASTER, REPLICA, UNDEFINED. UNDEFINED is if not yet in storage
-     *
-     * @return state of this element
+     * @return state of this element (MASTER, REPLICA, UNDEFINED)
      */
     public ReplicaState state() {
         if (getPartId() == -1) return ReplicaState.UNDEFINED;
@@ -225,8 +232,6 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * List of replica part, default is empty list
-     *
      * @return list of replica parts
      */
     public List<Short> replicaParts() {
@@ -234,66 +239,23 @@ public class GraphElement implements Serializable, MayContainNDArray {
     }
 
     /**
-     * Element Timestamp
-     * If the timestamp does not exist take the current element's timestamp in the pipeline
-     *
-     * @return timestamp
+     * @return id of GraphElement
      */
-    @Nullable
-    public Long getTimestamp() {
-        return ts;
-    }
-
-    /**
-     * Set element timestamp
-     *
-     * @param ts timestamp to be added
-     */
-    public void setTimestamp(Long ts) {
-        this.ts = ts;
-    }
-
-    /**
-     * get id of this element
-     *
-     * @return element id
-     */
-    @Nullable
-    public String getId() {
-        return id;
-    }
-
-    /**
-     * Set id of this element
-     *
-     * @param id id to be set
-     */
-    public void setId(@Nullable String id) {
-        this.id = id;
-    }
+    abstract public String getId();
 
     /**
      * Get the part id of this element. If attached to storage default is current processing part
      *
      * @return Element part id
      */
-    public short getPartId() {
+    public short getPartId(){
         return partId;
-    }
-
-    /**
-     * Set the part id of this element
-     * @param partId part id
-     */
-    public void setPartId(short partId) {
-        this.partId = partId;
     }
 
     /**
      * Attaches storage to this element, so that element can use the storage functions
      * Setting storage also affects part id as well id ids of subFeatures
      * In this step we also assign this as element of subFeatures
-     *
      * @param storage BaseStorage to be attached to
      */
     public void setStorage(BaseStorage storage) {
@@ -316,26 +278,39 @@ public class GraphElement implements Serializable, MayContainNDArray {
      */
     @Nullable
     public Feature<?, ?> getFeature(String name) {
-        Feature<?, ?> result = features != null ? features.stream().filter(item -> Objects.equals(item.getName(), name)).findAny().orElse(null) : null;
-        if (result == null && storage != null && storage.containsAttachedFeature(getId(), name, elementType(), null)) {
-            result = storage.getAttachedFeature(getId(), name, elementType(), null);
+        if(features != null){
+            for (Feature<?, ?> feature : features) {
+               if(feature.getName().equals(name)) return feature;
+            }
         }
-        if (Objects.nonNull(result)) result.setElement(this);
-        return result;
+        if(storage != null){
+            Feature<?,?> feature = storage.getAttachedFeature(getId(), name, elementType(), null);
+            if(feature != null) {
+                feature.setElement(this);
+                return feature;
+            }
+        }
+        return null;
     }
 
     /**
      * Returns if Feature with this name is available either here or in storage
      */
     public Boolean containsFeature(String name) {
-        boolean hasLocallyAvailable = features != null && features.stream().anyMatch(item -> Objects.equals(item.getName(), name));
-        return hasLocallyAvailable || (storage != null && storage.containsAttachedFeature(getId(), name, elementType(), null));
+        if(features != null){
+            for (Feature<?, ?> feature : features) {
+                if(feature.getName().equals(name)) return true;
+            }
+        }
+        if(storage != null){
+            return storage.containsAttachedFeature(getId(), name, elementType(), null);
+        }
+        return false;
     }
 
     /**
      * If the feature already exists this will not do anything
      * Otherwise it will try to create the feature in storage or at least append to feature list
-     *
      * @param name    name of the feature to be added
      * @param feature feature itself
      */
@@ -343,7 +318,7 @@ public class GraphElement implements Serializable, MayContainNDArray {
         if (!containsFeature(name)) {
             feature.setName(name);
             feature.setStorage(storage);
-            feature.setElement(this); // This also adds this feature to my element
+            feature.setElement(this);
             if (Objects.nonNull(storage)) {
                 feature.create();
             }
@@ -362,31 +337,26 @@ public class GraphElement implements Serializable, MayContainNDArray {
      * Clear the cached features on this GraphElement
      */
     public void clearFeatures() {
-        if (features != null) features.clear();
+        if (features != null){
+            features.clear();
+        }
     }
 
-    /**
-     * Resolve timestamp of the new Element that just came in
-     *
-     * @param newTimestamp New Element timestamp
-     */
-    public void resolveTimestamp(Long newTimestamp) {
-        if (Objects.nonNull(newTimestamp)) {
-            if (Objects.nonNull(ts)) {
-                ts = Math.max(ts, newTimestamp);
-            } else {
-                ts = newTimestamp;
+    @Override
+    public void delay() {
+        if (features != null) {
+            for (Feature<?, ?> feature : features) {
+                feature.delay();
             }
         }
-
     }
 
-    /**
-     * Consumer for all NDArrays, traverses all
-     */
-    public void applyForNDArrays(Consumer<NDArray> operation) {
+    @Override
+    public void resume() {
         if (features != null) {
-            features.forEach(item -> item.applyForNDArrays(operation));
+            for (Feature<?, ?> feature : features) {
+                feature.resume();
+            }
         }
     }
 
@@ -402,13 +372,14 @@ public class GraphElement implements Serializable, MayContainNDArray {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GraphElement that = (GraphElement) o;
-        return Objects.equals(getId(), that.getId());
+        return Objects.equals(getId(), that.getId()) && Objects.equals(elementType(), that.elementType());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getId());
+        return Objects.hash(getId(), elementType());
     }
+
 
 
 }

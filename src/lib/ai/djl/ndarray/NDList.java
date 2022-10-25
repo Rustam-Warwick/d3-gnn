@@ -20,7 +20,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -33,7 +32,7 @@ import java.util.zip.ZipOutputStream;
  *
  * @see NDArray
  */
-public class NDList extends ArrayList<NDArray> implements NDResource, BytesSupplier, MayContainNDArray {
+public class NDList extends ArrayList<NDArray> implements NDResource, BytesSupplier, ObjectPoolControl {
 
     private static final long serialVersionUID = 1L;
 
@@ -385,6 +384,16 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         return stream().map(NDArray::getShape).toArray(Shape[]::new);
     }
 
+    @Override
+    public void delay() {
+        forEach(ObjectPoolControl::delay);
+    }
+
+    @Override
+    public void resume() {
+        forEach(ObjectPoolControl::resume);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -415,10 +424,5 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
                     .append('\n');
         }
         return builder.toString();
-    }
-
-    @Override
-    public void applyForNDArrays(Consumer<NDArray> operation) {
-        forEach(operation);
     }
 }
