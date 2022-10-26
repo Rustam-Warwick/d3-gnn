@@ -57,7 +57,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     // FIELDS
 
-    protected PtNDManager manager;
     private transient Cleaner.Cleanable cleanable;
     private Device device;
     private DataType dataType;
@@ -82,9 +81,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     public PtNDArray(PtNDManager manager, long handle) {
         super(handle);
-        this.manager = manager;
         this.ptNDArrayEx = new PtNDArrayEx(this);
-        manager.attachInternal(getUid(), this);
+        LifeCycleNDManager.getInstance().attachInternal(getUid(), this);
     }
 
     /**
@@ -97,9 +95,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     public PtNDArray(PtNDManager manager, long handle, ByteBuffer data) {
         super(handle);
-        this.manager = manager;
         this.ptNDArrayEx = new PtNDArrayEx(this);
-        manager.attachInternal(getUid(), this);
+        LifeCycleNDManager.getInstance().attachInternal(getUid(), this);
         dataRef = new ByteBuffer[]{data};
     }
 
@@ -113,7 +110,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     public PtNDArray(PtNDManager manager, String[] strs, Shape shape) {
         super(-1L);
-        this.manager = manager;
         this.shape = shape;
         this.dataType = DataType.STRING;
     }
@@ -123,7 +119,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDManager getManager() {
-        return manager;
+        return LifeCycleNDManager.getInstance();
     }
 
     /**
@@ -233,7 +229,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         // To align with MXNet's behavior, we will create a zeros NDArray.
         // TODO should we access the grad NDArray after we close the parameter NDArray?
         if (res == null) {
-            res = (PtNDArray) manager.zeros(getShape());
+            res = (PtNDArray) LifeCycleNDManager.getInstance().zeros(getShape());
         }
         return res;
     }
@@ -293,7 +289,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             return;
         }
         // int8, uint8, boolean use ByteBuffer, so need to explicitly input DataType
-        ByteBuffer buf = manager.allocateDirect(size * type.getNumOfBytes());
+        ByteBuffer buf = LifeCycleNDManager.getInstance().allocateDirect(size * type.getNumOfBytes());
         BaseNDManager.copyBuffer(buffer, buf);
 
         // If NDArray is on the GPU, it is native code responsibility to control the data life cycle
@@ -360,10 +356,11 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void attach(NDManager manager) {
-        if (this.manager == manager) return;
-        this.manager.detachInternal(getUid(), this);
-        this.manager = (PtNDManager) manager;
-        this.manager.attachInternal(getUid(), this);
+        throw new IllegalStateException("Attach not working ");
+//        if (this.manager == manager) return;
+//        this.LifeCycleNDManager.getInstance().detachInternal(getUid(), this);
+//        this.manager = (PtNDManager) manager;
+//        this.LifeCycleNDManager.getInstance().attachInternal(getUid(), this);
     }
 
     /**
@@ -371,9 +368,11 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void returnResource(NDManager manager) {
-        detach();
-        this.manager = (PtNDManager) manager;
-        manager.attachUncappedInternal(getUid(), this);
+
+        throw new IllegalStateException("Attach not working ");
+//        detach();
+//        this.manager = (PtNDManager) manager;
+//        LifeCycleNDManager.getInstance().attachUncappedInternal(getUid(), this);
     }
 
     /**
@@ -381,11 +380,13 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void tempAttach(NDManager manager) {
-        if (this.manager == manager) return;
-        this.manager.detachInternal(getUid(), this);
-        NDManager original = this.manager;
-        this.manager = (PtNDManager) manager;
-        manager.tempAttachInternal(original, getUid(), this);
+
+        throw new IllegalStateException("Attach not working ");
+//        if (this.manager == manager) return;
+//        this.LifeCycleNDManager.getInstance().detachInternal(getUid(), this);
+//        NDManager original = this.manager;
+//        this.manager = (PtNDManager) manager;
+//        LifeCycleNDManager.getInstance().tempAttachInternal(original, getUid(), this);
     }
 
     /**
@@ -393,8 +394,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void detach() {
-        manager.detachInternal(getUid(), this);
-        manager = PtNDManager.getSystemManager();
+        getManager().detachInternal(getUid(), this);
         if (cleanable == null)
             cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
 
@@ -402,17 +402,19 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     @Override
     public void delay() {
+        if(cleanable != null) return;
         if(delayed == null) delayed = new AtomicInteger(0);
         if(delayed.incrementAndGet() == 1){
-            manager.detachInternal(getUid(), this);
+            LifeCycleNDManager.getInstance().detachInternal(getUid(), this);
         };
     }
 
     @Override
     public void resume() {
+        if(cleanable != null) return;
         if(delayed != null){
             if(delayed.decrementAndGet() == 0){
-                manager.attachInternal(getUid(), this);
+                LifeCycleNDManager.getInstance().attachInternal(getUid(), this);
             }
         }
     }
@@ -436,10 +438,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Shape indexShape = index.getShape();
         if (indexShape.equals(getShape())) {
             // Result is flattened since shape is undetermined
-            return JniUtils.booleanMask(this, manager.from(index));
+            return JniUtils.booleanMask(this, LifeCycleNDManager.getInstance().from(index));
         } else if (indexShape.equals(getShape().slice(axis))) {
             // index will be broadcast by default
-            try (PtNDArray flattedResult = JniUtils.booleanMask(this, manager.from(index))) {
+            try (PtNDArray flattedResult = JniUtils.booleanMask(this, LifeCycleNDManager.getInstance().from(index))) {
                 // Shape recovery
                 Shape remainder = getShape().slice(0, axis);
                 long selectedSize = flattedResult.getShape().size() / remainder.size();
@@ -475,7 +477,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public boolean contentEquals(Number number) {
-        return JniUtils.contentEqual(this, (PtNDArray) manager.create(number));
+        return JniUtils.contentEqual(this, (PtNDArray) LifeCycleNDManager.getInstance().create(number));
     }
 
     /**
@@ -489,7 +491,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         if (getDataType() != other.getDataType()) {
             return false;
         }
-        return JniUtils.contentEqual(this, manager.from(other));
+        return JniUtils.contentEqual(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -497,7 +499,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray eq(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return eq(number);
         }
     }
@@ -507,7 +509,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray eq(NDArray other) {
-        return JniUtils.eq(this, manager.from(other));
+        return JniUtils.eq(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -515,7 +517,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray neq(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return neq(number);
         }
     }
@@ -525,7 +527,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray neq(NDArray other) {
-        return JniUtils.neq(this, manager.from(other));
+        return JniUtils.neq(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -533,7 +535,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray gt(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return gt(number);
         }
     }
@@ -543,7 +545,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray gt(NDArray other) {
-        return JniUtils.gt(this, manager.from(other));
+        return JniUtils.gt(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -551,7 +553,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray gte(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return gte(number);
         }
     }
@@ -561,7 +563,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray gte(NDArray other) {
-        return JniUtils.gte(this, manager.from(other));
+        return JniUtils.gte(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -569,7 +571,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray lt(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return lt(number);
         }
     }
@@ -579,7 +581,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray lt(NDArray other) {
-        return JniUtils.lt(this, manager.from(other));
+        return JniUtils.lt(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -587,7 +589,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray lte(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return lte(number);
         }
     }
@@ -597,7 +599,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray lte(NDArray other) {
-        return JniUtils.lte(this, manager.from(other));
+        return JniUtils.lte(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -605,7 +607,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray add(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return add(number);
         }
     }
@@ -615,7 +617,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray add(NDArray other) {
-        return JniUtils.add(this, manager.from(other));
+        return JniUtils.add(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -623,7 +625,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray sub(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return sub(number);
         }
     }
@@ -633,7 +635,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray sub(NDArray other) {
-        return JniUtils.sub(this, manager.from(other));
+        return JniUtils.sub(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -641,7 +643,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray mul(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return mul(number);
         }
     }
@@ -651,7 +653,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray mul(NDArray other) {
-        return JniUtils.mul(this, manager.from(other));
+        return JniUtils.mul(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -659,7 +661,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray div(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return div(number);
         }
     }
@@ -669,7 +671,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray div(NDArray other) {
-        return JniUtils.div(this, manager.from(other));
+        return JniUtils.div(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -677,7 +679,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray mod(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return mod(number);
         }
     }
@@ -687,7 +689,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray mod(NDArray other) {
-        return JniUtils.remainder(this, manager.from(other));
+        return JniUtils.remainder(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -695,7 +697,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray pow(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return pow(number);
         }
     }
@@ -705,7 +707,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray pow(NDArray other) {
-        return JniUtils.pow(this, manager.from(other));
+        return JniUtils.pow(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -713,7 +715,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray addi(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return addi(number);
         }
     }
@@ -723,7 +725,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray addi(NDArray other) {
-        JniUtils.addi(this, manager.from(other));
+        JniUtils.addi(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -732,7 +734,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray subi(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return subi(number);
         }
     }
@@ -742,7 +744,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray subi(NDArray other) {
-        JniUtils.subi(this, manager.from(other));
+        JniUtils.subi(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -751,7 +753,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray muli(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return muli(number);
         }
     }
@@ -761,7 +763,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray muli(NDArray other) {
-        JniUtils.muli(this, manager.from(other));
+        JniUtils.muli(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -770,7 +772,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray divi(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return divi(number);
         }
     }
@@ -780,7 +782,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray divi(NDArray other) {
-        JniUtils.divi(this, manager.from(other));
+        JniUtils.divi(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -789,7 +791,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray modi(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return modi(number);
         }
     }
@@ -799,7 +801,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray modi(NDArray other) {
-        JniUtils.remainderi(this, manager.from(other));
+        JniUtils.remainderi(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -808,7 +810,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray powi(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return powi(number);
         }
     }
@@ -818,7 +820,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray powi(NDArray other) {
-        JniUtils.powi(this, manager.from(other));
+        JniUtils.powi(this, LifeCycleNDManager.getInstance().from(other));
         return this;
     }
 
@@ -844,7 +846,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray maximum(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return maximum(number);
         }
     }
@@ -854,7 +856,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray maximum(NDArray other) {
-        return JniUtils.max(this, manager.from(other));
+        return JniUtils.max(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -862,7 +864,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray minimum(Number n) {
-        try (NDArray number = manager.create(n)) {
+        try (NDArray number = LifeCycleNDManager.getInstance().create(n)) {
             return minimum(number);
         }
     }
@@ -872,7 +874,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray minimum(NDArray other) {
-        return JniUtils.min(this, manager.from(other));
+        return JniUtils.min(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -951,7 +953,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray cbrt() {
-        return JniUtils.pow(this, (PtNDArray) manager.create(1.0 / 3));
+        return JniUtils.pow(this, (PtNDArray) LifeCycleNDManager.getInstance().create(1.0 / 3));
     }
 
     /**
@@ -1362,7 +1364,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray logicalAnd(NDArray other) {
-        return JniUtils.logicalAnd(this, manager.from(other));
+        return JniUtils.logicalAnd(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -1370,7 +1372,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray logicalOr(NDArray other) {
-        return JniUtils.logicalOr(this, manager.from(other));
+        return JniUtils.logicalOr(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -1378,7 +1380,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDArray logicalXor(NDArray other) {
-        return JniUtils.logicalXor(this, manager.from(other));
+        return JniUtils.logicalXor(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -1607,7 +1609,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
                     "Dimension mismatch or high dimensional dot operation is not supported. Please"
                             + " use .matMul instead.");
         }
-        return JniUtils.dot(this, manager.from(other));
+        return JniUtils.dot(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -1618,7 +1620,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         if (isScalar() || other.isScalar()) {
             throw new IllegalArgumentException("scalar is not allowed for matMul()");
         }
-        return JniUtils.matmul(this, manager.from(other));
+        return JniUtils.matmul(this, LifeCycleNDManager.getInstance().from(other));
     }
 
     /**
@@ -1683,7 +1685,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             throw new IllegalArgumentException("attempt to get argMax of an empty NDArray");
         }
         if (isScalar()) {
-            return (PtNDArray) manager.create(0L);
+            return (PtNDArray) LifeCycleNDManager.getInstance().create(0L);
         }
         return JniUtils.argMax(this);
     }
@@ -1695,7 +1697,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public PtNDArray argMax(int axis) {
         // TODO pytorch bug: https://github.com/pytorch/pytorch/issues/37084
         if (isScalar()) {
-            return (PtNDArray) manager.create(0L);
+            return (PtNDArray) LifeCycleNDManager.getInstance().create(0L);
         }
         return JniUtils.argMax(this, axis, false);
     }
@@ -1709,7 +1711,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             throw new IllegalArgumentException("attempt to get argMin of an empty NDArray");
         }
         if (isScalar()) {
-            return (PtNDArray) manager.create(0L);
+            return (PtNDArray) LifeCycleNDManager.getInstance().create(0L);
         }
         return JniUtils.argMin(this);
     }
@@ -1721,7 +1723,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public PtNDArray argMin(int axis) {
         // TODO pytorch bug: https://github.com/pytorch/pytorch/issues/37084
         if (isScalar()) {
-            return (PtNDArray) manager.create(0L);
+            return (PtNDArray) LifeCycleNDManager.getInstance().create(0L);
         }
         return JniUtils.argMin(this, axis, false);
     }
@@ -1910,7 +1912,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if (manager != null) manager.detachInternal(getUid(), this);
+            if (cleanable == null && delayed.get() == 0) LifeCycleNDManager.getInstance().detachInternal(getUid(), this);
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);

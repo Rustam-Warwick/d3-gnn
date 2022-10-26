@@ -54,7 +54,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     abstract public GraphElement deepCopy();
 
 
-
     // CRUD Operations
 
     /**
@@ -67,8 +66,8 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         if (storage.addElement(this)) {
             callback = item -> item.addElementCallback(this);
             if (features != null) {
-                for (Feature<?, ?> el : features) {
-                    callback = callback.andThen(el.createElement());
+                for (Feature<?, ?> feature : features) {
+                    callback = callback.andThen(feature.createElement());
                 }
             }
         }
@@ -84,8 +83,8 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         cacheFeatures();
         Consumer<Plugin> callback = null;
         if (features != null) {
-            for (GraphElement el : features) {
-                callback = callback == null ? el.deleteElement() : el.deleteElement().andThen(callback);
+            for (Feature<?, ?> feature : features) {
+                callback = callback == null ? feature.deleteElement() : feature.deleteElement().andThen(callback);
             }
         }
         storage.deleteElement(this);
@@ -105,9 +104,9 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> feature = iterator.next();
-                Feature<?, ?> thisFeature = this.getFeature(feature.getName());
-                if (Objects.nonNull(thisFeature)) {
+                if (containsFeature(feature.getName())) {
                     // This is Feature update
+                    Feature<?, ?> thisFeature = getFeature(feature.getName());
                     Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
                     if (tmp.f0 != null) {
                         memento = memento == null ? this.copy() : memento;
@@ -180,7 +179,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     public void syncReplicas(List<Short> parts) {
         assert storage != null;
-        if ((state() != ReplicaState.MASTER) || !isReplicable() || Objects.equals(isHalo(), true) || parts == null || parts.isEmpty())
+        if ((state() != ReplicaState.MASTER) || !isReplicable() || isHalo() || parts == null || parts.isEmpty())
             return;
         cacheFeatures(); // retrieve all features of this element
         GraphElement cpy = copy(); // Make a copy do not actually send this element
@@ -262,9 +261,9 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         this.storage = storage;
         this.partId = storage != null ? storage.layerFunction.getCurrentPart() : partId;
         if (features != null) {
-            for (Feature<?, ?> ft : this.features) {
-                ft.setStorage(storage);
-                ft.setElement(this);
+            for (Feature<?, ?> feature : features) {
+                feature.setStorage(storage);
+                feature.setElement(this);
             }
         }
     }
@@ -280,7 +279,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     public Feature<?, ?> getFeature(String name) {
         if(features != null){
             for (Feature<?, ?> feature : features) {
-               if(feature.getName().equals(name)) return feature;
+                if(feature.getName().equals(name)) return feature;
             }
         }
         if(storage != null){
@@ -344,20 +343,13 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     @Override
     public void delay() {
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                feature.delay();
-            }
-        }
+        if (features != null) features.forEach(ObjectPoolControl::delay);
+
     }
 
     @Override
     public void resume() {
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                feature.resume();
-            }
-        }
+        if (features != null) features.forEach(ObjectPoolControl::resume);
     }
 
     @Override
@@ -379,7 +371,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     public int hashCode() {
         return Objects.hash(getId(), elementType());
     }
-
 
 
 }

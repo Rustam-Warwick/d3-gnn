@@ -17,7 +17,9 @@ import java.util.function.Consumer;
  * @param <V> Type that is exposed through getValue method
  */
 public class Feature<T, V> extends ReplicableGraphElement {
+
     public static String DELIMITER = "/";
+
     public static ElementType[] ELEMENT_VALUES = ElementType.values();
 
     public T value; // Value stored in this feature

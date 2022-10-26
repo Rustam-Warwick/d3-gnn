@@ -63,7 +63,7 @@ public class RedditHyperlink implements Dataset {
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split("\t");
+            String[] values = value.split(",");
             UniEdge uniEdge = new UniEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){

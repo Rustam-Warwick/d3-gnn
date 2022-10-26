@@ -90,13 +90,13 @@ public final class FeedbackChannel<T> implements Closeable {
      *
      * @param publisherId OperatorId of the published operator
      */
-    public void registerPublisher(OperatorID publisherId, Tuple2<Counter, Counter> numRecordsInCounter) {
+    public void registerPublisher(OperatorID publisherId, Tuple2<Counter, Counter> flowCounters) {
         Preconditions.checkNotNull(publisherId);
         if (queues.containsKey(publisherId)) {
             throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
         }
         queues.computeIfAbsent(publisherId, (key) -> new LockFreeBatchFeedbackQueue<>());
-        meters.computeIfAbsent(publisherId, (key) -> numRecordsInCounter);
+        meters.computeIfAbsent(publisherId, (key) -> flowCounters);
     }
 
     /**

@@ -42,7 +42,6 @@ public class LifeCycleNDManager extends PtNDManager {
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
-                        if (key instanceof PtNDArray) ((PtNDArray) key).manager = null;
                         key.close();
                     }
                 } catch (Exception e) {

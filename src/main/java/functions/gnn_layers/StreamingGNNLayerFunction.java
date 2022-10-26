@@ -62,22 +62,22 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction) {
         if (direction == MessageDirection.BACKWARD) {
-            ctx.output(BaseWrapperOperator.BACKWARD_OUTPUT_TAG, op);
+            getWrapperContext().broadcastOutput(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, null);
         } else if (direction == MessageDirection.FORWARD) {
             getWrapperContext().broadcastOutput(op, null, null);
         } else {
-            ctx.output(BaseWrapperOperator.ITERATE_OUTPUT_TAG, op);
+            getWrapperContext().broadcastOutput(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, null);
         }
     }
 
     @Override
     public void broadcastMessage(GraphOp op, MessageDirection direction, @Nullable Long timestamp) {
         if (direction == MessageDirection.BACKWARD) {
-            getWrapperContext().output(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
+            getWrapperContext().broadcastOutput(op, BaseWrapperOperator.BACKWARD_OUTPUT_TAG, timestamp);
         } else if (direction == MessageDirection.FORWARD) {
             getWrapperContext().broadcastOutput(op, null, timestamp);
         } else {
-            getWrapperContext().output(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
+            getWrapperContext().broadcastOutput(op, BaseWrapperOperator.ITERATE_OUTPUT_TAG, timestamp);
         }
     }
 

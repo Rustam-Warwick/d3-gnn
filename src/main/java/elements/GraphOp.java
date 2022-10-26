@@ -1,5 +1,6 @@
 package elements;
 
+import ai.djl.ndarray.ObjectPoolControl;
 import elements.iterations.MessageCommunication;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
@@ -13,7 +14,7 @@ import java.util.Objects;
  * Main message object that gets passed around the system
  */
 @TypeInfo(GraphOpTypeInfoFactory.class)
-public final class GraphOp {
+public final class GraphOp implements ObjectPoolControl {
     /**
      * @see Op
      * Op represents the operation that is happening in the GraphElement
@@ -86,6 +87,7 @@ public final class GraphOp {
     }
 
     // --- GETTERS AND SETTERS
+
     public @NotNull Op getOp() {
         return op;
     }
@@ -140,8 +142,16 @@ public final class GraphOp {
         return this;
     }
 
-    public boolean isTopologicalUpdate() {
-        return op == Op.COMMIT && (element.elementType() == ElementType.EDGE || element.elementType() == ElementType.VERTEX);
+    // OVERRIDE METHODS
+
+    @Override
+    public void resume() {
+        if(element != null) element.resume();
+    }
+
+    @Override
+    public void delay() {
+        if(element != null) element.delay();
     }
 
     @Override
@@ -166,4 +176,5 @@ public final class GraphOp {
     public int hashCode() {
         return Objects.hash(op, element, operatorEvent);
     }
+
 }

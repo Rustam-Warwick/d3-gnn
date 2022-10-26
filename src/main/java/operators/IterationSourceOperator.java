@@ -61,8 +61,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
-    private transient BroadcastOutput<GraphOp> broadcastOutput; // Special Output for broadcasting the elements
-
     private boolean timerRegistered = false; // While processing first message register termination timer, do not register afterward
 
     private boolean isBufferPoolClosed = false; // If buffer pool is closed there might be a race condition
@@ -79,9 +77,6 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<GraphOp>> output) {
         super.setup(containingTask, config, output);
-        broadcastOutput =
-                BroadcastOutputFactory.createBroadcastOutput(
-                        output, metrics.getIOMetricGroup().getNumRecordsOutCounter());
         mailboxExecutor = getContainingTask().getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
         registerFeedbackConsumer(
                 (Runnable runnable) -> {
@@ -114,11 +109,7 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
         }
         try {
             // Actual processing of messages
-            if (element.getValue().getMessageCommunication() == MessageCommunication.P2P) {
-                output.collect(element);
-            } else if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-                broadcastOutput.broadcastEmit(element);
-            }
+            output.collect(element);
         } catch (CancelTaskException bufferPool) {
             isBufferPoolClosed = true;
             BaseWrapperOperator.LOG.error(bufferPool.getMessage());

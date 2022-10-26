@@ -83,6 +83,9 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
      */
     <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
 
+    /**
+     * Side outputs apart from those iterate, forward, backward messages with timestamp
+     */
     <OUT> void sideMessage(OUT op, @Nonnull OutputTag<OUT> outputTag, @Nonnull Long timestamp);
 
     /**

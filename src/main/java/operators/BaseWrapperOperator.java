@@ -1,6 +1,7 @@
 package operators;
 
 
+import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
 import elements.Op;
 import elements.iterations.MessageCommunication;
@@ -8,6 +9,9 @@ import elements.iterations.MessageDirection;
 import helpers.MyOutputReflectionContext;
 import operators.events.BaseOperatorEvent;
 import operators.events.FinalWatermarkArrived;
+import operators.iterations.FeedbackChannel;
+import operators.iterations.FeedbackChannelBroker;
+import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -15,6 +19,7 @@ import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.broadcast.BroadcastOutput;
 import org.apache.flink.iteration.broadcast.RecordWriterBroadcastOutput;
+import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
@@ -28,6 +33,9 @@ import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
 import org.apache.flink.runtime.state.*;
+import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
+import org.apache.flink.statefun.flink.core.feedback.FeedbackKey;
+import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.streaming.api.graph.StreamConfig;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -36,6 +44,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
@@ -46,6 +55,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
@@ -57,17 +67,22 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @see GNNLayerWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
-        implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator {
+        implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator, FeedbackConsumer<StreamRecord<GraphOp>> {
 
     /**
      * STATIC PROPS
      */
 
     public static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
-    private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class));
+
+    private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
+
     public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+
     public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
+
     /**
      * OPERATOR PROPS
      */
@@ -102,9 +117,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final short totalLayers; // Total horizontal layers
 
+    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
+
     protected final IterationID iterationID; // Id for the Iteration
 
-    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
+    private transient MailboxExecutor mailboxExecutor; // Mailbox for consuming iteration events
+
+    private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
@@ -197,12 +216,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
-        if (record.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
-            if (record.getValue().getPartId() == null) {
-                // Broadcast messages should be sent with null id, this will assign the first part id to it
-                record.getValue().setPartId(thisParts.get(0));
-            }
-        }
     }
 
     @Override
@@ -244,6 +257,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void prepareSnapshotPreBarrier(long checkpointId) throws Exception {
+        feedbackChannel.addSnapshot(checkpointId);
         wrappedOperator.prepareSnapshotPreBarrier(checkpointId);
     }
 
@@ -270,6 +284,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public final void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
+        registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, "Feedback"));
         RecordingStreamTaskStateInitializer recordingStreamTaskStateInitializer =
                 new RecordingStreamTaskStateInitializer(streamTaskStateManager);
         wrappedOperator.initializeState(recordingStreamTaskStateInitializer);
@@ -330,8 +346,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void handleOperatorEvent(OperatorEvent evt) {
-        try {
-            processElement(context.element.replace(new GraphOp(Op.OPERATOR_EVENT, thisParts.get(0), null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null)));
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            processElement(context.element.replace(new GraphOp(Op.OPERATOR_EVENT, null, null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null)));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -363,6 +379,16 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 setKeyContextElement(element);
             }
             processActualElement(element);
+        }
+    }
+
+    @Override
+    public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
+        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()){
+            setKeyContextElement(element);
+            processElement(element);
+        }finally {
+            element.getValue().resume();
         }
     }
 
@@ -488,6 +514,21 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
+     * Register the consumer
+     */
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getWrappedOperator().getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationID, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getWrappedOperator().getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
+    }
+
+
+    /**
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
@@ -517,8 +558,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
             // 1. Store the previous value
             if (tag == null) tag = (OutputTag<E>) FORWARD_OUTPUT_TAG;
-            if (tag == ITERATE_OUTPUT_TAG || tag == FULL_ITERATE_OUTPUT_TAG || tag == BACKWARD_OUTPUT_TAG)
-                throw new IllegalStateException("For iteration broadcasts simply forward GraphOp with Broadcast flag to iteration tails");
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;
