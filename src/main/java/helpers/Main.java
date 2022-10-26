@@ -15,7 +15,6 @@ import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import plugins.ModelServer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
@@ -23,7 +22,6 @@ import storage.FlatObjectStorage;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.function.Function;
 
 public class Main {

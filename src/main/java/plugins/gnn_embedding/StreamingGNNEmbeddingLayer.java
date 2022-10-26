@@ -14,7 +14,6 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
-import org.apache.flink.util.Preconditions;
 
 import java.util.*;
 
@@ -117,8 +116,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin{
      * @param v Vertex
      */
     public void reduceOutEdges(Vertex v) {
-        Preconditions.checkNotNull(v);
-        Iterable<UniEdge> outEdges = this.storage.getIncidentEdges(v, EdgeType.OUT);
+        Iterable<UniEdge> outEdges = storage.getIncidentEdges(v, EdgeType.OUT);
         final NDList[] msg = new NDList[1];
         HashMap<Short, Tuple2<List<String>, NDList>> reduceMessages = null;
         for (UniEdge uniEdge : outEdges) {
@@ -159,8 +157,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin{
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Preconditions.checkNotNull(newFeature.getElement());
-        Iterable<UniEdge> outEdges = this.storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        Iterable<UniEdge> outEdges = storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList[] msgOld = new NDList[1];
         NDList[] msgNew = new NDList[1];
         HashMap<Short, Tuple3<List<String>, NDList, NDList>> replaceMessages = null;

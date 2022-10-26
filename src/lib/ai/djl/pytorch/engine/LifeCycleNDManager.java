@@ -42,6 +42,7 @@ public class LifeCycleNDManager extends PtNDManager {
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
+                        if(key instanceof PtNDArray) ((PtNDArray)key).shape = null;
                         key.close();
                     }
                 } catch (Exception e) {
@@ -65,40 +66,6 @@ public class LifeCycleNDManager extends PtNDManager {
         return THREADS.get(Thread.currentThread().getId()).f1;
     }
 
-    /**
-     * Analyze Threads using NDArrays and clean them when the thread is stopped
-     */
-    public static void clean() {
-        boolean notInterrupted = true;
-        while (notInterrupted) {
-            // Cleanup closed threads
-            for (Iterator<Tuple2<Thread, LifeCycleNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
-                Tuple2<Thread, LifeCycleNDManager> val = threadLocal.next();
-                if (!val.f0.isAlive()) {
-                    // Clean the data structure, thread is no longer needed
-                    try {
-                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
-                            value.close();
-                        }
-                        val.f1.attached.asMap().clear();
-                        threadLocal.remove();
-                        System.gc();
-                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
-                    } catch (Exception ignored) {
-                        LOG.error("Exception in trying to close all Tensors");
-                    }
-                }
-            }
-
-            try {
-                Thread.sleep(5000);
-            } catch (InterruptedException e) {
-                LOG.info("Interrupted Cleaner Thread ");
-                notInterrupted = false;
-            }
-        }
-
-    }
 
     /**
      * Get the scope object
@@ -151,6 +118,41 @@ public class LifeCycleNDManager extends PtNDManager {
     @Override
     public void close() {
         // Not closing explicitely, delegated to the cleaner and GC
+    }
+
+    /**
+     * Analyze Threads using NDArrays and clean them when the thread is stopped
+     */
+    public static void clean() {
+        boolean notInterrupted = true;
+        while (notInterrupted) {
+            // Cleanup closed threads
+            for (Iterator<Tuple2<Thread, LifeCycleNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
+                Tuple2<Thread, LifeCycleNDManager> val = threadLocal.next();
+                if (!val.f0.isAlive()) {
+                    // Clean the data structure, thread is no longer needed
+                    try {
+                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
+                            value.close();
+                        }
+                        val.f1.attached.asMap().clear();
+                        threadLocal.remove();
+                        System.gc();
+                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
+                    } catch (Exception ignored) {
+                        LOG.error("Exception in trying to close all Tensors");
+                    }
+                }
+            }
+
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException e) {
+                LOG.info("Interrupted Cleaner Thread ");
+                notInterrupted = false;
+            }
+        }
+
     }
 
     /**
