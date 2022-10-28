@@ -47,6 +47,7 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask;
 import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.OutputTag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -116,28 +117,20 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final short parallelism; // Parallelism of this operator
 
     protected final short totalLayers; // Total horizontal layers
-
-    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
-
     protected final IterationID iterationID; // Id for the Iteration
-
-    private transient MailboxExecutor mailboxExecutor; // Mailbox for consuming iteration events
-
-    private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
-
+    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
 
     protected transient Map<OutputTag<?>, Tuple2<BroadcastOutput<?>, Integer>> broadcastOutputs;
-
     protected transient int numPreviousLayerInputChannels; // Forwarded from previous layer
-
     protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
-
     protected transient List<Short> otherMasterParts; // Master Parts that are mapped to other operators
 
     protected transient Map<BaseOperatorEvent, Short> events; // Table of FlowingOperatorEvents received by this operator
+    private transient MailboxExecutor mailboxExecutor; // Mailbox for consuming iteration events
+    private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
     // MAIN CONSTRUCTOR
     public BaseWrapperOperator(
@@ -178,7 +171,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         context = new Context();
     }
 
-
     /**
      * GENERAL WRAPPER DELEGATION FUNCTIONS
      */
@@ -196,11 +188,16 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void finish() throws Exception {
+        feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
+        do {
+            Thread.sleep(5000);
+        }while (mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0);
         wrappedOperator.finish();
     }
 
     @Override
     public void close() throws Exception {
+        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.close();
     }
 
@@ -346,7 +343,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void handleOperatorEvent(OperatorEvent evt) {
-        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             processElement(context.element.replace(new GraphOp(Op.OPERATOR_EVENT, null, null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null)));
         } catch (Exception e) {
             e.printStackTrace();
@@ -384,10 +381,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        try(LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()){
+        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
             setKeyContextElement(element);
             processElement(element);
-        }finally {
+        } finally {
             element.getValue().resume();
         }
     }
@@ -473,6 +470,21 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     }
 
     /**
+     * Register the consumer
+     */
+    private void registerFeedbackConsumer(Executor mailboxExecutor) {
+        int indexOfThisSubtask = getWrappedOperator().getRuntimeContext().getIndexOfThisSubtask();
+        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
+                OperatorUtils.createFeedbackKey(iterationID, 0);
+        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
+                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getWrappedOperator().getRuntimeContext().getAttemptNumber());
+        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
+        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel.registerConsumer(this, mailboxExecutor);
+        feedbackChannel.getPhaser().register();
+    }
+
+    /**
      * Stream Task initializer for the wrapped operator
      * Needed if we need to initialize some state in this operator as well
      */
@@ -512,21 +524,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return lastCreated;
         }
     }
-
-    /**
-     * Register the consumer
-     */
-    private void registerFeedbackConsumer(Executor mailboxExecutor) {
-        int indexOfThisSubtask = getWrappedOperator().getRuntimeContext().getIndexOfThisSubtask();
-        FeedbackKey<StreamRecord<GraphOp>> feedbackKey =
-                OperatorUtils.createFeedbackKey(iterationID, 0);
-        SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
-                feedbackKey.withSubTaskIndex(indexOfThisSubtask, getWrappedOperator().getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
-        feedbackChannel.registerConsumer(this, mailboxExecutor);
-    }
-
 
     /**
      * Context is used to have more fine grained control over where to send watermarks

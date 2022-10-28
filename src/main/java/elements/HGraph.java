@@ -18,16 +18,6 @@ public class HGraph extends GraphElement {
 
     }
 
-    @Override
-    public GraphElement copy() {
-        return null;
-    }
-
-    @Override
-    public GraphElement deepCopy() {
-        return null;
-    }
-
     public HGraph(Vertex[] vertices, HEdge[] hEdges) {
         super();
         HashMap<String, Vertex> setVertices = new HashMap<>();
@@ -42,6 +32,16 @@ public class HGraph extends GraphElement {
         }
         this.hEdges = hEdges;
         this.vertices = setVertices.values().toArray(Vertex[]::new);
+    }
+
+    @Override
+    public GraphElement copy() {
+        return null;
+    }
+
+    @Override
+    public GraphElement deepCopy() {
+        return null;
     }
 
     public HEdge[] getHyperEdges() {

@@ -1,11 +1,14 @@
 package plugins.gnn_embedding;
 
-import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
-import elements.*;
+import elements.Plugin;
+import elements.ReplicaState;
+import elements.UniEdge;
+import elements.Vertex;
+import features.MeanAggregator;
 import features.Tensor;
 import plugins.ModelServer;
 

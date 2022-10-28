@@ -17,7 +17,7 @@ import org.apache.flink.metrics.SimpleCounter;
 
 import java.util.*;
 
-public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin{
+public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     protected transient Counter throughput; // Throughput counter, only used for last layer
 
@@ -55,7 +55,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin{
             if (messageReady(uniEdge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) uniEdge.getSrc().getFeature("f").getValue()), false);
                 new RemoteInvoke()
-                        .toElement(Feature.encodeAttachedFeatureId("agg", uniEdge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
+                        .toElement(Feature.encodeFeatureId("agg", uniEdge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
                         .where(MessageDirection.ITERATE)
                         .method("reduce")
                         .hasUpdate()

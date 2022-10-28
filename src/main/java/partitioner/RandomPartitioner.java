@@ -1,9 +1,9 @@
 package partitioner;
 
 
-import elements.UniEdge;
 import elements.ElementType;
 import elements.GraphOp;
+import elements.UniEdge;
 import elements.Vertex;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;

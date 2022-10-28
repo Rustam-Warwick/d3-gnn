@@ -32,7 +32,7 @@ public class PrintVertexPlugin extends Plugin {
         if (element.elementType() == ElementType.FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(),  feature.value));
+                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), feature.value));
             }
         }
     }

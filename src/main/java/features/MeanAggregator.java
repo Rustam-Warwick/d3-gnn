@@ -28,11 +28,15 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     }
 
     public MeanAggregator(String id, NDArray value, boolean halo, short master) {
-        super(id, Tuple2.of(value,0), halo, master);
+        super(id, Tuple2.of(value, 0), halo, master);
     }
 
     public MeanAggregator(Feature<Tuple2<NDArray, Integer>, NDArray> f, boolean deepCopy) {
         super(f, deepCopy);
+    }
+
+    public static NDArray bulkReduce(NDArray newMessages) {
+        return newMessages.sum(new int[]{0});
     }
 
     @Override
@@ -40,13 +44,13 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         return new MeanAggregator(this, false);
     }
 
+
+    // CRUD METHODS
+
     @Override
     public MeanAggregator deepCopy() {
         return new MeanAggregator(this, true);
     }
-
-
-    // CRUD METHODS
 
     @Override
     public Consumer<Plugin> createElement() {
@@ -54,6 +58,8 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         if (tmp != null) value.f0.delay();
         return tmp;
     }
+
+    // NORMAL METHODS
 
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
@@ -64,12 +70,6 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
             mementoAggregator.value.f0.resume();
         }
         return callback;
-    }
-
-    // NORMAL METHODS
-
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
     }
 
     @RemoteFunction

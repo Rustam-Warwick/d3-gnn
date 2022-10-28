@@ -19,14 +19,11 @@
 package operators;
 
 import elements.GraphOp;
-import elements.iterations.MessageCommunication;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.operators.ProcessingTimeService;
 import org.apache.flink.iteration.IterationID;
-import org.apache.flink.iteration.broadcast.BroadcastOutput;
-import org.apache.flink.iteration.broadcast.BroadcastOutputFactory;
 import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.runtime.execution.CancelTaskException;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
@@ -193,12 +190,12 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
      * Find the termination of the iteration tails
      */
     protected class CheckTermination implements ProcessingTimeService.ProcessingTimeCallback {
-        private Long prevCount = 0L;
+        private Double prevCount = 0d;
 
         @Override
         public void onProcessingTime(long time) throws Exception {
             if (prevCount == null) return; // Already emitted watermark
-            long sumMessageCount = feedbackChannel.getTotalFlowingMessageCount();
+            double sumMessageCount = feedbackChannel.getTotalFlowingMessageCount();
             // Operator has started so try to find termination point
             if (prevCount == 0 || sumMessageCount > prevCount) {
                 prevCount = sumMessageCount;

@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 
 /**
  * Edge class represents an Edge in the Graph.
+ *
  * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multi-graphs
  * @implNote Vertex updates should not happen within edges they will be ignored
  */
@@ -53,16 +54,46 @@ public final class UniEdge extends GraphElement implements Edge {
         this.dest = e.dest;
     }
 
+    /**
+     * Returns [src_id, dest_id, att]
+     */
+    public static String[] decodeVertexIdsAndAttribute(String edgeId) {
+        return edgeId.split(DELIMITER);
+    }
+
+    /**
+     * Encode attribute-less edge id
+     */
+    public static String encodeEdgeId(String srcId, String destId) {
+        return srcId + DELIMITER + destId + DELIMITER;
+    }
+
+    /**
+     * Encode attribute-full edge id
+     */
+    public static String encodeEdgeId(String srcId, String destId, String attribute) {
+        return srcId + DELIMITER + destId + DELIMITER + attribute;
+    }
+
+    /**
+     * Contains attribute or not
+     */
+    public static boolean isAttributed(String edgeId) {
+        return !edgeId.substring(edgeId.length() - 1).equals(DELIMITER);
+    }
+
     @Override
     public UniEdge copy() {
         return new UniEdge(this, false);
     }
 
+
+    // NORMAL METHOD
+
     @Override
     public UniEdge deepCopy() {
         return new UniEdge(this, true);
     }
-
 
     // CRUD METHODS
     @Override
@@ -72,9 +103,19 @@ public final class UniEdge extends GraphElement implements Edge {
     }
 
     @Override
+    public String getSrcId() {
+        return ids[0];
+    }
+
+    @Override
     public Vertex getDest() {
         if (dest == null && storage != null) dest = storage.getVertex(ids[1]);
         return dest;
+    }
+
+    @Override
+    public String getDestId() {
+        return ids[1];
     }
 
     @Override
@@ -91,9 +132,6 @@ public final class UniEdge extends GraphElement implements Edge {
         return super.createElement();
     }
 
-
-    // NORMAL METHOD
-
     @Override
     public String getId() {
         return ids[0] + DELIMITER + ids[1];
@@ -103,6 +141,9 @@ public final class UniEdge extends GraphElement implements Edge {
     public ElementType elementType() {
         return ElementType.EDGE;
     }
+
+
+    // STATIC METHODS
 
     @Override
     public void setStorage(BaseStorage storage) {
@@ -130,37 +171,6 @@ public final class UniEdge extends GraphElement implements Edge {
         super.clearFeatures();
         getSrc().clearFeatures();
         getDest().clearFeatures();
-    }
-
-
-    // STATIC METHODS
-
-    /**
-     * Returns [src_id, dest_id, att]
-     */
-    public static String[] decodeVertexIdsAndAttribute(String edgeId) {
-        return edgeId.split(DELIMITER);
-    }
-
-    /**
-     * Encode attribute-less edge id
-     */
-    public static String encodeEdgeId(String srcId, String destId) {
-        return srcId + DELIMITER + destId + DELIMITER;
-    }
-
-    /**
-     * Encode attribute-full edge id
-     */
-    public static String encodeEdgeId(String srcId, String destId, String attribute) {
-        return srcId + DELIMITER + destId + DELIMITER + attribute;
-    }
-
-    /**
-     * Contains attribute or not
-     */
-    public static boolean isAttributed(String edgeId) {
-        return !edgeId.substring(edgeId.length() - 1).equals(DELIMITER);
     }
 
 }

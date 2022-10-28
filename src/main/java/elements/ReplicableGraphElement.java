@@ -72,7 +72,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             if (!containsFeature("p"))
                 setFeature("p", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("p", getId(), elementType()), ElementType.FEATURE)
+                    .toElement(Feature.encodeFeatureId("p", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("add")
                     .addDestination(masterPart())
@@ -127,6 +127,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     /**
      * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
+     *
      * @param notifyMaster should notify it master part after deletion?
      */
     @RemoteFunction
@@ -134,7 +135,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (this.state() == ReplicaState.REPLICA) {
             super.delete();
             if (notifyMaster) new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("p", getId(), elementType()), ElementType.FEATURE)
+                    .toElement(Feature.encodeFeatureId("p", getId(), elementType()), ElementType.FEATURE)
                     .hasUpdate()
                     .method("remove")
                     .withArgs(getPartId())
@@ -143,7 +144,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     .buildAndRun(storage);
         }
     }
-
 
 
     // NORMAL OPERATIONS

@@ -53,11 +53,11 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     abstract public GraphElement deepCopy();
 
-
     // CRUD Operations
 
     /**
      * Create this element and all its features
+     *
      * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> createElement() {
@@ -76,6 +76,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * Deleted this element and all its features
+     *
      * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> deleteElement() {
@@ -95,6 +96,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
      * If memento is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your subclass has some additional data that should be updated.
      * Memento stores the difference between the updated value of this element vs the old value.
+     *
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
@@ -154,6 +156,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * External Query to sync masters and replicas
+     *
      * @param newElement element that requires syncing
      */
     public void sync(GraphElement newElement) {
@@ -162,6 +165,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * External Query to update GraphElement
+     *
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
@@ -247,7 +251,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      *
      * @return Element part id
      */
-    public short getPartId(){
+    public short getPartId() {
         return partId;
     }
 
@@ -255,6 +259,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * Attaches storage to this element, so that element can use the storage functions
      * Setting storage also affects part id as well id ids of subFeatures
      * In this step we also assign this as element of subFeatures
+     *
      * @param storage BaseStorage to be attached to
      */
     public void setStorage(BaseStorage storage) {
@@ -277,14 +282,14 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     @Nullable
     public Feature<?, ?> getFeature(String name) {
-        if(features != null){
+        if (features != null) {
             for (Feature<?, ?> feature : features) {
-                if(feature.getName().equals(name)) return feature;
+                if (feature.getName().equals(name)) return feature;
             }
         }
-        if(storage != null){
-            Feature<?,?> feature = storage.getAttachedFeature(getId(), name, elementType(), null);
-            if(feature != null) {
+        if (storage != null) {
+            Feature<?, ?> feature = storage.getAttachedFeature(getId(), name, elementType(), null);
+            if (feature != null) {
                 feature.setElement(this);
                 return feature;
             }
@@ -296,12 +301,12 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * Returns if Feature with this name is available either here or in storage
      */
     public Boolean containsFeature(String name) {
-        if(features != null){
+        if (features != null) {
             for (Feature<?, ?> feature : features) {
-                if(feature.getName().equals(name)) return true;
+                if (feature.getName().equals(name)) return true;
             }
         }
-        if(storage != null){
+        if (storage != null) {
             return storage.containsAttachedFeature(getId(), name, elementType(), null);
         }
         return false;
@@ -310,6 +315,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     /**
      * If the feature already exists this will not do anything
      * Otherwise it will try to create the feature in storage or at least append to feature list
+     *
      * @param name    name of the feature to be added
      * @param feature feature itself
      */
@@ -336,7 +342,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * Clear the cached features on this GraphElement
      */
     public void clearFeatures() {
-        if (features != null){
+        if (features != null) {
             features.clear();
         }
     }
@@ -344,7 +350,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     @Override
     public void delay() {
         if (features != null) features.forEach(ObjectPoolControl::delay);
-
     }
 
     @Override

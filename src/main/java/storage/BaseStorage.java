@@ -12,6 +12,8 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.runtime.state.KeyedStateBackend;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -26,6 +28,8 @@ import java.util.function.Consumer;
  * @implNote However, do check for redundancy is create methods.
  */
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
+    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+
     /**
      * List of plugins attached to this storage engine
      * These are stored separately in operator state store
@@ -45,7 +49,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     // -------- Abstract methods
 
     // -- Add
-    public abstract boolean addFeature(Feature<?, ?> feature);
+    public abstract boolean addAttachedFeature(Feature<?, ?> feature);
+
+    public abstract boolean addStandaloneFeature(Feature<?, ?> feature);
 
     public abstract boolean addVertex(Vertex vertex);
 
@@ -54,7 +60,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract boolean addHyperEdge(HEdge hEdge);
 
     // -- Update
-    public abstract boolean updateFeature(Feature<?, ?> feature);
+    public abstract boolean updateAttachedFeature(Feature<?, ?> feature);
+
+    public abstract boolean updateStandaloneFeature(Feature<?, ?> feature);
 
     public abstract boolean updateVertex(Vertex vertex);
 
@@ -63,7 +71,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract boolean updateHyperEdge(HEdge hEdge);
 
     // -- Delete
-    public abstract boolean deleteFeature(Feature<?, ?> feature);
+    public abstract boolean deleteAttachedFeature(Feature<?, ?> feature);
+
+    public abstract boolean deleteStandaloneFeature(Feature<?, ?> feature);
 
     public abstract boolean deleteVertex(Vertex vertex);
 
@@ -146,7 +156,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public void open() throws Exception {
         removeCachedFeatures = new RemoveCachedFeatures();
         layerFunction.registerKeyChangeListener(removeCachedFeatures);
-        this.plugins.values().forEach(plugin -> plugin.setStorage(this));
+        plugins.values().forEach(plugin -> plugin.setStorage(this));
         for (Plugin value : plugins.values()) {
             value.open();
         }
@@ -171,8 +181,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     /**
      * On OperatorEvent
-     *
-     * @param event
      */
     public void onOperatorEvent(BaseOperatorEvent event) {
         for (Plugin value : plugins.values()) {
@@ -180,7 +188,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    // Operator State Handler
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         // pass
@@ -237,6 +244,21 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    public final boolean addFeature(Feature<?,?> feature){
+        if(feature.attachedTo.f0 == ElementType.NONE) return addStandaloneFeature(feature);
+        return addAttachedFeature(feature);
+    }
+
+    public final boolean updateFeature(Feature<?,?> feature){
+        if(feature.attachedTo.f0 == ElementType.NONE) return updateStandaloneFeature(feature);
+        return updateAttachedFeature(feature);
+    }
+
+    public final boolean deleteFeature(Feature<?,?> feature){
+        if(feature.attachedTo.f0 == ElementType.NONE) return deleteStandaloneFeature(feature);
+        return deleteAttachedFeature(feature);
+    }
+
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:
@@ -274,7 +296,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case EDGE:
                 return this.updateEdge((UniEdge) element);
             case FEATURE:
-                return this.updateFeature((Feature) element);
+                return this.updateFeature((Feature<?,?>) element);
             case HYPEREDGE:
                 return this.updateHyperEdge((HEdge) element);
             default:

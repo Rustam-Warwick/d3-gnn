@@ -136,12 +136,12 @@ public class Reddit implements Dataset {
             int[] vIdInt = new int[]{Integer.parseInt(vIds[0]), Integer.parseInt(vIds[1])};
             if (!seenVertices.contains(vIdInt[0])) {
                 src.setFeature("f", new Tensor(vertexFeatures.get(vIdInt[0])));
-                src.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[0]), true, (short)-1));
+                src.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[0]), true, (short) -1));
                 seenVertices.add(vIdInt[0]);
             }
             if (!seenVertices.contains(vIdInt[1])) {
                 dest.setFeature("f", new Tensor(vertexFeatures.get(vIdInt[1])));
-                dest.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[1]), true, (short) -1 ));
+                dest.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[1]), true, (short) -1));
                 seenVertices.add(vIdInt[1]);
             }
             out.collect(new GraphOp(Op.COMMIT, new UniEdge(src, dest)));

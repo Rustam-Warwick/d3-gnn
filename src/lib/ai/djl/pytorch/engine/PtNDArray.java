@@ -56,12 +56,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     // FIELDS
 
+    public Shape shape;
     private transient Cleaner.Cleanable cleanable;
     private Device device;
     private DataType dataType;
-
-    public Shape shape;
-
     private AtomicInteger delayed;
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
@@ -388,18 +386,18 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     @Override
     public void delay() {
-        if(cleanable != null) return;
-        if(delayed == null) delayed = new AtomicInteger(0);
-        if(delayed.incrementAndGet() == 1){
+        if (cleanable != null) return;
+        if (delayed == null) delayed = new AtomicInteger(0);
+        if (delayed.incrementAndGet() == 1) {
             getManager().detachInternal(getUid(), this);
-        };
+        }
     }
 
     @Override
     public void resume() {
-        if(cleanable != null) return;
-        if(delayed != null){
-            if(delayed.decrementAndGet() == 0){
+        if (cleanable != null) return;
+        if (delayed != null) {
+            if (delayed.decrementAndGet() == 0) {
                 getManager().attachInternal(getUid(), this);
             }
         }
@@ -1895,7 +1893,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        if(cleanable != null) return;
+        if (cleanable != null) return;
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);

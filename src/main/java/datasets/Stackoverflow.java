@@ -1,8 +1,8 @@
 package datasets;
 
-import elements.UniEdge;
 import elements.GraphOp;
 import elements.Op;
+import elements.UniEdge;
 import elements.Vertex;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;

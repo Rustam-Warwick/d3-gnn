@@ -63,18 +63,44 @@ public class Feature<T, V> extends ReplicableGraphElement {
         this.value = f.value;
     }
 
+    /**
+     * Given featureName and attached Element id return the unique id for this feature
+     */
+    public static String encodeFeatureId(String featureName, String attachedElementId, ElementType type) {
+        if(type == ElementType.NONE) return featureName;
+        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
+    }
+
+    /**
+     * Given an attached Feature id, decode it returns an array of <elementId, featureName, ElementType>
+     */
+    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
+        String[] val = attachedFeatureId.split(DELIMITER);
+        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
+    }
+
+
+    // CRUD METHODS
+
+    /**
+     * Does this id belong to attached feature or not
+     */
+    public static boolean isAttachedId(String featureId) {
+        return featureId.contains(DELIMITER);
+    }
+
     @Override
     public Feature<T, V> copy() {
         return new Feature<>(this, false);
     }
 
+
+    // REGULAR METHODS
+
     @Override
     public Feature<T, V> deepCopy() {
         return new Feature<>(this, true);
     }
-
-
-    // CRUD METHODS
 
     /**
      * Features attached to elements should arrive at corresponding masters first,
@@ -120,9 +146,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
         }
         return super.updateElement(newElement, memento);
     }
-
-
-    // REGULAR METHODS
 
     /**
      * @return V value of this element
@@ -182,7 +205,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        return encodeAttachedFeatureId(attachedTo.f2, attachedTo.f1, attachedTo.f0);
+        return encodeFeatureId(attachedTo.f2, attachedTo.f1, attachedTo.f0);
     }
 
     /**
@@ -228,8 +251,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public void setElement(GraphElement attachingElement) {
         if (element == attachingElement) return; // Already attached to this element
-        if (attachingElement.features != null && attachingElement.features.contains(this)) throw new IllegalStateException("Already attached to this element");
-        if(attachedTo.f0 == ElementType.NONE) {
+        if (attachingElement.features != null && attachingElement.features.contains(this))
+            throw new IllegalStateException("Already attached to this element");
+        if (attachedTo.f0 == ElementType.NONE) {
             attachedTo.f0 = attachingElement.elementType();
             attachedTo.f1 = attachingElement.getId();
         }
@@ -238,9 +262,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
         attachingElement.features.add(this);
     }
 
+
+    // STATIC METHODS
+
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo.f0 != ElementType.NONE )
+        if (attachedTo.f0 != ElementType.NONE)
             throw new IllegalStateException("Instead of using nested Features, go with flat design");
         super.setFeature(name, feature);
     }
@@ -255,31 +282,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public ElementType elementType() {
         return ElementType.FEATURE;
-    }
-
-
-    // STATIC METHODS
-
-    /**
-     * Given featureName and attached Element id return the unique id for this feature
-     */
-    public static String encodeAttachedFeatureId(String featureName, String attachedElementId, ElementType type) {
-        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
-    }
-
-    /**
-     * Given an attached Feature id, decode it returns an array of <elementId, featureName, ElementType>
-     */
-    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
-        String[] val = attachedFeatureId.split(DELIMITER);
-        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
-    }
-
-    /**
-     * Does this id belong to attached feature or not
-     */
-    public static boolean isAttachedId(String featureId) {
-        return featureId.contains(DELIMITER);
     }
 
 }

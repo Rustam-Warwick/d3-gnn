@@ -1,7 +1,5 @@
 package plugins.gnn_embedding;
 
-import features.Aggregator;
-import features.MeanAggregator;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.NDArrays;
@@ -14,6 +12,8 @@ import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
 import elements.iterations.RemoteInvoke;
+import features.Aggregator;
+import features.MeanAggregator;
 import features.Tensor;
 import operators.events.BackwardBarrier;
 import operators.events.BaseOperatorEvent;
@@ -254,7 +254,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", LifeCycleNDManager.getInstance().create(Longs.toArray(list))));
             new RemoteInvoke()
-                    .toElement(Feature.encodeAttachedFeatureId("agg", v.getId(), ElementType.VERTEX), ElementType.FEATURE)
+                    .toElement(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), ElementType.FEATURE)
                     .where(MessageDirection.ITERATE)
                     .method("reduce")
                     .hasUpdate()

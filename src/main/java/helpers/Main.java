@@ -53,9 +53,9 @@ public class Main {
         return models;
     }
 
-    public static void main(String[] args) throws Exception {
-        // Configuration
 
+    public static void main(String[] args) throws Throwable {
+        // Configuration
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
@@ -63,18 +63,19 @@ public class Main {
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(0)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(),true, true))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true, true))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer(models.get(1)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(),false, true))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false, true))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
                 )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Training");
+
         env.execute(jobName);
     }
 }

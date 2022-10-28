@@ -146,12 +146,12 @@ public final class GraphOp implements ObjectPoolControl {
 
     @Override
     public void resume() {
-        if(element != null) element.resume();
+        if (element != null) element.resume();
     }
 
     @Override
     public void delay() {
-        if(element != null) element.delay();
+        if (element != null) element.delay();
     }
 
     @Override

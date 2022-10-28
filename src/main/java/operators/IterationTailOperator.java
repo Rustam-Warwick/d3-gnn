@@ -27,7 +27,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.iteration.operator.OperatorUtils;
-import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.Meter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
 import org.apache.flink.runtime.state.StateInitializationContext;
@@ -135,7 +135,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
             BaseWrapperOperator.LOG.info(String.format("Watermark Arrived %s", getRuntimeContext().getTaskNameWithSubtasks()));
-            // feedbackChannel.getPhaser().arrive();
+            feedbackChannel.getPhaser().arrive();
         }
         super.processWatermark(mark);
     }
@@ -176,7 +176,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
         FeedbackChannelBroker broker = FeedbackChannelBroker.get();
         feedbackChannel = broker.getChannel(realKey);
         feedbackChannel.getPhaser().register();
-        Tuple2<Counter, Counter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutCounter(), ((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInCounter());
+        Tuple2<Meter, Meter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutRate(), ((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInRateMeter());
         feedbackChannel.registerPublisher(operatorID, meters);
     }
 }
