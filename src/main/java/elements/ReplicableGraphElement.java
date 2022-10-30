@@ -2,8 +2,8 @@ package elements;
 
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
-import elements.iterations.RemoteInvoke;
-import features.Set;
+import elements.iterations.Rmi;
+import features.Parts;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;
@@ -42,9 +42,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     abstract public ReplicableGraphElement deepCopy();
 
-
-    // CRUD Methods
-
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
      * First send the sync messages then do the synchronization logic
@@ -70,15 +67,13 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             assert newElement.getPartId() != -1;
             if (!containsFeature("p"))
-                setFeature("p", new Set<Short>(new ArrayList<>(), true)); // Lazy part list creation
-            new RemoteInvoke()
-                    .toElement(Feature.encodeFeatureId("p", getId(), elementType()), ElementType.FEATURE)
-                    .hasUpdate()
-                    .method("add")
-                    .addDestination(masterPart())
-                    .where(MessageDirection.ITERATE)
-                    .withArgs(newElement.getPartId())
-                    .buildAndRun(storage);
+                setFeature("p", new Parts(new ArrayList<>(), true)); // Lazy part list creation
+            Rmi.buildAndRun(
+                    storage,
+                    masterPart(),
+                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true),
+                    MessageDirection.ITERATE
+            );
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
             super.update(newElement);
@@ -110,14 +105,11 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void delete() {
         if (state() == ReplicaState.MASTER) {
-            new RemoteInvoke()
-                    .toElement(getId(), elementType())
-                    .noUpdate()
-                    .method("deleteReplica")
-                    .addDestinations(replicaParts())
-                    .where(MessageDirection.ITERATE)
-                    .withArgs(false)
-                    .buildAndRun(storage);
+            Rmi.buildAndRun(
+                    new Rmi(getId(), "deleteReplica", elementType(), new Object[]{false}, true), storage,
+                    replicaParts(),
+                    MessageDirection.ITERATE
+            );
             super.delete();
         } else if (state() == ReplicaState.REPLICA) {
             assert storage != null;
@@ -134,19 +126,15 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public void deleteReplica(boolean notifyMaster) {
         if (this.state() == ReplicaState.REPLICA) {
             super.delete();
-            if (notifyMaster) new RemoteInvoke()
-                    .toElement(Feature.encodeFeatureId("p", getId(), elementType()), ElementType.FEATURE)
-                    .hasUpdate()
-                    .method("remove")
-                    .withArgs(getPartId())
-                    .where(MessageDirection.ITERATE)
-                    .addDestination(masterPart())
-                    .buildAndRun(storage);
+            if (notifyMaster)
+                Rmi.buildAndRun(
+                        storage,
+                        masterPart(),
+                        new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true),
+                        MessageDirection.ITERATE
+                );
         }
     }
-
-
-    // NORMAL OPERATIONS
 
     /**
      * {@inheritDoc}

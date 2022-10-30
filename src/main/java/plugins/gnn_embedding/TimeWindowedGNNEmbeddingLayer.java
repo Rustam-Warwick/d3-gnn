@@ -63,7 +63,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + windowInterval;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
+        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
         elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
         storage.updateElement(elementUpdates);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
@@ -79,7 +79,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
-            Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getFeature("elementUpdates");
+            Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
             List<NDList> inputs = new ArrayList<>();
             List<Vertex> vertices = new ArrayList<>();
             List<Long> timestamps = new ArrayList<>();
@@ -109,7 +109,6 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 updateTensor.attachedTo = Tuple3.of(ElementType.VERTEX, messageVertex.getId(), null);
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD, timestamps.get(i));
             }
-            storage.updateFeature(elementUpdates);
         } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
         }

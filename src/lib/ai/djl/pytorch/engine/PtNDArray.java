@@ -30,7 +30,6 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -60,7 +59,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private transient Cleaner.Cleanable cleanable;
     private Device device;
     private DataType dataType;
-    private AtomicInteger delayed;
+    private byte delayed;
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private transient Boolean hasGradient;
@@ -387,19 +386,16 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public void delay() {
         if (cleanable != null) return;
-        if (delayed == null) delayed = new AtomicInteger(0);
-        if (delayed.incrementAndGet() == 1) {
+        if (++delayed == 1) {
             getManager().detachInternal(getUid(), this);
         }
     }
 
     @Override
     public void resume() {
-        if (cleanable != null) return;
-        if (delayed != null) {
-            if (delayed.decrementAndGet() == 0) {
-                getManager().attachInternal(getUid(), this);
-            }
+        if (cleanable != null || delayed == 0) return;
+        if (--delayed == 0) {
+            getManager().attachInternal(getUid(), this);
         }
     }
 
@@ -1897,7 +1893,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if (shape != null && (delayed == null || delayed.get() == 0)) getManager().detachInternal(getUid(), this);
+            if (shape != null && delayed == 0) getManager().detachInternal(getUid(), this);
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);

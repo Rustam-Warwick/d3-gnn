@@ -5,7 +5,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
-import typeinfo.RecursiveListFieldsTypeInfoFactory;
+import typeinfo.RecursiveTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -29,11 +29,11 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public void open() throws Exception {
-        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, UniEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<UniEdge>().createTypeInfo(UniEdge.class, null, true));
-        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursiveListFieldsTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
+        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursiveTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, UniEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveTypeInfoFactory<UniEdge>().createTypeInfo(UniEdge.class, null, true));
+        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursiveTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
         MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, List<String>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(Types.STRING));
@@ -63,10 +63,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean addAttachedFeature(Feature<?, ?> feature) {
-        try{
+        try {
             attachedFeatureTable.put(feature.getId(), feature);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -139,10 +139,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean updateStandaloneFeature(Feature<?, ?> feature) {
-        try{
+        try {
             independentFeatureTable.put(feature.getId(), feature);
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -220,8 +220,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public UniEdge getEdge(String id) {
+    public UniEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
         try {
+            if (id == null)
+                id = attributeId == null ? UniEdge.encodeEdgeId(srcId, destId) : UniEdge.encodeEdgeId(srcId, destId, attributeId);
             UniEdge e = edgeTable.get(id);
             if (e.storage == null) {
                 e.setStorage(this);
@@ -239,7 +241,7 @@ public class FlatObjectStorage extends BaseStorage {
                 Map<String, List<String>> outEdges = outEdgeTable.get(src);
                 if (outEdges.containsKey(dest)) {
                     return () -> IteratorUtils.transformedIterator(
-                            outEdges.get(dest).iterator(), str -> (getEdge((String) str))
+                            outEdges.get(dest).iterator(), str -> getEdge(src, dest, null, (String) str)
                     );
                 } else {
                     return Collections.emptyList();
@@ -261,13 +263,13 @@ public class FlatObjectStorage extends BaseStorage {
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (outEdgeTable.contains(vertex.getId())) {
                     Map<String, List<String>> outEdges = outEdgeTable.get(vertex.getId());
-                    outEdgesIterator = IteratorUtils.transformedIterator(outEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));
+                    outEdgesIterator = IteratorUtils.transformedIterator(outEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge(null, null, null, (String) str));
                 }
 
             } else if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
                 if (inEdgeTable.contains(vertex.getId())) {
                     Map<String, List<String>> inEdges = inEdgeTable.get(vertex.getId());
-                    inEdgesIterator = IteratorUtils.transformedIterator(inEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge((String) str));
+                    inEdgesIterator = IteratorUtils.transformedIterator(inEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge(null, null, null, (String) str));
                 }
             }
             if (outEdgesIterator != null && inEdgesIterator != null) {
@@ -375,8 +377,10 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsEdge(String id) {
+    public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
         try {
+            if (id == null)
+                id = attributeId == null ? UniEdge.encodeEdgeId(srcId, destId) : UniEdge.encodeEdgeId(srcId, destId, attributeId);
             return edgeTable.contains(id);
         } catch (Exception e) {
             e.printStackTrace();
@@ -395,7 +399,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public void cacheFeaturesOf(GraphElement e) {
+    public void cacheNonHaloFeatures(GraphElement element) {
         // Pass
     }
 }

@@ -3,10 +3,6 @@ package storage;
 import elements.*;
 import functions.gnn_layers.GNNLayerFunction;
 import operators.events.BaseOperatorEvent;
-import org.apache.flink.api.common.state.ListState;
-import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -35,15 +31,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * These are stored separately in operator state store
      */
     public final HashMap<String, Plugin> plugins = new HashMap<>();
+
     /**
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-    private transient ListState<HashMap<String, Plugin>> pluginListState; // Plus stored in operator state
-    /**
-     * Plugins in the list state
-     */
-
     private transient RemoveCachedFeatures removeCachedFeatures;
 
     // -------- Abstract methods
@@ -90,9 +82,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // - Edge
     @Nullable
-    public abstract UniEdge getEdge(String id);
+    public abstract UniEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
 
-    public abstract Iterable<UniEdge> getEdges(String src, String dest); // Possible-multigraph
+    public abstract Iterable<UniEdge> getEdges(String src, String dest);
 
     public abstract Iterable<UniEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
@@ -115,12 +107,12 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean containsStandaloneFeature(String id);
 
-    public abstract boolean containsEdge(String id);
+    public abstract boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
 
     public abstract boolean containsHyperEdge(String id);
 
     // -- Other
-    public abstract void cacheFeaturesOf(GraphElement e);
+    public abstract void cacheNonHaloFeatures(GraphElement element);
 
 
     // ----- Plugin Implementation and some common methods & Callbacks
@@ -145,8 +137,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public BaseStorage withPlugin(Plugin plugin) {
         assert plugin.getId() != null;
         plugins.put(plugin.getId(), plugin);
-        plugin.storage = this;
-        plugin.add();
         return this;
     }
 
@@ -196,68 +186,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
         // pass
-        ListStateDescriptor<HashMap<String, Plugin>> descriptor =
-                new ListStateDescriptor(
-                        "plugins",
-                        TypeInformation.of(new TypeHint<HashMap<String, Plugin>>() {
-                        }));
-        pluginListState = context.getOperatorStateStore().getListState(descriptor);
-        if (context.isRestored()) {
-            plugins.clear();
-            pluginListState.get().forEach(plugins::putAll);
-        } else {
-            pluginListState.add(plugins);
-        }
     }
-
 
     /**
      * Generic Mapper GraphElement mapper Methods
      */
-
-    @Nullable
-    public final Feature<?, ?> getFeature(String id) {
-        try {
-            if (Feature.isAttachedId(id)) {
-                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
-                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
-            } else {
-                return getStandaloneFeature(id);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    public final boolean containsFeature(String id) {
-        try {
-            if (Feature.isAttachedId(id)) {
-                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
-                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
-            } else {
-                return containsStandaloneFeature(id);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    public final boolean addFeature(Feature<?,?> feature){
-        if(feature.attachedTo.f0 == ElementType.NONE) return addStandaloneFeature(feature);
-        return addAttachedFeature(feature);
-    }
-
-    public final boolean updateFeature(Feature<?,?> feature){
-        if(feature.attachedTo.f0 == ElementType.NONE) return updateStandaloneFeature(feature);
-        return updateAttachedFeature(feature);
-    }
-
-    public final boolean deleteFeature(Feature<?,?> feature){
-        if(feature.attachedTo.f0 == ElementType.NONE) return deleteStandaloneFeature(feature);
-        return deleteAttachedFeature(feature);
-    }
 
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
@@ -265,8 +198,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.addVertex((Vertex) element);
             case EDGE:
                 return this.addEdge((UniEdge) element);
-            case FEATURE:
-                return this.addFeature((Feature<?, ?>) element);
+            case ATTACHED_FEATURE:
+                return addAttachedFeature((Feature<?, ?>) element);
+            case STANDALONE_FEATURE:
+                return addStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
                 return this.addHyperEdge((HEdge) element);
             default:
@@ -280,8 +215,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.deleteVertex((Vertex) element);
             case EDGE:
                 return this.deleteEdge((UniEdge) element);
-            case FEATURE:
-                return this.deleteFeature((Feature<?, ?>) element);
+            case ATTACHED_FEATURE:
+                return this.deleteAttachedFeature((Feature<?, ?>) element);
+            case STANDALONE_FEATURE:
+                return this.deleteStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
                 return this.deleteHyperEdge((HEdge) element);
             default:
@@ -295,8 +232,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.updateVertex((Vertex) element);
             case EDGE:
                 return this.updateEdge((UniEdge) element);
-            case FEATURE:
-                return this.updateFeature((Feature<?,?>) element);
+            case ATTACHED_FEATURE:
+                return this.updateAttachedFeature((Feature<?, ?>) element);
+            case STANDALONE_FEATURE:
+                return this.updateStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
                 return this.updateHyperEdge((HEdge) element);
             default:
@@ -307,15 +246,19 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public boolean containsElement(String id, ElementType type) {
         switch (type) {
             case VERTEX:
-                return this.containsVertex(id);
+                return containsVertex(id);
             case EDGE:
-                return this.containsEdge(id);
-            case FEATURE:
-                return this.containsFeature(id);
+                String[] ids = UniEdge.decodeVertexIdsAndAttribute(id);
+                return containsEdge(ids[0], ids[1], ids.length > 2 ? ids[2] : null, id);
+            case ATTACHED_FEATURE:
+                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
+                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+            case STANDALONE_FEATURE:
+                return containsStandaloneFeature(id);
             case PLUGIN:
-                return this.plugins.containsKey(id);
+                return plugins.containsKey(id);
             case HYPEREDGE:
-                return this.containsHyperEdge(id);
+                return containsHyperEdge(id);
             default:
                 return false;
         }
@@ -325,25 +268,64 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         switch (t) {
             case VERTEX:
                 return this.getVertex(id);
-            case FEATURE:
-                return this.getFeature(id);
+            case ATTACHED_FEATURE:
+                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
+                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+            case STANDALONE_FEATURE:
+                return getStandaloneFeature(id);
             case EDGE:
-                return this.getEdge(id);
+                String[] ids = UniEdge.decodeVertexIdsAndAttribute(id);
+                return getEdge(ids[0], ids[1], ids.length > 2 ? ids[2] : null, id);
             case PLUGIN:
-                return this.getPlugin(id);
+                return getPlugin(id);
             case HYPEREDGE:
-                return this.getHyperEdge(id);
+                return getHyperEdge(id);
             default:
                 return null;
         }
     }
 
     public boolean containsElement(GraphElement element) {
-        return containsElement(element.getId(), element.elementType());
+        switch (element.elementType()) {
+            case VERTEX:
+                return this.containsVertex(element.getId());
+            case ATTACHED_FEATURE:
+                Feature<?, ?> tmp = (Feature<?, ?>) element;
+                return containsAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);
+            case STANDALONE_FEATURE:
+                return containsStandaloneFeature(element.getId());
+            case EDGE:
+                UniEdge edge = (UniEdge) element;
+                return containsEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
+            case PLUGIN:
+                return plugins.containsKey(element.getId());
+            case HYPEREDGE:
+                return containsHyperEdge(element.getId());
+            default:
+                return false;
+        }
     }
 
     public GraphElement getElement(GraphElement element) {
-        return this.getElement(element.getId(), element.elementType());
+        // @todo No need to .getId() for attached Feature and Edge
+        switch (element.elementType()) {
+            case VERTEX:
+                return this.getVertex(element.getId());
+            case ATTACHED_FEATURE:
+                Feature<?, ?> tmp = (Feature<?, ?>) element;
+                return getAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);
+            case STANDALONE_FEATURE:
+                return getStandaloneFeature(element.getId());
+            case EDGE:
+                UniEdge edge = (UniEdge) element;
+                return getEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
+            case PLUGIN:
+                return getPlugin(element.getId());
+            case HYPEREDGE:
+                return getHyperEdge(element.getId());
+            default:
+                return null;
+        }
     }
 
     // Remove Cached Plugin Features on Key Change. Important since plugins are always in memory

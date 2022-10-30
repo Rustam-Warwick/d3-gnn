@@ -133,12 +133,12 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
         byte flag = 0x00;
         flag |= ((byte) record.op.ordinal()) << 5;
         flag |= ((byte) record.messageCommunication.ordinal()) << 4;
-        if (record.partId != null) flag |= 1 << 3;
+        if (record.partId != -1) flag |= 1 << 3;
         if (record.element != null) flag |= 1 << 2;
         if (record.ts != null) flag |= 1 << 1;
         if (record.operatorEvent != null) flag |= 1;
         target.write(flag);
-        if (record.partId != null) partIdTypeSerializer.serialize(record.partId, target);
+        if (record.partId != -1) partIdTypeSerializer.serialize(record.partId, target);
         if (record.element != null) graphElementTypeSerializer.serialize(record.element, target);
         if (record.ts != null) timestampTypeSerializer.serialize(record.ts, target);
         if (record.operatorEvent != null) operatorEventTypeSerializer.serialize(record.operatorEvent, target);
@@ -153,7 +153,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
         boolean hasElement = (flag & 0x04) >> 2 == 1;
         boolean hasTs = (flag & 0x02) >> 1 == 1;
         boolean hasOpEvent = (flag & 0x01) == 1;
-        Short partId = null;
+        short partId = -1;
         GraphElement el = null;
         Long ts = null;
         BaseOperatorEvent event = null;

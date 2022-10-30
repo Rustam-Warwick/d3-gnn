@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.function.Consumer;
@@ -47,8 +48,6 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return new Tensor(this, true);
     }
 
-    // CRUD METHODS
-
 
     @Override
     public Consumer<Plugin> createElement() {
@@ -67,9 +66,6 @@ public class Tensor extends Feature<NDArray, NDArray> {
         }
         return callback;
     }
-
-
-    // OTHER METHODS
 
     @Override
     public NDArray getValue() {
@@ -91,5 +87,10 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public void resume() {
         super.resume();
         value.resume();
+    }
+
+    @Override
+    public TypeInformation<?> getValueTypeInfo() {
+        return TypeInformation.of(NDArray.class);
     }
 }

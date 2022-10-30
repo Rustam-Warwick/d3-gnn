@@ -90,7 +90,6 @@ public class ModelServer extends Plugin {
         }
     }
 
-
     public class ParameterStoreWrapper extends ParameterStore {
         /**
          * Method to be called from master part of modelServer to sync all parameters of out model

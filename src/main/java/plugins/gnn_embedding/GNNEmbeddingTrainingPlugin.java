@@ -11,7 +11,7 @@ import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
-import elements.iterations.RemoteInvoke;
+import elements.iterations.Rmi;
 import features.Aggregator;
 import features.MeanAggregator;
 import features.Tensor;
@@ -141,27 +141,24 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             // ---------- Send AGG messages
 
             for (Map.Entry<Short, NDArrayCollector<String>> entry : aggGradsPerPart.entrySet()) {
-                new RemoteInvoke()
-                        .addDestination(entry.getKey())
-                        .noUpdate()
-                        .method("collectAggregators")
-                        .toElement(getId(), elementType())
-                        .withArgs(entry.getValue())
-                        .where(MessageDirection.ITERATE)
-                        .buildAndRun(storage);
+                Rmi.buildAndRun(
+                        storage,
+                        entry.getKey(),
+                        new Rmi(getId(), "collectAggregators", elementType(), new Object[]{entry.getValue()}, false),
+                        MessageDirection.ITERATE
+                );
             }
 
             // -------------- Send backward messages if it exists
 
             if (Objects.nonNull(backwardGrads)) {
-                new RemoteInvoke()
-                        .addDestination(getPartId()) // Only masters will be here anyway
-                        .noUpdate()
-                        .method("collect")
-                        .toElement(getId(), elementType())
-                        .where(MessageDirection.BACKWARD)
-                        .withArgs(backwardGrads)
-                        .buildAndRun(storage);
+
+                Rmi.buildAndRun(
+                        storage,
+                        getPartId(),
+                        new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false),
+                        MessageDirection.BACKWARD
+                );
             }
 
             collectedGradients.clear();
@@ -205,14 +202,12 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                     backwardGradsPerPart.get(vertices.get(i).masterPart()).put(vertices.get(i).getId(), batchedFeatureGradients.get(i));
                 }
                 for (Map.Entry<Short, NDArrayCollector<String>> entry : backwardGradsPerPart.entrySet()) {
-                    new RemoteInvoke()
-                            .addDestination(entry.getKey())
-                            .noUpdate()
-                            .method("collect")
-                            .toElement(getId(), elementType())
-                            .withArgs(entry.getValue())
-                            .where(MessageDirection.BACKWARD)
-                            .buildAndRun(storage);
+                    Rmi.buildAndRun(
+                            storage,
+                            entry.getKey(),
+                            new Rmi(getId(), "collect", elementType(), new Object[]{entry.getValue()}, false),
+                            MessageDirection.BACKWARD
+                    );
                 }
             }
             collectedAggregators.clear();
@@ -253,14 +248,12 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDArray messages = MESSAGE(srcFeaturesBatched, false).get(0);
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", LifeCycleNDManager.getInstance().create(Longs.toArray(list))));
-            new RemoteInvoke()
-                    .toElement(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), ElementType.FEATURE)
-                    .where(MessageDirection.ITERATE)
-                    .method("reduce")
-                    .hasUpdate()
-                    .addDestination(v.masterPart())
-                    .withArgs(new NDList(message), list.size())
-                    .buildAndRun(storage);
+            Rmi.buildAndRun(
+                    storage,
+                    v.masterPart(),
+                    new Rmi(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true),
+                    MessageDirection.ITERATE
+            );
         });
     }
 

@@ -20,7 +20,7 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClas
 /**
  * Special Factory that recursively serializer List Fields, if no recursion list is found will fall back to PojoTypeInfo
  */
-public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
+public class RecursiveTypeInfoFactory<T> extends TypeInfoFactory<T> {
     @Override
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
         return this.createTypeInfo(t, genericParameters, false);
@@ -87,7 +87,7 @@ public class RecursiveListFieldsTypeInfoFactory<T> extends TypeInfoFactory<T> {
                 return pojoType;
             }
 
-            return new RecursiveListFieldTypeInfo<>(clazz, pojoFields, recursiveListFields);
+            return new RecursiveTypeInfo<>(clazz, pojoFields, recursiveListFields);
         } catch (Exception e) {
             e.printStackTrace();
             return null;

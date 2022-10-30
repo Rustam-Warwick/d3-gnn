@@ -6,7 +6,7 @@ import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 import typeinfo.ListTypeInformationFactory;
-import typeinfo.RecursiveListFieldsTypeInfoFactory;
+import typeinfo.RecursiveTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -20,7 +20,7 @@ import java.util.function.Consumer;
  * Abstract class representing a GraphElement.
  * CRUD Methods for interacting with the storage layer
  */
-@TypeInfo(RecursiveListFieldsTypeInfoFactory.class)
+@TypeInfo(RecursiveTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, ObjectPoolControl {
     protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
@@ -53,8 +53,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     abstract public GraphElement deepCopy();
 
-    // CRUD Operations
-
     /**
      * Create this element and all its features
      *
@@ -81,7 +79,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     protected Consumer<Plugin> deleteElement() {
         assert storage != null;
-        cacheFeatures();
+        storage.cacheNonHaloFeatures(this);
         Consumer<Plugin> callback = null;
         if (features != null) {
             for (Feature<?, ?> feature : features) {
@@ -127,7 +125,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
                 }
             }
         }
-
         if (memento != null) {
             storage.updateElement(this);
             GraphElement finalMemento = memento;
@@ -173,9 +170,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         storage.runCallback(updateElement(newElement, null).f0);
     }
 
-
-    // NORMAL OPERATIONS
-
     /**
      * Sends a copy of this element as message to all parts
      *
@@ -185,7 +179,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         assert storage != null;
         if ((state() != ReplicaState.MASTER) || !isReplicable() || isHalo() || parts == null || parts.isEmpty())
             return;
-        cacheFeatures(); // retrieve all features of this element
+        storage.cacheNonHaloFeatures(this);
         GraphElement cpy = copy(); // Make a copy do not actually send this element
         if (features != null) {
             for (Feature<?, ?> feature : features) {
@@ -328,14 +322,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
                 feature.create();
             }
         }
-    }
-
-    /**
-     * Retrieves all features of this graph element from the storage
-     */
-    public void cacheFeatures() {
-        assert storage != null;
-        storage.cacheFeaturesOf(this);
     }
 
     /**

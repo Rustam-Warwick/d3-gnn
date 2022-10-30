@@ -8,7 +8,8 @@ import typeinfo.ByteEnumTypeInfoFactory;
 public enum ElementType {
     PLUGIN,
     EDGE,
-    FEATURE,
+    STANDALONE_FEATURE,
+    ATTACHED_FEATURE,
     VERTEX,
     HYPEREDGE,
     GRAPH,

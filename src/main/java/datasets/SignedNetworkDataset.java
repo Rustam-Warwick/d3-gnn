@@ -78,7 +78,7 @@ public class SignedNetworkDataset implements Dataset {
             String[] values = value.split(",");
             UniEdge e = new UniEdge(new Vertex(values[0]), new Vertex(values[1]));
             e.setFeature("sign", new Tensor(LifeCycleNDManager.getInstance().create(1)));
-            return new GraphOp(Op.COMMIT, e, Float.valueOf(values[3]).longValue());
+            return new GraphOp(Op.COMMIT, e);
         }
     }
 

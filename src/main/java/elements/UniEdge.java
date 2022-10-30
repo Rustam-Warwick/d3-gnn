@@ -7,6 +7,8 @@ import java.util.function.Consumer;
 
 /**
  * Edge class represents an Edge in the Graph.
+ * ids = [src, dest] for direct non-attrbiuted edges
+ * ids = [src, dest, att] for attrbiuted edges
  *
  * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multi-graphs
  * @implNote Vertex updates should not happen within edges they will be ignored
@@ -95,6 +97,12 @@ public final class UniEdge extends GraphElement implements Edge {
         return new UniEdge(this, true);
     }
 
+    @Nullable
+    @Override
+    public String getAttribute() {
+        return ids.length > 2 ? ids[2] : null;
+    }
+
     // CRUD METHODS
     @Override
     public Vertex getSrc() {
@@ -134,7 +142,7 @@ public final class UniEdge extends GraphElement implements Edge {
 
     @Override
     public String getId() {
-        return ids[0] + DELIMITER + ids[1];
+        return encodeEdgeId(ids[0], ids[1]);
     }
 
     @Override

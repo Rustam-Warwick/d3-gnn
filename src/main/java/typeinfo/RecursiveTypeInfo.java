@@ -10,12 +10,12 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
-public class RecursiveListFieldTypeInfo<T> extends PojoTypeInfo<T> {
+public class RecursiveTypeInfo<T> extends PojoTypeInfo<T> {
 
     private final PojoField[] fieldsArray;
 
 
-    public RecursiveListFieldTypeInfo(Class<T> typeClass, List<PojoField> fields, List<Field> recursiveFields) throws Exception {
+    public RecursiveTypeInfo(Class<T> typeClass, List<PojoField> fields, List<Field> recursiveFields) throws Exception {
         super(typeClass, fields);
         // Populate the recursive fields if exists
         recursiveFields.forEach(item -> {
@@ -60,7 +60,7 @@ public class RecursiveListFieldTypeInfo<T> extends PojoTypeInfo<T> {
             reflectiveFields[i] = fieldsArray[i].getField();
         }
 
-        RecursiveListFieldPojoSerializer<T> serializer = new RecursiveListFieldPojoSerializer<T>(getTypeClass(), fieldSerializers, reflectiveFields, config);
+        RecursivePojoSerializer<T> serializer = new RecursivePojoSerializer<T>(getTypeClass(), fieldSerializers, reflectiveFields, config);
         return serializer;
     }
 

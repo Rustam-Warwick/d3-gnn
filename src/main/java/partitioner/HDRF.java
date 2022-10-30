@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
 
-    public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
+    public final float epsilon = 8; // Leave it as is, used to not have division by zero errors
 
     public float lambda = 1f; // More means more balance constraint comes into play
 
@@ -34,7 +34,7 @@ public class HDRF extends BasePartitioner {
      */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        int numThreats = 1;
+        int numThreats = 3;
         SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", "HDRF", numThreats)).setParallelism(1);

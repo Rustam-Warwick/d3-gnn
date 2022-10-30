@@ -1,6 +1,5 @@
 package helpers;
 
-import ai.djl.MalformedModelException;
 import ai.djl.Model;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
@@ -13,20 +12,20 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import storage.FlatObjectStorage;
+import storage.CompressedListStorage;
 
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.function.Function;
 
 public class Main {
 
-    public static ArrayList<Model> layeredModel() throws MalformedModelException, IOException {
+    public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
         sb.add(new SAGEConv(64, true));
         sb.add(new SAGEConv(32, true));
@@ -53,20 +52,20 @@ public class Main {
         return models;
     }
 
-
     public static void main(String[] args) throws Throwable {
         // Configuration
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
-                new StreamingGNNLayerFunction(new FlatObjectStorage()
+                new StreamingGNNLayerFunction(new CompressedListStorage()
                         .withPlugin(new ModelServer(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true, true))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
-                new StreamingGNNLayerFunction(new FlatObjectStorage()
+                new StreamingGNNLayerFunction(new CompressedListStorage()
                         .withPlugin(new ModelServer(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false, true))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(1).getName()))
@@ -74,6 +73,7 @@ public class Main {
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
+
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Training");
 
         env.execute(jobName);

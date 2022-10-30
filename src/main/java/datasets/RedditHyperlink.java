@@ -54,6 +54,7 @@ public class RedditHyperlink implements Dataset {
 
     static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         int count;
+
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
@@ -64,8 +65,8 @@ public class RedditHyperlink implements Dataset {
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split(",");
-            UniEdge uniEdge = new UniEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
+            String[] values = value.split("\t");
+            UniEdge uniEdge = new UniEdge(new Vertex(values[0]), new Vertex(values[1])); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){
 //                String processed = values[i].replaceAll("[^0-9.]", "");

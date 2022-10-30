@@ -10,5 +10,5 @@ public enum Op {
     REMOVE,
     SYNC,
     RMI,
-    OPERATOR_EVENT, // Watermark Status
+    OPERATOR_EVENT,
 }

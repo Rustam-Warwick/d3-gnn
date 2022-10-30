@@ -5,7 +5,6 @@ import ai.djl.ndarray.NDList;
 import elements.*;
 import elements.iterations.MessageDirection;
 import elements.iterations.RemoteFunction;
-import elements.iterations.RemoteInvoke;
 import elements.iterations.Rmi;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
@@ -54,16 +53,14 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             UniEdge uniEdge = (UniEdge) element;
             if (messageReady(uniEdge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) uniEdge.getSrc().getFeature("f").getValue()), false);
-                new RemoteInvoke()
-                        .toElement(Feature.encodeFeatureId("agg", uniEdge.getDest().getId(), ElementType.VERTEX), ElementType.FEATURE)
-                        .where(MessageDirection.ITERATE)
-                        .method("reduce")
-                        .hasUpdate()
-                        .addDestination(uniEdge.getDest().masterPart())
-                        .withArgs(msg, 1)
-                        .buildAndRun(storage);
+                Rmi.buildAndRun(
+                        storage,
+                        uniEdge.getDest().masterPart(),
+                        new Rmi(Feature.encodeFeatureId("agg", uniEdge.getDestId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{msg, 1}, true),
+                        MessageDirection.ITERATE
+                );
             }
-        } else if (element.elementType() == ElementType.FEATURE) {
+        } else if (element.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 reduceOutEdges((Vertex) feature.getElement());
@@ -77,7 +74,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if (newElement.elementType() == ElementType.FEATURE) {
+        if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.attachedTo.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
@@ -131,20 +128,18 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         }
         if (reduceMessages == null) return;
         for (Map.Entry<Short, Tuple2<List<String>, NDList>> shortTuple2Entry : reduceMessages.entrySet()) {
-            new RemoteInvoke()
-                    .toElement(getId(), elementType())
-                    .where(MessageDirection.ITERATE)
-                    .method("receiveReduceOutEdges")
-                    .noUpdate()
-                    .addDestination(shortTuple2Entry.getKey())
-                    .withArgs(shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1)
-                    .buildAndRun(storage);
+            Rmi.buildAndRun(
+                    storage,
+                    shortTuple2Entry.getKey(),
+                    new Rmi(getId(), "receiveReduceOutEdges", elementType(), new Object[]{shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1}, false),
+                    MessageDirection.ITERATE
+            );
         }
     }
 
     @RemoteFunction
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
-        Rmi rmi = new Rmi(null, "reduce", new Object[]{message, 1}, null, true, null);
+        Rmi rmi = new Rmi(null, "reduce", null, new Object[]{message, 1}, true);
         for (String vertex : vertices) {
             Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
         }
@@ -175,20 +170,18 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
         if (replaceMessages == null) return;
         for (Map.Entry<Short, Tuple3<List<String>, NDList, NDList>> shortTuple2Entry : replaceMessages.entrySet()) {
-            new RemoteInvoke()
-                    .toElement(getId(), elementType())
-                    .where(MessageDirection.ITERATE)
-                    .method("receiveReplaceOutEdges")
-                    .noUpdate()
-                    .addDestination(shortTuple2Entry.getKey())
-                    .withArgs(shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1, shortTuple2Entry.getValue().f2)
-                    .buildAndRun(storage);
+            Rmi.buildAndRun(
+                    storage,
+                    shortTuple2Entry.getKey(),
+                    new Rmi(getId(), "receiveReplaceOutEdges", elementType(), new Object[]{shortTuple2Entry.getValue().f0, shortTuple2Entry.getValue().f1, shortTuple2Entry.getValue().f2}, false),
+                    MessageDirection.ITERATE
+            );
         }
     }
 
     @RemoteFunction
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-        Rmi rmi = new Rmi(null, "replace", new Object[]{messageNew, messageOld}, null, true, null);
+        Rmi rmi = new Rmi(null, "replace", null, new Object[]{messageNew, messageOld}, true);
         for (String vertex : vertices) {
             Rmi.execute(storage.getVertex(vertex).getFeature("agg"), rmi);
         }

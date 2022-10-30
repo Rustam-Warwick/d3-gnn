@@ -1571,6 +1571,7 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.translate.Translator;
 import ai.djl.translate.TranslatorContext;
 import ai.djl.util.PairList;
+import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -3056,6 +3057,7 @@ public interface NDManager extends AutoCloseable {
      * @param resource   the {@link AutoCloseable} resource to be attached
      */
     default void attachInternal(String resourceId, AutoCloseable resource) {
+        throw new NotImplementedException("Not implmented");
     }
 
     /**
@@ -3071,6 +3073,7 @@ public interface NDManager extends AutoCloseable {
      * @param resource   the {@link AutoCloseable} resource to be attached
      */
     default void attachUncappedInternal(String resourceId, AutoCloseable resource) {
+        throw new NotImplementedException("Not implmented");
     }
 
     /**
@@ -3088,6 +3091,7 @@ public interface NDManager extends AutoCloseable {
      * @param resource        the {@link AutoCloseable} resource to be attached
      */
     default void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
+        throw new NotImplementedException("Not implmented");
     }
 
     /**
@@ -3104,6 +3108,7 @@ public interface NDManager extends AutoCloseable {
      * @param resourceId the resourceId to be removed from this {@code NDManager}'s lifecycle
      */
     default void detachInternal(String resourceId) {
+        throw new NotImplementedException("Not implmented");
     }
 
     /**

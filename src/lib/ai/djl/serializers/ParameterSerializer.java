@@ -3,11 +3,11 @@ package ai.djl.serializers;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
-import ai.djl.pytorch.engine.PtNDArray;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.reflectasm.FieldAccess;
 
 import java.lang.reflect.Field;
 
@@ -19,6 +19,7 @@ public class ParameterSerializer extends Serializer<Parameter> {
 
     static {
         try {
+            FieldAccess.get(Parameter.class);
             Field id = Parameter.class.getDeclaredField("id");
             id.setAccessible(true);
             idField = id;
@@ -42,7 +43,7 @@ public class ParameterSerializer extends Serializer<Parameter> {
         try {
             String name = input.readString();
             String id = input.readString();
-            NDArray array = kryo.readObject(input, PtNDArray.class);
+            NDArray array = kryo.readObject(input, NDArray.class);
             array.detach(); // Detach parameters instead of postponing
             Shape shape = array.getShape();
             Parameter a = Parameter.builder().setName(name).optArray(array).optShape(shape).setType(Parameter.Type.OTHER).build();

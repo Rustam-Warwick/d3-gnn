@@ -65,7 +65,7 @@ dependencies {
     implementation 'org.jetbrains:annotations:20.1.0'
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
     implementation 'com.alibaba.blink:flink-metrics-datadog:1.5.1'
-    implementation "org.openjdk.jol:jol-core:0.16"
+//    implementation "org.openjdk.jol:jol-core:0.16"
 
     // --------------------------------------------------------------
     // Dependencies that should be part of the shadow jar, e.g.

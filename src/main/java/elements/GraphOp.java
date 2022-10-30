@@ -19,12 +19,11 @@ public final class GraphOp implements ObjectPoolControl {
      * @see Op
      * Op represents the operation that is happening in the GraphElement
      */
-    public @Nonnull
-    Op op = Op.NONE;
+    public Op op = Op.NONE;
     /**
      * The part number where this record should be sent to
      */
-    public Short partId;
+    public short partId = -1;
     /**
      * The GraphElement on which the Op is being acted upon
      */
@@ -49,30 +48,23 @@ public final class GraphOp implements ObjectPoolControl {
     }
 
     public GraphOp(Op op, GraphElement element) {
-        this(op, element, null);
+        this.op = op;
+        this.element = element;
     }
 
-    public GraphOp(Op op, GraphElement element, Long ts) {
-        this(op, null, element, ts);
-    }
-
-    public GraphOp(Op op, Short partId, GraphElement element) {
-        this(op, partId, element, null);
-    }
-
-    public GraphOp(Op op, Short partId, GraphElement element, Long ts) {
-        this(op, partId, element, ts, MessageCommunication.P2P);
+    public GraphOp(Op op, short partId, GraphElement element) {
+        this.op = op;
+        this.partId = partId;
+        this.element = element;
     }
 
     public GraphOp(BaseOperatorEvent evt) {
-        this(Op.OPERATOR_EVENT, null, null, evt, MessageCommunication.BROADCAST, null);
+        this.op = Op.OPERATOR_EVENT;
+        this.operatorEvent = evt;
+        this.messageCommunication = MessageCommunication.BROADCAST;
     }
 
-    public GraphOp(Op op, Short partId, GraphElement element, Long ts, MessageCommunication communication) {
-        this(op, partId, element, null, communication, ts);
-    }
-
-    public GraphOp(@NotNull Op op, Short partId, GraphElement element, BaseOperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
+    public GraphOp(Op op, short partId, GraphElement element, BaseOperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;
@@ -82,8 +74,7 @@ public final class GraphOp implements ObjectPoolControl {
     }
 
     public GraphOp shallowCopy() {
-        return
-                new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
+        return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
 
     // --- GETTERS AND SETTERS
@@ -97,11 +88,11 @@ public final class GraphOp implements ObjectPoolControl {
         return this;
     }
 
-    public Short getPartId() {
+    public short getPartId() {
         return partId;
     }
 
-    public GraphOp setPartId(Short partId) {
+    public GraphOp setPartId(short partId) {
         this.partId = partId;
         return this;
     }

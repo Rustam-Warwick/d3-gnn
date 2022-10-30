@@ -191,7 +191,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
         do {
             Thread.sleep(5000);
-        }while (mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0);
+        } while (mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0);
         wrappedOperator.finish();
     }
 
@@ -213,6 +213,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void setKeyContextElement(StreamRecord<GraphOp> record) throws Exception {
+        context.element = record;
     }
 
     @Override
@@ -344,7 +345,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void handleOperatorEvent(OperatorEvent evt) {
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
-            processElement(context.element.replace(new GraphOp(Op.OPERATOR_EVENT, null, null, (BaseOperatorEvent) evt, MessageCommunication.BROADCAST, null)));
+            // Need to open context here because out of main mailbox loop
+            processElement(context.element.replace(new GraphOp((BaseOperatorEvent) evt)));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -355,7 +357,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
-        context.element = element;
         if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
             BaseOperatorEvent event = element.getValue().getOperatorEvent();
             boolean processNow;
@@ -529,7 +530,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
-        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null, null));
+        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null));
 
         /**
          * Send event to operator
@@ -549,8 +550,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         }
 
         /**
-         * Broadcasts this message to the forward chain, identified with null outputTag
-         * All other broadcasts should be done via IterationSource -> Tails that is only sent as regular events
+         * Broadcasts this message to the output tag. If null simply forward broadcast
          */
         public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
             // 1. Store the previous value
@@ -614,7 +614,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          * Get the current part of this operator
          */
         public Short currentPart() {
-            return element.getValue().getPartId();
+            return ((PartNumber) getCurrentKey()).partId;
         }
 
         /**
@@ -683,7 +683,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         public void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
             getWrappedOperator().getKeyedStateBackend().deregisterKeySelectionListener(listener);
         }
-
     }
 
 }

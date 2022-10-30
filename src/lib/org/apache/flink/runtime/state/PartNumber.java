@@ -1,17 +1,16 @@
 package org.apache.flink.runtime.state;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * A class Representing PartNumber, wrapper used to distinguish keys requiring murmurHash from this one
  */
 public class PartNumber implements Serializable {
-    public Short partId;
-
-    public PartNumber() {
+    public short partId;
+    public PartNumber(){
 
     }
-
     public PartNumber(short partId) {
         this.partId = partId;
     }
@@ -39,10 +38,8 @@ public class PartNumber implements Serializable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         PartNumber that = (PartNumber) o;
-
-        return partId == that.partId;
+        return Objects.equals(partId, that.partId);
     }
 
     @Override

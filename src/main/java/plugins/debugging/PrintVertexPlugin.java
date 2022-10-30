@@ -29,7 +29,7 @@ public class PrintVertexPlugin extends Plugin {
                 BaseWrapperOperator.LOG.error(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPartId(), storage.layerFunction.getPosition()));
             }
         }
-        if (element.elementType() == ElementType.FEATURE) {
+        if (element.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), feature.value));
@@ -40,7 +40,7 @@ public class PrintVertexPlugin extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if (newElement.elementType() == ElementType.FEATURE) {
+        if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), feature.value));

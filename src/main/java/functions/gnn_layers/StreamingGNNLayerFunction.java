@@ -18,7 +18,9 @@ import storage.BaseStorage;
  */
 public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> implements GNNLayerFunction {
     public BaseStorage storage;
+
     public transient Collector<GraphOp> collector;
+
     public transient KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx;
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
 

@@ -6,6 +6,8 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
 import elements.iterations.RemoteFunction;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.function.Consumer;
@@ -116,5 +118,10 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     public void resume() {
         super.resume();
         value.f0.resume();
+    }
+
+    @Override
+    public TypeInformation<?> getValueTypeInfo() {
+        return Types.TUPLE(TypeInformation.of(NDArray.class), Types.INT);
     }
 }

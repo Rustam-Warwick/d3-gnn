@@ -13,7 +13,7 @@ import elements.GraphOp;
 import elements.ReplicaState;
 import elements.Vertex;
 import elements.iterations.MessageDirection;
-import elements.iterations.RemoteInvoke;
+import elements.iterations.Rmi;
 import operators.events.BackwardBarrier;
 import operators.events.BaseOperatorEvent;
 import operators.events.ForwardBarrier;
@@ -95,15 +95,11 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         for (int i = 0; i < vertexIds.size(); i++) {
             backwardGrads.put(vertexIds.get(i), gradient.get(i));
         }
-        new RemoteInvoke()
-                .addDestination(getPartId()) // Only masters will be here anyway
-                .noUpdate()
-                .method("collect")
-                .toElement(getId(), elementType())
-                .where(MessageDirection.BACKWARD)
-                .withArgs(backwardGrads)
-                .buildAndRun(storage);
-
+        Rmi.buildAndRun(storage,
+                getPartId(),
+                new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false),
+                MessageDirection.BACKWARD
+        );
     }
 
     /**

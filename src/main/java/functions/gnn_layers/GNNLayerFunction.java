@@ -176,12 +176,12 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                         el.create();
                         el.sync(value.element);
                     } else {
-                        GraphElement el = this.getStorage().getElement(value.element);
+                        GraphElement el = getStorage().getElement(value.element);
                         el.sync(value.element);
                     }
                     break;
                 case RMI:
-                    GraphElement rpcElement = this.getStorage().getElement(value.element.getId(), value.element.elementType());
+                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
                     Rmi.execute(rpcElement, (Rmi) value.element);
                     break;
                 case OPERATOR_EVENT:

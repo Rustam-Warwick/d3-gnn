@@ -2,7 +2,6 @@ package ai.djl.pytorch.engine;
 
 import ai.djl.Device;
 import ai.djl.ndarray.NDManager;
-import ai.djl.ndarray.NDResource;
 import com.github.benmanes.caffeine.cache.*;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -32,12 +31,8 @@ public class LifeCycleNDManager extends PtNDManager {
         cleanerThread.start();
     }
 
-    // STATIC METHODS
-
     protected final Scope parentScope = new Scope(); // Scope to delay the tensor removing
-
     protected final ManualTicker ticker = new ManualTicker(); // Logical timer depending on the data-rate
-
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
@@ -118,24 +113,6 @@ public class LifeCycleNDManager extends PtNDManager {
             else scopedCount++;
             attached.put(resource, resource);
         }
-    }
-
-    /**
-     * @throws IllegalStateException
-     */
-    @Override
-    public void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
-        // Pass
-        throw new IllegalStateException("TempAttaching is disabled for LifeCycleNDManager, please use postpone and prepone for delaying closure");
-    }
-
-    /**
-     * @throws IllegalStateException
-     */
-    @Override
-    public void detachInternal(String resourceId) {
-        // No detaching for this NDArray, will be cleaned by the cleaner thread
-        throw new IllegalStateException("For LifeCycleNDManager please use the detachInternal(AutoClosable)");
     }
 
     /**

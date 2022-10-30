@@ -111,7 +111,7 @@ public class CoraFull implements Dataset {
             System.out.println(value);
             String[] edges = value.split(",");
             UniEdge e = new UniEdge(new Vertex(edges[0]), new Vertex(edges[1]));
-            return new GraphOp(Op.COMMIT, e, null);
+            return new GraphOp(Op.COMMIT, e);
         }
     }
 

@@ -59,7 +59,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     }
 
     public void forward(Vertex v) {
-        Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>> elementUpdates = (Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>>) storage.getFeature("elementUpdates");
+        Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>> elementUpdates = (Feature<Tuple2<Integer, Set<String>>, Tuple2<Integer, Set<String>>>) storage.getStandaloneFeature("elementUpdates");
         elementUpdates.getValue().f1.add(v.getId());
         if (elementUpdates.getValue().f0++ >= LOCAL_BATCH_SIZE) {
             List<NDList> inputs = new ArrayList<>();
@@ -88,7 +88,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             elementUpdates.getValue().f1.clear();
             elementUpdates.getValue().f0 = 0;
         }
-        storage.updateFeature(elementUpdates);
+
     }
 
 }

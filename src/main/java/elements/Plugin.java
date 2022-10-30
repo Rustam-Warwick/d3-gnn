@@ -1,6 +1,9 @@
 package elements;
 
 import operators.events.BaseOperatorEvent;
+import org.apache.flink.runtime.state.FunctionInitializationContext;
+import org.apache.flink.runtime.state.FunctionSnapshotContext;
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 
 import java.util.List;
 import java.util.Objects;
@@ -8,7 +11,7 @@ import java.util.Objects;
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
-public class Plugin extends ReplicableGraphElement {
+public class Plugin extends ReplicableGraphElement implements CheckpointedFunction {
 
     public String id;
 
@@ -41,17 +44,17 @@ public class Plugin extends ReplicableGraphElement {
 
     @Override
     public void update(GraphElement newElement) {
-        throw new IllegalStateException("Plugins are not created");
+        throw new IllegalStateException("Plugins are not updated");
     }
 
     @Override
     public void sync(GraphElement newElement) {
-        throw new IllegalStateException("Plugins are not created");
+        throw new IllegalStateException("Plugins are not synced");
     }
 
     @Override
     public void delete() {
-        throw new IllegalStateException("Plugins are not created");
+        throw new IllegalStateException("Plugins are not deleted");
     }
 
 
@@ -63,7 +66,7 @@ public class Plugin extends ReplicableGraphElement {
     }
 
     /**
-     * @return Replica Parts are the parts where else is this plugin replicate apart from its local master part
+     * @return thisOperatorParts()
      */
     @Override
     public List<Short> replicaParts() {
@@ -162,14 +165,13 @@ public class Plugin extends ReplicableGraphElement {
         // pass
     }
 
-    /**
-     * Callback when the plugin is added to the storage for the first time on client side.
-     *
-     * @implNote Anything initialized here will be serialized and sent to task manager
-     */
-    public void add() {
-        // pass
+    @Override
+    public void initializeState(FunctionInitializationContext context) throws Exception {
+        // Pass
     }
 
-
+    @Override
+    public void snapshotState(FunctionSnapshotContext context) throws Exception {
+        // Pass
+    }
 }

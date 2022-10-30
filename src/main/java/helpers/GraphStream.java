@@ -7,7 +7,7 @@ import datasets.Dataset;
 import elements.*;
 import elements.iterations.Rmi;
 import features.MeanAggregator;
-import features.Set;
+import features.Parts;
 import features.Tensor;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
@@ -64,7 +64,7 @@ public class GraphStream {
         env.registerType(Vertex.class);
         env.registerType(UniEdge.class);
         env.registerType(Feature.class);
-        env.registerType(Set.class);
+        env.registerType(Parts.class);
         env.registerType(Tensor.class);
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);

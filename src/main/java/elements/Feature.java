@@ -1,5 +1,7 @@
 package elements;
 
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 
@@ -27,7 +29,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Nullable
     public transient GraphElement element; // GraphElement attached
 
-    public Tuple3<ElementType, String, String> attachedTo = Tuple3.of(ElementType.NONE, null, null); // [ElementType, attached id, feature name]
+    @OmitStorage
+    public Tuple3<ElementType, String, String> attachedTo = Tuple3.of(ElementType.NONE, null, null); // [ElementType, element id, feature name]
 
     public Feature() {
         super();
@@ -67,7 +70,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * Given featureName and attached Element id return the unique id for this feature
      */
     public static String encodeFeatureId(String featureName, String attachedElementId, ElementType type) {
-        if(type == ElementType.NONE) return featureName;
+        if (type == ElementType.NONE) return featureName;
         return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
     }
 
@@ -78,9 +81,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
         String[] val = attachedFeatureId.split(DELIMITER);
         return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
     }
-
-
-    // CRUD METHODS
 
     /**
      * Does this id belong to attached feature or not
@@ -93,9 +93,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public Feature<T, V> copy() {
         return new Feature<>(this, false);
     }
-
-
-    // REGULAR METHODS
 
     @Override
     public Feature<T, V> deepCopy() {
@@ -159,6 +156,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public boolean valuesEqual(T v1, T v2) {
         return false;
+    }
+
+    public TypeInformation<?> getValueTypeInfo(){
+        return Types.GENERIC(Object.class);
     }
 
     /**
@@ -232,7 +233,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Nullable
     public GraphElement getElement() {
         if (attachedTo.f0 == ElementType.NONE) return null;
-        if (element == null && storage != null) {
+        if (element == null && storage != null && storage.containsElement(attachedTo.f1, attachedTo.f0)) {
             setElement(storage.getElement(attachedTo.f1, attachedTo.f0));
         }
         return element;
@@ -253,17 +254,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (element == attachingElement) return; // Already attached to this element
         if (attachingElement.features != null && attachingElement.features.contains(this))
             throw new IllegalStateException("Already attached to this element");
-        if (attachedTo.f0 == ElementType.NONE) {
-            attachedTo.f0 = attachingElement.elementType();
-            attachedTo.f1 = attachingElement.getId();
-        }
+        attachedTo.f0 = attachingElement.elementType();
+        attachedTo.f1 = attachingElement.getId();
         if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
         element = attachingElement;
         attachingElement.features.add(this);
     }
-
-
-    // STATIC METHODS
 
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
@@ -281,7 +277,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     @Override
     public ElementType elementType() {
-        return ElementType.FEATURE;
+        return attachedTo.f0 == ElementType.NONE ? ElementType.STANDALONE_FEATURE : ElementType.ATTACHED_FEATURE;
     }
 
 }

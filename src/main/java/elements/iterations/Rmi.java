@@ -4,29 +4,36 @@ import ai.djl.ndarray.ObjectPoolControl;
 import com.esotericsoftware.reflectasm.MethodAccess;
 import elements.ElementType;
 import elements.GraphElement;
+import elements.GraphOp;
+import elements.Op;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.ExceptionUtils;
+import storage.BaseStorage;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Rmi is a GraphElement type to execute some remote functions in other GraphElements such as {@link features.Tensor}
+ */
 public class Rmi extends GraphElement {
     public static ConcurrentHashMap<Class<?>, Tuple2<MethodAccess, HashMap<String, Integer>>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
     public Object[] args;
     public ElementType elemType;
-    public Boolean hasUpdate = true;
-    public String methodName;
 
     public String id;
+    public boolean hasUpdate = true;
+    public String methodName;
 
     public Rmi() {
         super();
     }
 
-    public Rmi(String id, String methodName, Object[] args, ElementType elemType, boolean hasUpdate, Long ts) {
+    public Rmi(String id, String methodName, ElementType elemType, Object[] args, boolean hasUpdate) {
         this.id = id;
         this.args = args;
         this.methodName = methodName;
@@ -37,22 +44,15 @@ public class Rmi extends GraphElement {
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
             MethodAccess tmp = MethodAccess.get(clazz);
-            HashMap<String, Integer> classMethodIds = new HashMap<>(1<<3);
-            classRemoteMethods.put(clazz, Tuple2.of(tmp, classMethodIds));
+            HashMap<String, Integer> classMethodIds = new HashMap<>(1 << 3);
             Method[] methods = clazz.getMethods();
             for (Method method : methods) {
                 if (method.isAnnotationPresent(RemoteFunction.class)) {
                     classMethodIds.put(method.getName(), tmp.getIndex(method.getName()));
                 }
             }
+            classRemoteMethods.put(clazz, Tuple2.of(tmp, classMethodIds));
         }
-    }
-
-    public static Object[] generateVarargs(Object[] args, GraphElement el) {
-        Object[] newArgs = new Object[args.length + 1];
-        newArgs[0] = el;
-        System.arraycopy(args, 0, newArgs, 1, args.length);
-        return newArgs;
     }
 
     public static void execute(GraphElement element, Rmi message) {
@@ -70,6 +70,24 @@ public class Rmi extends GraphElement {
         } catch (Throwable e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
             BaseWrapperOperator.LOG.error(message.toString());
+        }
+    }
+
+    public static void buildAndRun(Rmi rmi, BaseStorage storage, List<Short> destinations, MessageDirection messageDirection) {
+        for (Short destination : destinations) {
+            if (destination.equals(storage.layerFunction.getCurrentPart()) && messageDirection == MessageDirection.ITERATE) {
+                Rmi.execute(storage.getElement(rmi.getId(), rmi.elementType()), rmi);
+            } else {
+                storage.layerFunction.message(new GraphOp(Op.RMI, destination, rmi), messageDirection);
+            }
+        }
+    }
+
+    public static void buildAndRun(BaseStorage storage, short destination, Rmi rmi, MessageDirection messageDirection) {
+        if (destination == storage.layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
+            Rmi.execute(storage.getElement(rmi.getId(), rmi.elementType()), rmi);
+        } else {
+            storage.layerFunction.message(new GraphOp(Op.RMI, destination, rmi), messageDirection);
         }
     }
 

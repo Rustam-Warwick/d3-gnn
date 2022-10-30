@@ -27,7 +27,7 @@ abstract public class BaseVertexOutputPlugin extends Plugin {
 
     @Override
     public void open() throws Exception {
-        super.add();
+        super.open();
         this.modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
     }
 

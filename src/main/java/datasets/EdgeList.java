@@ -77,7 +77,7 @@ public class EdgeList implements Dataset {
             String[] edges = value.split(",");
             UniEdge e = new UniEdge(new Vertex(edges[1]), new Vertex(edges[2]));
             long ts = Long.parseLong(edges[0]);
-            return new GraphOp(Op.COMMIT, e, ts);
+            return new GraphOp(Op.COMMIT, e);
         }
     }
 }
