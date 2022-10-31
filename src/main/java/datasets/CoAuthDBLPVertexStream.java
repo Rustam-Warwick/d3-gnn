@@ -4,23 +4,29 @@ import elements.*;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
 
-public class CoauthDBLPVertexStream implements Dataset {
-    final String vertexStreamFile;
+public class CoAuthDBLPVertexStream implements Dataset {
+    private final String vertexStreamFile;
 
-    public CoauthDBLPVertexStream(String datasetDir) {
-        vertexStreamFile = Path.of(datasetDir, "coauth-DBLP-vertex-stream.txt").toString();
+    public CoAuthDBLPVertexStream(String datasetDir) {
+        vertexStreamFile = Path.of(datasetDir, "coauth-DBLP-full", "coauth-DBLP-vertex-stream.txt").toString();
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        DataStream<String> vertexStreamString = env.readTextFile(vertexStreamFile).setParallelism(1);
-        DataStream<GraphOp> nets = vertexStreamString.map(new ParseVertexStream());
+        SingleOutputStreamOperator<String> vertexStreamString = env.readTextFile(vertexStreamFile).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.map(new ParseVertexStream());
+        if (fineGrainedResourceManagementEnabled) {
+            // All belong to the same slot sharing group
+            vertexStreamString.slotSharingGroup("file-input");
+            nets.slotSharingGroup("file-input");
+        }
         return nets;
     }
 
@@ -46,8 +52,7 @@ public class CoauthDBLPVertexStream implements Dataset {
                 hEdges[i - 1] = new HEdge(netId, src);
             }
             HGraph hGraph = new HGraph(src, hEdges);
-            GraphOp op = new GraphOp(Op.COMMIT, hGraph);
-            return op;
+            return new GraphOp(Op.COMMIT, hGraph);
         }
     }
 }

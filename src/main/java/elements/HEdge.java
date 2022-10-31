@@ -4,41 +4,41 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
- * This class represents a hyper-edge(Net) connecting more than 1 vertices
+ * Represents a Hyper-Edge in the Graph
+ * A hyperEdge should have a unique Id similar to Vertices
  */
 public class HEdge extends ReplicableGraphElement {
 
     @Nullable
     @OmitStorage
     public Vertex[] vertices;
-
+    @OmitStorage
     public HashSet<String> vertexIds; // This we need to store since the naming convention of HEdge does not imply the vertex ids
+
+    public String id;
 
     public HEdge() {
 
     }
 
     public HEdge(String id, @Nullable Vertex[] vertices) {
-        this(id, false, null, vertices);
+        super();
+        this.id = id;
+        vertexIds = new HashSet<>();
+        this.vertices = vertices;
+        if (vertices != null) vertexIds.addAll(Arrays.stream(vertices).map(Vertex::getId).collect(Collectors.toList()));
     }
 
     public HEdge(HEdge element, boolean deepCopy) {
         super(element, deepCopy);
         this.vertices = null;
         this.vertexIds = new HashSet<>(element.vertexIds); // Create new reference to comprase additions
-    }
-
-    public HEdge(String id, boolean halo, Short master, Vertex[] vertices) {
-        super(halo, master);
-        this.vertices = vertices;
-        vertexIds = new HashSet<>();
-        for (int i = 0; i < vertices.length; i++) {
-            vertexIds.add(vertices[i].getId());
-        }
     }
 
     @Override
@@ -58,9 +58,9 @@ public class HEdge extends ReplicableGraphElement {
     public Consumer<Plugin> createElement() {
         vertexIds.clear();
         if (vertices != null) {
-            for (int i = 0; i < vertices.length; i++) {
-                if (!storage.containsVertex(vertices[i].getId())) vertices[i].create();
-                vertexIds.add(vertices[i].getId());
+            for (Vertex vertex : vertices) {
+                if (!storage.containsVertex(vertex.getId())) vertex.create();
+                vertexIds.add(vertex.getId());
             }
         }
         vertices = null; // Set to null to then access from the storage, similar to edge
@@ -141,7 +141,7 @@ public class HEdge extends ReplicableGraphElement {
 
     @Override
     public String getId() {
-        return null;
+        return id;
     }
 
     @Override

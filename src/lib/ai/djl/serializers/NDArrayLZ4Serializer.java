@@ -22,12 +22,11 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
     private static final LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
     private static final ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
-
-    private Boolean isStorage;
+    private Boolean isStorage; // If we are serializing to a storage backend
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
-        if(isStorage==null) setIsStorage();
+        if (isStorage == null) setIsStorage();
         ByteBuffer bb = o.toByteBuffer();
         output.writeByte(o.getDataType().ordinal()); // Data Types
         output.writeByte(o.getShape().getShape().length); // Shape length
@@ -46,12 +45,12 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         while (thisReuse.hasRemaining()) {
             output.writeByte(thisReuse.get());
         }
-        if(isStorage) o.resume();
+        if (isStorage) o.resume();
     }
 
     @Override
     public NDArray read(Kryo kryo, Input input, Class aClass) {
-        if(isStorage==null) setIsStorage();
+        if (isStorage == null) setIsStorage();
         int ordinal = input.readByte();
         DataType dataType = dataTypes[ordinal]; // Data Type
         long[] shapes = input.readLongs(input.readByte(), true);
@@ -73,10 +72,10 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         }
     }
 
-    private void setIsStorage(){
+    private void setIsStorage() {
         isStorage = false;
         for (StackTraceElement stackTraceElement : Thread.currentThread().getStackTrace()) {
-            if(stackTraceElement.getClassName().contains("UserFacingMapState")){
+            if (stackTraceElement.getClassName().contains("UserFacingMapState")) {
                 isStorage = true;
                 return;
             }

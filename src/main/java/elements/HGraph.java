@@ -2,8 +2,9 @@ package elements;
 
 import storage.BaseStorage;
 
-import java.util.HashMap;
-import java.util.function.Consumer;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 
 
 /**
@@ -11,6 +12,7 @@ import java.util.function.Consumer;
  * During construction all hyperedges will get shared vertices by reference
  */
 public class HGraph extends GraphElement {
+
     public Vertex[] vertices;
     public HEdge[] hEdges;
 
@@ -20,18 +22,14 @@ public class HGraph extends GraphElement {
 
     public HGraph(Vertex[] vertices, HEdge[] hEdges) {
         super();
-        HashMap<String, Vertex> setVertices = new HashMap<>();
-        for (Vertex vertex : vertices) {
-            setVertices.putIfAbsent(vertex.getId(), vertex);
-        }
+        HashSet<Vertex> collect = new HashSet<>(List.of(vertices));
         for (HEdge hEdge : hEdges) {
-            for (int i = 0; i < hEdge.getVertices().length; i++) {
-                setVertices.putIfAbsent(hEdge.getVertices()[i].getId(), hEdge.getVertices()[i]);
-                hEdge.getVertices()[i] = setVertices.get(hEdge.getVertices()[i].getId());
-            }
+            if (hEdge.getVertices() == null) continue;
+            collect.addAll(Arrays.asList(hEdge.getVertices()));
+            hEdge.vertices = null;
         }
         this.hEdges = hEdges;
-        this.vertices = setVertices.values().toArray(Vertex[]::new);
+        this.vertices = collect.toArray(Vertex[]::new);
     }
 
     @Override
@@ -53,40 +51,69 @@ public class HGraph extends GraphElement {
     }
 
     @Override
-    public Consumer<Plugin> createElement() {
+    public void create() {
         assert storage != null;
-        if (vertices != null) {
-            for (Vertex vertex : vertices) {
-                if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
-                else vertex.create();
-            }
+        for (Vertex vertex : vertices) {
+            if (!storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
+            else vertex.create();
         }
-        if (hEdges != null) {
-            for (HEdge hEdge : hEdges) {
-                if (storage.containsHyperEdge(hEdge.getId())) storage.getHyperEdge(hEdge.getId()).update(hEdge);
-                else hEdge.create();
-            }
+        for (HEdge hEdge : hEdges) {
+            if (storage.containsHyperEdge(hEdge.getId())) storage.getHyperEdge(hEdge.getId()).update(hEdge);
+            else hEdge.create();
         }
-        return null;
     }
 
     @Override
     public void update(GraphElement newElement) {
-        throw new IllegalStateException("Update not available in subgraph granularity");
+        throw new IllegalStateException("SubGraph only support additions");
+    }
+
+    @Override
+    public void delete() {
+        throw new IllegalStateException("SubGraph only support additions");
     }
 
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if (vertices != null) {
-            for (Vertex vertex : vertices) {
-                vertex.setStorage(storage);
-            }
+        for (Vertex vertex : vertices) {
+            vertex.setStorage(storage);
         }
-        if (hEdges != null) {
-            for (HEdge hEdge : hEdges) {
-                hEdge.setStorage(storage);
-            }
+        for (HEdge hEdge : hEdges) {
+            hEdge.setStorage(storage);
+        }
+    }
+
+    @Override
+    public void resume() {
+        super.resume();
+        for (Vertex vertex : vertices) {
+            vertex.resume();
+        }
+        for (HEdge hEdge : hEdges) {
+            hEdge.resume();
+        }
+    }
+
+    @Override
+    public void delay() {
+        super.delay();
+        for (Vertex vertex : vertices) {
+            vertex.delay();
+        }
+        for (HEdge hEdge : hEdges) {
+            hEdge.delay();
+        }
+    }
+
+    @Override
+    public void clearFeatures() {
+        super.clearFeatures();
+        for (Vertex vertex : vertices) {
+            vertex.clearFeatures();
+        }
+        for (HEdge hEdge : hEdges) {
+            hEdge.clearFeatures();
         }
     }
 
@@ -94,7 +121,6 @@ public class HGraph extends GraphElement {
     public String getId() {
         return null;
     }
-
 
     @Override
     public ElementType elementType() {

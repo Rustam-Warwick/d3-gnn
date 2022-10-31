@@ -4,9 +4,9 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
+import elements.DEdge;
 import elements.Plugin;
 import elements.ReplicaState;
-import elements.UniEdge;
 import elements.Vertex;
 import features.MeanAggregator;
 import features.Tensor;
@@ -72,11 +72,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     /**
      * Is Edge ready for message passing
      *
-     * @param uniEdge Edge
+     * @param dEdge Edge
      * @return edge_ready
      */
-    public boolean messageReady(UniEdge uniEdge) {
-        return uniEdge.getSrc().containsFeature("f");
+    public boolean messageReady(DEdge dEdge) {
+        return dEdge.getSrc().containsFeature("f");
     }
 
     /**

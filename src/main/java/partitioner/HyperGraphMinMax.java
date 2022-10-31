@@ -18,18 +18,12 @@ public class HyperGraphMinMax extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        return inputDataStream.process(new Partitioner(this.partitions));
-    }
-
-    @Override
-    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
-        return this;
+        return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax");
     }
 
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
         private final int partitions;
         private final int s;
-
         private transient ConcurrentHashMap<String, List<Short>> n2p;
         private transient ConcurrentHashMap<String, List<Short>> vertex2p;
         private transient String[] mark;

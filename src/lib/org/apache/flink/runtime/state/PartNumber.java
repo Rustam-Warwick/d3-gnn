@@ -8,9 +8,11 @@ import java.util.Objects;
  */
 public class PartNumber implements Serializable {
     public short partId;
-    public PartNumber(){
+
+    public PartNumber() {
 
     }
+
     public PartNumber(short partId) {
         this.partId = partId;
     }

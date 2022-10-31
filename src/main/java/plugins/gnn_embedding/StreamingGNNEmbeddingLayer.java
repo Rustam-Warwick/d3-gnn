@@ -50,13 +50,13 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         if (element.elementType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.elementType() == ElementType.EDGE) {
-            UniEdge uniEdge = (UniEdge) element;
-            if (messageReady(uniEdge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) uniEdge.getSrc().getFeature("f").getValue()), false);
+            DEdge dEdge = (DEdge) element;
+            if (messageReady(dEdge)) {
+                NDList msg = MESSAGE(new NDList((NDArray) dEdge.getSrc().getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
                         storage,
-                        uniEdge.getDest().masterPart(),
-                        new Rmi(Feature.encodeFeatureId("agg", uniEdge.getDestId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{msg, 1}, true),
+                        dEdge.getDest().masterPart(),
+                        new Rmi(Feature.encodeFeatureId("agg", dEdge.getDestId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{msg, 1}, true),
                         MessageDirection.ITERATE
                 );
             }
@@ -113,17 +113,17 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      * @param v Vertex
      */
     public void reduceOutEdges(Vertex v) {
-        Iterable<UniEdge> outEdges = storage.getIncidentEdges(v, EdgeType.OUT);
+        Iterable<DEdge> outEdges = storage.getIncidentEdges(v, EdgeType.OUT);
         final NDList[] msg = new NDList[1];
         HashMap<Short, Tuple2<List<String>, NDList>> reduceMessages = null;
-        for (UniEdge uniEdge : outEdges) {
-            if (this.messageReady(uniEdge)) {
+        for (DEdge dEdge : outEdges) {
+            if (this.messageReady(dEdge)) {
                 if (Objects.isNull(msg[0])) {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                     reduceMessages = new HashMap<>();
                 }
-                reduceMessages.computeIfAbsent(uniEdge.getDest().masterPart(), item -> new Tuple2<>(new ArrayList<>(), msg[0]));
-                reduceMessages.get(uniEdge.getDest().masterPart()).f0.add(uniEdge.getDest().getId());
+                reduceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item -> new Tuple2<>(new ArrayList<>(), msg[0]));
+                reduceMessages.get(dEdge.getDest().masterPart()).f0.add(dEdge.getDest().getId());
             }
         }
         if (reduceMessages == null) return;
@@ -152,19 +152,19 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Iterable<UniEdge> outEdges = storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        Iterable<DEdge> outEdges = storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList[] msgOld = new NDList[1];
         NDList[] msgNew = new NDList[1];
         HashMap<Short, Tuple3<List<String>, NDList, NDList>> replaceMessages = null;
-        for (UniEdge uniEdge : outEdges) {
-            if (this.messageReady(uniEdge)) {
+        for (DEdge dEdge : outEdges) {
+            if (this.messageReady(dEdge)) {
                 if (Objects.isNull(msgOld[0])) {
                     msgOld[0] = MESSAGE(new NDList(oldFeature.getValue()), false);
                     msgNew[0] = MESSAGE(new NDList(newFeature.getValue()), false);
                     replaceMessages = new HashMap<>();
                 }
-                replaceMessages.computeIfAbsent(uniEdge.getDest().masterPart(), item -> new Tuple3<>(new ArrayList<>(), msgNew[0], msgOld[0]));
-                replaceMessages.get(uniEdge.getDest().masterPart()).f0.add(uniEdge.getDest().getId());
+                replaceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item -> new Tuple3<>(new ArrayList<>(), msgNew[0], msgOld[0]));
+                replaceMessages.get(dEdge.getDest().masterPart()).f0.add(dEdge.getDest().getId());
             }
         }
 

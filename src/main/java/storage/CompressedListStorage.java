@@ -1,6 +1,5 @@
 package storage;
 
-import ai.djl.ndarray.ObjectPoolControl;
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
 import org.apache.commons.collections.IteratorUtils;
@@ -49,10 +48,11 @@ public class CompressedListStorage extends BaseStorage {
     public void close() throws Exception {
         super.close();
         for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
-            for (Object value : tuple2Tuple3Entry.getValue().f0.values()) {
-                if(value instanceof ObjectPoolControl) ((ObjectPoolControl) value).resume();
-                else break;
-            }
+            Feature tmpF = tuple2Tuple3Entry.getValue().f2.newInstance();
+            tuple2Tuple3Entry.getValue().f0.values().forEach(item -> {
+                tmpF.value = item;
+                tmpF.resume();
+            });
         }
     }
 
@@ -91,12 +91,12 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addEdge(UniEdge uniEdge) {
+    public boolean addEdge(DEdge dEdge) {
         try {
-            if (!eOutTable.contains(uniEdge.getSrcId())) eOutTable.put(uniEdge.getSrcId(), new HashSet<>());
-            if (!eInTable.contains(uniEdge.getDestId())) eInTable.put(uniEdge.getDestId(), new HashSet<>());
-            eOutTable.get(uniEdge.getSrcId()).add(uniEdge.getDestId());
-            eInTable.get(uniEdge.getDestId()).add(uniEdge.getSrcId());
+            if (!eOutTable.contains(dEdge.getSrcId())) eOutTable.put(dEdge.getSrcId(), new HashSet<>());
+            if (!eInTable.contains(dEdge.getDestId())) eInTable.put(dEdge.getDestId(), new HashSet<>());
+            eOutTable.get(dEdge.getSrcId()).add(dEdge.getDestId());
+            eInTable.get(dEdge.getDestId()).add(dEdge.getSrcId());
             return true;
         } catch (Exception e) {
             LOG.error(e.getMessage());
@@ -133,7 +133,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateEdge(UniEdge uniEdge) {
+    public boolean updateEdge(DEdge dEdge) {
         return true;
     }
 
@@ -158,7 +158,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteEdge(UniEdge uniEdge) {
+    public boolean deleteEdge(DEdge dEdge) {
         throw new NotImplementedException("Not implemented");
     }
 
@@ -198,11 +198,10 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public UniEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
+    public DEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
         try {
             assert attributeId == null;
-            UniEdge edge = new UniEdge();
-            edge.ids = attributeId == null ? new String[]{srcId, destId} : new String[]{srcId, destId, attributeId};
+            DEdge edge = new DEdge(srcId, destId, attributeId);
             edge.setStorage(this);
             return edge;
         } catch (Exception e) {
@@ -212,21 +211,20 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<UniEdge> getEdges(String src, String dest) {
+    public Iterable<DEdge> getEdges(String src, String dest) {
         throw new NotImplementedException("Not Implemments");
     }
 
     @Override
-    public Iterable<UniEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<DEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
-            Iterator<UniEdge> outEdgesIter = Collections.emptyIterator();
-            Iterator<UniEdge> inEdgesIter = Collections.emptyIterator();
+            Iterator<DEdge> outEdgesIter = Collections.emptyIterator();
+            Iterator<DEdge> inEdgesIter = Collections.emptyIterator();
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (eOutTable.contains(vertex.getId())) {
                     outEdgesIter = IteratorUtils.transformedIterator(eOutTable.get(vertex.getId()).iterator(), (v) -> {
                         String destId = (String) v;
-                        UniEdge edge = new UniEdge();
-                        edge.ids = new String[]{vertex.getId(), destId};
+                        DEdge edge = new DEdge(vertex.getId(), destId, null);
                         edge.src = vertex;
                         edge.setStorage(this);
                         return edge;
@@ -237,8 +235,7 @@ public class CompressedListStorage extends BaseStorage {
                 if (eInTable.contains(vertex.getId())) {
                     inEdgesIter = IteratorUtils.transformedIterator(eInTable.get(vertex.getId()).iterator(), (v) -> {
                         String srcId = (String) v;
-                        UniEdge edge = new UniEdge();
-                        edge.ids = new String[]{srcId, vertex.getId()};
+                        DEdge edge = new DEdge(srcId, vertex.getId(), null);
                         edge.dest = vertex;
                         edge.setStorage(this);
                         return edge;
@@ -246,8 +243,8 @@ public class CompressedListStorage extends BaseStorage {
                 }
             }
 
-            Iterator<UniEdge> finalOutEdgesIter = outEdgesIter;
-            Iterator<UniEdge> finalInEdgesIter = inEdgesIter;
+            Iterator<DEdge> finalOutEdgesIter = outEdgesIter;
+            Iterator<DEdge> finalInEdgesIter = inEdgesIter;
             return () -> IteratorUtils.chainedIterator(finalOutEdgesIter, finalInEdgesIter);
 
         } catch (Exception e) {

@@ -61,35 +61,35 @@ public class Reddit implements Dataset {
 
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            UniEdge incomingUniEdge = (UniEdge) value.getElement();
-            value.setElement(new UniEdge(incomingUniEdge.getSrc().copy(), incomingUniEdge.getDest().copy()));
+            DEdge incomingDEdge = (DEdge) value.getElement();
+            value.setElement(new DEdge(incomingDEdge.getSrc().copy(), incomingDEdge.getDest().copy()));
             out.collect(value);
             ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
-            if (incomingUniEdge.getSrc().containsFeature("f")) {
-                Feature<?, ?> feature = incomingUniEdge.getSrc().getFeature("f");
+            if (incomingDEdge.getSrc().containsFeature("f")) {
+                Feature<?, ?> feature = incomingDEdge.getSrc().getFeature("f");
                 feature.element = null;
-                Vertex tmpSrc = incomingUniEdge.getSrc().copy();
+                Vertex tmpSrc = incomingDEdge.getSrc().copy();
                 tmpSrc.setFeature("f", feature);
                 out.collect(new GraphOp(Op.COMMIT, tmpSrc.masterPart(), tmpSrc));
             }
-            if (incomingUniEdge.getSrc().containsFeature("train_l")) {
-                Feature<?, ?> feature = incomingUniEdge.getSrc().getFeature("train_l");
+            if (incomingDEdge.getSrc().containsFeature("train_l")) {
+                Feature<?, ?> feature = incomingDEdge.getSrc().getFeature("train_l");
                 feature.element = null;
-                Vertex tmpSrc = incomingUniEdge.getSrc().copy();
+                Vertex tmpSrc = incomingDEdge.getSrc().copy();
                 tmpSrc.setFeature("train_l", feature);
                 ctx.output(TRAIN_TEST_SPLIT_OUTPUT, new GraphOp(Op.COMMIT, tmpSrc.masterPart(), tmpSrc));
             }
-            if (incomingUniEdge.getDest().containsFeature("f")) {
-                Feature<?, ?> feature = incomingUniEdge.getDest().getFeature("f");
+            if (incomingDEdge.getDest().containsFeature("f")) {
+                Feature<?, ?> feature = incomingDEdge.getDest().getFeature("f");
                 feature.element = null;
-                Vertex tmpDest = incomingUniEdge.getDest().copy();
+                Vertex tmpDest = incomingDEdge.getDest().copy();
                 tmpDest.setFeature("f", feature);
                 out.collect(new GraphOp(Op.COMMIT, tmpDest.masterPart(), tmpDest));
             }
-            if (incomingUniEdge.getDest().containsFeature("train_l")) {
-                Feature<?, ?> feature = incomingUniEdge.getDest().getFeature("train_l");
+            if (incomingDEdge.getDest().containsFeature("train_l")) {
+                Feature<?, ?> feature = incomingDEdge.getDest().getFeature("train_l");
                 feature.element = null;
-                Vertex tmpDest = incomingUniEdge.getDest().copy();
+                Vertex tmpDest = incomingDEdge.getDest().copy();
                 tmpDest.setFeature("train_l", feature);
                 ctx.output(TRAIN_TEST_SPLIT_OUTPUT, new GraphOp(Op.COMMIT, tmpDest.masterPart(), tmpDest));
             }
@@ -144,7 +144,7 @@ public class Reddit implements Dataset {
                 dest.setFeature("train_l", new Tensor(vertexLabels.get(vIdInt[1]), true, (short) -1));
                 seenVertices.add(vIdInt[1]);
             }
-            out.collect(new GraphOp(Op.COMMIT, new UniEdge(src, dest)));
+            out.collect(new GraphOp(Op.COMMIT, new DEdge(src, dest)));
         }
     }
 }

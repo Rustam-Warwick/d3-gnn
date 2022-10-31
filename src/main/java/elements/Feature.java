@@ -158,7 +158,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return false;
     }
 
-    public TypeInformation<?> getValueTypeInfo(){
+    public TypeInformation<?> getValueTypeInfo() {
         return Types.GENERIC(Object.class);
     }
 

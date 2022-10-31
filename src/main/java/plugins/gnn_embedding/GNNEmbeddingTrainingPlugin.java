@@ -70,8 +70,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDArrayCollector<String> collector = collectors.get(getPartId()).f1;
         for (Map.Entry<String, NDArray> stringNDArrayEntry : gradients.entrySet()) {
             Vertex v = storage.getVertex(stringNDArrayEntry.getKey());
-            for (UniEdge incidentUniEdge : storage.getIncidentEdges(v, EdgeType.IN)) {
-                collector.put(incidentUniEdge.getSrc().getId(), stringNDArrayEntry.getValue());
+            for (DEdge incidentDEdge : storage.getIncidentEdges(v, EdgeType.IN)) {
+                collector.put(incidentDEdge.getSrc().getId(), stringNDArrayEntry.getValue());
             }
         }
     }
@@ -228,17 +228,17 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList srcFeatures = new NDList();
         for (Vertex vertex : storage.getVertices()) {
             if (vertex.state() == ReplicaState.MASTER) ((Aggregator) vertex.getFeature("agg")).reset();
-            Iterable<UniEdge> localInEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
-            for (UniEdge localInUniEdge : localInEdges) {
-                if (!srcVertices.containsKey(localInUniEdge.getSrc())) {
-                    srcVertices.put(localInUniEdge.getSrc(), srcFeatures.size());
-                    srcFeatures.add((NDArray) localInUniEdge.getSrc().getFeature("f").getValue());
+            Iterable<DEdge> localInEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
+            for (DEdge localInDEdge : localInEdges) {
+                if (!srcVertices.containsKey(localInDEdge.getSrc())) {
+                    srcVertices.put(localInDEdge.getSrc(), srcFeatures.size());
+                    srcFeatures.add((NDArray) localInDEdge.getSrc().getFeature("f").getValue());
                 }
                 destVertices.compute(vertex, (v, l) -> {
                     if (l == null) {
-                        return new ArrayList<>(List.of(srcVertices.get(localInUniEdge.getSrc())));
+                        return new ArrayList<>(List.of(srcVertices.get(localInDEdge.getSrc())));
                     }
-                    l.add(srcVertices.get(localInUniEdge.getSrc()));
+                    l.add(srcVertices.get(localInDEdge.getSrc()));
                     return l;
                 });
             }

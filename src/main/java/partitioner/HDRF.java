@@ -35,13 +35,9 @@ public class HDRF extends BasePartitioner {
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
         int numThreats = 3;
-        SingleOutputStreamOperator<GraphOp> res = inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),
+        return inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", "HDRF", numThreats)).setParallelism(1);
-        if (fineGrainedResourceManagementEnabled) {
-            res.slotSharingGroup("default");
-        }
-        return res;
     }
 
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
@@ -51,6 +47,7 @@ public class HDRF extends BasePartitioner {
         public ConcurrentHashMap<String, Integer> partialDegTable = new ConcurrentHashMap<>();
         public ConcurrentHashMap<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
         public ConcurrentHashMap<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
+
         public Set<String> currentlyProcessing = Collections.synchronizedSet(new HashSet<String>());
         public AtomicInteger maxSize = new AtomicInteger(0);
         public AtomicInteger minSize = new AtomicInteger(0);
@@ -87,12 +84,12 @@ public class HDRF extends BasePartitioner {
             } else return 0;
         }
 
-        public float REP(UniEdge uniEdge, short partition) {
-            int srcDeg = partialDegTable.get(uniEdge.getSrc().getId());
-            int destDeg = partialDegTable.get(uniEdge.getDest().getId());
+        public float REP(DEdge dEdge, short partition) {
+            int srcDeg = partialDegTable.get(dEdge.getSrc().getId());
+            int destDeg = partialDegTable.get(dEdge.getDest().getId());
             float srcDegNormal = (float) srcDeg / (srcDeg + destDeg);
             float destDegNormal = 1 - srcDegNormal;
-            return this.G(uniEdge.getSrc().getId(), srcDegNormal, partition) + this.G(uniEdge.getDest().getId(), destDegNormal, partition);
+            return this.G(dEdge.getSrc().getId(), srcDegNormal, partition) + this.G(dEdge.getDest().getId(), destDegNormal, partition);
         }
 
         public float BAL(short partition) {
@@ -100,16 +97,16 @@ public class HDRF extends BasePartitioner {
             return lamb * res;
         }
 
-        public short computePartition(UniEdge uniEdge) {
+        public short computePartition(DEdge dEdge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(uniEdge.getSrc().getId(), 1, Integer::sum);
-            partialDegTable.merge(uniEdge.getDest().getId(), 1, Integer::sum);
+            partialDegTable.merge(dEdge.getSrc().getId(), 1, Integer::sum);
+            partialDegTable.merge(dEdge.getDest().getId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
             List<Short> tmp = new ArrayList<>();
             for (short i = 0; i < this.numPartitions; i++) {
-                float score = REP(uniEdge, i) + BAL(i);
+                float score = REP(dEdge, i) + BAL(i);
                 if (score > maxScore) {
                     tmp.clear();
                     maxScore = score;
@@ -124,7 +121,7 @@ public class HDRF extends BasePartitioner {
 
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
-            partitionTable.compute(uniEdge.getSrc().getId(), (key, val) -> {
+            partitionTable.compute(dEdge.getSrc().getId(), (key, val) -> {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
                     totalNumberOfVertices.incrementAndGet();
@@ -139,7 +136,7 @@ public class HDRF extends BasePartitioner {
                 }
             });
             // Same as previous
-            partitionTable.compute(uniEdge.getDest().getId(), (key, val) -> {
+            partitionTable.compute(dEdge.getDest().getId(), (key, val) -> {
                 if (val == null) {
                     totalNumberOfVertices.incrementAndGet();
                     return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
@@ -183,15 +180,15 @@ public class HDRF extends BasePartitioner {
             GraphElement elementToPartition = value.element;
             if (elementToPartition.elementType() == ElementType.EDGE) {
                 // Main partitioning logic, otherwise just assign edges
-                UniEdge uniEdge = (UniEdge) elementToPartition;
+                DEdge dEdge = (DEdge) elementToPartition;
 //                while (currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())) {
 //                    // Wait for completion
 //                }
 //                currentlyProcessing.add(edge.src.getId());
 //                currentlyProcessing.add(edge.dest.getId());
-                short partition = this.computePartition(uniEdge);
-                uniEdge.getSrc().master = this.partitionTable.get(uniEdge.getSrc().getId()).get(0);
-                uniEdge.getDest().master = this.partitionTable.get(uniEdge.getDest().getId()).get(0);
+                short partition = this.computePartition(dEdge);
+                dEdge.getSrc().master = this.partitionTable.get(dEdge.getSrc().getId()).get(0);
+                dEdge.getDest().master = this.partitionTable.get(dEdge.getDest().getId()).get(0);
 //                currentlyProcessing.remove(edge.src.getId());
 //                currentlyProcessing.remove(edge.dest.getId());
                 value.partId = partition;

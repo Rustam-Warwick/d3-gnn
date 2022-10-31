@@ -62,7 +62,7 @@ public class GraphStream {
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);
-        env.registerType(UniEdge.class);
+        env.registerType(DEdge.class);
         env.registerType(Feature.class);
         env.registerType(Parts.class);
         env.registerType(Tensor.class);

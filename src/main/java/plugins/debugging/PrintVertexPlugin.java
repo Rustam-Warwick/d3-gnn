@@ -24,7 +24,7 @@ public class PrintVertexPlugin extends Plugin {
             BaseWrapperOperator.LOG.error(String.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPartId(), storage.layerFunction.getPosition()));
         }
         if (element.elementType() == ElementType.EDGE) {
-            UniEdge e = (UniEdge) element;
+            DEdge e = (DEdge) element;
             if (registeredVertices.contains(e.getSrc().getId()) || registeredVertices.contains(e.getDest().getId())) {
                 BaseWrapperOperator.LOG.error(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPartId(), storage.layerFunction.getPosition()));
             }

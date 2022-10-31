@@ -1,8 +1,8 @@
 package datasets;
 
+import elements.DEdge;
 import elements.GraphOp;
 import elements.Op;
-import elements.UniEdge;
 import elements.Vertex;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -66,14 +66,14 @@ public class RedditHyperlink implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split("\t");
-            UniEdge uniEdge = new UniEdge(new Vertex(values[0]), new Vertex(values[1])); // Attributed edges
+            DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1])); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){
 //                String processed = values[i].replaceAll("[^0-9.]", "");
 //                features[i-4] =  Float.valueOf(processed);
 //            }
 //            edge.setFeature("f", new Tensor(LifeCycleNDManager.getInstance().create(features)));
-            return new GraphOp(Op.COMMIT, uniEdge);
+            return new GraphOp(Op.COMMIT, dEdge);
         }
     }
 

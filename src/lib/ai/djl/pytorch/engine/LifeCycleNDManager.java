@@ -37,7 +37,8 @@ public class LifeCycleNDManager extends PtNDManager {
             .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
-                        if (key instanceof PtNDArray) ((PtNDArray) key).shape = null;
+                        if (key instanceof PtNDArray)
+                            ((PtNDArray) key).shape = null; // make null so it does not trigger detaching again
                         key.close();
                     }
                 } catch (Exception e) {
@@ -73,19 +74,19 @@ public class LifeCycleNDManager extends PtNDManager {
                 if (!val.f0.isAlive()) {
                     // Clean the data structure, thread is no longer needed
                     try {
+                        int closedCount = val.f1.attached.asMap().size();
                         for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
                             value.close();
                         }
                         val.f1.attached.asMap().clear();
                         threadLocal.remove();
                         System.gc();
-                        LOG.info(String.format("All Tensors closed +gc run in Thread: %s", val.f0));
+                        LOG.info(String.format("Finally %s Tensors closed +gc run in Thread: %s", closedCount, val.f0));
                     } catch (Exception ignored) {
                         LOG.error("Exception in trying to close all Tensors");
                     }
                 }
             }
-
             try {
                 Thread.sleep(5000);
             } catch (InterruptedException e) {

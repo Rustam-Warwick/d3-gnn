@@ -1,9 +1,9 @@
 package partitioner;
 
 
+import elements.DEdge;
 import elements.ElementType;
 import elements.GraphOp;
-import elements.UniEdge;
 import elements.Vertex;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -59,8 +59,8 @@ class RandomPartitioner extends BasePartitioner {
         public GraphOp map(GraphOp value) throws Exception {
             if (value.element.elementType() == ElementType.EDGE) {
                 value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-                UniEdge uniEdge = (UniEdge) value.element;
-                masters.compute(uniEdge.getSrc().getId(), (srcId, val) -> {
+                DEdge dEdge = (DEdge) value.element;
+                masters.compute(dEdge.getSrc().getId(), (srcId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -70,7 +70,7 @@ class RandomPartitioner extends BasePartitioner {
                     return val;
                 });
 
-                masters.compute(uniEdge.getDest().getId(), (destId, val) -> {
+                masters.compute(dEdge.getDest().getId(), (destId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -79,8 +79,8 @@ class RandomPartitioner extends BasePartitioner {
                     }
                     return val;
                 });
-                uniEdge.getSrc().master = this.masters.get(uniEdge.getSrc().getId()).get(0);
-                uniEdge.getDest().master = this.masters.get(uniEdge.getDest().getId()).get(0);
+                dEdge.getSrc().master = this.masters.get(dEdge.getSrc().getId()).get(0);
+                dEdge.getDest().master = this.masters.get(dEdge.getDest().getId()).get(0);
             } else if (value.element.elementType() == ElementType.VERTEX) {
                 short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 masters.compute(value.element.getId(), (srcId, val) -> {

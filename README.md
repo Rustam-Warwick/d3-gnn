@@ -60,7 +60,7 @@ Stores all helpers and types that deal with Iterative Stream Processing
 All the Plugins are contianed here
 - **StreamingGNNEmbeddingLayer**: Streaming Inference plugin
 - **WindowedGNNEmbeddingLayer**: Windowed Inference plugin
-- **EdgeClassificationTrainingPlugin**: Output plugin for starting the uniEdge classification training
+- **EdgeClassificationTrainingPlugin**: Output plugin for starting the dEdge classification training
 - **VerteClassifiationTrainingPlugin**: Output plugin for starting the vertex classification training
 - **GNNEmbeddingLayerTrainingPlugin**: Trainer plugin for intermediate gnn embedding layers
 ### Partitioner

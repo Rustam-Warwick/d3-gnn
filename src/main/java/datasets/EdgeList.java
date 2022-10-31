@@ -75,7 +75,7 @@ public class EdgeList implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] edges = value.split(",");
-            UniEdge e = new UniEdge(new Vertex(edges[1]), new Vertex(edges[2]));
+            DEdge e = new DEdge(new Vertex(edges[1]), new Vertex(edges[2]));
             long ts = Long.parseLong(edges[0]);
             return new GraphOp(Op.COMMIT, e);
         }

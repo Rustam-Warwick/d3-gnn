@@ -55,7 +55,7 @@ public class SignedNetworkDataset implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.getElement().elementType() == ElementType.EDGE && value.getElement().features != null;
-                UniEdge e = (UniEdge) value.getElement();
+                DEdge e = (DEdge) value.getElement();
                 if (ThreadLocalRandom.current().nextFloat() < 0.5) {
                     // Train
                     e.getFeature("sign").setName("train_l");
@@ -76,7 +76,7 @@ public class SignedNetworkDataset implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
-            UniEdge e = new UniEdge(new Vertex(values[0]), new Vertex(values[1]));
+            DEdge e = new DEdge(new Vertex(values[0]), new Vertex(values[1]));
             e.setFeature("sign", new Tensor(LifeCycleNDManager.getInstance().create(1)));
             return new GraphOp(Op.COMMIT, e);
         }
