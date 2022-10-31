@@ -14,14 +14,14 @@ import java.util.Arrays;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
+public class RecursiveSerializer<T> extends TypeSerializer<T> {
     private final PojoSerializer<T> actualSerializer;
     private final Class<T> clazz;
     private final TypeSerializer<?>[] fieldSerializersWithNullRecursive; // Always stores serializers for all fields except recursive ones
     private final ExecutionConfig executionConfig;
 
 
-    public RecursivePojoSerializer(
+    public RecursiveSerializer(
             Class<T> clazz,
             TypeSerializer<?>[] fieldSerializers,
             Field[] fields,
@@ -52,7 +52,7 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
             Field fieldsField = PojoSerializer.class.getDeclaredField("fields");
             fieldsField.setAccessible(true);
             Field[] fields = (Field[]) fieldsField.get(actualSerializer);
-            return new RecursivePojoSerializer<>(clazz, duplicateFieldSerializers, fields, executionConfig);
+            return new RecursiveSerializer<>(clazz, duplicateFieldSerializers, fields, executionConfig);
         } catch (IllegalAccessException | NoSuchFieldException e) {
             e.printStackTrace();
         }
@@ -127,8 +127,8 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof RecursivePojoSerializer) {
-            return actualSerializer.equals(((RecursivePojoSerializer<?>) obj).actualSerializer);
+        if (obj instanceof RecursiveSerializer) {
+            return actualSerializer.equals(((RecursiveSerializer<?>) obj).actualSerializer);
         } else {
             return false;
         }

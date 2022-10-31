@@ -60,7 +60,7 @@ public class RecursiveTypeInfo<T> extends PojoTypeInfo<T> {
             reflectiveFields[i] = fieldsArray[i].getField();
         }
 
-        RecursivePojoSerializer<T> serializer = new RecursivePojoSerializer<T>(getTypeClass(), fieldSerializers, reflectiveFields, config);
+        RecursiveSerializer<T> serializer = new RecursiveSerializer<T>(getTypeClass(), fieldSerializers, reflectiveFields, config);
         return serializer;
     }
 

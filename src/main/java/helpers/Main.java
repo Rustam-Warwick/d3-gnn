@@ -12,7 +12,6 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -56,7 +55,6 @@ public class Main {
         // Configuration
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setStateBackend(new EmbeddedRocksDBStateBackend());
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,

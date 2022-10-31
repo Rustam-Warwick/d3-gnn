@@ -393,7 +393,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     @Override
     public void resume() {
-        if (cleanable != null || delayed == 0) return;
+        if (cleanable != null) return;
         if (--delayed == 0) {
             getManager().attachInternal(getUid(), this);
         }

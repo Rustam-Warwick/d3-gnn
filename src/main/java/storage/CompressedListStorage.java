@@ -1,5 +1,6 @@
 package storage;
 
+import ai.djl.ndarray.ObjectPoolControl;
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
 import org.apache.commons.collections.IteratorUtils;
@@ -47,6 +48,12 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public void close() throws Exception {
         super.close();
+        for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
+            for (Object value : tuple2Tuple3Entry.getValue().f0.values()) {
+                if(value instanceof ObjectPoolControl) ((ObjectPoolControl) value).resume();
+                else break;
+            }
+        }
     }
 
     @Override
