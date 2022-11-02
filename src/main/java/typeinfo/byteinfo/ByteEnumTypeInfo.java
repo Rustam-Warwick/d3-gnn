@@ -1,4 +1,4 @@
-package typeinfo;
+package typeinfo.byteinfo;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;

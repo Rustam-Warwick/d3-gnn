@@ -1,4 +1,4 @@
-package typeinfo;
+package typeinfo.byteinfo;
 
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.annotation.VisibleForTesting;

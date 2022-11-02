@@ -16,23 +16,24 @@
  * limitations under the License.
  */
 
-package typeinfo;
+package typeinfo.listinfo;
 
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ListSerializer;
+import typeinfo.DummySerializer;
+import typeinfo.recursiveinfo.RecursiveTypeInfo;
 
+import javax.annotation.Nullable;
 import java.util.List;
-
-import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * A {@link TypeInformation} for the list types of the Java API where the inner element is recursive.
  * That is inner element contains List fields of the same type that refers to the same elementTypeInfo
  * Modified createSerializer, equals, hashCode logic to support nesting
- *
+ * <strong>Made to be jointly used with {@link RecursiveTypeInfo}<strong/>
  * @param <T> The type of the elements in the list.
  */
 @PublicEvolving
@@ -40,14 +41,10 @@ public final class RecursiveListTypeInfo<T> extends TypeInformation<List<T>> {
 
     private static final long serialVersionUID = 1L;
 
-    private final TypeInformation<T> elementTypeInfo;
+    public TypeInformation<T> elementTypeInfo;
 
-    public RecursiveListTypeInfo(Class<T> elementTypeClass) {
-        this.elementTypeInfo = of(checkNotNull(elementTypeClass, "elementTypeClass"));
-    }
-
-    public RecursiveListTypeInfo(TypeInformation<T> elementTypeInfo) {
-        this.elementTypeInfo = checkNotNull(elementTypeInfo, "elementTypeInfo");
+    public RecursiveListTypeInfo(@Nullable TypeInformation<T> elementTypeInfo) {
+        this.elementTypeInfo = elementTypeInfo;
     }
 
     // ------------------------------------------------------------------------
@@ -100,11 +97,7 @@ public final class RecursiveListTypeInfo<T> extends TypeInformation<List<T>> {
 
     @Override
     public TypeSerializer<List<T>> createSerializer(ExecutionConfig config) {
-        throw new IllegalStateException("Recursive Type Info serializer should be called with createSerializer(config, parentTypeSerializer)");
-    }
-
-    public TypeSerializer<List<T>> createSerializer(ExecutionConfig config, TypeSerializer<T> elementTypeSerializer) {
-        return new ListSerializer<>(elementTypeSerializer);
+        return new ListSerializer<>(new DummySerializer<>());
     }
 
     // ------------------------------------------------------------------------

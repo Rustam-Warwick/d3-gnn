@@ -1,4 +1,4 @@
-package typeinfo;
+package typeinfo.listinfo;
 
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -17,6 +17,6 @@ public class ListTypeInformationFactory<T> extends TypeInfoFactory<List<T>> {
 
     @Override
     public TypeInformation<List<T>> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
-        return new ListTypeInfo(genericParameters.get("E"));
+        return new ListTypeInfo<T>((TypeInformation<T>) genericParameters.get("E"));
     }
 }

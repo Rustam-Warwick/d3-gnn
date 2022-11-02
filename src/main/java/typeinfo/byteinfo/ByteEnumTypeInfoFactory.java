@@ -1,4 +1,4 @@
-package typeinfo;
+package typeinfo.byteinfo;
 
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;

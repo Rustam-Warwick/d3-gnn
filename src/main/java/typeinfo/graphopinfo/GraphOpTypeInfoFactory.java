@@ -1,4 +1,4 @@
-package typeinfo;
+package typeinfo.graphopinfo;
 
 import elements.GraphOp;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;

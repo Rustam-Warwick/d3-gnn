@@ -5,7 +5,7 @@ import elements.iterations.MessageCommunication;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.NotNull;
-import typeinfo.GraphOpTypeInfoFactory;
+import typeinfo.graphopinfo.GraphOpTypeInfoFactory;
 
 import javax.annotation.Nonnull;
 import java.util.Objects;

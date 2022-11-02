@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package typeinfo;
+package typeinfo.graphopinfo;
 
 import elements.GraphElement;
 import elements.GraphOp;

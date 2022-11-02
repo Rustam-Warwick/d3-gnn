@@ -2,7 +2,7 @@ package elements;
 
 
 import org.apache.flink.api.common.typeinfo.TypeInfo;
-import typeinfo.ByteEnumTypeInfoFactory;
+import typeinfo.byteinfo.ByteEnumTypeInfoFactory;
 
 @TypeInfo(ByteEnumTypeInfoFactory.class)
 public enum ElementType {

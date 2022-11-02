@@ -5,8 +5,7 @@ import elements.iterations.MessageDirection;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
-import typeinfo.ListTypeInformationFactory;
-import typeinfo.RecursiveTypeInfoFactory;
+import typeinfo.recursiveinfo.RecursiveTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -32,7 +31,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     @OmitStorage
     @Nullable
-    @TypeInfo(ListTypeInformationFactory.class)
     public List<Feature<?, ?>> features;
 
     public GraphElement() {
