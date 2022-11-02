@@ -25,7 +25,7 @@ public class SetSerializerSnapshot<T>
 
     @Override
     protected TypeSerializer<?>[] getNestedSerializers(SetSerializer<T> outerSerializer) {
-        return new TypeSerializer<?>[] {outerSerializer.getElementSerializer()};
+        return new TypeSerializer<?>[]{outerSerializer.getElementSerializer()};
     }
 
     @Override

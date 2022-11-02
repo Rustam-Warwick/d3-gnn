@@ -17,19 +17,20 @@ import java.util.Set;
 /**
  * PojoSerializer when there is a recursive List field
  * If there is no such field simply delegates everything to PojoSerializer
+ *
  * @param <T>
  */
 public class RecursiveSerializer<T> extends TypeSerializer<T> {
 
-    private static Field _clazzField;
+    private static final Field _clazzField;
 
-    private static Field _fieldSerializersField;
+    private static final Field _fieldSerializersField;
 
-    private static Field _fieldsField;
+    private static final Field _fieldsField;
 
-    private static Field _executionConfigField;
+    private static final Field _executionConfigField;
 
-    private static Field _listElementSerializer;
+    private static final Field _listElementSerializer;
 
     static {
         try {
@@ -62,13 +63,13 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
             executionConfig = (ExecutionConfig) _executionConfigField.get(pojoSerializer);
             recursiveListFieldIndices = new HashSet<>(3);
             for (int i = 0; i < fieldSerializers.length; i++) {
-                if(fieldSerializers[i] instanceof ListSerializer && ((ListSerializer<?>) fieldSerializers[i]).getElementSerializer() instanceof DummySerializer){
+                if (fieldSerializers[i] instanceof ListSerializer && ((ListSerializer<?>) fieldSerializers[i]).getElementSerializer() instanceof DummySerializer) {
                     // This is recursive List Serializer
                     _listElementSerializer.set(fieldSerializers[i], this);
                     recursiveListFieldIndices.add(i);
                 }
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Error occured");
         }
     }
@@ -82,7 +83,7 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
     @Override
     public TypeSerializer<T> duplicate() {
         TypeSerializer<?>[] duplicatedFieldSerializers = duplicateSerializers();
-        if(duplicatedFieldSerializers == fieldSerializers) return this;
+        if (duplicatedFieldSerializers == fieldSerializers) return this;
         try {
             return new RecursiveSerializer<>(new PojoSerializer<>(clazz, duplicatedFieldSerializers, (Field[]) _fieldsField.get(actualSerializer), executionConfig));
         } catch (IllegalAccessException e) {
@@ -95,7 +96,7 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
         TypeSerializer<?>[] duplicateSerializers = new TypeSerializer[fieldSerializers.length];
 
         for (int i = 0; i < fieldSerializers.length; i++) {
-            if(!recursiveListFieldIndices.contains(i)){
+            if (!recursiveListFieldIndices.contains(i)) {
                 duplicateSerializers[i] = fieldSerializers[i].duplicate();
                 if (duplicateSerializers[i] != fieldSerializers[i]) {
                     // at least one of them is stateful

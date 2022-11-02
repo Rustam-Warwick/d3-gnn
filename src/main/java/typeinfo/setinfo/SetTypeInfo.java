@@ -11,6 +11,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * TypeInformation for Set, and HashSets
+ *
  * @param <T> Type of the underlying element
  */
 public class SetTypeInfo<T> extends TypeInformation<Set<T>> {
