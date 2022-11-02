@@ -65,7 +65,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
         Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
         elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
-        storage.updateElement(elementUpdates);
+        storage.updateElement(elementUpdates, elementUpdates);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }

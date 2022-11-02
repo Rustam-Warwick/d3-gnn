@@ -3,6 +3,7 @@ package elements;
 import javax.annotation.Nullable;
 
 public interface Edge {
+
     Vertex getSrc();
 
     String getSrcId();

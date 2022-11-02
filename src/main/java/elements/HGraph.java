@@ -1,8 +1,10 @@
 package elements;
 
+import org.apache.commons.lang3.NotImplementedException;
+import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
@@ -13,48 +15,51 @@ import java.util.List;
  */
 public class HGraph extends GraphElement {
 
-    public Vertex[] vertices;
-    public HEdge[] hEdges;
+    public List<Vertex> vertices;
+
+    public List<HEdge> hEdges;
 
     public HGraph() {
 
     }
 
-    public HGraph(Vertex[] vertices, HEdge[] hEdges) {
+    public HGraph(List<Vertex> vertices, List<HEdge> hEdges) {
         super();
-        HashSet<Vertex> collect = new HashSet<>(List.of(vertices));
+        HashSet<Vertex> collect = new HashSet<>(vertices);
         for (HEdge hEdge : hEdges) {
-            if (hEdge.getVertices() == null) continue;
-            collect.addAll(Arrays.asList(hEdge.getVertices()));
-            hEdge.vertices = null;
+            collect.addAll(hEdge.getVertices());
         }
         this.hEdges = hEdges;
-        this.vertices = collect.toArray(Vertex[]::new);
+        this.vertices = new ArrayList<>(collect);
     }
 
     @Override
     public GraphElement copy() {
-        return null;
+        throw new NotImplementedException("Copy not implemented for HGraph");
     }
 
     @Override
     public GraphElement deepCopy() {
-        return null;
+        throw new NotImplementedException("DeepCopy not implemented for HGraph");
     }
 
-    public HEdge[] getHyperEdges() {
+    public List<HEdge> gethEdges() {
         return hEdges;
     }
 
-    public Vertex[] getVertices() {
+    public List<Vertex> getVertices() {
         return vertices;
     }
 
+    /**
+     * {@inheritDoc}
+     * Create all the vertices and hyperedges
+     */
     @Override
     public void create() {
         assert storage != null;
         for (Vertex vertex : vertices) {
-            if (!storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
+            if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
             else vertex.create();
         }
         for (HEdge hEdge : hEdges) {
@@ -73,48 +78,33 @@ public class HGraph extends GraphElement {
         throw new IllegalStateException("SubGraph only support additions");
     }
 
+    // Override methods
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        for (Vertex vertex : vertices) {
-            vertex.setStorage(storage);
-        }
-        for (HEdge hEdge : hEdges) {
-            hEdge.setStorage(storage);
-        }
+        vertices.forEach(item -> item.setStorage(storage));
+        hEdges.forEach(item -> item.setStorage(storage));
     }
 
     @Override
     public void resume() {
         super.resume();
-        for (Vertex vertex : vertices) {
-            vertex.resume();
-        }
-        for (HEdge hEdge : hEdges) {
-            hEdge.resume();
-        }
+        vertices.forEach(Vertex::resume);
+        hEdges.forEach(HEdge::resume);
     }
 
     @Override
     public void delay() {
         super.delay();
-        for (Vertex vertex : vertices) {
-            vertex.delay();
-        }
-        for (HEdge hEdge : hEdges) {
-            hEdge.delay();
-        }
+        vertices.forEach(Vertex::delay);
+        hEdges.forEach(HEdge::delay);
     }
 
     @Override
     public void clearFeatures() {
         super.clearFeatures();
-        for (Vertex vertex : vertices) {
-            vertex.clearFeatures();
-        }
-        for (HEdge hEdge : hEdges) {
-            hEdge.clearFeatures();
-        }
+        vertices.forEach(Vertex::clearFeatures);
+        hEdges.forEach(HEdge::clearFeatures);
     }
 
     @Override

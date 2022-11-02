@@ -52,15 +52,15 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract boolean addHyperEdge(HEdge hEdge);
 
     // -- Update
-    public abstract boolean updateAttachedFeature(Feature<?, ?> feature);
+    public abstract boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento);
 
-    public abstract boolean updateStandaloneFeature(Feature<?, ?> feature);
+    public abstract boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento);
 
-    public abstract boolean updateVertex(Vertex vertex);
+    public abstract boolean updateVertex(Vertex vertex, Vertex memento);
 
-    public abstract boolean updateEdge(DEdge dEdge);
+    public abstract boolean updateEdge(DEdge dEdge, DEdge memento);
 
-    public abstract boolean updateHyperEdge(HEdge hEdge);
+    public abstract boolean updateHyperEdge(HEdge hEdge, HEdge memento);
 
     // -- Delete
     public abstract boolean deleteAttachedFeature(Feature<?, ?> feature);
@@ -91,7 +91,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     // - HyperEdge
     public abstract HEdge getHyperEdge(String id);
 
-    public abstract Iterable<HEdge> getHyperEdges(Vertex id);
+    public abstract Iterable<HEdge> getIncidentHyperEdges(Vertex id);
 
     // - Feature
     @Nullable
@@ -230,18 +230,18 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    public boolean updateElement(GraphElement element) {
+    public boolean updateElement(GraphElement element, GraphElement memento) {
         switch (element.elementType()) {
             case VERTEX:
-                return this.updateVertex((Vertex) element);
+                return this.updateVertex((Vertex) element, (Vertex) memento);
             case EDGE:
-                return this.updateEdge((DEdge) element);
+                return this.updateEdge((DEdge) element, (DEdge) element);
             case ATTACHED_FEATURE:
-                return this.updateAttachedFeature((Feature<?, ?>) element);
+                return this.updateAttachedFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case STANDALONE_FEATURE:
-                return this.updateStandaloneFeature((Feature<?, ?>) element);
+                return this.updateStandaloneFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case HYPEREDGE:
-                return this.updateHyperEdge((HEdge) element);
+                return this.updateHyperEdge((HEdge) element, (HEdge) memento);
             default:
                 return false;
         }

@@ -10,6 +10,8 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public class CoAuthDBLPVertexStream implements Dataset {
     private final String vertexStreamFile;
@@ -45,11 +47,12 @@ public class CoAuthDBLPVertexStream implements Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
-            Vertex[] src = new Vertex[]{new Vertex(values[0])}; // Center of the vertex
-            HEdge[] hEdges = new HEdge[values.length - 1];
+            List<Vertex> src = List.of(new Vertex(values[0]));
+            List<String> srcId = List.of(src.get(0).getId());
+            List<HEdge> hEdges = new ArrayList<>(values.length - 1);
             for (int i = 1; i < values.length; i++) {
                 String netId = values[i];
-                hEdges[i - 1] = new HEdge(netId, src);
+                hEdges.add(new HEdge(netId, srcId, false, (short) -1));
             }
             HGraph hGraph = new HGraph(src, hEdges);
             return new GraphOp(Op.COMMIT, hGraph);

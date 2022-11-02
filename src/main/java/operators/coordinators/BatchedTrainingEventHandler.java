@@ -4,7 +4,6 @@ package operators.coordinators;
 import operators.events.FinalWatermarkArrived;
 import operators.events.ForwardBarrier;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -52,22 +51,23 @@ public class BatchedTrainingEventHandler implements WrapperOperatorEventHandler 
     }
 
     @Override
-    public void handleEventFromOperator(int subtask, OperatorEvent event) throws Exception {
+    public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
+
         if (event instanceof FinalWatermarkArrived) handleFinalWatermarkEvent();
     }
 
     @Override
-    public void subtaskFailed(int subtask, @Nullable Throwable reason) {
+    public void executionAttemptFailed(int subtask, int attemptNumber, @javax.annotation.Nullable Throwable reason) {
+
+    }
+
+    @Override
+    public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
 
     }
 
     @Override
     public void subtaskReset(int subtask, long checkpointId) {
-
-    }
-
-    @Override
-    public void subtaskReady(int subtask, SubtaskGateway gateway) {
 
     }
 }

@@ -13,6 +13,7 @@ import java.util.function.Consumer;
  * @implNote Vertex updates should not happen within edges they will be ignored
  */
 public final class DEdge extends GraphElement implements Edge {
+
     public static String DELIMITER = "~"; // Delimited for creating id
 
     @OmitStorage
@@ -137,8 +138,6 @@ public final class DEdge extends GraphElement implements Edge {
         if (dest != null && !storage.containsVertex(getDest().getId())) {
             dest.create();
         }
-        src = null;
-        dest = null;
         return super.createElement();
     }
 
@@ -155,6 +154,9 @@ public final class DEdge extends GraphElement implements Edge {
 
     // STATIC METHODS
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
@@ -162,6 +164,9 @@ public final class DEdge extends GraphElement implements Edge {
         getDest().setStorage(storage);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void delay() {
         super.delay();
@@ -169,6 +174,9 @@ public final class DEdge extends GraphElement implements Edge {
         getDest().delay();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void resume() {
         super.resume();
@@ -176,6 +184,9 @@ public final class DEdge extends GraphElement implements Edge {
         getDest().resume();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void clearFeatures() {
         super.clearFeatures();

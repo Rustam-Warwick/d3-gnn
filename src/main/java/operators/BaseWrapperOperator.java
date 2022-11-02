@@ -683,6 +683,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         public void deRegisterKeyChangeListener(KeyedStateBackend.KeySelectionListener<Object> listener) {
             getWrappedOperator().getKeyedStateBackend().deregisterKeySelectionListener(listener);
         }
+
+        /**
+         * Get the current stream record being processed
+         */
+        public final StreamRecord<GraphOp> getElement() {
+            return element;
+        }
     }
 
 }

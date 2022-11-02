@@ -24,7 +24,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ListSerializer;
 import typeinfo.DummySerializer;
-import typeinfo.recursiveinfo.RecursiveTypeInfo;
+import typeinfo.recursivepojoinfo.RecursivePojoTypeInfo;
 
 import javax.annotation.Nullable;
 import java.util.List;
@@ -33,7 +33,11 @@ import java.util.List;
  * A {@link TypeInformation} for the list types of the Java API where the inner element is recursive.
  * That is inner element contains List fields of the same type that refers to the same elementTypeInfo
  * Modified createSerializer, equals, hashCode logic to support nesting
- * <strong>Made to be jointly used with {@link RecursiveTypeInfo}<strong/>
+ * <strong>Made to be jointly used with {@link RecursivePojoTypeInfo}<strong/>
+ * <p>
+ * - .createSerializer is creating a dummy serializer that cannot serialize anything
+ * - actual elementSerializer should be separately set through reflection
+ * </p>
  *
  * @param <T> The type of the elements in the list.
  */

@@ -5,7 +5,7 @@ import elements.iterations.MessageDirection;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
-import typeinfo.recursiveinfo.RecursiveTypeInfoFactory;
+import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -19,7 +19,7 @@ import java.util.function.Consumer;
  * Abstract class representing a GraphElement.
  * CRUD Methods for interacting with the storage layer
  */
-@TypeInfo(RecursiveTypeInfoFactory.class)
+@TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, ObjectPoolControl {
     protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
@@ -124,7 +124,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
             }
         }
         if (memento != null) {
-            storage.updateElement(this);
+            storage.updateElement(this, memento);
             GraphElement finalMemento = memento;
             Consumer<Plugin> tmp = item -> item.updateElementCallback(this, finalMemento);
             callback = callback == null ? tmp : callback.andThen(tmp);

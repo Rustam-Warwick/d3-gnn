@@ -1,4 +1,4 @@
-package typeinfo.recursiveinfo;
+package typeinfo.recursivepojoinfo;
 
 import elements.OmitStorage;
 import org.apache.flink.api.common.functions.InvalidTypesException;
@@ -19,9 +19,29 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.isClassTyp
 import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClass;
 
 /**
- * Special Factory that recursively serializer List Fields, if no recursion list is found will fall back to PojoTypeInfo
+ * Factory class for {@link RecursivePojoTypeInfo}
+ * <p>
+ * List fields are automatically converted to either
+ *     <ol>
+ *         <li>{@link ListTypeInfo} if non-recursive</li>
+ *         <li>{@link RecursiveListTypeInfo} if recursive</li>
+ *     </ol>
+ *     Set fields are automatically converted to
+ *     <ol>
+ *         <li>{@link SetTypeInfo} if non-recursive</li>
+ *         @todo Add recursive Set Serializer as well
+ *     </ol>
+ *     @todo Add recursive Map serializer as well
+ * </p>
+ * <p>
+ *     Supports {@link OmitStorage} for selectively making some fields transient.
+ * </p>
+ * <p>
+ *     Supports {@link DeSerializationListener} for returning callbacks after serialization
+ * </p>
  */
-public class RecursiveTypeInfoFactory<T> extends TypeInfoFactory<T> {
+public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
+
     @Override
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
         return this.createTypeInfo(t, genericParameters, false);
@@ -64,7 +84,7 @@ public class RecursiveTypeInfoFactory<T> extends TypeInfoFactory<T> {
                             new PojoField(field, new GenericTypeInfo<>(genericClass)));
                 }
             }
-            return new RecursiveTypeInfo<T>(clazz, pojoFields);
+            return new RecursivePojoTypeInfo<T>(clazz, pojoFields);
         } catch (Exception e) {
             e.printStackTrace();
             return null;

@@ -5,7 +5,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
-import typeinfo.recursiveinfo.RecursiveTypeInfoFactory;
+import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -29,11 +29,11 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public void open() throws Exception {
-        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursiveTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursiveTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursiveTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, DEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursiveTypeInfoFactory<DEdge>().createTypeInfo(DEdge.class, null, true));
-        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursiveTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
+        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursivePojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
+        MapStateDescriptor<String, DEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<DEdge>().createTypeInfo(DEdge.class, null, true));
+        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
         MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, List<String>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(Types.STRING));
@@ -127,7 +127,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateAttachedFeature(Feature<?, ?> feature) {
+    public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         try {
             attachedFeatureTable.put(feature.getId(), feature);
             return true;
@@ -138,7 +138,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateStandaloneFeature(Feature<?, ?> feature) {
+    public boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         try {
             independentFeatureTable.put(feature.getId(), feature);
             return true;
@@ -149,17 +149,17 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateVertex(Vertex vertex) {
+    public boolean updateVertex(Vertex vertex, Vertex memento) {
         return true;
     }
 
     @Override
-    public boolean updateEdge(DEdge dEdge) {
+    public boolean updateEdge(DEdge dEdge, DEdge memento) {
         return true;
     }
 
     @Override
-    public boolean updateHyperEdge(HEdge hEdge) {
+    public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
         return true;
     }
 
@@ -292,7 +292,7 @@ public class FlatObjectStorage extends BaseStorage {
 
 
     @Override
-    public Iterable<HEdge> getHyperEdges(Vertex id) {
+    public Iterable<HEdge> getIncidentHyperEdges(Vertex id) {
         try {
             if (vertex2HyperEdge.contains(id.getId())) {
                 List<String> vEdges = vertex2HyperEdge.get(id.getId());

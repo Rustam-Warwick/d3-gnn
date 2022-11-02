@@ -13,7 +13,7 @@ description = """GNN Plugin for apache Flink"""
 
 ext {
     javaVersion = '1.8'
-    flinkVersion = '1.15.0'
+    flinkVersion = '1.16.0'
     scalaBinaryVersion = '_2.12'
     slf4jVersion = '1.7.32'
     log4jVersion = '2.17.1'
@@ -64,11 +64,10 @@ dependencies {
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
     implementation 'org.jetbrains:annotations:20.1.0'
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
-    implementation 'com.alibaba.blink:flink-metrics-datadog:1.5.1'
 //    implementation "org.openjdk.jol:jol-core:0.16"
 
     // --------------------------------------------------------------
-    // Dependencies that should be part of the shadow jar, e.g.
+    // Dependencies that should be part of the Lib shadow jar, e.g.
     // --------------------------------------------------------------
     flinkLibShadowJar("org.apache.flink:statefun-flink-core:3.2.0"){
         // Need only the main classes from here
@@ -87,7 +86,9 @@ dependencies {
     flinkLibShadowJar 'com.github.ben-manes.caffeine:caffeine:3.1.0'
     flinkLibShadowJar 'com.esotericsoftware:reflectasm:1.11.9'
 
-    flinkShadowJar 'org.apache.flink:flink-connector-files:1.16-SNAPSHOT'
+    // Packages delivered to the Jar only
+
+    flinkShadowJar "org.apache.flink:flink-connector-files:${flinkVersion}"
     // Packages that should be part of library put into flink statically
 
 

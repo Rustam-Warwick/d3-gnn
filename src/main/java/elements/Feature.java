@@ -241,7 +241,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Caches the given element, adds current feature to feature of the element if that does not exist there.
-     * Removes reference from other variable if already attached
      *
      * @param attachingElement element that want to attach itself to this feature
      * @implNote Make sure to properly track the change of references from Graph Elements

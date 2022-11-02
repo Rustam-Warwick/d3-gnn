@@ -5,10 +5,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,43 +30,30 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
     protected final short layers;
 
-    private final HashMap<Class<? extends OperatorEvent>, List<WrapperOperatorEventHandler>> delegateHandlers;
+    private final HashMap<Class<? extends OperatorEvent>, List<WrapperOperatorEventHandler>> class2Handler = new HashMap<>(10);
 
+    private final HashSet<WrapperOperatorEventHandler> handlers = new HashSet<>(3);
 
     public WrapperOperatorCoordinator(Context context, short position, short layers) {
         this.context = context;
         this.position = position;
         this.layers = layers;
-        this.delegateHandlers = new HashMap<>(10);
         subtaskGateways.put(position, new SubtaskGateway[context.currentParallelism()]);
     }
 
     @Override
     public void start() throws Exception {
-        for (List<WrapperOperatorEventHandler> value : delegateHandlers.values()) {
-            for (WrapperOperatorEventHandler wrapperOperatorEventHandler : value) {
-                wrapperOperatorEventHandler.start();
-            }
+        for (WrapperOperatorEventHandler handler : handlers) {
+            handler.start();
         }
     }
 
     @Override
     public void close() throws Exception {
-        for (List<WrapperOperatorEventHandler> value : delegateHandlers.values()) {
-            for (WrapperOperatorEventHandler wrapperOperatorEventHandler : value) {
-                wrapperOperatorEventHandler.close();
-            }
-        }
-
-    }
-
-    @Override
-    public void handleEventFromOperator(int subtask, OperatorEvent event) throws Exception {
-        List<WrapperOperatorEventHandler> handlers = delegateHandlers.getOrDefault(event.getClass(), null);
-        assert handlers != null;
         for (WrapperOperatorEventHandler handler : handlers) {
-            handler.handleEventFromOperator(subtask, event);
+            handler.close();
         }
+
     }
 
     @Override
@@ -91,33 +75,35 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
     }
 
     @Override
-    public void subtaskFailed(int subtask, @Nullable Throwable reason) {
-        for (List<WrapperOperatorEventHandler> value : delegateHandlers.values()) {
-            for (WrapperOperatorEventHandler wrapperOperatorEventHandler : value) {
-                wrapperOperatorEventHandler.subtaskFailed(subtask, reason);
-            }
+    public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
+        List<WrapperOperatorEventHandler> handlers = class2Handler.getOrDefault(event.getClass(), null);
+        assert handlers != null;
+        for (WrapperOperatorEventHandler handler : handlers) {
+            handler.handleEventFromOperator(subtask, attemptNumber, event);
         }
-        subtaskGateways.get(position)[subtask] = null; // make null
+    }
+
+    @Override
+    public void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason) {
+        for (WrapperOperatorEventHandler handler : handlers) {
+            handler.executionAttemptFailed(subtask, attemptNumber, reason);
+        }
+    }
+
+    @Override
+    public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
+        for (WrapperOperatorEventHandler handler : handlers) {
+            handler.executionAttemptReady(subtask, attemptNumber, gateway);
+        }
     }
 
     @Override
     public void subtaskReset(int subtask, long checkpointId) {
-        for (List<WrapperOperatorEventHandler> value : delegateHandlers.values()) {
-            for (WrapperOperatorEventHandler wrapperOperatorEventHandler : value) {
-                wrapperOperatorEventHandler.subtaskReset(subtask, checkpointId);
-            }
+        for (WrapperOperatorEventHandler handler : handlers) {
+            handler.subtaskReset(subtask, checkpointId);
         }
     }
 
-    @Override
-    public void subtaskReady(int subtaskIndex, SubtaskGateway subtaskGateway) {
-        subtaskGateways.get(position)[subtaskIndex] = subtaskGateway;
-        for (List<WrapperOperatorEventHandler> value : delegateHandlers.values()) {
-            for (WrapperOperatorEventHandler wrapperOperatorEventHandler : value) {
-                wrapperOperatorEventHandler.subtaskReady(subtaskIndex, subtaskGateway);
-            }
-        }
-    }
 
     /**
      * Subscribe an event handler with this coordinator
@@ -126,7 +112,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
      */
     public void subscribe(WrapperOperatorEventHandler e) {
         for (Class<? extends OperatorEvent> eventClass : e.getEventClasses()) {
-            delegateHandlers.compute(eventClass, (key, val) -> {
+            class2Handler.compute(eventClass, (key, val) -> {
                 if (val == null) {
                     return new ArrayList<>(List.of(e));
                 }
@@ -134,6 +120,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
                 return val;
             });
         }
+        handlers.add(e);
         e.setCoordinator(this);
     }
 

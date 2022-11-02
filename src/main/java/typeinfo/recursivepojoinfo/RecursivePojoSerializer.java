@@ -1,4 +1,4 @@
-package typeinfo.recursiveinfo;
+package typeinfo.recursivepojoinfo;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -16,11 +16,10 @@ import java.util.Set;
 
 /**
  * PojoSerializer when there is a recursive List field
- * If there is no such field simply delegates everything to PojoSerializer
  *
  * @param <T>
  */
-public class RecursiveSerializer<T> extends TypeSerializer<T> {
+public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
 
     private static final Field _clazzField;
 
@@ -50,12 +49,18 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
     }
 
     private final PojoSerializer<T> actualSerializer;
+
     private final Class<T> clazz;
+
     private final TypeSerializer<?>[] fieldSerializers;
+
     private final ExecutionConfig executionConfig;
+
     private final Set<Integer> recursiveListFieldIndices; // Indices of recursive List Fields
 
-    public RecursiveSerializer(PojoSerializer<T> pojoSerializer) {
+    private final boolean deSerializationCallback;
+
+    public RecursivePojoSerializer(PojoSerializer<T> pojoSerializer) {
         actualSerializer = pojoSerializer;
         try {
             clazz = (Class<T>) _clazzField.get(pojoSerializer);
@@ -69,6 +74,7 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
                     recursiveListFieldIndices.add(i);
                 }
             }
+            deSerializationCallback = DeSerializationListener.class.isAssignableFrom(clazz);
         } catch (Exception e) {
             throw new RuntimeException("Error occured");
         }
@@ -85,7 +91,7 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
         TypeSerializer<?>[] duplicatedFieldSerializers = duplicateSerializers();
         if (duplicatedFieldSerializers == fieldSerializers) return this;
         try {
-            return new RecursiveSerializer<>(new PojoSerializer<>(clazz, duplicatedFieldSerializers, (Field[]) _fieldsField.get(actualSerializer), executionConfig));
+            return new RecursivePojoSerializer<>(new PojoSerializer<>(clazz, duplicatedFieldSerializers, (Field[]) _fieldsField.get(actualSerializer), executionConfig));
         } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
@@ -143,12 +149,16 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
 
     @Override
     public T deserialize(DataInputView source) throws IOException {
-        return actualSerializer.deserialize(source);
+        T obj = actualSerializer.deserialize(source);
+        if (deSerializationCallback) ((DeSerializationListener) obj).deserialized();
+        return obj;
     }
 
     @Override
     public T deserialize(T reuse, DataInputView source) throws IOException {
-        return actualSerializer.deserialize(reuse, source);
+        T obj = actualSerializer.deserialize(reuse, source);
+        if (deSerializationCallback) ((DeSerializationListener) obj).deserialized();
+        return obj;
     }
 
     @Override
@@ -163,8 +173,8 @@ public class RecursiveSerializer<T> extends TypeSerializer<T> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof RecursiveSerializer) {
-            return actualSerializer.equals(((RecursiveSerializer<?>) obj).actualSerializer);
+        if (obj instanceof RecursivePojoSerializer) {
+            return actualSerializer.equals(((RecursivePojoSerializer<?>) obj).actualSerializer);
         } else {
             return false;
         }

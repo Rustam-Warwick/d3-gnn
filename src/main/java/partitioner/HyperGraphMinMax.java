@@ -57,8 +57,8 @@ public class HyperGraphMinMax extends BasePartitioner {
 
         public short partitionSubHyperGraph(HGraph graph) {
             int active = 0;
-            String vertexId = graph.getVertices()[0].getId();
-            for (HEdge hEdge : graph.getHyperEdges()) {
+            String vertexId = graph.getVertices().get(0).getId();
+            for (HEdge hEdge : graph.gethEdges()) {
                 List<Short> netParts = n2p.getOrDefault(hEdge.getId(), Collections.emptyList());
                 for (Short i : netParts) {
                     if (mark[i] != null && !mark[i].equals(vertexId)) {
@@ -106,7 +106,7 @@ public class HyperGraphMinMax extends BasePartitioner {
                         }
                     });
                 }
-                for (HEdge hEdge : graph.getHyperEdges()) {
+                for (HEdge hEdge : graph.gethEdges()) {
                     n2p.compute(hEdge.getId(), (key, val) -> {
                         // Update hyperedge part table and master part
                         // Increment the part weights according to hyperedge additions to part

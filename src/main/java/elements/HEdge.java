@@ -1,25 +1,34 @@
 package elements;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
  * Represents a Hyper-Edge in the Graph
  * A hyperEdge should have a unique Id similar to Vertices
+ * <p>
+ * Vertices and vertexIds should be 1-1 mapping
+ * Constructor ensures this
+ * vertices might be null though
+ * </p>
  */
-public class HEdge extends ReplicableGraphElement {
+
+public final class HEdge extends ReplicableGraphElement {
 
     @Nullable
     @OmitStorage
-    public Vertex[] vertices;
+    public List<Vertex> vertices;
+
     @OmitStorage
-    public HashSet<String> vertexIds; // This we need to store since the naming convention of HEdge does not imply the vertex ids
+    public List<String> vertexIds;
 
     public String id;
 
@@ -27,18 +36,24 @@ public class HEdge extends ReplicableGraphElement {
 
     }
 
-    public HEdge(String id, @Nullable Vertex[] vertices) {
+    public HEdge(String id, @NotNull List<Vertex> vertices) {
         super();
         this.id = id;
-        vertexIds = new HashSet<>();
         this.vertices = vertices;
-        if (vertices != null) vertexIds.addAll(Arrays.stream(vertices).map(Vertex::getId).collect(Collectors.toList()));
+        this.vertexIds = vertices.stream().map(Vertex::getId).collect(Collectors.toList());
+    }
+
+    public HEdge(String id, List<String> vertexIds, boolean halo, short master) {
+        super(halo, master);
+        this.vertexIds = vertexIds;
+        this.id = id;
     }
 
     public HEdge(HEdge element, boolean deepCopy) {
         super(element, deepCopy);
         this.vertices = null;
-        this.vertexIds = new HashSet<>(element.vertexIds); // Create new reference to comprase additions
+        this.vertexIds = new ArrayList<>(element.vertexIds);
+        this.id = element.id;
     }
 
     @Override
@@ -52,36 +67,38 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     /**
-     * HyperEdge on create should arrive with vertices otherwise a zero-vertex is assumed
+     * {@inheritDoc}
+     * <strong>
+     * Create vertices if not exist
+     * </strong>
      */
     @Override
     public Consumer<Plugin> createElement() {
-        vertexIds.clear();
+        assert storage != null;
         if (vertices != null) {
             for (Vertex vertex : vertices) {
                 if (!storage.containsVertex(vertex.getId())) vertex.create();
-                vertexIds.add(vertex.getId());
             }
         }
-        vertices = null; // Set to null to then access from the storage, similar to edge
         return super.createElement();
     }
 
     /**
-     * Append only set of vertex ids in the hyperedge
+     * {@inheritDoc}
+     * <strong> Added partial vertex addition </strong>
      */
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        if (newHEdge.vertices != null) {
-            // This is not possible during SYNC phases so we are safe from merging vertexIds across replicas
-            // The reason why this is not possible is because SYNC is copying this element which drops the vertices
-            // If there is an addition of new vertices to this hyperedge we should update it even if features of it are not updated
-            for (Vertex vertex : newHEdge.vertices) {
-                if (!vertexIds.contains(vertex.getId())) {
+        assert storage != null;
+        if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.COMMIT) {
+            // This is external update for sure
+            for (int i = 0; i < newHEdge.getVertexIds().size(); i++) {
+                if (!vertexIds.contains(newHEdge.getVertexIds().get(i))) {
+                    // We don't have this vertex locally
+                    if (!storage.containsVertex(newHEdge.getVertexIds().get(i))) newHEdge.getVertices().get(i).create();
                     if (memento == null) memento = copy();
-                    vertexIds.add(vertex.getId());
-                    if (!storage.containsVertex(vertex.getId())) vertex.create();
+                    getVertexIds().add(newHEdge.getVertexIds().get(i));
                 }
             }
         }
@@ -89,10 +106,28 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     /**
-     * master -> update element, if changed send message to replica
-     * replica -> Redirect to master, false message
-     *
-     * @param newElement newElement to update with
+     * Get Vertices id list
+     */
+    public List<String> getVertexIds() {
+        return vertexIds;
+    }
+
+    /**
+     * Get Vertices list or if empty try to retrieve from storage
+     */
+    public List<Vertex> getVertices() {
+        if(vertices == null){
+            if(storage != null){
+                vertices = vertexIds.stream().map(item->storage.getVertex(item)).collect(Collectors.toList());
+            }
+            return Collections.emptyList();
+        }
+        return vertices;
+    }
+
+    /**
+     * {@inheritDoc}
+     * <strong> Syncing only if some features have been updated </strong>
      */
     @Override
     public void update(GraphElement newElement) {
@@ -104,46 +139,60 @@ public class HEdge extends ReplicableGraphElement {
     }
 
     /**
-     * Get all the Vertices of the given HyperEdge
+     * {@inheritDoc}
      */
-    @Nullable
-    public Vertex[] getVertices() {
-        if ((vertices == null || vertices.length != vertexIds.size()) && storage != null) {
-            // If there is a mismatch between vertexIds and vertices re-compute the array
-            vertices = new Vertex[vertexIds.size()];
-            int i = 0;
-            for (String vertexId : vertexIds) {
-                vertices[i++] = storage.getVertex(vertexId);
-            }
+    @Override
+    public void resume() {
+        super.resume();
+        if (vertices != null) {
+            vertices.forEach(Vertex::resume);
         }
-        return vertices;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void delay() {
+        super.resume();
+        if (vertices != null) {
+            vertices.forEach(Vertex::delay);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
         if (vertices != null) {
-            for (Vertex vertex : vertices) {
-                vertex.setStorage(storage);
-            }
+            vertices.forEach(item -> item.setStorage(storage));
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void clearFeatures() {
         super.clearFeatures();
         if (vertices != null) {
-            for (Vertex vertex : vertices) {
-                vertex.clearFeatures();
-            }
+            vertices.forEach(Vertex::clearFeatures);
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getId() {
         return id;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ElementType elementType() {
         return ElementType.HYPEREDGE;

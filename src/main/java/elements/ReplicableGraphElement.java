@@ -52,7 +52,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo())
-            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), this), MessageDirection.ITERATE);
+            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), copy()), MessageDirection.ITERATE);
         storage.runCallback(callback);
     }
 

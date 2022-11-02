@@ -12,6 +12,7 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
+import typeinfo.setinfo.SetTypeInfo;
 
 import java.util.*;
 
@@ -26,6 +27,10 @@ public class CompressedListStorage extends BaseStorage {
 
     public transient MapState<String, HashSet<String>> eInTable;
 
+    public transient MapState<String, Set<String>> v2HEdge;
+
+    public transient MapState<String, Tuple2<Short, List<String>>> hyperEdges;
+
     public transient Map<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> attFeatureTable;
 
     public transient Tuple2<String, ElementType> reuse;
@@ -35,12 +40,12 @@ public class CompressedListStorage extends BaseStorage {
         vertexTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
         eOutTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
         })));
-
+        v2HEdge = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Set<String>>("v2HEdge", Types.STRING, new SetTypeInfo<>(Types.STRING)));
+        hyperEdges = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Tuple2<Short, List<String>>>("hyperEdges", Types.STRING, Types.TUPLE(Types.SHORT, Types.LIST(Types.STRING))));
         eInTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
         })));
         attFeatureTable = new HashMap<>(1 << 3);
         reuse = new Tuple2<>();
-
         super.open();
     }
 
@@ -93,10 +98,14 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public boolean addEdge(DEdge dEdge) {
         try {
-            if (!eOutTable.contains(dEdge.getSrcId())) eOutTable.put(dEdge.getSrcId(), new HashSet<>());
-            if (!eInTable.contains(dEdge.getDestId())) eInTable.put(dEdge.getDestId(), new HashSet<>());
-            eOutTable.get(dEdge.getSrcId()).add(dEdge.getDestId());
-            eInTable.get(dEdge.getDestId()).add(dEdge.getSrcId());
+            HashSet<String> eOut = eOutTable.get(dEdge.getSrcId());
+            if (eOut == null) eOut = new HashSet<>(10);
+            HashSet<String> eIn = eInTable.get(dEdge.getDestId());
+            if (eIn == null) eIn = new HashSet<>(10);
+            eOut.add(dEdge.getDestId());
+            eIn.add(dEdge.getSrcId());
+            eOutTable.put(dEdge.getSrcId(), eOut);
+            eInTable.put(dEdge.getDestId(), eIn);
             return true;
         } catch (Exception e) {
             LOG.error(e.getMessage());
@@ -106,11 +115,23 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public boolean addHyperEdge(HEdge hEdge) {
-        throw new NotImplementedException("");
+        try {
+            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
+            for (String vertexId : hEdge.getVertexIds()) {
+                Set<String> tmp = v2HEdge.get(vertexId);
+                if (tmp == null) tmp = new HashSet<>(10);
+                tmp.add(hEdge.getId());
+                v2HEdge.put(vertexId, tmp);
+            }
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
-    public boolean updateAttachedFeature(Feature<?, ?> feature) {
+    public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         try {
             reuse.f0 = feature.getName();
             reuse.f1 = feature.attachedTo.f0;
@@ -123,23 +144,36 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateStandaloneFeature(Feature<?, ?> feature) {
+    public boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         throw new NotImplementedException("Not implemented");
     }
 
     @Override
-    public boolean updateVertex(Vertex vertex) {
+    public boolean updateVertex(Vertex vertex, Vertex memento) {
         return true;
     }
 
     @Override
-    public boolean updateEdge(DEdge dEdge) {
+    public boolean updateEdge(DEdge dEdge, DEdge memento) {
         return true;
     }
 
     @Override
-    public boolean updateHyperEdge(HEdge hEdge) {
-        throw new NotImplementedException("Not implemented");
+    public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
+        try{
+            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
+            for (int i = memento.getVertexIds().size(); i < hEdge.getVertexIds().size(); i++) {
+                String vertexId = hEdge.getVertexIds().get(i);
+                Set<String> tmp = v2HEdge.get(vertexId);
+                if (tmp == null) tmp = new HashSet<>(10);
+                tmp.add(hEdge.getId());
+                v2HEdge.put(vertexId, tmp);
+            }
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
@@ -255,11 +289,19 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public HEdge getHyperEdge(String id) {
-        throw new NotImplementedException("Not implemented");
+        try {
+            Tuple2<Short, List<String>> tmp = hyperEdges.get(id);
+            HEdge hEdge = new HEdge(id, tmp.f1, false, tmp.f0);
+            hEdge.setStorage(this);
+            return hEdge;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Override
-    public Iterable<HEdge> getHyperEdges(Vertex id) {
+    public Iterable<HEdge> getIncidentHyperEdges(Vertex id) {
         throw new NotImplementedException("Not implemented");
     }
 
@@ -331,7 +373,12 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public boolean containsHyperEdge(String id) {
-        throw new NotImplementedException("Not implemneted");
+        try {
+            return hyperEdges.contains(id);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
