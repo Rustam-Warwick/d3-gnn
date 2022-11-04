@@ -38,6 +38,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public GNNLayerFunction layerFunction;
     private transient RemoveCachedFeatures removeCachedFeatures;
 
+    /**
+     * Do elements need to delay Tensors on serialization
+     */
+    public boolean requiresTensorDelay(){return true;}
+
     // -------- Abstract methods
 
     // -- Add

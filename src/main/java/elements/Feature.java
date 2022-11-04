@@ -109,7 +109,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void create() {
         if (attachedTo.f0 == ElementType.NONE) super.create();
         else {
-            assert storage != null;
+            // assert storage != null;
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Sometimes element attached can arrive later that the feature,
                 // We can create a dummy version of the element here since we already have the master part
@@ -135,7 +135,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        assert storage != null;
+        // assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
             memento = this.copy();
@@ -262,15 +262,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo.f0 != ElementType.NONE)
-            throw new IllegalStateException("Instead of using nested Features, go with flat design");
+        if(attachedTo.f0 != ElementType.NONE) System.out.println("Using sub-sub-feature");
         super.setFeature(name, feature);
     }
 
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String name) {
-        if (attachedTo.f0 != ElementType.NONE) return null;
+        if(attachedTo.f0 != ElementType.NONE) System.out.println("Using sub-sub-feature");
         return super.getFeature(name);
     }
 

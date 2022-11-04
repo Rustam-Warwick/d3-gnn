@@ -46,9 +46,6 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         return new MeanAggregator(this, false);
     }
 
-
-    // CRUD METHODS
-
     @Override
     public MeanAggregator deepCopy() {
         return new MeanAggregator(this, true);
@@ -57,17 +54,15 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     @Override
     public Consumer<Plugin> createElement() {
         Consumer<Plugin> tmp = super.createElement();
-        if (tmp != null) value.f0.delay();
+        if (storage.requiresTensorDelay() && tmp != null) value.f0.delay();
         return tmp;
     }
-
-    // NORMAL METHODS
 
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
-        if (callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
+        if (storage.requiresTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
             value.f0.delay();
             mementoAggregator.value.f0.resume();
         }

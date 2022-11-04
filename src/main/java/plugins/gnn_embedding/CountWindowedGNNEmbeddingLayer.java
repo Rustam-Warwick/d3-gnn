@@ -46,7 +46,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     @Override
     public void open() throws Exception {
         super.open();
-        assert storage != null;
+        // assert storage != null;
         LOCAL_BATCH_SIZE = BATCH_SIZE / storage.layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
         batchifier = new StackBatchifier();
         windowThroughput = new SimpleCounter();

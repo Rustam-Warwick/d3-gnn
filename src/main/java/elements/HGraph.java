@@ -1,7 +1,6 @@
 package elements;
 
 import org.apache.commons.lang3.NotImplementedException;
-import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
 import java.util.ArrayList;
@@ -57,7 +56,7 @@ public class HGraph extends GraphElement {
      */
     @Override
     public void create() {
-        assert storage != null;
+        // assert storage != null;
         for (Vertex vertex : vertices) {
             if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
             else vertex.create();

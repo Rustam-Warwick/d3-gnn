@@ -48,11 +48,10 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return new Tensor(this, true);
     }
 
-
     @Override
     public Consumer<Plugin> createElement() {
         Consumer<Plugin> callback = super.createElement();
-        if (callback != null) value.delay();
+        if (storage.requiresTensorDelay() && callback != null) value.delay();
         return callback;
     }
 
@@ -60,7 +59,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
-        if (callback.f0 != null && mementoAggregator.value != value) {
+        if (storage.requiresTensorDelay() && callback.f0 != null && mementoAggregator.value != value) {
             value.delay();
             mementoAggregator.value.resume();
         }

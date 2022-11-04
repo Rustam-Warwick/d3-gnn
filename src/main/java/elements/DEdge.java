@@ -56,15 +56,16 @@ public final class DEdge extends GraphElement implements Edge {
         this.src = src;
         this.dest = dest;
         ids.f0 = src.getId();
-        ids.f1 = src.getId();
+        ids.f1 = dest.getId();
         ids.f2 = attributeId;
     }
 
 
     public DEdge(DEdge e, boolean deepCopy) {
         super(e, deepCopy);
-        this.src = e.src;
-        this.dest = e.dest;
+        ids.f0 = e.ids.f0;
+        ids.f1 = e.ids.f1;
+        ids.f2 = e.ids.f2;
     }
 
     /**
@@ -131,11 +132,11 @@ public final class DEdge extends GraphElement implements Edge {
 
     @Override
     protected Consumer<Plugin> createElement() {
-        assert storage != null;
-        if (src != null && !storage.containsVertex(getSrc().getId())) {
+        // assert storage != null;
+        if (src != null && !storage.containsVertex(src.getId())) {
             src.create();
         }
-        if (dest != null && !storage.containsVertex(getDest().getId())) {
+        if (dest != null && !storage.containsVertex(dest.getId())) {
             dest.create();
         }
         return super.createElement();
@@ -160,8 +161,8 @@ public final class DEdge extends GraphElement implements Edge {
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        getSrc().setStorage(storage);
-        getDest().setStorage(storage);
+        if(src!=null)src.setStorage(storage);
+        if(dest!=null)dest.setStorage(storage);
     }
 
     /**
@@ -170,8 +171,8 @@ public final class DEdge extends GraphElement implements Edge {
     @Override
     public void delay() {
         super.delay();
-        getSrc().delay();
-        getDest().delay();
+        if(src!=null)src.delay();
+        if(dest!=null)dest.delay();
     }
 
     /**
@@ -180,8 +181,8 @@ public final class DEdge extends GraphElement implements Edge {
     @Override
     public void resume() {
         super.resume();
-        getSrc().resume();
-        getDest().resume();
+        if(src!=null)src.resume();
+        if(dest!=null)dest.resume();
     }
 
     /**
@@ -190,8 +191,8 @@ public final class DEdge extends GraphElement implements Edge {
     @Override
     public void clearFeatures() {
         super.clearFeatures();
-        getSrc().clearFeatures();
-        getDest().clearFeatures();
+        if(src!=null)src.clearFeatures();
+        if(dest!=null)dest.clearFeatures();
     }
 
 }

@@ -44,7 +44,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     @Override
     public void open() throws Exception {
         super.open();
-        assert storage != null;
+        // assert storage != null;
         batchifier = new StackBatchifier();
         windowThroughput = new SimpleCounter();
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));

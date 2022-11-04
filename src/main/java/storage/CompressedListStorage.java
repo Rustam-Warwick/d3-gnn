@@ -12,7 +12,6 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
-import typeinfo.setinfo.SetTypeInfo;
 
 import java.util.*;
 
@@ -27,7 +26,7 @@ public class CompressedListStorage extends BaseStorage {
 
     public transient MapState<String, HashSet<String>> eInTable;
 
-    public transient MapState<String, Set<String>> v2HEdge;
+    public transient MapState<String, List<String>> v2HEdge;
 
     public transient MapState<String, Tuple2<Short, List<String>>> hyperEdges;
 
@@ -40,7 +39,7 @@ public class CompressedListStorage extends BaseStorage {
         vertexTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
         eOutTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
         })));
-        v2HEdge = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Set<String>>("v2HEdge", Types.STRING, new SetTypeInfo<>(Types.STRING)));
+        v2HEdge = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, List<String>>("v2HEdge", Types.STRING, Types.LIST(Types.STRING)));
         hyperEdges = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Tuple2<Short, List<String>>>("hyperEdges", Types.STRING, Types.TUPLE(Types.SHORT, Types.LIST(Types.STRING))));
         eInTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
         })));
@@ -118,8 +117,8 @@ public class CompressedListStorage extends BaseStorage {
         try {
             hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
             for (String vertexId : hEdge.getVertexIds()) {
-                Set<String> tmp = v2HEdge.get(vertexId);
-                if (tmp == null) tmp = new HashSet<>(10);
+                List<String> tmp = v2HEdge.get(vertexId);
+                if (tmp == null) tmp = new ArrayList<>(10);
                 tmp.add(hEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
@@ -160,17 +159,17 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
-        try{
+        try {
             hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
             for (int i = memento.getVertexIds().size(); i < hEdge.getVertexIds().size(); i++) {
                 String vertexId = hEdge.getVertexIds().get(i);
-                Set<String> tmp = v2HEdge.get(vertexId);
-                if (tmp == null) tmp = new HashSet<>(10);
+                List<String> tmp = v2HEdge.get(vertexId);
+                if (tmp == null) tmp = new ArrayList<>(10);
                 tmp.add(hEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -302,7 +301,14 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public Iterable<HEdge> getIncidentHyperEdges(Vertex id) {
-        throw new NotImplementedException("Not implemented");
+        try{
+            List<String> vertices = v2HEdge.get(id.getId());
+            if(vertices == null) Collections.emptyList();
+            return ()->IteratorUtils.transformedIterator(vertices.listIterator(), hyperEdgeId -> getHyperEdge((String)hyperEdgeId));
+        }catch (Exception e){
+            e.printStackTrace();
+            return null;
+        }
     }
 
     @Nullable

@@ -37,7 +37,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     @Override
     public void open() throws Exception {
         super.open();
-        assert storage != null;
+        // assert storage != null;
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));

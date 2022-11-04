@@ -42,12 +42,14 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     }
 
     /**
-     * Copy this element to new GraphElement
+     * Makes a shallow copy of this element
+     * <strong>@Nullable fields are nullified</strong>
      */
     abstract public GraphElement copy();
 
     /**
-     * Deep Copy this element to new GraphElement
+     * Deep Copy this element including the null fields
+     * Only used in Rmi
      */
     abstract public GraphElement deepCopy();
 
@@ -57,7 +59,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> createElement() {
-        assert storage != null;
+        // assert storage != null;
         Consumer<Plugin> callback = null;
         if (storage.addElement(this)) {
             callback = item -> item.addElementCallback(this);
@@ -76,7 +78,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @return Callback or null if you cannot create
      */
     protected Consumer<Plugin> deleteElement() {
-        assert storage != null;
+        // assert storage != null;
         storage.cacheNonHaloFeatures(this);
         Consumer<Plugin> callback = null;
         if (features != null) {
@@ -97,7 +99,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @return (is updated, previous value)
      */
     protected Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
-        assert storage != null;
+        // assert storage != null;
         Consumer<Plugin> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
@@ -137,7 +139,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * External Create GraphElement
      */
     public void create() {
-        assert storage != null;
+        // assert storage != null;
         storage.runCallback(createElement());
     }
 
@@ -145,7 +147,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * External Query to delete GraphElement
      */
     public void delete() {
-        assert storage != null;
+        // assert storage != null;
         storage.runCallback(deleteElement());
     }
 
@@ -164,7 +166,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
-        assert storage != null;
+        // assert storage != null;
         storage.runCallback(updateElement(newElement, null).f0);
     }
 
@@ -174,7 +176,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
-        assert storage != null;
+        // assert storage != null;
         if ((state() != ReplicaState.MASTER) || !isReplicable() || isHalo() || parts == null || parts.isEmpty())
             return;
         storage.cacheNonHaloFeatures(this);

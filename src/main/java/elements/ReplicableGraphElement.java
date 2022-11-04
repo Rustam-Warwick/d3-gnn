@@ -48,7 +48,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        assert storage != null;
+        // assert storage != null;
         if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo())
@@ -76,7 +76,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             );
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
-            super.update(newElement);
+            storage.runCallback(updateElement(newElement, null).f0);
         }
     }
 
@@ -89,12 +89,12 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            assert storage != null;
+            // assert storage != null;
             Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
             if (tmp.f0 != null && !isHalo()) syncReplicas(replicaParts());
             storage.runCallback(tmp.f0);
         } else {
-            throw new IllegalStateException("No one should receive updates other than MASTER");
+            throw new IllegalStateException("REPLICAS Should not received Updates");
         }
     }
 
@@ -112,7 +112,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             );
             super.delete();
         } else if (state() == ReplicaState.REPLICA) {
-            assert storage != null;
+            // assert storage != null;
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
         }
     }

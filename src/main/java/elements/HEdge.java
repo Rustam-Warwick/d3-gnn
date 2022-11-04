@@ -5,9 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -22,6 +20,8 @@ import java.util.stream.Collectors;
  */
 
 public final class HEdge extends ReplicableGraphElement {
+
+    private static ThreadLocal<Set<String>> helperSet = ThreadLocal.withInitial(HashSet::new);
 
     @Nullable
     @OmitStorage
@@ -51,7 +51,6 @@ public final class HEdge extends ReplicableGraphElement {
 
     public HEdge(HEdge element, boolean deepCopy) {
         super(element, deepCopy);
-        this.vertices = null;
         this.vertexIds = new ArrayList<>(element.vertexIds);
         this.id = element.id;
     }
@@ -74,7 +73,7 @@ public final class HEdge extends ReplicableGraphElement {
      */
     @Override
     public Consumer<Plugin> createElement() {
-        assert storage != null;
+        // assert storage != null;
         if (vertices != null) {
             for (Vertex vertex : vertices) {
                 if (!storage.containsVertex(vertex.getId())) vertex.create();
@@ -86,20 +85,23 @@ public final class HEdge extends ReplicableGraphElement {
     /**
      * {@inheritDoc}
      * <strong> Added partial vertex addition </strong>
+     * <p>
+     *     Memento element will contain [current_ids, ...newIds]
+     * </p>
      */
     @Override
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        assert storage != null;
+        // assert storage != null;
         if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.COMMIT) {
             // This is external update for sure
-            for (int i = 0; i < newHEdge.getVertexIds().size(); i++) {
-                if (!vertexIds.contains(newHEdge.getVertexIds().get(i))) {
-                    // We don't have this vertex locally
-                    if (!storage.containsVertex(newHEdge.getVertexIds().get(i))) newHEdge.getVertices().get(i).create();
-                    if (memento == null) memento = copy();
-                    getVertexIds().add(newHEdge.getVertexIds().get(i));
-                }
+            Set<String> t = helperSet.get();
+            t.clear();
+            t.addAll(vertexIds);
+            for (String vertexId : newHEdge.vertexIds) {
+                if(t.contains(vertexId)) continue;
+                if(memento == null) memento = copy();
+                vertexIds.add(vertexId);
             }
         }
         return super.updateElement(newElement, memento);
@@ -116,9 +118,9 @@ public final class HEdge extends ReplicableGraphElement {
      * Get Vertices list or if empty try to retrieve from storage
      */
     public List<Vertex> getVertices() {
-        if(vertices == null){
-            if(storage != null){
-                vertices = vertexIds.stream().map(item->storage.getVertex(item)).collect(Collectors.toList());
+        if (vertices == null) {
+            if (storage != null) {
+                vertices = vertexIds.stream().map(item -> storage.getVertex(item)).collect(Collectors.toList());
             }
             return Collections.emptyList();
         }
@@ -131,11 +133,10 @@ public final class HEdge extends ReplicableGraphElement {
      */
     @Override
     public void update(GraphElement newElement) {
-        if (state() == ReplicaState.MASTER) {
-            Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 != null && !isHalo() && newElement.features != null)
-                syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features
-        } else throw new IllegalStateException("Replicable element but don't know if master or repica");
+        assert state() == ReplicaState.MASTER || newElement.features == null;
+        Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
+        if (state() == ReplicaState.MASTER && tmp.f0 != null && !isHalo() && tmp.f1.features != null)
+            syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features otherwise need vertex addition should be local
     }
 
     /**
