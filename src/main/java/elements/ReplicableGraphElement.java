@@ -69,9 +69,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
             if (!containsFeature("p"))
                 setFeature("p", new Parts(new ArrayList<>(), true)); // Lazy part list creation
             Rmi.buildAndRun(
-                    storage,
+                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true), storage,
                     masterPart(),
-                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true),
                     MessageDirection.ITERATE
             );
             syncReplicas(List.of(newElement.getPartId()));
@@ -82,7 +81,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     /**
      * master -> update element, if changed send message to replica
-     * replica -> Redirect to master, false message
+     * replica -> Illegal, False Message
      *
      * @param newElement newElement to update with
      */
@@ -106,7 +105,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public void delete() {
         if (state() == ReplicaState.MASTER) {
             Rmi.buildAndRun(
-                    new Rmi(getId(), "deleteReplica", elementType(), new Object[]{false}, true), storage,
+                    new Rmi(getId(), "deleteReplica", elementType(), new Object[]{false}, true),
+                    storage,
                     replicaParts(),
                     MessageDirection.ITERATE
             );
@@ -128,9 +128,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
             super.delete();
             if (notifyMaster)
                 Rmi.buildAndRun(
-                        storage,
+                        new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true), storage,
                         masterPart(),
-                        new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true),
                         MessageDirection.ITERATE
                 );
         }
@@ -158,7 +157,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public List<Short> replicaParts() {
         if (!containsFeature("p")) return super.replicaParts();
-        return (List<Short>) Objects.requireNonNull(getFeature("p")).getValue(); // @implNote Never create other Feature with the name parts
+        return (List<Short>) (getFeature("p")).getValue(); // @implNote Never create other Feature with the name parts
     }
 
     /**

@@ -177,15 +177,20 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * If this element is an attached feature, replica parts are the ones attached to the graph element
-     *
+     * Otherwise own ones
      * @return replicated parts
      */
     @Override
     public List<Short> replicaParts() {
-        if (Objects.nonNull(getElement())) {
-            return getElement().replicaParts();
-        } else {
+        if (attachedTo.f0 != ElementType.NONE) {
+            if(element != null) return getElement().replicaParts();
+            if(storage != null && storage.containsAttachedFeature(attachedTo.f1, "p", attachedTo.f0,null)){
+                return (List<Short>) storage.getAttachedFeature(attachedTo.f1, "p", attachedTo.f0, null).getValue();
+            }
             return Collections.emptyList();
+
+        } else {
+            return super.replicaParts();
         }
     }
 
@@ -194,7 +199,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (Objects.nonNull(getElement())) {
             return getElement().isReplicable();
         } else {
-            return false;
+            return super.isReplicable();
         }
     }
 

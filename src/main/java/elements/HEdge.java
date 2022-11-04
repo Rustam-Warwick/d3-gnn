@@ -15,13 +15,13 @@ import java.util.stream.Collectors;
  * <p>
  * Vertices and vertexIds should be 1-1 mapping
  * Constructor ensures this
- * vertices might be null though
+ * Vertices might be null though
  * </p>
  */
 
 public final class HEdge extends ReplicableGraphElement {
 
-    private static ThreadLocal<Set<String>> helperSet = ThreadLocal.withInitial(HashSet::new);
+    private static final ThreadLocal<Set<String>> HELPER_SET = ThreadLocal.withInitial(HashSet::new);
 
     @Nullable
     @OmitStorage
@@ -95,7 +95,7 @@ public final class HEdge extends ReplicableGraphElement {
         // assert storage != null;
         if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.COMMIT) {
             // This is external update for sure
-            Set<String> t = helperSet.get();
+            Set<String> t = HELPER_SET.get();
             t.clear();
             t.addAll(vertexIds);
             for (String vertexId : newHEdge.vertexIds) {
@@ -115,6 +115,13 @@ public final class HEdge extends ReplicableGraphElement {
     }
 
     /**
+     * Get vertex id at the given position
+     */
+    public String getVertexId(int pos){
+        return vertexIds.get(pos);
+    }
+
+    /**
      * Get Vertices list or if empty try to retrieve from storage
      */
     public List<Vertex> getVertices() {
@@ -124,7 +131,19 @@ public final class HEdge extends ReplicableGraphElement {
             }
             return Collections.emptyList();
         }
+        else if(vertices.size() != vertexIds.size()){
+            for (int i = vertices.size(); i < vertexIds.size(); i++) {
+                vertices.add(storage.getVertex(vertexIds.get(i)));
+            }
+        }
         return vertices;
+    }
+
+    /**
+     * Get Vertex corresponding to given position
+     */
+    public Vertex getVertex(int pos){
+        return getVertices().get(pos);
     }
 
     /**

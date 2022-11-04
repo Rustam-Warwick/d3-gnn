@@ -177,7 +177,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      */
     public void syncReplicas(List<Short> parts) {
         // assert storage != null;
-        if ((state() != ReplicaState.MASTER) || !isReplicable() || isHalo() || parts == null || parts.isEmpty())
+        if (isHalo() || (state() != ReplicaState.MASTER) || !isReplicable()  || parts == null || parts.isEmpty())
             return;
         storage.cacheNonHaloFeatures(this);
         GraphElement cpy = copy(); // Make a copy do not actually send this element

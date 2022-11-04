@@ -83,7 +83,7 @@ public class Rmi extends GraphElement {
         }
     }
 
-    public static void buildAndRun(BaseStorage storage, short destination, Rmi rmi, MessageDirection messageDirection) {
+    public static void buildAndRun(Rmi rmi, BaseStorage storage, short destination, MessageDirection messageDirection) {
         if (destination == storage.layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
             Rmi.execute(storage.getElement(rmi.getId(), rmi.elementType()), rmi);
         } else {

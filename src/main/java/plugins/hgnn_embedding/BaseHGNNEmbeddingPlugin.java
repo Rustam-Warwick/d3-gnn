@@ -49,7 +49,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @param training training enabled
      * @return Next layer feature
      */
-    public NDList UPDATE(NDList feature, boolean training) {
+    public final NDList UPDATE(NDList feature, boolean training) {
         return ((HGNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
@@ -60,14 +60,14 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @param training Should we construct the training graph
      * @return Message Tensor to be send to the aggregator
      */
-    public NDList MESSAGE(NDList features, boolean training) {
+    public final NDList MESSAGE(NDList features, boolean training) {
         return ((HGNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
     }
 
     /**
      * Is Vertex ready to send message to aggregator
      */
-    public boolean messageReady(Vertex v) {
+    public final boolean messageReady(Vertex v) {
         return v.containsFeature("f");
     }
 
@@ -77,8 +77,8 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @param vertex Vertex
      * @return vertex_ready
      */
-    public boolean updateReady(Vertex vertex) {
-        return vertex != null && vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
+    public final boolean updateReady(Vertex vertex) {
+        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
     }
 
     /**

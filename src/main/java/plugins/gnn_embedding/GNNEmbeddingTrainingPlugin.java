@@ -142,9 +142,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
 
             for (Map.Entry<Short, NDArrayCollector<String>> entry : aggGradsPerPart.entrySet()) {
                 Rmi.buildAndRun(
-                        storage,
+                        new Rmi(getId(), "collectAggregators", elementType(), new Object[]{entry.getValue()}, false), storage,
                         entry.getKey(),
-                        new Rmi(getId(), "collectAggregators", elementType(), new Object[]{entry.getValue()}, false),
                         MessageDirection.ITERATE
                 );
             }
@@ -154,9 +153,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             if (Objects.nonNull(backwardGrads)) {
 
                 Rmi.buildAndRun(
-                        storage,
+                        new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false), storage,
                         getPartId(),
-                        new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false),
                         MessageDirection.BACKWARD
                 );
             }
@@ -203,9 +201,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                 }
                 for (Map.Entry<Short, NDArrayCollector<String>> entry : backwardGradsPerPart.entrySet()) {
                     Rmi.buildAndRun(
-                            storage,
+                            new Rmi(getId(), "collect", elementType(), new Object[]{entry.getValue()}, false), storage,
                             entry.getKey(),
-                            new Rmi(getId(), "collect", elementType(), new Object[]{entry.getValue()}, false),
                             MessageDirection.BACKWARD
                     );
                 }
@@ -249,9 +246,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", LifeCycleNDManager.getInstance().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                    storage,
+                    new Rmi(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true), storage,
                     v.masterPart(),
-                    new Rmi(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true),
                     MessageDirection.ITERATE
             );
         });

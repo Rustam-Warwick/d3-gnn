@@ -95,9 +95,8 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         for (int i = 0; i < vertexIds.size(); i++) {
             backwardGrads.put(vertexIds.get(i), gradient.get(i));
         }
-        Rmi.buildAndRun(storage,
+        Rmi.buildAndRun(new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false), storage,
                 getPartId(),
-                new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false),
                 MessageDirection.BACKWARD
         );
     }
