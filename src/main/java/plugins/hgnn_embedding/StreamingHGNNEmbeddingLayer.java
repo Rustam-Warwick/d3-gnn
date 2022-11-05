@@ -80,7 +80,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (newFeature.getName().equals("f") && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 // Re-calculate hyper-edge aggregators (F1)
-                updateHyperEdges((Tensor) newFeature, (Tensor) oldFeature);
+                updateF1((Tensor) newFeature, (Tensor) oldFeature);
                 // @todo Forward
             } else if (newFeature.getName().equals("agg") && newFeature.attachedTo.f0 == ElementType.HYPEREDGE) {
                 // HyperEdge Feature update, re-calculate Vertex aggregators (F2)
@@ -183,7 +183,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     /**
      * Update HyperEdges if the initial message function happens to be changed
      */
-    public void updateHyperEdges(Tensor newFeature, Tensor oldFeature) {
+    public void updateF1(Tensor newFeature, Tensor oldFeature) {
         NDList newMessage = MESSAGE(new NDList(newFeature.getValue()), false);
         NDList oldMessage = MESSAGE(new NDList(oldFeature.getValue()), false);
         for (HEdge hyperEdge : storage.getIncidentHyperEdges((Vertex) newFeature.getElement())) {
@@ -201,5 +201,6 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             );
         }
     }
+
 
 }
