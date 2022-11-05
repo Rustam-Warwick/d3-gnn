@@ -10,7 +10,9 @@ import features.Tensor;
 import plugins.ModelServer;
 
 /**
- * Base class for all GNN Embedding Plugins
+ * Base class for all HGNN Embedding Plugins
+ * message is ready when source f is ready
+ * update is ready when source f and agg are ready
  */
 abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
 
@@ -78,7 +80,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @return vertex_ready
      */
     public final boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
+        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f");
     }
 
     /**
@@ -117,12 +119,14 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
-        NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-        element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
-        if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-            NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-            // @todo Can make it as mean of some existing features to tackle the cold-start problem
-            element.setFeature("f", new Tensor(embeddingRandom));
+        if(element.state() == ReplicaState.MASTER) {
+            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
+            element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
+            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
+                NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                // @todo Can make it as mean of some existing features to tackle the cold-start problem
+                element.setFeature("f", new Tensor(embeddingRandom));
+            }
         }
     }
 

@@ -8,8 +8,6 @@ import elements.iterations.RemoteFunction;
 import elements.iterations.Rmi;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
@@ -89,7 +87,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     /**
      * Push the embedding of this vertex to the next layer
      * After first layer, this is only fushed if agg and features are in sync
-     *
      * @param v Vertex
      */
     @SuppressWarnings("all")

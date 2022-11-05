@@ -21,7 +21,10 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
 
     public final boolean trainableVertexEmbeddings;
 
+    public final boolean requiresDestForMessage;
+
     public boolean IS_ACTIVE;
+
 
     public transient ModelServer modelServer;
 
@@ -34,10 +37,15 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     }
 
     public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+        this(modelName, suffix, trainableVertexEmbeddings, false, IS_ACTIVE);
+    }
+
+    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
         this.IS_ACTIVE = IS_ACTIVE;
+        this.requiresDestForMessage = requiresDestForMessage;
     }
 
     @Override
@@ -75,8 +83,8 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @param dEdge Edge
      * @return edge_ready
      */
-    public boolean messageReady(DEdge dEdge) {
-        return dEdge.getSrc().containsFeature("f");
+    public final boolean messageReady(DEdge dEdge) {
+        return requiresDestForMessage?dEdge.getSrc().containsFeature("f") && dEdge.getDest().containsFeature("f"):dEdge.getSrc().containsFeature("f");
     }
 
     /**
@@ -86,7 +94,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return vertex_ready
      */
     public final boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
+        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f");
     }
 
     /**
@@ -94,7 +102,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      *
      * @return are_trainable
      */
-    public boolean usingTrainableVertexEmbeddings() {
+    public final boolean usingTrainableVertexEmbeddings() {
         return trainableVertexEmbeddings;
     }
 
@@ -125,12 +133,14 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
-        NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
-        element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
-        if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-            NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-            // @todo Can make it as mean of some existing features to tackle the cold-start problem
-            element.setFeature("f", new Tensor(embeddingRandom));
+        if(element.state() == ReplicaState.MASTER) {
+            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
+            element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
+            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
+                NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                // @todo Can make it as mean of some existing features to tackle the cold-start problem
+                element.setFeature("f", new Tensor(embeddingRandom));
+            }
         }
     }
 }
