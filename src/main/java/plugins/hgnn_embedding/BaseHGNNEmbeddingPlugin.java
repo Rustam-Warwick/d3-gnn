@@ -5,6 +5,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.ReplicaState;
 import features.MeanAggregator;
 import features.Tensor;
 import plugins.ModelServer;

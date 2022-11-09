@@ -1,6 +1,8 @@
 package datasets;
 
 import elements.*;
+import elements.enums.ElementType;
+import elements.enums.Op;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;

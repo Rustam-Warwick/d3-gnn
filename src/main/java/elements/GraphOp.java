@@ -1,7 +1,8 @@
 package elements;
 
 import ai.djl.ndarray.ObjectPoolControl;
-import elements.iterations.MessageCommunication;
+import elements.enums.Op;
+import elements.enums.MessageCommunication;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.NotNull;
@@ -16,8 +17,8 @@ import java.util.Objects;
 @TypeInfo(GraphOpTypeInfoFactory.class)
 public final class GraphOp implements ObjectPoolControl {
     /**
-     * @see Op
-     * Op represents the operation that is happening in the GraphElement
+     *
+     * {@link Op} represents the operation that is happening in the GraphElement
      */
     public Op op = Op.NONE;
     /**
@@ -32,6 +33,7 @@ public final class GraphOp implements ObjectPoolControl {
      * Operator Event for the plugins communicated through this channel
      */
     public BaseOperatorEvent operatorEvent;
+
     /**
      * Type of communication message Part-to-Part or Broadcast
      */

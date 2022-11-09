@@ -6,7 +6,7 @@ import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.DEdge;
 import elements.Plugin;
-import elements.ReplicaState;
+import elements.enums.ReplicaState;
 import elements.Vertex;
 import features.MeanAggregator;
 import features.Tensor;

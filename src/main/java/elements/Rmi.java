@@ -1,11 +1,11 @@
-package elements.iterations;
+package elements;
 
 import ai.djl.ndarray.ObjectPoolControl;
 import com.esotericsoftware.reflectasm.MethodAccess;
-import elements.ElementType;
-import elements.GraphElement;
-import elements.GraphOp;
-import elements.Op;
+import elements.annotations.RemoteFunction;
+import elements.enums.ElementType;
+import elements.enums.MessageDirection;
+import elements.enums.Op;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.ExceptionUtils;
@@ -24,7 +24,6 @@ public class Rmi extends GraphElement {
     public static ConcurrentHashMap<Class<?>, Tuple2<MethodAccess, HashMap<String, Integer>>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
     public Object[] args;
     public ElementType elemType;
-
     public String id;
     public boolean hasUpdate = true;
     public String methodName;
@@ -61,7 +60,7 @@ public class Rmi extends GraphElement {
             if (message.hasUpdate) {
                 GraphElement deepCopyElement = element.deepCopy(); // Creates a full copy of the element
                 Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());
-                tmp.f0.invoke(element, tmp.f1.get(message.methodName), message.args);
+                tmp.f0.invoke(deepCopyElement, tmp.f1.get(message.methodName), message.args);
                 element.update(deepCopyElement);
             } else {
                 Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());

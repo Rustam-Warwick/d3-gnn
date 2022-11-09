@@ -1,4 +1,4 @@
-package elements;
+package elements.enums;
 
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import typeinfo.byteinfo.ByteEnumTypeInfoFactory;

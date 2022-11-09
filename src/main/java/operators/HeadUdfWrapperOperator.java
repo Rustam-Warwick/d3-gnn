@@ -1,7 +1,7 @@
 package operators;
 
 import elements.GraphOp;
-import elements.Op;
+import elements.enums.Op;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
 import org.apache.flink.api.common.functions.Function;

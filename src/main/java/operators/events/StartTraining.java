@@ -1,6 +1,6 @@
 package operators.events;
 
-import elements.iterations.MessageDirection;
+import elements.enums.MessageDirection;
 
 /**
  * Sent to master from last operator and called on latency marker IDLE

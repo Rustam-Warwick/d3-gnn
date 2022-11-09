@@ -2,8 +2,8 @@ package functions.gnn_layers;
 
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.iterations.MessageDirection;
-import elements.iterations.Rmi;
+import elements.enums.MessageDirection;
+import elements.Rmi;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -170,15 +170,8 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     }
                     break;
                 case SYNC:
-                    if (!getStorage().containsElement(value.element)) {
-                        GraphElement el = value.element.copy();
-                        el.setStorage(getStorage());
-                        el.create();
-                        el.sync(value.element);
-                    } else {
-                        GraphElement el = getStorage().getElement(value.element);
-                        el.sync(value.element);
-                    }
+                    GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
+                    el.sync(value.element);
                     break;
                 case RMI:
                     GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());

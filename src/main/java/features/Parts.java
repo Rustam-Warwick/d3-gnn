@@ -1,7 +1,7 @@
 package features;
 
 import elements.Feature;
-import elements.iterations.RemoteFunction;
+import elements.annotations.RemoteFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 

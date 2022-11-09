@@ -1,5 +1,8 @@
 package elements;
 
+import elements.annotations.OmitStorage;
+import elements.enums.ElementType;
+
 public final class Vertex extends ReplicableGraphElement {
 
     @OmitStorage

@@ -2,6 +2,8 @@ package datasets;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.ElementType;
+import elements.enums.Op;
 import features.Tensor;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;

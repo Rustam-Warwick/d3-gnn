@@ -1,6 +1,7 @@
 package plugins.debugging;
 
 import elements.*;
+import elements.enums.ElementType;
 import operators.BaseWrapperOperator;
 
 import java.util.ArrayList;

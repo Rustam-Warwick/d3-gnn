@@ -44,7 +44,7 @@ public class LifeCycleNDManager extends PtNDManager {
                 } catch (Exception e) {
                     LOG.error(e.getMessage());
                 }
-            }).expireAfterWrite(100, TimeUnit.NANOSECONDS)
+            }).expireAfterWrite(50, TimeUnit.NANOSECONDS)
             .ticker(ticker)
             .scheduler(Scheduler.systemScheduler())
             .build();

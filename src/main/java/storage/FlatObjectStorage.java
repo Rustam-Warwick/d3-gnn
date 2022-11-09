@@ -1,6 +1,8 @@
 package storage;
 
 import elements.*;
+import elements.enums.EdgeType;
+import elements.enums.ElementType;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;

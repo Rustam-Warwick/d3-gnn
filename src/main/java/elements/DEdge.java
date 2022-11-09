@@ -1,5 +1,7 @@
 package elements;
 
+import elements.annotations.OmitStorage;
+import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple3;
 import storage.BaseStorage;
 
@@ -12,7 +14,7 @@ import java.util.function.Consumer;
  * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multi-graphs
  * @implNote Vertex updates should not happen within edges they will be ignored
  */
-public final class DEdge extends GraphElement implements Edge {
+public final class DEdge extends GraphElement {
 
     public static String DELIMITER = "~"; // Delimited for creating id
 
@@ -102,30 +104,24 @@ public final class DEdge extends GraphElement implements Edge {
     }
 
     @Nullable
-    @Override
     public String getAttribute() {
         return ids.f2;
     }
 
-    // CRUD METHODS
-    @Override
     public Vertex getSrc() {
         if (src == null && storage != null) src = storage.getVertex(ids.f0);
         return src;
     }
 
-    @Override
     public String getSrcId() {
         return ids.f0;
     }
 
-    @Override
     public Vertex getDest() {
         if (dest == null && storage != null) dest = storage.getVertex(ids.f1);
         return dest;
     }
 
-    @Override
     public String getDestId() {
         return ids.f1;
     }
@@ -152,8 +148,6 @@ public final class DEdge extends GraphElement implements Edge {
         return ElementType.EDGE;
     }
 
-
-    // STATIC METHODS
 
     /**
      * {@inheritDoc}

@@ -1,14 +1,15 @@
 package elements;
 
-import elements.iterations.MessageDirection;
-import elements.iterations.RemoteFunction;
-import elements.iterations.Rmi;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
+import elements.enums.MessageDirection;
+import elements.annotations.RemoteFunction;
 import features.Parts;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
@@ -51,8 +52,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
         // assert storage != null;
         if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
         Consumer<Plugin> callback = createElement();
-        if (callback != null && state() == ReplicaState.REPLICA && !isHalo())
-            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), copy()), MessageDirection.ITERATE);
+        if (callback != null && state() == ReplicaState.REPLICA && !isHalo()) {
+            SyncElement syncElement = new SyncElement(getId(), elementType());syncElement.setStorage(storage);
+            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), syncElement), MessageDirection.ITERATE);
+        }
         storage.runCallback(callback);
     }
 

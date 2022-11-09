@@ -3,9 +3,9 @@ package operators;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.GraphOp;
-import elements.Op;
-import elements.iterations.MessageCommunication;
-import elements.iterations.MessageDirection;
+import elements.enums.Op;
+import elements.enums.MessageCommunication;
+import elements.enums.MessageDirection;
 import helpers.MyOutputReflectionContext;
 import operators.events.BaseOperatorEvent;
 import operators.events.FinalWatermarkArrived;

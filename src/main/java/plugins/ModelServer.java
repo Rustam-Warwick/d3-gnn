@@ -25,7 +25,7 @@ import ai.djl.training.tracker.Tracker;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
 import elements.Plugin;
-import elements.iterations.RemoteFunction;
+import elements.annotations.RemoteFunction;
 
 import java.util.Objects;
 

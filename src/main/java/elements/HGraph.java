@@ -1,5 +1,6 @@
 package elements;
 
+import elements.enums.ElementType;
 import org.apache.commons.lang3.NotImplementedException;
 import storage.BaseStorage;
 

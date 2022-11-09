@@ -2,6 +2,8 @@ package storage;
 
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
+import elements.enums.EdgeType;
+import elements.enums.ElementType;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.state.MapState;
@@ -300,10 +302,10 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<HEdge> getIncidentHyperEdges(Vertex id) {
+    public Iterable<HEdge> getIncidentHyperEdges(Vertex vertex) {
         try{
-            List<String> vertices = v2HEdge.get(id.getId());
-            if(vertices == null) Collections.emptyList();
+            List<String> vertices = v2HEdge.get(vertex.getId());
+            if(vertices == null) return Collections.emptyList();
             return ()->IteratorUtils.transformedIterator(vertices.listIterator(), hyperEdgeId -> getHyperEdge((String)hyperEdgeId));
         }catch (Exception e){
             e.printStackTrace();

@@ -5,7 +5,7 @@ import ai.djl.ndarray.NDList;
 import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
-import elements.iterations.RemoteFunction;
+import elements.annotations.RemoteFunction;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -33,8 +33,9 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         super(id, Tuple2.of(value, 0), halo, master);
     }
 
-    public MeanAggregator(Feature<Tuple2<NDArray, Integer>, NDArray> f, boolean deepCopy) {
+    public MeanAggregator(MeanAggregator f, boolean deepCopy) {
         super(f, deepCopy);
+        value = deepCopy?Tuple2.of(f.value.f0, f.value.f1):f.value; // Change to a new tuple
     }
 
     public static NDArray bulkReduce(NDArray newMessages) {
@@ -54,7 +55,7 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     @Override
     public Consumer<Plugin> createElement() {
         Consumer<Plugin> tmp = super.createElement();
-        if (storage.requiresTensorDelay() && tmp != null) value.f0.delay();
+        if (storage.needsTensorDelay() && tmp != null) value.f0.delay();
         return tmp;
     }
 
@@ -62,7 +63,7 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
         MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
-        if (storage.requiresTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
+        if (storage.needsTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
             value.f0.delay();
             mementoAggregator.value.f0.resume();
         }
@@ -72,14 +73,14 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     @RemoteFunction
     @Override
     public void reduce(NDList newElement, int count) {
-        this.value.f0.addi(newElement.get(0));
+        value.f0 = value.f0.add(newElement.get(0));
         value.f1 += count;
     }
 
     @RemoteFunction
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        value.f0.addi((newElement.get(0).sub(oldElement.get(0))));
+        value.f0 = value.f0.add((newElement.get(0).sub(oldElement.get(0))));
     }
 
     @Override

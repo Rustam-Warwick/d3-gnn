@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.Op;
 import features.Tensor;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
 import org.apache.flink.api.java.io.TextInputFormat;

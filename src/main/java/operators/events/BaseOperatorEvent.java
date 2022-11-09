@@ -1,6 +1,6 @@
 package operators.events;
 
-import elements.iterations.MessageDirection;
+import elements.enums.MessageDirection;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import java.util.Objects;

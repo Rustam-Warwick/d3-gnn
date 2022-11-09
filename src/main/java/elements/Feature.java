@@ -1,5 +1,7 @@
 package elements;
 
+import elements.annotations.OmitStorage;
+import elements.enums.ElementType;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;

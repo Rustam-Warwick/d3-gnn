@@ -1,6 +1,7 @@
 package partitioner;
 
 import elements.*;
+import elements.enums.ElementType;
 import operators.MultiThreadedProcessOperator;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;

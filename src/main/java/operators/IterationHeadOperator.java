@@ -19,7 +19,7 @@
 package operators;
 
 import elements.GraphOp;
-import elements.iterations.MessageCommunication;
+import elements.enums.MessageCommunication;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;

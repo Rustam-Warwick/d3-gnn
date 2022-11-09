@@ -5,7 +5,7 @@ import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.serializers.NDArrayRawSerializer;
 import datasets.Dataset;
 import elements.*;
-import elements.iterations.Rmi;
+import elements.Rmi;
 import features.MeanAggregator;
 import features.Parts;
 import features.Tensor;

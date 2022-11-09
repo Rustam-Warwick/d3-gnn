@@ -1,6 +1,6 @@
 package typeinfo.recursivepojoinfo;
 
-import elements.OmitStorage;
+import elements.annotations.OmitStorage;
 import org.apache.flink.api.common.functions.InvalidTypesException;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;

@@ -4,6 +4,8 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.ElementType;
+import elements.enums.Op;
 import features.Tensor;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;

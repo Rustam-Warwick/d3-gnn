@@ -20,8 +20,8 @@ package typeinfo.graphopinfo;
 
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.Op;
-import elements.iterations.MessageCommunication;
+import elements.enums.Op;
+import elements.enums.MessageCommunication;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;

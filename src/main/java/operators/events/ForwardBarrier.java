@@ -1,6 +1,6 @@
 package operators.events;
 
-import elements.iterations.MessageDirection;
+import elements.enums.MessageDirection;
 
 public class ForwardBarrier extends BaseOperatorEvent {
     public ForwardBarrier(MessageDirection flowDirection) {

@@ -2,7 +2,7 @@ package datasets;
 
 import elements.DEdge;
 import elements.GraphOp;
-import elements.Op;
+import elements.enums.Op;
 import elements.Vertex;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -65,7 +65,7 @@ public class RedditHyperlink implements Dataset {
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split("\t");
+            String[] values = value.split(",");
             DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1])); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){

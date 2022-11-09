@@ -2,7 +2,7 @@ package datasets;
 
 import elements.DEdge;
 import elements.GraphOp;
-import elements.Op;
+import elements.enums.Op;
 import elements.Vertex;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;

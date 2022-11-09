@@ -57,9 +57,13 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     public Shape shape;
     private transient Cleaner.Cleanable cleanable;
+
     private Device device;
+
     private DataType dataType;
+
     private byte delayed;
+
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private transient Boolean hasGradient;
@@ -132,7 +136,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void setName(String name) {
-
     }
 
     /**

@@ -1,6 +1,8 @@
 package storage;
 
 import elements.*;
+import elements.enums.EdgeType;
+import elements.enums.ElementType;
 import functions.gnn_layers.GNNLayerFunction;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -36,12 +38,13 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
+
     private transient RemoveCachedFeatures removeCachedFeatures;
 
     /**
      * Do elements need to delay Tensors on serialization
      */
-    public boolean requiresTensorDelay(){return true;}
+    public boolean needsTensorDelay(){return true;}
 
     // -------- Abstract methods
 
@@ -297,7 +300,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public boolean containsElement(GraphElement element) {
         switch (element.elementType()) {
             case VERTEX:
-                return this.containsVertex(element.getId());
+                return containsVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
                 return containsAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);
@@ -316,10 +319,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public GraphElement getElement(GraphElement element) {
-        // @todo No need to .getId() for attached Feature and Edge
         switch (element.elementType()) {
             case VERTEX:
-                return this.getVertex(element.getId());
+                return getVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
                 return getAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);

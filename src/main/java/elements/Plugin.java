@@ -1,5 +1,6 @@
 package elements;
 
+import elements.enums.ElementType;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;

@@ -1,7 +1,11 @@
 package elements;
 
 import ai.djl.ndarray.ObjectPoolControl;
-import elements.iterations.MessageDirection;
+import elements.annotations.OmitStorage;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
+import elements.enums.MessageDirection;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -24,7 +28,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage
-    public short partId = -1; // Part id where this object is located
+    public short partId = -1; // Part id where this object is/was located
 
     @Nullable
     public transient BaseStorage storage;
@@ -49,7 +53,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * Deep Copy this element including the null fields
-     * Only used in Rmi
+     * Only used in {@link Rmi}
      */
     abstract public GraphElement deepCopy();
 
@@ -99,7 +103,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @return (is updated, previous value)
      */
     protected Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
-        // assert storage != null;
         Consumer<Plugin> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {

@@ -1,5 +1,9 @@
 package elements;
 
+import elements.annotations.OmitStorage;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
@@ -51,7 +55,7 @@ public final class HEdge extends ReplicableGraphElement {
 
     public HEdge(HEdge element, boolean deepCopy) {
         super(element, deepCopy);
-        this.vertexIds = new ArrayList<>(element.vertexIds);
+        this.vertexIds = element.vertexIds;
         this.id = element.id;
     }
 
@@ -100,7 +104,11 @@ public final class HEdge extends ReplicableGraphElement {
             t.addAll(vertexIds);
             for (String vertexId : newHEdge.vertexIds) {
                 if(t.contains(vertexId)) continue;
-                if(memento == null) memento = copy();
+                if(memento == null) {
+                    HEdge tmp = copy(); // Create new array to compute the difference
+                    tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
+                    memento = tmp;
+                }
                 vertexIds.add(vertexId);
             }
         }

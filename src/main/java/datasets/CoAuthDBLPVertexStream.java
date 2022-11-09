@@ -1,6 +1,7 @@
 package datasets;
 
 import elements.*;
+import elements.enums.Op;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;

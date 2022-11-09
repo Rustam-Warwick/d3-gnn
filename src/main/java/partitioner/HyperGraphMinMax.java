@@ -1,6 +1,7 @@
 package partitioner;
 
 import elements.*;
+import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -18,7 +19,7 @@ public class HyperGraphMinMax extends BasePartitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax");
+        return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax").setParallelism(1);
     }
 
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
