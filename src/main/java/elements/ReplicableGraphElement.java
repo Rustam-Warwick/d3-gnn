@@ -1,9 +1,6 @@
 package elements;
 
-import elements.enums.ElementType;
-import elements.enums.Op;
-import elements.enums.ReplicaState;
-import elements.enums.MessageDirection;
+import elements.enums.*;
 import elements.annotations.RemoteFunction;
 import features.Parts;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -38,10 +35,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     }
 
     @Override
-    abstract public ReplicableGraphElement copy();
-
-    @Override
-    abstract public ReplicableGraphElement deepCopy();
+    abstract public ReplicableGraphElement copy(CopyContext context);
 
     /**
      * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
@@ -116,7 +110,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             super.delete();
         } else if (state() == ReplicaState.REPLICA) {
             // assert storage != null;
-            storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy()), MessageDirection.ITERATE);
+            storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy(CopyContext.MEMENTO)), MessageDirection.ITERATE);
         }
     }
 

@@ -1,6 +1,7 @@
 package elements;
 
 import elements.annotations.OmitStorage;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
@@ -91,13 +92,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     @Override
-    public Feature<T, V> copy() {
+    public Feature<T, V> copy(CopyContext context) {
         return new Feature<>(this, false);
-    }
-
-    @Override
-    public Feature<T, V> deepCopy() {
-        return new Feature<>(this, true);
     }
 
     /**
@@ -139,7 +135,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         // assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
-            memento = this.copy();
+            memento = this.copy(CopyContext.MEMENTO);
             value = newFeature.value;
         }
         return super.updateElement(newElement, memento);

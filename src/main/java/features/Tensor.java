@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
+import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 
@@ -39,13 +40,8 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Tensor copy() {
+    public Tensor copy(CopyContext context) {
         return new Tensor(this, false);
-    }
-
-    @Override
-    public Tensor deepCopy() {
-        return new Tensor(this, true);
     }
 
     @Override

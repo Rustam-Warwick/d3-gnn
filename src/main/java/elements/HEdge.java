@@ -1,6 +1,7 @@
 package elements;
 
 import elements.annotations.OmitStorage;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
@@ -60,13 +61,8 @@ public final class HEdge extends ReplicableGraphElement {
     }
 
     @Override
-    public HEdge copy() {
+    public HEdge copy(CopyContext context) {
         return new HEdge(this, false);
-    }
-
-    @Override
-    public HEdge deepCopy() {
-        return new HEdge(this, true);
     }
 
     /**
@@ -105,7 +101,7 @@ public final class HEdge extends ReplicableGraphElement {
             for (String vertexId : newHEdge.vertexIds) {
                 if(t.contains(vertexId)) continue;
                 if(memento == null) {
-                    HEdge tmp = copy(); // Create new array to compute the difference
+                    HEdge tmp = copy(CopyContext.MEMENTO); // Create new array to compute the difference
                     tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
                     memento = tmp;
                 }

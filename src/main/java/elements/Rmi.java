@@ -3,6 +3,7 @@ package elements;
 import ai.djl.ndarray.ObjectPoolControl;
 import com.esotericsoftware.reflectasm.MethodAccess;
 import elements.annotations.RemoteFunction;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
@@ -58,7 +59,7 @@ public class Rmi extends GraphElement {
         try {
             cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
             if (message.hasUpdate) {
-                GraphElement deepCopyElement = element.deepCopy(); // Creates a full copy of the element
+                GraphElement deepCopyElement = element.copy(CopyContext.MEMENTO); // Creates a full copy of the element
                 Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());
                 tmp.f0.invoke(deepCopyElement, tmp.f1.get(message.methodName), message.args);
                 element.update(deepCopyElement);
@@ -91,12 +92,7 @@ public class Rmi extends GraphElement {
     }
 
     @Override
-    public GraphElement copy() {
-        throw new IllegalStateException("RMI Not copied");
-    }
-
-    @Override
-    public GraphElement deepCopy() {
+    public GraphElement copy(CopyContext context) {
         throw new IllegalStateException("RMI Not copied");
     }
 

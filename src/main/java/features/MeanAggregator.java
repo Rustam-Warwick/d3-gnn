@@ -6,6 +6,7 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
 import elements.annotations.RemoteFunction;
+import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -43,13 +44,8 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     }
 
     @Override
-    public MeanAggregator copy() {
+    public MeanAggregator copy(CopyContext context) {
         return new MeanAggregator(this, false);
-    }
-
-    @Override
-    public MeanAggregator deepCopy() {
-        return new MeanAggregator(this, true);
     }
 
     @Override

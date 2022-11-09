@@ -2,6 +2,7 @@ package datasets;
 
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import features.Tensor;
@@ -66,8 +67,8 @@ public class SignedNetworkDataset implements Dataset {
                     e.getFeature("sign").setName("testLabel");
                 }
                 ctx.output(TRAIN_TEST_SPLIT_OUTPUT, value);
-                GraphOp topologyGraphOp = value.shallowCopy();
-                topologyGraphOp.setElement(e.copy());
+                GraphOp topologyGraphOp = value.copy();
+                topologyGraphOp.setElement(e.copy(CopyContext.MEMENTO));
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, topologyGraphOp);
                 out.collect(topologyGraphOp);
             }

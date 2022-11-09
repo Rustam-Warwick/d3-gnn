@@ -2,6 +2,7 @@ package features;
 
 import elements.Feature;
 import elements.annotations.RemoteFunction;
+import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 
@@ -25,13 +26,8 @@ public class Parts extends Feature<List<Short>, List<Short>> {
     }
 
     @Override
-    public Parts copy() {
+    public Parts copy(CopyContext context) {
         return new Parts(this, false);
-    }
-
-    @Override
-    public Parts deepCopy() {
-        return new Parts(this, true);
     }
 
     @RemoteFunction

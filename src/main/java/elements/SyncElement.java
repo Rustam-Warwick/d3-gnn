@@ -1,9 +1,8 @@
 package elements;
 
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple2;
-
-import java.util.Objects;
 
 /**
  * Simple Wrapper element used for sending SYNC messages
@@ -27,12 +26,7 @@ public final class SyncElement extends GraphElement {
     }
 
     @Override
-    public SyncElement copy() {
-        return new SyncElement(this, false);
-    }
-
-    @Override
-    public SyncElement deepCopy() {
+    public SyncElement copy(CopyContext context) {
         return new SyncElement(this, false);
     }
 

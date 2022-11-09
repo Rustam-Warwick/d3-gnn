@@ -1,5 +1,6 @@
 package elements;
 
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
@@ -26,13 +27,8 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     }
 
     @Override
-    public ReplicableGraphElement copy() {
+    public ReplicableGraphElement copy(CopyContext context) {
         throw new IllegalStateException("No copy");
-    }
-
-    @Override
-    public ReplicableGraphElement deepCopy() {
-        throw new IllegalStateException("No deepcopy");
     }
 
 

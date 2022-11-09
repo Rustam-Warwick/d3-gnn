@@ -1,6 +1,7 @@
 package datasets;
 
 import elements.*;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
@@ -65,8 +66,8 @@ public class EdgeList implements Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 assert value.element.elementType() == ElementType.EDGE;
-                GraphOp copy = value.shallowCopy();
-                copy.setElement(value.element.copy());
+                GraphOp copy = value.copy();
+                copy.setElement(value.element.copy(CopyContext.MEMENTO));
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
                 out.collect(value);
             }

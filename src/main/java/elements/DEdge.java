@@ -1,6 +1,7 @@
 package elements;
 
 import elements.annotations.OmitStorage;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple3;
 import storage.BaseStorage;
@@ -94,13 +95,8 @@ public final class DEdge extends GraphElement {
     }
 
     @Override
-    public DEdge copy() {
+    public DEdge copy(CopyContext context) {
         return new DEdge(this, false);
-    }
-
-    @Override
-    public DEdge deepCopy() {
-        return new DEdge(this, true);
     }
 
     @Nullable

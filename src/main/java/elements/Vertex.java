@@ -1,6 +1,7 @@
 package elements;
 
 import elements.annotations.OmitStorage;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 
 public final class Vertex extends ReplicableGraphElement {
@@ -28,13 +29,8 @@ public final class Vertex extends ReplicableGraphElement {
     }
 
     @Override
-    public Vertex copy() {
+    public Vertex copy(CopyContext context) {
         return new Vertex(this, false);
-    }
-
-    @Override
-    public Vertex deepCopy() {
-        return new Vertex(this, true);
     }
 
     // NORMAL METHODS

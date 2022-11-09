@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.CopyContext;
 import elements.enums.Op;
 import features.Tensor;
 import org.apache.flink.api.common.operators.SlotSharingGroup;
@@ -63,34 +64,34 @@ public class Reddit implements Dataset {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             DEdge incomingDEdge = (DEdge) value.getElement();
-            value.setElement(new DEdge(incomingDEdge.getSrc().copy(), incomingDEdge.getDest().copy()));
+            value.setElement(new DEdge(incomingDEdge.getSrc().copy(CopyContext.MEMENTO), incomingDEdge.getDest().copy(CopyContext.MEMENTO)));
             out.collect(value);
             ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
             if (incomingDEdge.getSrc().containsFeature("f")) {
                 Feature<?, ?> feature = incomingDEdge.getSrc().getFeature("f");
                 feature.element = null;
-                Vertex tmpSrc = incomingDEdge.getSrc().copy();
+                Vertex tmpSrc = incomingDEdge.getSrc().copy(CopyContext.MEMENTO);
                 tmpSrc.setFeature("f", feature);
                 out.collect(new GraphOp(Op.COMMIT, tmpSrc.masterPart(), tmpSrc));
             }
             if (incomingDEdge.getSrc().containsFeature("train_l")) {
                 Feature<?, ?> feature = incomingDEdge.getSrc().getFeature("train_l");
                 feature.element = null;
-                Vertex tmpSrc = incomingDEdge.getSrc().copy();
+                Vertex tmpSrc = incomingDEdge.getSrc().copy(CopyContext.MEMENTO);
                 tmpSrc.setFeature("train_l", feature);
                 ctx.output(TRAIN_TEST_SPLIT_OUTPUT, new GraphOp(Op.COMMIT, tmpSrc.masterPart(), tmpSrc));
             }
             if (incomingDEdge.getDest().containsFeature("f")) {
                 Feature<?, ?> feature = incomingDEdge.getDest().getFeature("f");
                 feature.element = null;
-                Vertex tmpDest = incomingDEdge.getDest().copy();
+                Vertex tmpDest = incomingDEdge.getDest().copy(CopyContext.MEMENTO);
                 tmpDest.setFeature("f", feature);
                 out.collect(new GraphOp(Op.COMMIT, tmpDest.masterPart(), tmpDest));
             }
             if (incomingDEdge.getDest().containsFeature("train_l")) {
                 Feature<?, ?> feature = incomingDEdge.getDest().getFeature("train_l");
                 feature.element = null;
-                Vertex tmpDest = incomingDEdge.getDest().copy();
+                Vertex tmpDest = incomingDEdge.getDest().copy(CopyContext.MEMENTO);
                 tmpDest.setFeature("train_l", feature);
                 ctx.output(TRAIN_TEST_SPLIT_OUTPUT, new GraphOp(Op.COMMIT, tmpDest.masterPart(), tmpDest));
             }

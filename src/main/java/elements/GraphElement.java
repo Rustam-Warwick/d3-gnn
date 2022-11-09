@@ -2,10 +2,7 @@ package elements;
 
 import ai.djl.ndarray.ObjectPoolControl;
 import elements.annotations.OmitStorage;
-import elements.enums.ElementType;
-import elements.enums.Op;
-import elements.enums.ReplicaState;
-import elements.enums.MessageDirection;
+import elements.enums.*;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -48,14 +45,13 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     /**
      * Makes a shallow copy of this element
      * <strong>@Nullable fields are nullified</strong>
+     * <p>
+     *     To make things efficient copying logic will depend on the places where it is executed
+     *     hence it is important to distinguish why it is being called
+     * </p>
+     * @param context the context for copying.
      */
-    abstract public GraphElement copy();
-
-    /**
-     * Deep Copy this element including the null fields
-     * Only used in {@link Rmi}
-     */
-    abstract public GraphElement deepCopy();
+    abstract public GraphElement copy(CopyContext context);
 
     /**
      * Create this element and all its features
@@ -112,12 +108,12 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
                     Feature<?, ?> thisFeature = getFeature(feature.getName());
                     Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
                     if (tmp.f0 != null) {
-                        memento = memento == null ? this.copy() : memento;
+                        memento = memento == null ? this.copy(CopyContext.MEMENTO) : memento;
                         callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
                         memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
                     }
                 } else {
-                    memento = memento == null ? this.copy() : memento;
+                    memento = memento == null ? this.copy(CopyContext.MEMENTO) : memento;
                     iterator.remove();
                     feature.setStorage(storage);
                     feature.setElement(this);
@@ -183,11 +179,11 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         if (isHalo() || (state() != ReplicaState.MASTER) || !isReplicable()  || parts == null || parts.isEmpty())
             return;
         storage.cacheNonHaloFeatures(this);
-        GraphElement cpy = copy(); // Make a copy do not actually send this element
+        GraphElement cpy = copy(CopyContext.MEMENTO); // Make a copy do not actually send this element
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 if (feature.isHalo()) continue;
-                Feature<?, ?> tmp = feature.copy();
+                Feature<?, ?> tmp = feature.copy(CopyContext.MEMENTO);
                 cpy.setFeature(feature.getName(), tmp);
             }
         }

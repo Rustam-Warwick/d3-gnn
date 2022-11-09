@@ -4,6 +4,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.*;
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import features.Tensor;
@@ -72,8 +73,8 @@ public class CoraFull implements Dataset {
 //                    copyGraphOp.setElement(label);
 ////                    ctx.output(TRAIN_TEST_SPLIT_OUTPUT, copyGraphOp); // Push to Side-Output
 //                }
-                GraphOp copy = value.shallowCopy();
-                copy.setElement(value.element.copy());
+                GraphOp copy = value.copy();
+                copy.setElement(value.element.copy(CopyContext.MEMENTO));
                 ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, copy);
                 out.collect(value);
             }

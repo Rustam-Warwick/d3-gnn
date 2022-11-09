@@ -1,5 +1,6 @@
 package elements;
 
+import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.commons.lang3.NotImplementedException;
 import storage.BaseStorage;
@@ -34,13 +35,8 @@ public class HGraph extends GraphElement {
     }
 
     @Override
-    public GraphElement copy() {
+    public GraphElement copy(CopyContext context) {
         throw new NotImplementedException("Copy not implemented for HGraph");
-    }
-
-    @Override
-    public GraphElement deepCopy() {
-        throw new NotImplementedException("DeepCopy not implemented for HGraph");
     }
 
     public List<HEdge> gethEdges() {

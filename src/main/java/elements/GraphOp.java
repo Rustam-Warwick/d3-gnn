@@ -75,7 +75,7 @@ public final class GraphOp implements ObjectPoolControl {
         this.ts = ts;
     }
 
-    public GraphOp shallowCopy() {
+    public GraphOp copy() {
         return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
 
