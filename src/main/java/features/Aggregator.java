@@ -15,5 +15,5 @@ public interface Aggregator {
 
     void reset();
 
-    int reduceCount();
+    int reducedCount();
 }

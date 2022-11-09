@@ -128,10 +128,11 @@ public final class HEdge extends ReplicableGraphElement {
         if (vertices == null) {
             if (storage != null) {
                 vertices = vertexIds.stream().map(item -> storage.getVertex(item)).collect(Collectors.toList());
+                return vertices;
             }
             return Collections.emptyList();
         }
-        else if(vertices.size() != vertexIds.size()){
+        else if(vertices.size() != vertexIds.size() && storage != null){
             for (int i = vertices.size(); i < vertexIds.size(); i++) {
                 vertices.add(storage.getVertex(vertexIds.get(i)));
             }

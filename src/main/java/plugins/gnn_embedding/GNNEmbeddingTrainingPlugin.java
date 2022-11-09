@@ -126,7 +126,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                 if (backwardGrads != null) {
                     backwardGrads.put(vertices.get(i).getId(), previousFeatureGrad);
                 }
-                if (aggregator.reduceCount() > 0) {
+                if (aggregator.reducedCount() > 0) {
                     NDArray messagesGrad = aggregator.grad(aggGrad);
                     for (Short replicaPart : vertices.get(i).replicaParts()) {
                         aggGradsPerPart.computeIfAbsent(replicaPart, (key) -> new NDArrayCollector<>(false));

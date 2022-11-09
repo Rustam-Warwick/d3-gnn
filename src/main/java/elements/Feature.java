@@ -7,7 +7,6 @@ import org.apache.flink.api.java.tuple.Tuple3;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -182,16 +181,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public List<Short> replicaParts() {
-        if (attachedTo.f0 != ElementType.NONE) {
-            if(element != null) return getElement().replicaParts();
-            if(storage != null && storage.containsAttachedFeature(attachedTo.f1, "p", attachedTo.f0,null)){
-                return (List<Short>) storage.getAttachedFeature(attachedTo.f1, "p", attachedTo.f0, null).getValue();
-            }
-            return Collections.emptyList();
-
-        } else {
-            return super.replicaParts();
+         if (Objects.nonNull(getElement())) {
+            return getElement().replicaParts();
         }
+        return super.replicaParts();
     }
 
     @Override

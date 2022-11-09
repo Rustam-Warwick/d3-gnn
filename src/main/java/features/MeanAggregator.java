@@ -99,7 +99,7 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     }
 
     @Override
-    public int reduceCount() {
+    public int reducedCount() {
         return value.f1;
     }
 
