@@ -35,13 +35,13 @@ public class Tensor extends Feature<NDArray, NDArray> {
         super(id, value, halo, master);
     }
 
-    public Tensor(Feature<NDArray, NDArray> f, boolean deepCopy) {
-        super(f, deepCopy);
+    public Tensor(Feature<NDArray, NDArray> f, CopyContext context) {
+        super(f, context);
     }
 
     @Override
     public Tensor copy(CopyContext context) {
-        return new Tensor(this, false);
+        return new Tensor(this, context);
     }
 
     @Override

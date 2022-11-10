@@ -2,6 +2,7 @@ package elements;
 
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
+import elements.enums.ReplicaState;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
@@ -38,6 +39,11 @@ public final class SyncElement extends GraphElement {
     @Override
     public ElementType elementType() {
         return identity.f1;
+    }
+
+    @Override
+    public ReplicaState state() {
+        return ReplicaState.REPLICA;
     }
 
     @Override

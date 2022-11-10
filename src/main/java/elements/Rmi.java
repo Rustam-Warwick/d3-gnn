@@ -23,11 +23,15 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Rmi extends GraphElement {
     public static ConcurrentHashMap<Class<?>, Tuple2<MethodAccess, HashMap<String, Integer>>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
+
     public Object[] args;
+
     public ElementType elemType;
 
     public String id;
+
     public boolean hasUpdate = true;
+
     public String methodName;
 
     public Rmi() {
@@ -60,7 +64,7 @@ public class Rmi extends GraphElement {
         try {
             cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
             if (message.hasUpdate) {
-                GraphElement deepCopyElement = element.copy(CopyContext.MEMENTO); // Creates a full copy of the element
+                GraphElement deepCopyElement = element.copy(CopyContext.RMI); // Creates an RMI copy of the element
                 Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());
                 tmp.f0.invoke(deepCopyElement, tmp.f1.get(message.methodName), message.args);
                 element.update(deepCopyElement);

@@ -207,7 +207,7 @@ public class CompressedListStorage extends BaseStorage {
     public Vertex getVertex(String id) {
         try {
             short masterPart = vertexTable.get(id);
-            Vertex v = new Vertex(id, false, masterPart);
+            Vertex v = new Vertex(id,  masterPart);
             v.setStorage(this);
             return v;
         } catch (Exception e) {
@@ -222,7 +222,7 @@ public class CompressedListStorage extends BaseStorage {
             Iterator<Map.Entry<String, Short>> entries = vertexTable.entries().iterator();
             return () -> IteratorUtils.transformedIterator(entries, (entry) -> {
                 Map.Entry<String, Short> tmp = (Map.Entry<String, Short>) entry;
-                Vertex v = new Vertex(tmp.getKey(), false, tmp.getValue());
+                Vertex v = new Vertex(tmp.getKey(), tmp.getValue());
                 v.setStorage(this);
                 return v;
             });
@@ -292,7 +292,7 @@ public class CompressedListStorage extends BaseStorage {
     public HEdge getHyperEdge(String id) {
         try {
             Tuple2<Short, List<String>> tmp = hyperEdges.get(id);
-            HEdge hEdge = new HEdge(id, tmp.f1, false, tmp.f0);
+            HEdge hEdge = new HEdge(id, tmp.f1, tmp.f0);
             hEdge.setStorage(this);
             return hEdge;
         } catch (Exception e) {

@@ -39,8 +39,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        // assert storage != null;
-        if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them
+        if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them, so no need to create
         Consumer<Plugin> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo()) {
             SyncElement syncElement = new SyncElement(getId(), elementType());syncElement.setStorage(storage);
@@ -58,13 +57,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            assert newElement.getPartId() != -1;
-            if (!containsFeature("p"))
-                setFeature("p", new Parts(new ArrayList<>(), true)); // Lazy part list creation
-            Rmi.buildAndRun(
-                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true), storage,
-                    masterPart(),
-                    MessageDirection.ITERATE
+            if(!containsFeature("p")) setFeature("p", new Parts(new ArrayList<>(), true));
+            Rmi.execute(
+                    getFeature("p"),
+                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
             );
             syncReplicas(List.of(newElement.getPartId()));
         } else if (state() == ReplicaState.REPLICA) {
@@ -81,9 +77,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            // assert storage != null;
             Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 != null && !isHalo()) syncReplicas(replicaParts());
+            if (tmp.f0 != null) syncReplicas(replicaParts());
             storage.runCallback(tmp.f0);
         } else {
             throw new IllegalStateException("REPLICAS Should not received Updates");

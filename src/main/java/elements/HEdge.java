@@ -56,8 +56,11 @@ public final class HEdge extends ReplicableGraphElement {
 
     public HEdge(HEdge element, CopyContext context) {
         super(element, context);
-        this.vertexIds = element.vertexIds;
-        this.id = element.id;
+        id = element.id;
+        if(context != CopyContext.SYNC){
+            vertexIds = element.vertexIds;
+            vertices = element.vertices;
+        }
     }
 
     @Override
@@ -73,7 +76,6 @@ public final class HEdge extends ReplicableGraphElement {
      */
     @Override
     public Consumer<Plugin> createElement() {
-        // assert storage != null;
         if (vertices != null) {
             for (Vertex vertex : vertices) {
                 if (!storage.containsVertex(vertex.getId())) vertex.create();
@@ -152,15 +154,18 @@ public final class HEdge extends ReplicableGraphElement {
     }
 
     /**
+     * <p>
+     *     Different from normal Replication HEdge can have updates in replicas if it is not bringing a new Feature
+     * </p>
      * {@inheritDoc}
-     * <strong> Syncing only if some features have been updated </strong>
      */
     @Override
     public void update(GraphElement newElement) {
         assert state() == ReplicaState.MASTER || newElement.features == null;
         Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-        if (state() == ReplicaState.MASTER && tmp.f0 != null && !isHalo() && tmp.f1.features != null)
+        if (state() == ReplicaState.MASTER && tmp.f0 != null &&  newElement.features != null)
             syncReplicas(replicaParts()); // Only sync if the newElement brought in some new features otherwise need vertex addition should be local
+        storage.runCallback(tmp.f0);
     }
 
     /**

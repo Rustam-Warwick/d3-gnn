@@ -10,10 +10,7 @@ import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -38,12 +35,23 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     }
 
-    public GraphElement(GraphElement element, CopyContext copyContext) {
+    public GraphElement(GraphElement element, CopyContext context) {
         partId = element.partId;
+        if(context == CopyContext.SYNC){
+            // Copy all the non-halo features
+            element.storage.cacheNonHaloFeatures(element);
+            if(element.features != null && !element.features.isEmpty()){
+                for (Feature<?, ?> feature : element.features) {
+                    if(!feature.isHalo()){
+                        if(features == null) features = new ArrayList<>(3);
+                        features.add(feature.copy(context));
+                    }
+                }
+            }
+        } else if(context == CopyContext.RMI) storage = element.storage;
     }
 
     /**
-     * Makes a shallow copy of this element
      * <strong>@Nullable fields are nullified</strong>
      * <p>
      *     To make things efficient copying logic will depend on the places where it is executed
@@ -108,12 +116,12 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
                     Feature<?, ?> thisFeature = getFeature(feature.getName());
                     Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
                     if (tmp.f0 != null) {
-                        memento = memento == null ? this.copy(CopyContext.MEMENTO) : memento;
+                        memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                         callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
-                        memento.setFeature(feature.getName(), (Feature<?, ?>) tmp.f1);
+                        ((Feature<?,?>) tmp.f1).setElement(memento);
                     }
                 } else {
-                    memento = memento == null ? this.copy(CopyContext.MEMENTO) : memento;
+                    memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                     iterator.remove();
                     feature.setStorage(storage);
                     feature.setElement(this);
@@ -175,17 +183,8 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
-        if (isHalo() || (state() != ReplicaState.MASTER) || !isReplicable()  || parts == null || parts.isEmpty())
-            return;
-        storage.cacheNonHaloFeatures(this);
-        GraphElement cpy = copy(CopyContext.MEMENTO); // Make a copy do not actually send this element
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                if (feature.isHalo()) continue;
-                Feature<?, ?> tmp = feature.copy(CopyContext.MEMENTO);
-                cpy.setFeature(feature.getName(), tmp);
-            }
-        }
+        if (isHalo() || !isReplicable() || parts == null || parts.isEmpty() || (state() != ReplicaState.MASTER)) return;
+        GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
         parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
     }
 
@@ -267,7 +266,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * Retrieves feature from cache if exists, otherwise from storage
-     *
      * @param name name of the feature
      * @return Feature or NULL
      * @implNote that a cached feature will not be queried a second time from storage
@@ -307,7 +305,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     /**
      * If the feature already exists this will not do anything
      * Otherwise it will try to create the feature in storage or at least append to feature list
-     *
      * @param name    name of the feature to be added
      * @param feature feature itself
      */

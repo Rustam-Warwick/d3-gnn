@@ -63,12 +63,15 @@ public final class DEdge extends GraphElement {
         ids.f2 = attributeId;
     }
 
-
     public DEdge(DEdge e, CopyContext context) {
         super(e, context);
         ids.f0 = e.ids.f0;
         ids.f1 = e.ids.f1;
         ids.f2 = e.ids.f2;
+        if(context != CopyContext.SYNC){
+            src = e.src;
+            dest = e.dest;
+        }
     }
 
     /**

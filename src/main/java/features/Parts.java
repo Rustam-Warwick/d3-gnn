@@ -13,8 +13,8 @@ public class Parts extends Feature<List<Short>, List<Short>> {
         super();
     }
 
-    public Parts(Parts st, boolean deepCopy) {
-        super(st, deepCopy);
+    public Parts(Parts st,  CopyContext context) {
+        super(st, context);
     }
 
     public Parts(List<Short> value, boolean halo) {
@@ -27,7 +27,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
 
     @Override
     public Parts copy(CopyContext context) {
-        return new Parts(this, false);
+        return new Parts(this, context);
     }
 
     @RemoteFunction

@@ -6,6 +6,7 @@ import elements.Rmi;
 import elements.SyncElement;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
+import elements.enums.ReplicaState;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
@@ -195,13 +196,19 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
                     break;
                 case SYNC:
                     if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
-                        // Late event can only happen during Replica -> Master sync
-                        SyncElement syncElement = (SyncElement) value.element;
-                        List<Short> replicas;
-                        if(lateSyncMessages.contains(syncElement.identity)) replicas = lateSyncMessages.get(syncElement.identity);
-                        else replicas = new ArrayList<>(3);
-                        replicas.add(syncElement.getPartId());
-                        lateSyncMessages.put(syncElement.identity, replicas);
+                        if(value.element.state() == ReplicaState.MASTER){
+                            // Master -> Replica simply create the element
+                            value.element.setStorage(getStorage());
+                            value.element.create();
+                        }else{
+                            // Late event can only happen during Replica -> Master sync
+                            SyncElement syncElement = (SyncElement) value.element;
+                            List<Short> replicas;
+                            if(lateSyncMessages.contains(syncElement.identity)) replicas = lateSyncMessages.get(syncElement.identity);
+                            else replicas = new ArrayList<>(3);
+                            replicas.add(syncElement.getPartId());
+                            lateSyncMessages.put(syncElement.identity, replicas);
+                        }
                     } else {
                         GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
                         el.sync(value.element);

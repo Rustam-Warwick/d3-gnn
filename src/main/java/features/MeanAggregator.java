@@ -36,6 +36,8 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
 
     public MeanAggregator(MeanAggregator f, CopyContext context) {
         super(f, context);
+        if(context == CopyContext.RMI) value = Tuple2.of(value.f0, value.f1);
+
     }
 
     public static NDArray bulkReduce(NDArray newMessages) {

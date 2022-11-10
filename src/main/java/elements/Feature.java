@@ -66,10 +66,15 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public Feature(Feature<T, V> f, CopyContext context) {
         super(f, context);
-        this.attachedTo.f0 = f.attachedTo.f0;
-        this.attachedTo.f1 = f.attachedTo.f1;
-        this.attachedTo.f2 = f.attachedTo.f2;
-        this.value = f.value;
+        attachedTo.f0 = f.attachedTo.f0;
+        attachedTo.f1 = f.attachedTo.f1;
+        attachedTo.f2 = f.attachedTo.f2;
+        value = f.value;
+        halo = f.halo;
+        element = f.element;
+        if(value == null){
+            System.out.println();
+        }
     }
 
     /**
@@ -91,10 +96,13 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Does this id belong to attached feature or not
      */
-    public static boolean isAttachedId(String featureId) {
+    public static boolean isAttached(String featureId) {
         return featureId.contains(DELIMITER);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Feature<T, V> copy(CopyContext context) {
         return new Feature<>(this, context);
@@ -110,7 +118,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void create() {
         if (attachedTo.f0 == ElementType.NONE) super.create();
         else {
-            // assert storage != null;
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Sometimes element attached can arrive later that the feature,
                 // We can create a dummy version of the element here since we already have the master part
@@ -139,7 +146,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         // assert storage != null;
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
-            memento = this.copy(CopyContext.MEMENTO);
+            memento = copy(CopyContext.MEMENTO);
             value = newFeature.value;
         }
         return super.updateElement(newElement, memento);
@@ -174,6 +181,11 @@ public class Feature<T, V> extends ReplicableGraphElement {
             return getElement().masterPart();
         }
         return super.masterPart();
+    }
+
+    @Override
+    public boolean isHalo() {
+        return halo;
     }
 
     /**
@@ -255,21 +267,21 @@ public class Feature<T, V> extends ReplicableGraphElement {
             throw new IllegalStateException("Already attached to this element");
         attachedTo.f0 = attachingElement.elementType();
         attachedTo.f1 = attachingElement.getId();
-        if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
+        if (attachingElement.features == null) attachingElement.features = new ArrayList<>(3);
         element = attachingElement;
         attachingElement.features.add(this);
     }
 
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if(attachedTo.f0 != ElementType.NONE) System.out.println("Using sub-sub-feature");
+        if(attachedTo.f0 != ElementType.NONE) throw new IllegalStateException("Using sub-sub Features are not allowed");
         super.setFeature(name, feature);
     }
 
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String name) {
-        if(attachedTo.f0 != ElementType.NONE) System.out.println("Using sub-sub-feature");
+        if(attachedTo.f0 != ElementType.NONE) throw new IllegalStateException("Using sub-sub Features are not allowed");
         return super.getFeature(name);
     }
 

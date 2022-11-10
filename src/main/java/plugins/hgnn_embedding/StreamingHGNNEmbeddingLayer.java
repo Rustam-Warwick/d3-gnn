@@ -73,7 +73,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         if (newElement.elementType() == ElementType.HYPEREDGE) {
             HEdge newEdge = (HEdge) newElement;
             HEdge oldEdge = (HEdge) oldElement;
-            if (newEdge.vertexIds.size() != oldEdge.vertexIds.size()) reduceF1(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
+            if (newEdge.getVertexIds().size() != oldEdge.getVertexIds().size()) reduceF1(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
         } else if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> newFeature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -115,7 +115,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
      * Reduce from new vertices added to hyper-edge (F1)
      */
     public void reduceF1(HEdge newEdge, HEdge oldEdge){
-      for (int i = oldEdge.vertexIds.size(); i < newEdge.vertexIds.size(); i++) {
+      for (int i = oldEdge.getVertexIds().size(); i < newEdge.vertexIds.size(); i++) {
                 Vertex vertex = newEdge.getVertex(i);
                 if (messageReady(vertex)) {
                     NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
