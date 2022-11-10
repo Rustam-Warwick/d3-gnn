@@ -34,9 +34,8 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         super(id, Tuple2.of(value, 0), halo, master);
     }
 
-    public MeanAggregator(MeanAggregator f, boolean deepCopy) {
-        super(f, deepCopy);
-        value = deepCopy?Tuple2.of(f.value.f0, f.value.f1):f.value; // Change to a new tuple
+    public MeanAggregator(MeanAggregator f, CopyContext context) {
+        super(f, context);
     }
 
     public static NDArray bulkReduce(NDArray newMessages) {
@@ -45,7 +44,7 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
 
     @Override
     public MeanAggregator copy(CopyContext context) {
-        return new MeanAggregator(this, false);
+        return new MeanAggregator(this, context);
     }
 
     @Override

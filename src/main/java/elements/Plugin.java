@@ -18,11 +18,11 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     public String id;
 
     public Plugin() {
-        super(false, (short) 0);
+        super((short) 0);
     }
 
     public Plugin(String id) {
-        super(false, (short) 0);
+        super((short) 0);
         this.id = id;
     }
 

@@ -18,22 +18,21 @@ public final class Vertex extends ReplicableGraphElement {
         this.id = id;
     }
 
-    public Vertex(String id, boolean halo, short master) {
-        super(halo, master);
+    public Vertex(String id, short master) {
+        super(master);
         this.id = id;
     }
 
-    public Vertex(Vertex v, boolean deepCopy) {
-        super(v, deepCopy);
-        this.id = v.id;
+    public Vertex(Vertex element, CopyContext copyContext) {
+        super(element, copyContext);
+        this.id = element.id;
     }
 
     @Override
     public Vertex copy(CopyContext context) {
-        return new Vertex(this, false);
+        return new Vertex(this, context);
     }
 
-    // NORMAL METHODS
     @Override
     public String getId() {
         return id;

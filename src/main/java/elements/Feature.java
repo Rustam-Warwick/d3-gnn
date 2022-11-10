@@ -28,6 +28,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public T value; // Value stored in this feature
 
+    public boolean halo = false; // Is this Feature halo
+
     @Nullable
     public transient GraphElement element; // GraphElement attached
 
@@ -44,24 +46,26 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     public Feature(T value, boolean halo, short master) {
-        super(halo, master);
+        super(master);
+        this.halo = halo;
         this.value = value;
     }
 
-    public Feature(String id, T value) {
+    public Feature(String name, T value) {
         super();
         this.value = value;
-        attachedTo.f2 = id;
+        attachedTo.f2 = name;
     }
 
     public Feature(String id, T value, boolean halo, short master) {
-        super(halo, master);
+        super(master);
+        this.halo = halo;
         this.value = value;
         attachedTo.f2 = id;
     }
 
-    public Feature(Feature<T, V> f, boolean deepCopy) {
-        super(f, deepCopy);
+    public Feature(Feature<T, V> f, CopyContext context) {
+        super(f, context);
         this.attachedTo.f0 = f.attachedTo.f0;
         this.attachedTo.f1 = f.attachedTo.f1;
         this.attachedTo.f2 = f.attachedTo.f2;
@@ -93,7 +97,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     @Override
     public Feature<T, V> copy(CopyContext context) {
-        return new Feature<>(this, false);
+        return new Feature<>(this, context);
     }
 
     /**
@@ -111,7 +115,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
                 // Sometimes element attached can arrive later that the feature,
                 // We can create a dummy version of the element here since we already have the master part
                 if (attachedTo.f0 == ElementType.VERTEX) {
-                    Vertex createElementNow = new Vertex(attachedTo.f1, false, masterPart());
+                    Vertex createElementNow = new Vertex(attachedTo.f1, masterPart());
                     createElementNow.setStorage(storage);
                     createElementNow.create();
                 } else {

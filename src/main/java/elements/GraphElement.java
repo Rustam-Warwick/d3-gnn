@@ -38,8 +38,8 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     }
 
-    public GraphElement(GraphElement element, boolean ignoredDeepCopy) {
-        this.partId = element.partId;
+    public GraphElement(GraphElement element, CopyContext copyContext) {
+        partId = element.partId;
     }
 
     /**
@@ -175,7 +175,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param parts where should the message be sent
      */
     public void syncReplicas(List<Short> parts) {
-        // assert storage != null;
         if (isHalo() || (state() != ReplicaState.MASTER) || !isReplicable()  || parts == null || parts.isEmpty())
             return;
         storage.cacheNonHaloFeatures(this);

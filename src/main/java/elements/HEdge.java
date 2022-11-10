@@ -48,21 +48,21 @@ public final class HEdge extends ReplicableGraphElement {
         this.vertexIds = vertices.stream().map(Vertex::getId).collect(Collectors.toList());
     }
 
-    public HEdge(String id, List<String> vertexIds, boolean halo, short master) {
-        super(halo, master);
+    public HEdge(String id, List<String> vertexIds, short master) {
+        super(master);
         this.vertexIds = vertexIds;
         this.id = id;
     }
 
-    public HEdge(HEdge element, boolean deepCopy) {
-        super(element, deepCopy);
+    public HEdge(HEdge element, CopyContext context) {
+        super(element, context);
         this.vertexIds = element.vertexIds;
         this.id = element.id;
     }
 
     @Override
     public HEdge copy(CopyContext context) {
-        return new HEdge(this, false);
+        return new HEdge(this, context);
     }
 
     /**

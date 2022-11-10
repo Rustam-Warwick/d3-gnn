@@ -64,8 +64,8 @@ public final class DEdge extends GraphElement {
     }
 
 
-    public DEdge(DEdge e, boolean deepCopy) {
-        super(e, deepCopy);
+    public DEdge(DEdge e, CopyContext context) {
+        super(e, context);
         ids.f0 = e.ids.f0;
         ids.f1 = e.ids.f1;
         ids.f2 = e.ids.f2;
@@ -96,7 +96,7 @@ public final class DEdge extends GraphElement {
 
     @Override
     public DEdge copy(CopyContext context) {
-        return new DEdge(this, false);
+        return new DEdge(this, context);
     }
 
     @Nullable

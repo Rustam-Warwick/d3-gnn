@@ -20,14 +20,14 @@ public final class SyncElement extends GraphElement {
         identity = Tuple2.of(id, type);
     }
 
-    public SyncElement(SyncElement element, boolean ignoredDeepCopy) {
-        super(element, ignoredDeepCopy);
+    public SyncElement(SyncElement element, CopyContext context) {
+        super(element, context);
         identity = element.identity;
     }
 
     @Override
     public SyncElement copy(CopyContext context) {
-        return new SyncElement(this, false);
+        return new SyncElement(this, context);
     }
 
     @Override

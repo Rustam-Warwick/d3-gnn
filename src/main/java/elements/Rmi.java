@@ -25,6 +25,7 @@ public class Rmi extends GraphElement {
     public static ConcurrentHashMap<Class<?>, Tuple2<MethodAccess, HashMap<String, Integer>>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
     public Object[] args;
     public ElementType elemType;
+
     public String id;
     public boolean hasUpdate = true;
     public String methodName;

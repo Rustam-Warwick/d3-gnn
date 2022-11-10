@@ -16,22 +16,18 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     public short master = -1;
 
-    public boolean halo = false;
-
     public ReplicableGraphElement() {
         super();
     }
 
-    public ReplicableGraphElement(boolean halo, short master) {
+    public ReplicableGraphElement(short master) {
         super();
-        this.halo = halo;
         this.master = master;
     }
 
-    public ReplicableGraphElement(ReplicableGraphElement element, boolean deepCopy) {
-        super(element, deepCopy);
+    public ReplicableGraphElement(ReplicableGraphElement element, CopyContext copyContext) {
+        super(element, copyContext);
         this.master = element.master;
-        this.halo = element.halo;
     }
 
     @Override
@@ -77,7 +73,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     }
 
     /**
-     * master -> update element, if changed send message to replica
+     * master -> update element, if changed sync message send
      * replica -> Illegal, False Message
      *
      * @param newElement newElement to update with
@@ -138,14 +134,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public short masterPart() {
         return this.master;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isHalo() {
-        return this.halo;
     }
 
     /**
