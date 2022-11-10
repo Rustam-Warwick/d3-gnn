@@ -17,6 +17,7 @@ import elements.enums.CopyContext;
 import features.MeanAggregator;
 import features.Tensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -57,18 +58,8 @@ public class Main {
         return models;
     }
 
-    public static void test(){
-        int L = 1000000;
-        long ms = System.currentTimeMillis();
-        MeanAggregator a = new MeanAggregator();
-        for (int i = 0; i < L; i++) {
-            a.copy(CopyContext.RMI);
-        }
-        System.out.println(System.currentTimeMillis() - ms);
-    }
 
     public static void main(String[] args) throws Throwable {
-        test();
         // Configuration
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
