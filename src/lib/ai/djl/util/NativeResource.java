@@ -58,7 +58,7 @@ public abstract class NativeResource<T> implements AutoCloseable {
      * @return the unique ID of this resource
      */
     public final String getUid() {
-        return null;
+        return handle.toString();
     }
 
     /**

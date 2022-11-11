@@ -53,8 +53,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    // FIELDS
-
     public Shape shape;
     private transient Cleaner.Cleanable cleanable;
 
@@ -386,6 +384,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void delay() {
         if (cleanable != null) return;
@@ -394,6 +395,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void resume() {
         if (cleanable != null) return;

@@ -312,7 +312,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     public abstract void processActualElement(StreamRecord<GraphOp> element) throws Exception;
 
-
     /**
      * WATERMARKING PROCESSING ENDING THE STREAM LOGIC
      */
@@ -383,6 +382,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
         try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            // Need to open context here because out of main context loop
             setKeyContextElement(element);
             processElement(element);
         } finally {
@@ -530,7 +530,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * Context is used to have more fine grained control over where to send watermarks
      */
     public class Context {
-        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.NONE, thisParts.get(0), null));
+        StreamRecord<GraphOp> element = new StreamRecord<>(new GraphOp(Op.COMMIT, thisParts.get(0), null));
 
         /**
          * Send event to operator
@@ -613,7 +613,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         /**
          * Get the current part of this operator
          */
-        public Short currentPart() {
+        public final Short currentPart() {
             return ((PartNumber) getCurrentKey()).partId;
         }
 
@@ -622,7 +622,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          *
          * @return horizontal position
          */
-        public short getPosition() {
+        public final short getPosition() {
             return position;
         }
 
@@ -631,7 +631,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          *
          * @return layers number
          */
-        public short getNumLayers() {
+        public final short getNumLayers() {
             return totalLayers;
         }
 

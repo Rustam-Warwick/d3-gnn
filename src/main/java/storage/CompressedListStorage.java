@@ -2,6 +2,7 @@ package storage;
 
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
+import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import org.apache.commons.collections.IteratorUtils;
@@ -315,7 +316,7 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+    public Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
         try {
             reuse.f0 = featureName;
             reuse.f1 = elementType;
@@ -351,7 +352,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+    public boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
         try {
             reuse.f0 = featureName;
             reuse.f1 = elementType;
@@ -390,16 +391,16 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public void cacheNonHaloFeatures(GraphElement element) {
+    public void cacheFeatures(GraphElement element, CacheFeatureContext context) {
         try {
             String elId = null;
             for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
-                if (tuple2Tuple3Entry.getValue().f1 || tuple2Tuple3Entry.getKey().f1 != element.elementType() || !tuple2Tuple3Entry.getValue().f0.contains(element.getId()))
+                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.elementType() || !tuple2Tuple3Entry.getValue().f0.contains(element.getId()))
                     continue;
                 if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(tuple2Tuple3Entry.getKey().f0)))
                     return;
                 if (elId == null) elId = element.getId();
-                Feature<?, ?> feature = getAttachedFeature(elId, tuple2Tuple3Entry.getKey().f0, element.elementType(), null);
+                Feature<?, ?> feature = getAttachedFeature(element.elementType(), elId, tuple2Tuple3Entry.getKey().f0, null);
                 feature.setElement(element);
             }
         } catch (Exception e) {

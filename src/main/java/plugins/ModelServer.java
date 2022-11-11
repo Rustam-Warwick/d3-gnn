@@ -18,6 +18,7 @@ import ai.djl.Model;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.nn.Block;
 import ai.djl.nn.Parameter;
 import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Optimizer;
@@ -35,9 +36,11 @@ import java.util.Objects;
  * Handles model synchronization through MASTER - REPLICA (2hop process)
  * </p>
  */
-public class ModelServer extends Plugin {
+public class ModelServer<T extends Block> extends Plugin {
 
-    public Model model; // Model attached
+    public Model model;
+
+    public transient T block;
 
     public int NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
 
@@ -60,10 +63,15 @@ public class ModelServer extends Plugin {
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStoreWrapper();
         collectedParameters = new NDArrayCollector<>(true);
+        block = (T) model.getBlock();
     }
 
     public Model getModel() {
         return model;
+    }
+
+    public T getBlock() {
+        return block;
     }
 
     public PairList<String, Shape> getInputShape() {

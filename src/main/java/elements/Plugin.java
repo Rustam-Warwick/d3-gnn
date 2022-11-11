@@ -31,9 +31,6 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         throw new IllegalStateException("No copy");
     }
 
-
-    // CRUD METHODS
-
     @Override
     public void create() {
         throw new IllegalStateException("Plugins are not created");
@@ -54,9 +51,9 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         throw new IllegalStateException("Plugins are not deleted");
     }
 
-
-    // OTHER METHODS
-
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public short getPartId() {
         return storage.layerFunction.getCurrentPart();
@@ -92,13 +89,17 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         return ElementType.PLUGIN;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getId() {
         return id;
     }
 
 
-    // GraphElement Callbacks
+    // ----------------------- CALLBACKS --------------------
+
 
     /**
      * Callback when a graph element is created
@@ -128,8 +129,6 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         // pass
     }
 
-    // CALLBACKS
-
     /**
      * Callback when the timer fires
      *
@@ -141,8 +140,6 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
 
     /**
      * Callback when OperatorSends event to this plugin
-     *
-     * @param event
      */
     public void onOperatorEvent(BaseOperatorEvent event) {
         // pass
@@ -162,11 +159,17 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         // pass
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
         // Pass
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         // Pass

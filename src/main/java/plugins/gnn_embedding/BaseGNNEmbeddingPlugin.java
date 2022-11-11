@@ -25,8 +25,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
 
     public boolean IS_ACTIVE;
 
-
-    public transient ModelServer modelServer;
+    public transient ModelServer<GNNBlock> modelServer;
 
     public BaseGNNEmbeddingPlugin(String modelName, String suffix) {
         this(modelName, suffix, false);
@@ -51,7 +50,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     @Override
     public void open() throws Exception {
         super.open();
-        modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
+        modelServer = (ModelServer<GNNBlock>) storage.getPlugin(String.format("%s-server", modelName));
     }
 
     /**
@@ -62,7 +61,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return Next layer feature
      */
     public final NDList UPDATE(NDList feature, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+        return (modelServer.getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -73,7 +72,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public final NDList MESSAGE(NDList features, boolean training) {
-        return ((GNNBlock) modelServer.getModel().getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+        return (modelServer.getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
 
     }
 

@@ -37,7 +37,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     @Override
     public void open() throws Exception {
         super.open();
-        // 
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
@@ -115,7 +114,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         final NDList[] msg = new NDList[1];
         HashMap<Short, List<String>> reduceMessages = null;
         for (DEdge dEdge : outEdges) {
-            if (this.messageReady(dEdge)) {
+            if (messageReady(dEdge)) {
                 if (Objects.isNull(msg[0])) {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                     reduceMessages = new HashMap<>();
@@ -138,7 +137,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         Rmi rmi = new Rmi(null, "reduce", null, new Object[]{message, 1}, true);
         for (String vertex : vertices) {
-            Rmi.execute(storage.getAttachedFeature(vertex, "agg", ElementType.VERTEX, null), rmi);
+            if(!storage.containsAttachedFeature(ElementType.VERTEX, vertex, "agg", null)){
+
+            }
+            Rmi.execute(storage.getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), rmi);
         }
     }
 
@@ -177,9 +179,9 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     @RemoteFunction
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-        Rmi rmi = new Rmi(null, "replace", null, new Object[]{messageNew, messageOld}, true);
-        for (String vertex : vertices) {
-            Rmi.execute(storage.getAttachedFeature(vertex, "agg", ElementType.VERTEX, null), rmi);
-        }
+//        Rmi rmi = new Rmi(null, "replace", null, new Object[]{messageNew, messageOld}, true);
+//        for (String vertex : vertices) {
+//            Rmi.execute(storage.getAttachedFeature(vertex, "agg", ElementType.VERTEX, null), rmi);
+//        }
     }
 }

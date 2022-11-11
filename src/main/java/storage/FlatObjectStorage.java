@@ -1,6 +1,7 @@
 package storage;
 
 import elements.*;
+import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import org.apache.commons.collections.IteratorUtils;
@@ -333,7 +334,7 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+    public Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
         try {
             if (id == null) id = Feature.encodeFeatureId(elementType, elementId, featureName);
             Feature<?, ?> tmp = attachedFeatureTable.get(id);
@@ -358,7 +359,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id) {
+    public boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
         try {
             if (id == null) id = Feature.encodeFeatureId(elementType, elementId, featureName);
             return attachedFeatureTable.contains(id);
@@ -401,7 +402,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public void cacheNonHaloFeatures(GraphElement element) {
+    public void cacheFeatures(GraphElement element, CacheFeatureContext context) {
         // Pass
     }
 }

@@ -1,11 +1,12 @@
 package storage;
 
 import elements.*;
+import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
+import elements.enums.Op;
 import functions.gnn_layers.GNNLayerFunction;
 import operators.events.BaseOperatorEvent;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -42,7 +43,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * Late events addressed to element that is not here yet
      */
-    public transient HashMap<Tuple2<String, ElementType>, List<GraphOp>> lateEvents;
+    public transient Map<ElementType, Map<String, List<GraphOp>>> lateEvents;
     /**
      * KeySelector change listener
      */
@@ -97,14 +98,14 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Iterable<HEdge> getIncidentHyperEdges(Vertex id);
 
     @Nullable
-    public abstract Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
+    public abstract Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id);
 
     @Nullable
     public abstract Feature<?, ?> getStandaloneFeature(String id);
 
     public abstract boolean containsVertex(String id);
 
-    public abstract boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
+    public abstract boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id);
 
     public abstract boolean containsStandaloneFeature(String id);
 
@@ -112,7 +113,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean containsHyperEdge(String id);
 
-    public abstract void cacheNonHaloFeatures(GraphElement element);
+    public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
+
 
     // -------------------------- BASESTORAGE METHODS ------------------------------
 
@@ -128,7 +130,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Delay this event until later time
      */
     public final void delayEvent(String id, ElementType elementType, GraphOp op) {
-        lateEvents.compute(Tuple2.of(id, elementType), (key, val) -> {
+        lateEvents.computeIfAbsent(elementType, (key) -> new HashMap<>(100));
+        lateEvents.get(elementType).compute(id, (key, val) -> {
             if (val == null) val = new ArrayList<>(5);
             val.add(op);
             op.delay();
@@ -140,19 +143,23 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Flush or delayed events
      */
     public final void flushDelayedEvents(GraphElement el) {
-        Objects.<List<GraphOp>>requireNonNullElse(
-                lateEvents.remove(Tuple2.of(el.getId(), el.elementType())),
-                Collections.emptyList()
-        ).forEach(op -> {
-            layerFunction.process(op);
-            op.resume();
-        });
+        if (lateEvents.containsKey(el.elementType())) {
+            Objects.<List<GraphOp>>requireNonNullElse(
+                    lateEvents.get(el.elementType()).remove(el.getId()),
+                    Collections.emptyList()
+            ).forEach(op -> {
+                if (op.getOp() == Op.SYNC_REQUEST) el.sync(op.getElement());
+                else if (op.getOp() == Op.RMI) Rmi.execute(el, (Rmi) op.getElement());
+                else layerFunction.process(op);
+                op.resume();
+            });
+        }
     }
 
     /**
      * Retrive plugin
      */
-    public Plugin getPlugin(String id) {
+    public final Plugin getPlugin(String id) {
         return this.plugins.get(id);
     }
 
@@ -161,18 +168,18 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      *
      * @return
      */
-    public Iterable<Plugin> getPlugins() {
+    public final Iterable<Plugin> getPlugins() {
         return this.plugins.values();
     }
 
     /**
      * Register a callback to be fired in the future
      */
-    public void runCallback(@Nullable Consumer<BaseStorage> a) {
+    public final void runCallback(@Nullable Consumer<BaseStorage> a) {
         if (a != null) a.accept(this);
     }
 
-    public BaseStorage withPlugin(Plugin plugin) {
+    public final BaseStorage withPlugin(Plugin plugin) {
         assert plugin.getId() != null;
         plugins.put(plugin.getId(), plugin);
         return this;
@@ -184,7 +191,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public void open() throws Exception {
         removeCachedFeatures = new RemoveCachedFeatures();
         layerFunction.registerKeyChangeListener(removeCachedFeatures);
-        lateEvents = new HashMap<>();
+        lateEvents = new HashMap<>(10);
         plugins.values().forEach(plugin -> plugin.setStorage(this));
         for (Plugin value : plugins.values()) {
             value.open();
@@ -300,7 +307,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return containsEdge(ids.f0, ids.f1, ids.f2, id);
             case ATTACHED_FEATURE:
                 Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
-                return containsAttachedFeature(tmp.f1, tmp.f2, tmp.f0, id);
+                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
             case STANDALONE_FEATURE:
                 return containsStandaloneFeature(id);
             case PLUGIN:
@@ -318,7 +325,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return this.getVertex(id);
             case ATTACHED_FEATURE:
                 Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
-                return getAttachedFeature(tmp.f1, tmp.f2, tmp.f0, id);
+                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
             case STANDALONE_FEATURE:
                 return getStandaloneFeature(id);
             case EDGE:
@@ -339,7 +346,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return containsVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return containsAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);
+                return containsAttachedFeature(tmp.attachedTo.f0, tmp.attachedTo.f1, tmp.attachedTo.f2, null);
             case STANDALONE_FEATURE:
                 return containsStandaloneFeature(element.getId());
             case EDGE:
@@ -360,7 +367,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return getVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return getAttachedFeature(tmp.attachedTo.f1, tmp.attachedTo.f2, tmp.attachedTo.f0, null);
+                return getAttachedFeature(tmp.attachedTo.f0, tmp.attachedTo.f1, tmp.attachedTo.f2, null);
             case STANDALONE_FEATURE:
                 return getStandaloneFeature(element.getId());
             case EDGE:

@@ -32,7 +32,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@code BaseNDManager} is the default implementation of {@link NDManager}.
  */
 public abstract class BaseNDManager implements NDManager {
-
     private static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
     protected NDManager parent;
     protected NDManager alternativeManager;

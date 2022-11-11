@@ -46,6 +46,15 @@ public class Rmi extends GraphElement {
         this.hasUpdate = hasUpdate;
     }
 
+    public Rmi(Rmi element, CopyContext context) {
+        super(element, context);
+        args = element.args;
+        elemType = element.elemType;
+        id = element.id;
+        hasUpdate = element.hasUpdate;
+        methodName = element.methodName;
+    }
+
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
             MethodAccess tmp = MethodAccess.get(clazz);
@@ -97,8 +106,8 @@ public class Rmi extends GraphElement {
     }
 
     @Override
-    public GraphElement copy(CopyContext context) {
-        throw new IllegalStateException("RMI Not copied");
+    public Rmi copy(CopyContext context) {
+        return new Rmi(this, context);
     }
 
     @Override

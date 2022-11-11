@@ -91,20 +91,18 @@ public final class HEdge extends ReplicableGraphElement {
     @Override
     public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.COMMIT) {
-            // This is external update for sure
-            Set<String> t = HELPER_SET.get();
-            t.clear();
-            t.addAll(vertexIds);
-            for (String vertexId : newHEdge.vertexIds) {
-                if (t.contains(vertexId)) continue;
-                if (memento == null) {
-                    HEdge tmp = copy(CopyContext.MEMENTO); // Create new array to compute the difference
-                    tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
-                    memento = tmp;
-                }
-                vertexIds.add(vertexId);
+        if(storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC) return super.updateElement(newElement, memento);
+        Set<String> t = HELPER_SET.get();
+        t.clear();
+        t.addAll(vertexIds);
+        for (String vertexId : newHEdge.vertexIds) {
+            if (t.contains(vertexId)) continue;
+            if (memento == null) {
+                HEdge tmp = copy(CopyContext.MEMENTO); // Create new array to compute the difference
+                tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
+                memento = tmp;
             }
+            vertexIds.add(vertexId);
         }
         return super.updateElement(newElement, memento);
     }
@@ -181,7 +179,7 @@ public final class HEdge extends ReplicableGraphElement {
      */
     @Override
     public void delay() {
-        super.resume();
+        super.delay();
         if (vertices != null) {
             vertices.forEach(Vertex::delay);
         }
@@ -204,6 +202,15 @@ public final class HEdge extends ReplicableGraphElement {
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public String toString() {
+        return "HEdge{" +
+                "vertexIds=" + vertexIds +
+                ", id='" + getId() + '\'' +
+                ", master=" + masterPart() +
+                '}';
     }
 
     /**

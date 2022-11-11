@@ -169,7 +169,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                         thisElement.update(value.element);
                     }
                     break;
-                case SYNC:
+                case SYNC_REQUEST:
                     if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
                         // This can only occur if master is not here yet
                         getStorage().delayEvent(value.element.getId(), value.element.elementType(), value);
@@ -177,6 +177,10 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                         GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
                         el.sync(value.element);
                     }
+                    break;
+                case SYNC:
+                    GraphElement el = getStorage().getElement(value.element);
+                    el.sync(value.element);
                     break;
                 case RMI:
                     if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {

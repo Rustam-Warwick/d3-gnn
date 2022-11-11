@@ -35,8 +35,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
     abstract public ReplicableGraphElement copy(CopyContext context);
 
     /**
-     * Create the graph element. Assigns a parts feature for masters & sends sync request for replicas.
-     * First send the sync messages then do the synchronization logic
+     * {@inheritDoc}
+     * If REPLICA send Sync requests
      */
     @Override
     public void create() {
@@ -44,7 +44,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         Consumer<BaseStorage> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo()) {
             SyncElement syncElement = new SyncElement(this);
-            storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), syncElement), MessageDirection.ITERATE);
+            storage.layerFunction.message(new GraphOp(Op.SYNC_REQUEST, masterPart(), syncElement), MessageDirection.ITERATE);
         }
         storage.runCallback(callback);
     }
@@ -63,8 +63,9 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     getFeature("p"),
                     new Rmi(Feature.encodeFeatureId(elementType(), getId(), "p"), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
             );
-            GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
-            storage.layerFunction.message(new GraphOp(Op.SYNC, newElement.getPartId(), cpy), MessageDirection.ITERATE);
+            GraphElement cpy = copy(CopyContext.SYNC);
+            if (cpy.features != null || cpy.elementType() == ElementType.STANDALONE_FEATURE)
+                storage.layerFunction.message(new GraphOp(Op.SYNC, newElement.getPartId(), cpy), MessageDirection.ITERATE);
         } else if (state() == ReplicaState.REPLICA) {
             super.update(newElement);
         }
@@ -81,7 +82,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateElement(newElement, null);
             if (tmp.f0 != null && !isHalo() && !replicaParts().isEmpty()) {
-                ReplicableGraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+                ReplicableGraphElement cpy = copy(CopyContext.SYNC);
                 replicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
             }
             storage.runCallback(tmp.f0);
@@ -142,6 +143,14 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public List<Short> replicaParts() {
         if (!containsFeature("p")) return super.replicaParts();
         return (List<Short>) (getFeature("p")).getValue(); // @implNote Never create other Feature with the name parts
+    }
+
+    @Override
+    public String toString() {
+        return elementType() + "{" +
+                "id='" + getId() + '\'' +
+                "master='" + masterPart() + '\'' +
+                '}';
     }
 
     /**

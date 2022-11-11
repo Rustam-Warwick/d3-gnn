@@ -20,7 +20,7 @@ public final class DEdge extends GraphElement {
     public static String DELIMITER = "~"; // Delimited for creating id
 
     @OmitStorage
-    public Tuple3<String, String, String> ids = new Tuple3<>(); // Ids of edge [src_id, dest_id, Optional[attribute_id]]
+    public Tuple3<String, String, String> ids;// Ids of edge [src_id, dest_id, Optional[attribute_id]]
 
     @Nullable
     @OmitStorage
@@ -32,6 +32,7 @@ public final class DEdge extends GraphElement {
 
     public DEdge() {
         super();
+        ids = new Tuple3();
     }
 
     public DEdge(String id) {
@@ -41,37 +42,39 @@ public final class DEdge extends GraphElement {
 
     public DEdge(String srcId, String destId, @Nullable String attributedId) {
         super();
-        ids.f0 = srcId;
-        ids.f1 = destId;
-        ids.f2 = attributedId;
+        ids = Tuple3.of(srcId, destId, attributedId);
     }
 
     public DEdge(Vertex src, Vertex dest) {
         super();
         this.src = src;
         this.dest = dest;
-        ids.f0 = src.getId();
-        ids.f1 = dest.getId();
+        ids = Tuple3.of(src.getId(), dest.getId(), null);
     }
 
     public DEdge(Vertex src, Vertex dest, String attributeId) {
         super();
         this.src = src;
         this.dest = dest;
-        ids.f0 = src.getId();
-        ids.f1 = dest.getId();
-        ids.f2 = attributeId;
+        ids = Tuple3.of(src.getId(), dest.getId(), attributeId);
     }
 
     public DEdge(DEdge e, CopyContext context) {
         super(e, context);
-        ids.f0 = e.ids.f0;
-        ids.f1 = e.ids.f1;
-        ids.f2 = e.ids.f2;
+        ids = e.ids;
         if (context != CopyContext.SYNC) {
             src = e.src;
             dest = e.dest;
         }
+    }
+
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DEdge copy(CopyContext context) {
+        return new DEdge(this, context);
     }
 
     /**
@@ -88,18 +91,6 @@ public final class DEdge extends GraphElement {
     public static String encodeEdgeId(String srcId, String destId, @Nullable String attributedId) {
         if (attributedId != null) return srcId + DELIMITER + destId + DELIMITER + attributedId;
         return srcId + DELIMITER + destId + DELIMITER;
-    }
-
-    /**
-     * Contains attribute or not
-     */
-    public static boolean isAttributed(String edgeId) {
-        return !edgeId.substring(edgeId.length() - 1).equals(DELIMITER);
-    }
-
-    @Override
-    public DEdge copy(CopyContext context) {
-        return new DEdge(this, context);
     }
 
     @Nullable

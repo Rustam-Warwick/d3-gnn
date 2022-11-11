@@ -26,49 +26,50 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public static ElementType[] ELEMENT_VALUES = ElementType.values();
 
-    public T value; // Value stored in this feature
+    public T value;
 
-    public boolean halo = false; // Is this Feature halo
+    public boolean halo = false;
 
     @Nullable
-    public transient GraphElement element; // GraphElement attached
+    public transient GraphElement element;
 
     @OmitStorage
-    public Tuple3<ElementType, String, String> attachedTo = Tuple3.of(ElementType.NONE, null, null); // [ElementType, element id, feature name]
+    public Tuple3<ElementType, String, String> attachedTo; // [ElementType, element id, feature name]
 
     public Feature() {
         super();
+        attachedTo = Tuple3.of(ElementType.NONE, null, null);
     }
 
     public Feature(T value) {
         super();
         this.value = value;
+        attachedTo = Tuple3.of(ElementType.NONE, null, null);
     }
 
     public Feature(T value, boolean halo, short master) {
         super(master);
         this.halo = halo;
         this.value = value;
+        attachedTo = Tuple3.of(ElementType.NONE, null, null);
     }
 
     public Feature(String name, T value) {
         super();
         this.value = value;
-        attachedTo.f2 = name;
+        attachedTo = Tuple3.of(ElementType.NONE, null, name);
     }
 
-    public Feature(String id, T value, boolean halo, short master) {
+    public Feature(String name, T value, boolean halo, short master) {
         super(master);
         this.halo = halo;
         this.value = value;
-        attachedTo.f2 = id;
+        attachedTo = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(Feature<T, V> f, CopyContext context) {
         super(f, context);
-        attachedTo.f0 = f.attachedTo.f0;
-        attachedTo.f1 = f.attachedTo.f1;
-        attachedTo.f2 = f.attachedTo.f2;
+        attachedTo = f.attachedTo;
         value = f.value;
         halo = f.halo;
         element = f.element;
@@ -106,14 +107,13 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Features attached to elements should arrive at corresponding masters first,
-     * hence the different in main logic is that master should then create them on replica parts
-     * Handles the case for late Vertex Feature, since they arrive at masters first
-     * But not for Edge since edge Vertices can be replicated
+     * {@inheritDoc}
+     * STANDALONE -> Regular Replicable Element
+     * ATTACHED -> If parent not here delay. Otherwise, create and copy to replicas if not halo and master
      */
     @Override
     public void create() {
-        if (attachedTo.f0 == ElementType.NONE) super.create();
+        if (elementType() == ElementType.STANDALONE_FEATURE) super.create();
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Parent element not yet here
@@ -130,10 +130,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Update element is different for feature since we also need to update the value stored in the feature
-     *
-     * @param newElement newElement to update with
-     * @return (isUpdated, oldElement)
+     * {@inheritDoc}
+     * If values are not-equal update the value and continue with {@link GraphElement} updateElement
      */
     @Override
     public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
@@ -159,14 +157,16 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return false;
     }
 
+    /**
+     * Helper TypeInfo for the storage layers
+     */
     public TypeInformation<?> getValueTypeInfo() {
         return Types.GENERIC(Object.class);
     }
 
     /**
-     * If this element is an attached feature, master part is the one of the attached graph element
-     *
-     * @return master part
+     * STANDALONE -> Regular
+     * ATTACHED -> Parent
      */
     @Override
     public short masterPart() {
@@ -176,16 +176,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.masterPart();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean isHalo() {
         return halo;
     }
 
     /**
-     * If this element is an attached feature, replica parts are the ones attached to the graph element
-     * Otherwise own ones
-     *
-     * @return replicated parts
+     * STANDALONE -> Regular
+     * ATTACHED -> Parent
      */
     @Override
     public List<Short> replicaParts() {
@@ -195,6 +196,13 @@ public class Feature<T, V> extends ReplicableGraphElement {
         return super.replicaParts();
     }
 
+    /**
+     * {@inheritDoc}
+     * STANDALONE -> Regular
+     * ATTACHED -> Parent
+     *
+     * @return
+     */
     @Override
     public boolean isReplicable() {
         if (Objects.nonNull(getElement())) {
@@ -216,8 +224,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Name is the feature name, this is equal id if not attached feature
-     *
      * @return name of the feature
      */
     public String getName() {
@@ -225,7 +231,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Set the name(actually id). SetId is made private to not have confusion
+     * Set the name of this feature
      */
     public void setName(String name) {
         attachedTo.f2 = name;
@@ -247,18 +253,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Caches the given element, adds current feature to feature of the element if that does not exist there.
-     *
-     * @param attachingElement element that want to attach itself to this feature
-     * @implNote Make sure to properly track the change of references from Graph Elements
-     * @implNote If this element is already attached to some other element, it should be removed from that elements feature list before attaching this to other element
-     * @implNote Attaching element cannot contain a Feature with the same id.
-     * @implNote Attaching a feature to element is done here, realising is that we want to have rigid link
-     * between element.features <--> feature.element.
+     * If this element exists in attachingElement throw {@link IllegalStateException}
      */
     public void setElement(GraphElement attachingElement) {
         if (element == attachingElement) return; // Already attached to this element
-        if (attachingElement.features != null && attachingElement.features.contains(this))
-            throw new IllegalStateException("Already attached to this element");
         attachedTo.f0 = attachingElement.elementType();
         attachedTo.f1 = attachingElement.getId();
         if (attachingElement.features == null) attachingElement.features = new ArrayList<>(3);
@@ -266,21 +264,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
         attachingElement.features.add(this);
     }
 
-    @Override
-    public void setFeature(String name, Feature<?, ?> feature) {
-        if (attachedTo.f0 != ElementType.NONE)
-            throw new IllegalStateException("Using sub-sub Features are not allowed");
-        super.setFeature(name, feature);
-    }
-
-    @Nullable
-    @Override
-    public Feature<?, ?> getFeature(String name) {
-        if (attachedTo.f0 != ElementType.NONE)
-            throw new IllegalStateException("Using sub-sub Features are not allowed");
-        return super.getFeature(name);
-    }
-
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ElementType elementType() {
         return attachedTo.f0 == ElementType.NONE ? ElementType.STANDALONE_FEATURE : ElementType.ATTACHED_FEATURE;

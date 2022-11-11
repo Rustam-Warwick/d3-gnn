@@ -5,10 +5,13 @@ import typeinfo.byteinfo.ByteEnumTypeInfoFactory;
 
 @TypeInfo(ByteEnumTypeInfoFactory.class)
 public enum Op {
-    NONE,
     COMMIT,
     REMOVE,
+
     SYNC,
+
+    SYNC_REQUEST,
+
     RMI,
     OPERATOR_EVENT,
 }

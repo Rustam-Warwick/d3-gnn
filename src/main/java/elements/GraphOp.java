@@ -19,7 +19,7 @@ public final class GraphOp implements ObjectPoolControl {
     /**
      * {@link Op} represents the operation that is happening in the GraphElement
      */
-    public Op op = Op.NONE;
+    public Op op = Op.COMMIT;
     /**
      * The part number where this record should be sent to
      */
