@@ -2,8 +2,8 @@ package functions.gnn_layers;
 
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.enums.MessageDirection;
 import elements.Rmi;
+import elements.enums.MessageDirection;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -170,12 +170,21 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                     }
                     break;
                 case SYNC:
-                    GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
-                    el.sync(value.element);
+                    if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
+                        // This can only occur if master is not here yet
+                        getStorage().delayEvent(value.element.getId(), value.element.elementType(), value);
+                    } else {
+                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
+                        el.sync(value.element);
+                    }
                     break;
                 case RMI:
-                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
-                    Rmi.execute(rpcElement, (Rmi) value.element);
+                    if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
+                        getStorage().delayEvent(value.element.getId(), value.element.elementType(), value);
+                    } else {
+                        GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
+                        Rmi.execute(rpcElement, (Rmi) value.element);
+                    }
                     break;
                 case OPERATOR_EVENT:
                     getStorage().onOperatorEvent(value.getOperatorEvent());

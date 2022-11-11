@@ -4,9 +4,8 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
 import elements.enums.ElementType;
-import elements.enums.ReplicaState;
 import elements.enums.MessageDirection;
-import elements.Rmi;
+import elements.enums.ReplicaState;
 import features.MeanAggregator;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
@@ -60,8 +59,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.getName().equals("f") && feature.attachedTo.f0 == ElementType.VERTEX) {
                 reduceF1((Tensor) feature); // Reduce to hyper-edges for the given vertex feature (F1)
-                if(feature.state() == ReplicaState.MASTER); // @todo add forward
-            } else if (feature.getName().equals("agg")  && feature.attachedTo.f0 == ElementType.HYPEREDGE) {
+                if (feature.state() == ReplicaState.MASTER) ; // @todo add forward
+            } else if (feature.getName().equals("agg") && feature.attachedTo.f0 == ElementType.HYPEREDGE) {
                 reduceF2((MeanAggregator) feature); // Reduce all vertex messages
             }
         }
@@ -73,7 +72,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         if (newElement.elementType() == ElementType.HYPEREDGE) {
             HEdge newEdge = (HEdge) newElement;
             HEdge oldEdge = (HEdge) oldElement;
-            if (newEdge.getVertexIds().size() != oldEdge.getVertexIds().size()) reduceF1(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
+            if (newEdge.getVertexIds().size() != oldEdge.getVertexIds().size())
+                reduceF1(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
         } else if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> newFeature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -98,7 +98,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             if (message == null) message = MESSAGE(new NDList(f.getValue()), false);
             Rmi.buildAndRun(
                     new Rmi(
-                            Feature.encodeFeatureId("agg",hyperEdge.getId(), ElementType.HYPEREDGE),
+                            Feature.encodeFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                             "reduce",
                             ElementType.ATTACHED_FEATURE,
                             new Object[]{message, 1},
@@ -114,60 +114,60 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     /**
      * Reduce from new vertices added to hyper-edge (F1)
      */
-    public void reduceF1(HEdge newEdge, HEdge oldEdge){
-      for (int i = oldEdge.getVertexIds().size(); i < newEdge.vertexIds.size(); i++) {
-                Vertex vertex = newEdge.getVertex(i);
-                if (messageReady(vertex)) {
-                    NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
-                    Rmi.buildAndRun(
-                            new Rmi(
-                                    Feature.encodeFeatureId("agg", newEdge.getId(), ElementType.HYPEREDGE),
-                                    "reduce",
-                                    ElementType.ATTACHED_FEATURE,
-                                    new Object[]{message, 1},
-                                    true
-                            ),
-                            storage,
-                            newEdge.masterPart(),
-                            MessageDirection.ITERATE
-                    );
-                }
+    public void reduceF1(HEdge newEdge, HEdge oldEdge) {
+        for (int i = oldEdge.getVertexIds().size(); i < newEdge.vertexIds.size(); i++) {
+            Vertex vertex = newEdge.getVertex(i);
+            if (messageReady(vertex)) {
+                NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
+                Rmi.buildAndRun(
+                        new Rmi(
+                                Feature.encodeFeatureId(ElementType.HYPEREDGE, newEdge.getId(), "agg"),
+                                "reduce",
+                                ElementType.ATTACHED_FEATURE,
+                                new Object[]{message, 1},
+                                true
+                        ),
+                        storage,
+                        newEdge.masterPart(),
+                        MessageDirection.ITERATE
+                );
+            }
         }
     }
 
     /**
      * Reduce all the local vertices to the given Hyper-edge (F1)
      */
-    public void reduceF1(HEdge edge){
+    public void reduceF1(HEdge edge) {
         for (Vertex vertex : edge.getVertices()) {
-                if (messageReady(vertex)) {
-                    NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
-                    Rmi.buildAndRun(
-                            new Rmi(
-                                    Feature.encodeFeatureId("agg", edge.getId(), ElementType.HYPEREDGE),
-                                    "reduce",
-                                    ElementType.ATTACHED_FEATURE,
-                                    new Object[]{message, 1},
-                                    true
-                                    ),
-                            storage,
-                            edge.masterPart(),
-                            MessageDirection.ITERATE
-                    );
-                }
+            if (messageReady(vertex)) {
+                NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
+                Rmi.buildAndRun(
+                        new Rmi(
+                                Feature.encodeFeatureId(ElementType.HYPEREDGE, edge.getId(), "agg"),
+                                "reduce",
+                                ElementType.ATTACHED_FEATURE,
+                                new Object[]{message, 1},
+                                true
+                        ),
+                        storage,
+                        edge.masterPart(),
+                        MessageDirection.ITERATE
+                );
+            }
         }
     }
 
     /**
      * Reduce Hedge to all its vertices (F2)
      */
-    public void reduceF2(MeanAggregator aggregator){
+    public void reduceF2(MeanAggregator aggregator) {
         HEdge edge = (HEdge) aggregator.getElement();
         NDList message = new NDList(aggregator.getValue());
         for (Vertex vertex : edge.getVertices()) {
             Rmi.buildAndRun(
                     new Rmi(
-                            Feature.encodeFeatureId("agg", vertex.getId(), ElementType.VERTEX),
+                            Feature.encodeFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
                             "reduce",
                             ElementType.ATTACHED_FEATURE,
                             new Object[]{message, 1},
@@ -189,7 +189,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         for (HEdge hyperEdge : storage.getIncidentHyperEdges((Vertex) newFeature.getElement())) {
             Rmi.buildAndRun(
                     new Rmi(
-                            Feature.encodeFeatureId("agg", hyperEdge.getId(), ElementType.HYPEREDGE),
+                            Feature.encodeFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                             "replace",
                             ElementType.ATTACHED_FEATURE,
                             new Object[]{newMessage, oldMessage},
@@ -205,7 +205,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     /**
      * Update Vertices when the HyperEdge aggregator is updated
      */
-    public void replaceF2(MeanAggregator newAggregator, MeanAggregator oldAggregator){
+    public void replaceF2(MeanAggregator newAggregator, MeanAggregator oldAggregator) {
         NDList newMessage = MESSAGE(new NDList(newAggregator.getValue()), false);
         NDList oldMessage = MESSAGE(new NDList(oldAggregator.getValue()), false);
     }

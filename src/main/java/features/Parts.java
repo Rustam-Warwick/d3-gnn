@@ -13,7 +13,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
         super();
     }
 
-    public Parts(Parts st,  CopyContext context) {
+    public Parts(Parts st, CopyContext context) {
         super(st, context);
     }
 

@@ -6,8 +6,8 @@ import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.DEdge;
 import elements.Plugin;
-import elements.enums.ReplicaState;
 import elements.Vertex;
+import elements.enums.ReplicaState;
 import features.MeanAggregator;
 import features.Tensor;
 import plugins.ModelServer;
@@ -84,7 +84,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return edge_ready
      */
     public final boolean messageReady(DEdge dEdge) {
-        return requiresDestForMessage?dEdge.getSrc().containsFeature("f") && dEdge.getDest().containsFeature("f"):dEdge.getSrc().containsFeature("f");
+        return requiresDestForMessage ? dEdge.getSrc().containsFeature("f") && dEdge.getDest().containsFeature("f") : dEdge.getSrc().containsFeature("f");
     }
 
     /**
@@ -133,7 +133,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
-        if(element.state() == ReplicaState.MASTER) {
+        if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
             if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {

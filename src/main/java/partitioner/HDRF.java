@@ -1,6 +1,9 @@
 package partitioner;
 
-import elements.*;
+import elements.DEdge;
+import elements.GraphElement;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.ElementType;
 import operators.MultiThreadedProcessOperator;
 import org.apache.flink.api.common.typeinfo.TypeInformation;

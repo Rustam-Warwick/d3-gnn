@@ -4,7 +4,9 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
-import elements.*;
+import elements.HEdge;
+import elements.Plugin;
+import elements.Vertex;
 import elements.enums.ReplicaState;
 import features.MeanAggregator;
 import features.Tensor;
@@ -48,6 +50,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
 
     /**
      * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
+     *
      * @param feature  Source Feature list
      * @param training training enabled
      * @return Next layer feature
@@ -120,7 +123,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
-        if(element.state() == ReplicaState.MASTER) {
+        if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
             if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {

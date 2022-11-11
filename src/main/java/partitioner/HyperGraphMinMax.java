@@ -1,6 +1,9 @@
 package partitioner;
 
-import elements.*;
+import elements.GraphOp;
+import elements.HEdge;
+import elements.HGraph;
+import elements.Vertex;
 import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.datastream.DataStream;

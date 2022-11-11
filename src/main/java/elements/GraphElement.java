@@ -2,7 +2,9 @@ package elements;
 
 import ai.djl.ndarray.ObjectPoolControl;
 import elements.annotations.OmitStorage;
-import elements.enums.*;
+import elements.enums.CopyContext;
+import elements.enums.ElementType;
+import elements.enums.ReplicaState;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
@@ -19,7 +21,7 @@ import java.util.function.Consumer;
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, ObjectPoolControl {
-    protected static final Tuple2<Consumer<Plugin>, GraphElement> reuse = Tuple2.of(null, null);
+    protected static final Tuple2<Consumer<BaseStorage>, GraphElement> reuse = Tuple2.of(null, null);
 
     @OmitStorage
     public short partId = -1; // Part id where this object is/was located
@@ -37,26 +39,27 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     public GraphElement(GraphElement element, CopyContext context) {
         partId = element.partId;
-        if(context == CopyContext.SYNC){
+        if (context == CopyContext.SYNC) {
             // Copy all the non-halo features
             element.storage.cacheNonHaloFeatures(element);
-            if(element.features != null && !element.features.isEmpty()){
+            if (element.features != null && !element.features.isEmpty()) {
                 for (Feature<?, ?> feature : element.features) {
-                    if(!feature.isHalo()){
-                        if(features == null) features = new ArrayList<>(3);
+                    if (!feature.isHalo()) {
+                        if (features == null) features = new ArrayList<>(3);
                         features.add(feature.copy(context));
                     }
                 }
             }
-        } else if(context == CopyContext.RMI) storage = element.storage;
+        } else if (context == CopyContext.RMI) storage = element.storage;
     }
 
     /**
      * <strong>@Nullable fields are nullified</strong>
      * <p>
-     *     To make things efficient copying logic will depend on the places where it is executed
-     *     hence it is important to distinguish why it is being called
+     * To make things efficient copying logic will depend on the places where it is executed
+     * hence it is important to distinguish why it is being called
      * </p>
+     *
      * @param context the context for copying.
      */
     abstract public GraphElement copy(CopyContext context);
@@ -66,11 +69,13 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      *
      * @return Callback or null if you cannot create
      */
-    protected Consumer<Plugin> createElement() {
-        // assert storage != null;
-        Consumer<Plugin> callback = null;
+    protected Consumer<BaseStorage> createElement() {
+        Consumer<BaseStorage> callback = null;
         if (storage.addElement(this)) {
-            callback = item -> item.addElementCallback(this);
+            callback = storage -> {
+                storage.getPlugins().forEach(item -> item.addElementCallback(this));
+                storage.flushDelayedEvents(this);
+            };
             if (features != null) {
                 for (Feature<?, ?> feature : features) {
                     callback = callback.andThen(feature.createElement());
@@ -85,10 +90,9 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      *
      * @return Callback or null if you cannot create
      */
-    protected Consumer<Plugin> deleteElement() {
-        // assert storage != null;
+    protected Consumer<BaseStorage> deleteElement() {
         storage.cacheNonHaloFeatures(this);
-        Consumer<Plugin> callback = null;
+        Consumer<BaseStorage> callback = null;
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 callback = callback == null ? feature.deleteElement() : feature.deleteElement().andThen(callback);
@@ -106,26 +110,26 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param newElement newElement to update with
      * @return (is updated, previous value)
      */
-    protected Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
-        Consumer<Plugin> callback = null;
+    protected Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+        Consumer<BaseStorage> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> feature = iterator.next();
                 if (containsFeature(feature.getName())) {
                     // This is Feature update
                     Feature<?, ?> thisFeature = getFeature(feature.getName());
-                    Tuple2<Consumer<Plugin>, GraphElement> tmp = thisFeature.updateElement(feature, null);
+                    Tuple2<Consumer<BaseStorage>, GraphElement> tmp = thisFeature.updateElement(feature, null);
                     if (tmp.f0 != null) {
                         memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                         callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
-                        ((Feature<?,?>) tmp.f1).setElement(memento);
+                        ((Feature<?, ?>) tmp.f1).setElement(memento);
                     }
                 } else {
                     memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                     iterator.remove();
                     feature.setStorage(storage);
                     feature.setElement(this);
-                    Consumer<Plugin> tmp = feature.createElement();
+                    Consumer<BaseStorage> tmp = feature.createElement();
                     if (tmp != null) {
                         callback = callback == null ? tmp : callback.andThen(tmp);
                     }
@@ -135,7 +139,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
         if (memento != null) {
             storage.updateElement(this, memento);
             GraphElement finalMemento = memento;
-            Consumer<Plugin> tmp = item -> item.updateElementCallback(this, finalMemento);
+            Consumer<BaseStorage> tmp = item -> item.getPlugins().forEach(plugin -> plugin.updateElementCallback(this, finalMemento));
             callback = callback == null ? tmp : callback.andThen(tmp);
             return Tuple2.of(callback, memento);
         }
@@ -146,15 +150,16 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * External Create GraphElement
      */
     public void create() {
-        // assert storage != null;
+        // 
         storage.runCallback(createElement());
+
     }
 
     /**
      * External Query to delete GraphElement
      */
     public void delete() {
-        // assert storage != null;
+        // 
         storage.runCallback(deleteElement());
     }
 
@@ -173,19 +178,8 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
-        // assert storage != null;
+        // 
         storage.runCallback(updateElement(newElement, null).f0);
-    }
-
-    /**
-     * Sends a copy of this element as message to all parts
-     *
-     * @param parts where should the message be sent
-     */
-    public void syncReplicas(List<Short> parts) {
-        if (isHalo() || !isReplicable() || parts == null || parts.isEmpty() || (state() != ReplicaState.MASTER)) return;
-        GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
-        parts.forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
     }
 
     /**
@@ -266,6 +260,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     /**
      * Retrieves feature from cache if exists, otherwise from storage
+     *
      * @param name name of the feature
      * @return Feature or NULL
      * @implNote that a cached feature will not be queried a second time from storage
@@ -305,6 +300,7 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
     /**
      * If the feature already exists this will not do anything
      * Otherwise it will try to create the feature in storage or at least append to feature list
+     *
      * @param name    name of the feature to be added
      * @param feature feature itself
      */
@@ -316,15 +312,6 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
             if (Objects.nonNull(storage)) {
                 feature.create();
             }
-        }
-    }
-
-    /**
-     * Clear the cached features on this GraphElement
-     */
-    public void clearFeatures() {
-        if (features != null) {
-            features.clear();
         }
     }
 

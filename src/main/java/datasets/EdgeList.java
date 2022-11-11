@@ -1,6 +1,8 @@
 package datasets;
 
-import elements.*;
+import elements.DEdge;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;

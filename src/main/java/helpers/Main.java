@@ -7,22 +7,15 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HGNNBlock;
-import ai.djl.nn.gnn.HyperSAGEConv;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
-import elements.enums.CopyContext;
-import features.MeanAggregator;
-import features.Tensor;
 import functions.gnn_layers.StreamingGNNLayerFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
 import storage.CompressedListStorage;
 
 import java.text.SimpleDateFormat;
@@ -57,7 +50,6 @@ public class Main {
         });
         return models;
     }
-
 
     public static void main(String[] args) throws Throwable {
         // Configuration

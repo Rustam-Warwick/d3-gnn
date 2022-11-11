@@ -2,9 +2,9 @@ package partitioner;
 
 
 import elements.DEdge;
-import elements.enums.ElementType;
 import elements.GraphOp;
 import elements.Vertex;
+import elements.enums.ElementType;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;

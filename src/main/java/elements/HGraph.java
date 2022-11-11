@@ -53,7 +53,7 @@ public class HGraph extends GraphElement {
      */
     @Override
     public void create() {
-        // assert storage != null;
+        // 
         for (Vertex vertex : vertices) {
             if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
             else vertex.create();
@@ -94,13 +94,6 @@ public class HGraph extends GraphElement {
         super.delay();
         vertices.forEach(Vertex::delay);
         hEdges.forEach(HEdge::delay);
-    }
-
-    @Override
-    public void clearFeatures() {
-        super.clearFeatures();
-        vertices.forEach(Vertex::clearFeatures);
-        hEdges.forEach(HEdge::clearFeatures);
     }
 
     @Override

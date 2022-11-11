@@ -4,12 +4,12 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.Feature;
 import elements.GraphElement;
-import elements.Plugin;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
+import storage.BaseStorage;
 
 import java.util.function.Consumer;
 
@@ -36,7 +36,7 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
 
     public MeanAggregator(MeanAggregator f, CopyContext context) {
         super(f, context);
-        if(context == CopyContext.RMI) value = Tuple2.of(value.f0, value.f1);
+        if (context == CopyContext.RMI) value = Tuple2.of(value.f0, value.f1);
 
     }
 
@@ -50,15 +50,15 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     }
 
     @Override
-    public Consumer<Plugin> createElement() {
-        Consumer<Plugin> tmp = super.createElement();
+    public Consumer<BaseStorage> createElement() {
+        Consumer<BaseStorage> tmp = super.createElement();
         if (storage.needsTensorDelay() && tmp != null) value.f0.delay();
         return tmp;
     }
 
     @Override
-    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateElement(newElement, memento);
         MeanAggregator mementoAggregator = (MeanAggregator) callback.f1;
         if (storage.needsTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
             value.f0.delay();

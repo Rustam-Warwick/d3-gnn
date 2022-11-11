@@ -5,6 +5,7 @@ import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import functions.gnn_layers.GNNLayerFunction;
 import operators.events.BaseOperatorEvent;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -15,7 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.HashMap;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -38,17 +39,17 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-
+    /**
+     * Late events addressed to element that is not here yet
+     */
+    public transient HashMap<Tuple2<String, ElementType>, List<GraphOp>> lateEvents;
+    /**
+     * KeySelector change listener
+     */
     private transient RemoveCachedFeatures removeCachedFeatures;
 
-    /**
-     * Do elements need to delay Tensors on serialization
-     */
-    public boolean needsTensorDelay(){return true;}
+    // ------------------------ ABSTRACT METHODS -------------------------------------
 
-    // -------- Abstract methods
-
-    // -- Add
     public abstract boolean addAttachedFeature(Feature<?, ?> feature);
 
     public abstract boolean addStandaloneFeature(Feature<?, ?> feature);
@@ -59,7 +60,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean addHyperEdge(HEdge hEdge);
 
-    // -- Update
     public abstract boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento);
 
     public abstract boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento);
@@ -70,7 +70,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean updateHyperEdge(HEdge hEdge, HEdge memento);
 
-    // -- Delete
     public abstract boolean deleteAttachedFeature(Feature<?, ?> feature);
 
     public abstract boolean deleteStandaloneFeature(Feature<?, ?> feature);
@@ -81,14 +80,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean deleteHyperEdge(HEdge hEdge);
 
-    // -- Get
-    // - Vertex
     @Nullable
     public abstract Vertex getVertex(String id);
 
     public abstract Iterable<Vertex> getVertices();
 
-    // - Edge
     @Nullable
     public abstract DEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
 
@@ -96,19 +92,16 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract Iterable<DEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
-    // - HyperEdge
     public abstract HEdge getHyperEdge(String id);
 
     public abstract Iterable<HEdge> getIncidentHyperEdges(Vertex id);
 
-    // - Feature
     @Nullable
     public abstract Feature<?, ?> getAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
 
     @Nullable
     public abstract Feature<?, ?> getStandaloneFeature(String id);
 
-    // -- Contains
     public abstract boolean containsVertex(String id);
 
     public abstract boolean containsAttachedFeature(String elementId, String featureName, ElementType elementType, @Nullable String id);
@@ -119,27 +112,64 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean containsHyperEdge(String id);
 
-    // -- Other
     public abstract void cacheNonHaloFeatures(GraphElement element);
 
+    // -------------------------- BASESTORAGE METHODS ------------------------------
 
-    // ----- Plugin Implementation and some common methods & Callbacks
+
+    /**
+     * Do elements need to delay Tensors on serialization
+     */
+    public boolean needsTensorDelay() {
+        return true;
+    }
+
+    /**
+     * Delay this event until later time
+     */
+    public final void delayEvent(String id, ElementType elementType, GraphOp op) {
+        lateEvents.compute(Tuple2.of(id, elementType), (key, val) -> {
+            if (val == null) val = new ArrayList<>(5);
+            val.add(op);
+            op.delay();
+            return val;
+        });
+    }
+
+    /**
+     * Flush or delayed events
+     */
+    public final void flushDelayedEvents(GraphElement el) {
+        Objects.<List<GraphOp>>requireNonNullElse(
+                lateEvents.remove(Tuple2.of(el.getId(), el.elementType())),
+                Collections.emptyList()
+        ).forEach(op -> {
+            layerFunction.process(op);
+            op.resume();
+        });
+    }
+
+    /**
+     * Retrive plugin
+     */
     public Plugin getPlugin(String id) {
         return this.plugins.get(id);
     }
 
-    protected Iterable<Plugin> getPlugins() {
+    /**
+     * Iterate over all plugins
+     *
+     * @return
+     */
+    public Iterable<Plugin> getPlugins() {
         return this.plugins.values();
     }
 
     /**
      * Register a callback to be fired in the future
      */
-    public void runCallback(@Nullable Consumer<Plugin> a) {
-        if (a == null) return;
-        for (Plugin value : plugins.values()) {
-            a.accept(value);
-        }
+    public void runCallback(@Nullable Consumer<BaseStorage> a) {
+        if (a != null) a.accept(this);
     }
 
     public BaseStorage withPlugin(Plugin plugin) {
@@ -154,6 +184,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public void open() throws Exception {
         removeCachedFeatures = new RemoveCachedFeatures();
         layerFunction.registerKeyChangeListener(removeCachedFeatures);
+        lateEvents = new HashMap<>();
         plugins.values().forEach(plugin -> plugin.setStorage(this));
         for (Plugin value : plugins.values()) {
             value.open();
@@ -186,6 +217,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
         for (Plugin value : plugins.values()) {
@@ -193,6 +227,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
         for (Plugin value : plugins.values()) {
@@ -200,9 +237,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    /**
-     * Generic Mapper GraphElement mapper Methods
-     */
+
+    // --------------------------- MAPPER & HELPER METHODS -------------------------
 
     public boolean addElement(GraphElement element) {
         switch (element.elementType()) {
@@ -263,8 +299,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 Tuple3<String, String, String> ids = DEdge.decodeVertexIdsAndAttribute(id);
                 return containsEdge(ids.f0, ids.f1, ids.f2, id);
             case ATTACHED_FEATURE:
-                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
-                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+                Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
+                return containsAttachedFeature(tmp.f1, tmp.f2, tmp.f0, id);
             case STANDALONE_FEATURE:
                 return containsStandaloneFeature(id);
             case PLUGIN:
@@ -281,8 +317,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case VERTEX:
                 return this.getVertex(id);
             case ATTACHED_FEATURE:
-                Tuple3<String, String, ElementType> tmp = Feature.decodeAttachedFeatureId(id);
-                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+                Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
+                return getAttachedFeature(tmp.f1, tmp.f2, tmp.f0, id);
             case STANDALONE_FEATURE:
                 return getStandaloneFeature(id);
             case EDGE:
@@ -343,7 +379,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object> {
         @Override
         public void keySelected(Object newKey) {
-            plugins.values().forEach(Plugin::clearFeatures);
+            plugins.values().forEach(plugin -> {
+                if (plugin.features != null) plugin.features.clear();
+            });
         }
     }
 

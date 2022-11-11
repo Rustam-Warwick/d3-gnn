@@ -1,6 +1,9 @@
 package plugins.debugging;
 
-import elements.*;
+import elements.DEdge;
+import elements.Feature;
+import elements.GraphElement;
+import elements.Plugin;
 import elements.enums.ElementType;
 import operators.BaseWrapperOperator;
 

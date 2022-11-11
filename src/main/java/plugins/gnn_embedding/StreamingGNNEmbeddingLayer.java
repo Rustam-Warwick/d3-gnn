@@ -3,12 +3,11 @@ package plugins.gnn_embedding;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
+import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import elements.enums.Op;
 import elements.enums.MessageDirection;
-import elements.annotations.RemoteFunction;
-import elements.Rmi;
+import elements.enums.Op;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
 import org.apache.flink.metrics.Counter;
@@ -38,7 +37,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     @Override
     public void open() throws Exception {
         super.open();
-        // assert storage != null;
+        // 
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
@@ -55,7 +54,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             if (messageReady(dEdge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) dEdge.getSrc().getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        new Rmi(Feature.encodeFeatureId("agg", dEdge.getDestId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{msg, 1}, true), storage,
+                        new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, dEdge.getDestId(), "agg"), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{msg, 1}, true), storage,
                         dEdge.getDest().masterPart(),
                         MessageDirection.ITERATE
                 );
@@ -90,6 +89,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     /**
      * Push the embedding of this vertex to the next layer
      * After first layer, this is only fushed if agg and features are in sync
+     *
      * @param v Vertex
      */
     @SuppressWarnings("all")
@@ -160,7 +160,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msgNew[0] = MESSAGE(new NDList(newFeature.getValue()), false);
                     replaceMessages = new HashMap<>();
                 }
-                replaceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item ->  new ArrayList<>());
+                replaceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item -> new ArrayList<>());
                 replaceMessages.get(dEdge.getDest().masterPart()).add(dEdge.getDest().getId());
             }
         }

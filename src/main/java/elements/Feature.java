@@ -1,12 +1,12 @@
 package elements;
 
 import elements.annotations.OmitStorage;
-import elements.enums.CopyContext;
-import elements.enums.ElementType;
+import elements.enums.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import storage.BaseStorage;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -72,25 +72,22 @@ public class Feature<T, V> extends ReplicableGraphElement {
         value = f.value;
         halo = f.halo;
         element = f.element;
-        if(value == null){
-            System.out.println();
-        }
     }
 
     /**
      * Given featureName and attached Element id return the unique id for this feature
      */
-    public static String encodeFeatureId(String featureName, String attachedElementId, ElementType type) {
+    public static String encodeFeatureId(ElementType type, String attachedElementId, String featureName) {
         if (type == ElementType.NONE) return featureName;
         return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
     }
 
     /**
-     * Given an attached Feature id, decode it returns an array of <elementId, featureName, ElementType>
+     * Given an attached Feature id, decode it returns an array of [Element Type, element Id, Feature Name]
      */
-    public static Tuple3<String, String, ElementType> decodeAttachedFeatureId(String attachedFeatureId) {
+    public static Tuple3<ElementType, String, String> decodeAttachedFeatureId(String attachedFeatureId) {
         String[] val = attachedFeatureId.split(DELIMITER);
-        return Tuple3.of(val[0], val[1], ELEMENT_VALUES[Integer.parseInt(val[2])]);
+        return Tuple3.of(ELEMENT_VALUES[Integer.parseInt(val[2])], val[0], val[1]);
     }
 
     /**
@@ -119,18 +116,15 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (attachedTo.f0 == ElementType.NONE) super.create();
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
-                // Sometimes element attached can arrive later that the feature,
-                // We can create a dummy version of the element here since we already have the master part
-                if (attachedTo.f0 == ElementType.VERTEX) {
-                    Vertex createElementNow = new Vertex(attachedTo.f1, masterPart());
-                    createElementNow.setStorage(storage);
-                    createElementNow.create();
-                } else {
-                    throw new IllegalStateException("Trying to create Feature while element is not here yet");
-                }
+                // Parent element not yet here
+                storage.delayEvent(attachedTo.f1, attachedTo.f0, storage.layerFunction.getWrapperContext().getElement().getValue());
+                return;
             }
-            Consumer<Plugin> callback = createElement();
-            if (callback != null) syncReplicas(replicaParts());
+            Consumer<BaseStorage> callback = createElement();
+            if (callback != null && !isHalo() && isReplicable() && !replicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
+                GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+                replicaParts().forEach(part_id -> this.storage.layerFunction.message(new GraphOp(Op.COMMIT, part_id, cpy), MessageDirection.ITERATE));
+            }
             storage.runCallback(callback);
         }
     }
@@ -142,8 +136,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * @return (isUpdated, oldElement)
      */
     @Override
-    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        // assert storage != null;
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
             memento = copy(CopyContext.MEMENTO);
@@ -191,11 +184,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * If this element is an attached feature, replica parts are the ones attached to the graph element
      * Otherwise own ones
+     *
      * @return replicated parts
      */
     @Override
     public List<Short> replicaParts() {
-         if (Objects.nonNull(getElement())) {
+        if (Objects.nonNull(getElement())) {
             return getElement().replicaParts();
         }
         return super.replicaParts();
@@ -218,7 +212,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        return encodeFeatureId(attachedTo.f2, attachedTo.f1, attachedTo.f0);
+        return encodeFeatureId(attachedTo.f0, attachedTo.f1, attachedTo.f2);
     }
 
     /**
@@ -274,14 +268,16 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     @Override
     public void setFeature(String name, Feature<?, ?> feature) {
-        if(attachedTo.f0 != ElementType.NONE) throw new IllegalStateException("Using sub-sub Features are not allowed");
+        if (attachedTo.f0 != ElementType.NONE)
+            throw new IllegalStateException("Using sub-sub Features are not allowed");
         super.setFeature(name, feature);
     }
 
     @Nullable
     @Override
     public Feature<?, ?> getFeature(String name) {
-        if(attachedTo.f0 != ElementType.NONE) throw new IllegalStateException("Using sub-sub Features are not allowed");
+        if (attachedTo.f0 != ElementType.NONE)
+            throw new IllegalStateException("Using sub-sub Features are not allowed");
         return super.getFeature(name);
     }
 

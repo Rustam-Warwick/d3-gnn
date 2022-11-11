@@ -7,6 +7,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Simple Wrapper element used for sending SYNC messages
+ *
  * @implNote Regular RMI is not well suited since we also need to have info about part_id where this message was sent
  */
 public final class SyncElement extends GraphElement {
@@ -17,8 +18,9 @@ public final class SyncElement extends GraphElement {
 
     }
 
-    public SyncElement(String id, ElementType type) {
-        identity = Tuple2.of(id, type);
+    public SyncElement(GraphElement toSync) {
+        identity = Tuple2.of(toSync.getId(), toSync.elementType());
+        partId = toSync.getPartId();
     }
 
     public SyncElement(SyncElement element, CopyContext context) {

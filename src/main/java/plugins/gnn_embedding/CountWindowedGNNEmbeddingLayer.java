@@ -4,10 +4,12 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
-import elements.*;
+import elements.Feature;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.ElementType;
-import elements.enums.Op;
 import elements.enums.MessageDirection;
+import elements.enums.Op;
 import features.Tensor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -48,7 +50,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     @Override
     public void open() throws Exception {
         super.open();
-        // assert storage != null;
+        // 
         LOCAL_BATCH_SIZE = BATCH_SIZE / storage.layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
         batchifier = new StackBatchifier();
         windowThroughput = new SimpleCounter();

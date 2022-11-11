@@ -68,7 +68,7 @@ public final class DEdge extends GraphElement {
         ids.f0 = e.ids.f0;
         ids.f1 = e.ids.f1;
         ids.f2 = e.ids.f2;
-        if(context != CopyContext.SYNC){
+        if (context != CopyContext.SYNC) {
             src = e.src;
             dest = e.dest;
         }
@@ -126,8 +126,7 @@ public final class DEdge extends GraphElement {
     }
 
     @Override
-    protected Consumer<Plugin> createElement() {
-        // assert storage != null;
+    protected Consumer<BaseStorage> createElement() {
         if (src != null && !storage.containsVertex(src.getId())) {
             src.create();
         }
@@ -154,8 +153,8 @@ public final class DEdge extends GraphElement {
     @Override
     public void setStorage(BaseStorage storage) {
         super.setStorage(storage);
-        if(src!=null)src.setStorage(storage);
-        if(dest!=null)dest.setStorage(storage);
+        if (src != null) src.setStorage(storage);
+        if (dest != null) dest.setStorage(storage);
     }
 
     /**
@@ -164,8 +163,8 @@ public final class DEdge extends GraphElement {
     @Override
     public void delay() {
         super.delay();
-        if(src!=null)src.delay();
-        if(dest!=null)dest.delay();
+        if (src != null) src.delay();
+        if (dest != null) dest.delay();
     }
 
     /**
@@ -174,18 +173,8 @@ public final class DEdge extends GraphElement {
     @Override
     public void resume() {
         super.resume();
-        if(src!=null)src.resume();
-        if(dest!=null)dest.resume();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void clearFeatures() {
-        super.clearFeatures();
-        if(src!=null)src.clearFeatures();
-        if(dest!=null)dest.clearFeatures();
+        if (src != null) src.resume();
+        if (dest != null) dest.resume();
     }
 
 }

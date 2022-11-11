@@ -1,32 +1,19 @@
 package functions.gnn_layers;
 
-import elements.GraphElement;
 import elements.GraphOp;
-import elements.Rmi;
-import elements.SyncElement;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
-import elements.enums.ReplicaState;
 import operators.BaseWrapperOperator;
-import org.apache.flink.api.common.state.MapState;
-import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
-import typeinfo.byteinfo.ByteEnumTypeInfo;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 
 /**
  * GNNLayerFunction that also handles late sync message events
@@ -40,8 +27,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     public transient KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx;
 
     public transient BaseWrapperOperator<?>.Context baseWrapperContext;
-
-    public transient MapState<Tuple2<String, ElementType>, List<Short>> lateSyncMessages;
 
     public transient Tuple2<String, ElementType> reuse;
 
@@ -132,11 +117,6 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        lateSyncMessages = getRuntimeContext().getMapState(
-                new MapStateDescriptor<Tuple2<String, ElementType>, List<Short>>("lateSyncMessages",
-                        Types.TUPLE(Types.STRING, new ByteEnumTypeInfo<>(ElementType.class)),
-                        Types.LIST(Types.SHORT)));
-        reuse = new Tuple2<>();
         getStorage().open();
     }
 
@@ -163,68 +143,4 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
         if (this.ctx == null) this.ctx = ctx;
         process(value);
     }
-
-    @Override
-    public void process(GraphOp value) {
-        try {
-            switch (value.op) {
-                case COMMIT:
-                    value.element.setStorage(getStorage());
-                    if (!getStorage().containsElement(value.element)) {
-                        value.element.create();
-                        // See if there were some early sync messages that need to be replicated to
-//                        if(value.element.elementType() != ElementType.ATTACHED_FEATURE
-//                                && value.element.isReplicable()
-//                                && !value.element.isHalo()){
-//                            reuse.f0 = value.element.getId();
-//                            reuse.f1 = value.element.elementType();
-//                            if(lateSyncMessages.contains(reuse)){
-//                                List<Short> replicaParts = lateSyncMessages.get(reuse);
-//                                SyncElement syncElement = new SyncElement(reuse.f0, reuse.f1);
-//                                replicaParts.forEach(item -> {
-//                                    syncElement.partId = item;
-//                                    value.element.sync(syncElement);
-//                                });
-//                                lateSyncMessages.remove(reuse);
-//                            }
-//                        }
-
-                    } else {
-                        GraphElement thisElement = getStorage().getElement(value.element);
-                        thisElement.update(value.element);
-                    }
-                    break;
-                case SYNC:
-                    if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
-                        if(value.element.state() == ReplicaState.MASTER){
-                            // Master -> Replica simply create the element
-                            value.element.setStorage(getStorage());
-                            value.element.create();
-                        }else{
-                            // Late event can only happen during Replica -> Master sync
-                            SyncElement syncElement = (SyncElement) value.element;
-                            List<Short> replicas;
-                            if(lateSyncMessages.contains(syncElement.identity)) replicas = lateSyncMessages.get(syncElement.identity);
-                            else replicas = new ArrayList<>(3);
-                            replicas.add(syncElement.getPartId());
-                            lateSyncMessages.put(syncElement.identity, replicas);
-                        }
-                    } else {
-                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
-                        el.sync(value.element);
-                    }
-                    break;
-                case RMI:
-                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
-                    Rmi.execute(rpcElement, (Rmi) value.element);
-                    break;
-                case OPERATOR_EVENT:
-                    getStorage().onOperatorEvent(value.getOperatorEvent());
-                    break;
-            }
-        } catch (Exception | Error e) {
-            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e), value);
-        }
-    }
-
-    }
+}

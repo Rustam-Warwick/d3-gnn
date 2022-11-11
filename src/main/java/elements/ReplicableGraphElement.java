@@ -1,9 +1,10 @@
 package elements;
 
-import elements.enums.*;
 import elements.annotations.RemoteFunction;
+import elements.enums.*;
 import features.Parts;
 import org.apache.flink.api.java.tuple.Tuple2;
+import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,10 +40,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void create() {
-        if (state() == ReplicaState.REPLICA) clearFeatures(); // Replicas will have features synced back to them, so no need to create
-        Consumer<Plugin> callback = createElement();
+        if (state() == ReplicaState.REPLICA && features != null) features.clear();
+        Consumer<BaseStorage> callback = createElement();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo()) {
-            SyncElement syncElement = new SyncElement(getId(), elementType());syncElement.setStorage(storage);
+            SyncElement syncElement = new SyncElement(this);
             storage.layerFunction.message(new GraphOp(Op.SYNC, masterPart(), syncElement), MessageDirection.ITERATE);
         }
         storage.runCallback(callback);
@@ -57,14 +58,15 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            if(!containsFeature("p")) setFeature("p", new Parts(new ArrayList<>(), true));
+            if (!containsFeature("p")) setFeature("p", new Parts(new ArrayList<>(), true));
             Rmi.execute(
                     getFeature("p"),
-                    new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
+                    new Rmi(Feature.encodeFeatureId(elementType(), getId(), "p"), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
             );
-            syncReplicas(List.of(newElement.getPartId()));
+            GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+            storage.layerFunction.message(new GraphOp(Op.SYNC, newElement.getPartId(), cpy), MessageDirection.ITERATE);
         } else if (state() == ReplicaState.REPLICA) {
-            storage.runCallback(updateElement(newElement, null).f0);
+            super.update(newElement);
         }
     }
 
@@ -77,8 +79,11 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Consumer<Plugin>, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 != null) syncReplicas(replicaParts());
+            Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateElement(newElement, null);
+            if (tmp.f0 != null && !isHalo() && !replicaParts().isEmpty()) {
+                ReplicableGraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+                replicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
+            }
             storage.runCallback(tmp.f0);
         } else {
             throw new IllegalStateException("REPLICAS Should not received Updates");
@@ -100,7 +105,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
             );
             super.delete();
         } else if (state() == ReplicaState.REPLICA) {
-            // assert storage != null;
             storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy(CopyContext.MEMENTO)), MessageDirection.ITERATE);
         }
     }
@@ -116,7 +120,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             super.delete();
             if (notifyMaster)
                 Rmi.buildAndRun(
-                        new Rmi(Feature.encodeFeatureId("p", getId(), elementType()), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true), storage,
+                        new Rmi(Feature.encodeFeatureId(elementType(), getId(), "p"), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true), storage,
                         masterPart(),
                         MessageDirection.ITERATE
                 );

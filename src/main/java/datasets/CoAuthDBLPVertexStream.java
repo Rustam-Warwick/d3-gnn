@@ -1,6 +1,9 @@
 package datasets;
 
-import elements.*;
+import elements.GraphOp;
+import elements.HEdge;
+import elements.HGraph;
+import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.runtime.state.PartNumber;
@@ -53,7 +56,7 @@ public class CoAuthDBLPVertexStream implements Dataset {
             List<HEdge> hEdges = new ArrayList<>(values.length - 1);
             for (int i = 1; i < values.length; i++) {
                 String netId = values[i];
-                hEdges.add(new HEdge(netId, srcId,  (short) -1));
+                hEdges.add(new HEdge(netId, srcId, (short) -1));
             }
             HGraph hGraph = new HGraph(src, hEdges);
             return new GraphOp(Op.COMMIT, hGraph);

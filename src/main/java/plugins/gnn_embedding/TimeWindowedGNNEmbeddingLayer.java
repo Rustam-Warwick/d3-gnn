@@ -5,10 +5,12 @@ import ai.djl.ndarray.NDList;
 import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
-import elements.*;
+import elements.Feature;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.ElementType;
-import elements.enums.Op;
 import elements.enums.MessageDirection;
+import elements.enums.Op;
 import features.Tensor;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -46,7 +48,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     @Override
     public void open() throws Exception {
         super.open();
-        // assert storage != null;
+        // 
         batchifier = new StackBatchifier();
         windowThroughput = new SimpleCounter();
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));

@@ -3,10 +3,10 @@ package features;
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
 import elements.GraphElement;
-import elements.Plugin;
 import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
+import storage.BaseStorage;
 
 import java.util.function.Consumer;
 
@@ -45,15 +45,15 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Consumer<Plugin> createElement() {
-        Consumer<Plugin> callback = super.createElement();
+    public Consumer<BaseStorage> createElement() {
+        Consumer<BaseStorage> callback = super.createElement();
         if (storage.needsTensorDelay() && callback != null) value.delay();
         return callback;
     }
 
     @Override
-    public Tuple2<Consumer<Plugin>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tuple2<Consumer<Plugin>, GraphElement> callback = super.updateElement(newElement, memento);
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateElement(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
         if (storage.needsTensorDelay() && callback.f0 != null && mementoAggregator.value != value) {
             value.delay();

@@ -207,7 +207,7 @@ public class CompressedListStorage extends BaseStorage {
     public Vertex getVertex(String id) {
         try {
             short masterPart = vertexTable.get(id);
-            Vertex v = new Vertex(id,  masterPart);
+            Vertex v = new Vertex(id, masterPart);
             v.setStorage(this);
             return v;
         } catch (Exception e) {
@@ -303,11 +303,11 @@ public class CompressedListStorage extends BaseStorage {
 
     @Override
     public Iterable<HEdge> getIncidentHyperEdges(Vertex vertex) {
-        try{
+        try {
             List<String> vertices = v2HEdge.get(vertex.getId());
-            if(vertices == null) return Collections.emptyList();
-            return ()->IteratorUtils.transformedIterator(vertices.listIterator(), hyperEdgeId -> getHyperEdge((String)hyperEdgeId));
-        }catch (Exception e){
+            if (vertices == null) return Collections.emptyList();
+            return () -> IteratorUtils.transformedIterator(vertices.listIterator(), hyperEdgeId -> getHyperEdge((String) hyperEdgeId));
+        } catch (Exception e) {
             e.printStackTrace();
             return null;
         }

@@ -9,13 +9,8 @@ import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
-import elements.enums.EdgeType;
-import elements.enums.ElementType;
-import elements.enums.Op;
-import elements.enums.ReplicaState;
-import elements.enums.MessageDirection;
 import elements.annotations.RemoteFunction;
-import elements.Rmi;
+import elements.enums.*;
 import features.Aggregator;
 import features.MeanAggregator;
 import features.Tensor;
@@ -250,7 +245,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", LifeCycleNDManager.getInstance().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                    new Rmi(Feature.encodeFeatureId("agg", v.getId(), ElementType.VERTEX), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true), storage,
+                    new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true), storage,
                     v.masterPart(),
                     MessageDirection.ITERATE
             );
