@@ -3,7 +3,7 @@ package ai.djl.ndarray;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements ObjectPoolControl {
+public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements LifeCycleControl {
     public final transient boolean delayManagers;
 
     public NDArrayCollector(int initialCapacity, float loadFactor, boolean delayManagers) {
@@ -66,11 +66,11 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Ob
 
     @Override
     public void delay() {
-        values().forEach(ObjectPoolControl::delay);
+        values().forEach(LifeCycleControl::delay);
     }
 
     @Override
     public void resume() {
-        values().forEach(ObjectPoolControl::resume);
+        values().forEach(LifeCycleControl::resume);
     }
 }

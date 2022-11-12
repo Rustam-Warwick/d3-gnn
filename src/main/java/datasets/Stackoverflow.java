@@ -70,7 +70,7 @@ public class Stackoverflow implements Dataset {
 //                String processed = values[i].replaceAll("[^0-9.]", "");
 //                features[i-4] =  Float.valueOf(processed);
 //            }
-//            edge.setFeature("f", new Tensor(LifeCycleNDManager.getInstance().create(features)));
+//            edge.setFeature("f", new Tensor(BaseNDManager.getManager().create(features)));
             return new GraphOp(Op.COMMIT, dEdge);
         }
     }

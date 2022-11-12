@@ -1,9 +1,10 @@
 package ai.djl.serializers;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -16,6 +17,8 @@ import java.nio.ByteBuffer;
  */
 public class NDArrayRawSerializer extends Serializer<NDArray> {
     private static final DataType[] dataTypes = DataType.values();
+
+    private transient NDManager manager = BaseNDManager.getManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -34,9 +37,9 @@ public class NDArrayRawSerializer extends Serializer<NDArray> {
         long[] shapes = input.readLongs(input.readByte(), true);
         Shape shape = new Shape(shapes); // Shape
         int bufferSize = input.readInt();
-        ByteBuffer data = LifeCycleNDManager.getInstance().allocateDirect(bufferSize);
+        ByteBuffer data = manager.allocateDirect(bufferSize);
         data.put(input.readBytes(data.capacity()));
-        return LifeCycleNDManager.getInstance().create(data.rewind(), shape, dataType);
+        return manager.create(data.rewind(), shape, dataType);
     }
 
     @Override

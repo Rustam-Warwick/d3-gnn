@@ -1,6 +1,6 @@
 package elements;
 
-import ai.djl.ndarray.ObjectPoolControl;
+import ai.djl.ndarray.LifeCycleControl;
 import elements.enums.MessageCommunication;
 import elements.enums.Op;
 import operators.events.BaseOperatorEvent;
@@ -15,7 +15,7 @@ import java.util.Objects;
  * Main message object that gets passed around the system
  */
 @TypeInfo(GraphOpTypeInfoFactory.class)
-public final class GraphOp implements ObjectPoolControl {
+public final class GraphOp implements LifeCycleControl {
     /**
      * {@link Op} represents the operation that is happening in the GraphElement
      */

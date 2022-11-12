@@ -1,8 +1,8 @@
 package datasets;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.DEdge;
 import elements.Feature;
 import elements.GraphOp;
@@ -124,8 +124,8 @@ public class Reddit implements Dataset {
         public void open(Configuration parameters) throws Exception {
             FileInputStream vertexFeaturesIn = new FileInputStream(featureFileName);
             FileInputStream vertexLabelsIn = new FileInputStream(labelFileName);
-            vertexFeatures = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexFeaturesIn);
-            vertexLabels = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexLabelsIn);
+            vertexFeatures = NDHelper.decodeNumpy(BaseNDManager.getManager(), vertexFeaturesIn);
+            vertexLabels = NDHelper.decodeNumpy(BaseNDManager.getManager(), vertexLabelsIn);
             vertexFeatures.delay();
             vertexLabels.delay();
             seenVertices = new HashSet<>(10000);

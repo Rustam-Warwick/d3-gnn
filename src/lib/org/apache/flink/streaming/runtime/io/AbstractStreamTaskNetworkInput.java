@@ -17,7 +17,8 @@
 
 package org.apache.flink.streaming.runtime.io;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.BaseNDManager;
+import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.runtime.checkpoint.channel.InputChannelInfo;
 import org.apache.flink.runtime.event.AbstractEvent;
@@ -55,6 +56,9 @@ public abstract class AbstractStreamTaskNetworkInput<
     protected final DeserializationDelegate<StreamElement> deserializationDelegate;
     protected final TypeSerializer<T> inputSerializer;
     protected final Map<InputChannelInfo, R> recordDeserializers;
+
+    protected transient NDManager manager;
+
     protected final Map<InputChannelInfo, Integer> flattenedChannelIndices = new HashMap<>();
     /**
      * Valve that controls how watermarks and watermark statuses are forwarded.
@@ -89,10 +93,11 @@ public abstract class AbstractStreamTaskNetworkInput<
 
     @Override
     public DataInputStatus emitNext(DataOutput<T> output) throws Exception {
-
+        if(manager == null) manager = BaseNDManager.getManager();
         while (true) {
             // get the stream element from the deserializer
-            try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+            try {
+                manager.delay();
                 if (currentRecordDeserializer != null) {
                     RecordDeserializer.DeserializationResult result;
                     try {
@@ -132,8 +137,9 @@ public abstract class AbstractStreamTaskNetworkInput<
                     }
                     return DataInputStatus.NOTHING_AVAILABLE;
                 }
+            }finally {
+                manager.resume();
             }
-
         }
     }
 

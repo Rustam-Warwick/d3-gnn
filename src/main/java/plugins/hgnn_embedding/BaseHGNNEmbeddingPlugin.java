@@ -1,9 +1,9 @@
 package plugins.hgnn_embedding;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.HEdge;
 import elements.Plugin;
 import elements.Vertex;
@@ -124,10 +124,10 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
+            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
             element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
             if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = LifeCycleNDManager.getInstance().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
+                NDArray embeddingRandom = storage.layerFunction.getWrapperContext().getNDManager().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem
                 element.setFeature("f", new Tensor(embeddingRandom));
             }
@@ -139,7 +139,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initHyperEdge(HEdge edge) {
         if (edge.state() == ReplicaState.MASTER) {
-            NDArray aggStart = LifeCycleNDManager.getInstance().zeros(modelServer.getInputShape().get(0).getValue());
+            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
             edge.setFeature("agg", new MeanAggregator(aggStart, false, (short) -1));
         }
     }

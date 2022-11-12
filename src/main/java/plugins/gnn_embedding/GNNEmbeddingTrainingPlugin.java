@@ -1,11 +1,7 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDArrayCollector;
-import ai.djl.ndarray.NDArrays;
-import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.*;
 import ai.djl.nn.gnn.GNNBlock;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import elements.*;
@@ -243,7 +239,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList srcFeaturesBatched = new NDList(NDArrays.stack(srcFeatures));
         NDArray messages = MESSAGE(srcFeaturesBatched, false).get(0);
         destVertices.forEach((v, list) -> {
-            NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", LifeCycleNDManager.getInstance().create(Longs.toArray(list))));
+            NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", storage.layerFunction.getWrapperContext().getNDManager().create(Longs.toArray(list))));
             Rmi.buildAndRun(
                     new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true), storage,
                     v.masterPart(),

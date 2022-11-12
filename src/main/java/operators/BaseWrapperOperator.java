@@ -1,7 +1,8 @@
 package operators;
 
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.BaseNDManager;
+import ai.djl.ndarray.NDManager;
 import elements.GraphOp;
 import elements.enums.MessageCommunication;
 import elements.enums.MessageDirection;
@@ -119,10 +120,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final short totalLayers; // Total horizontal layers
     protected final IterationID iterationID; // Id for the Iteration
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
+
+    protected transient NDManager manager; // NDManager local to this Thread exposed through interface
+
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
-
     protected transient Map<OutputTag<?>, Tuple2<BroadcastOutput<?>, Integer>> broadcastOutputs;
     protected transient int numPreviousLayerInputChannels; // Forwarded from previous layer
     protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
@@ -180,6 +183,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void open() throws Exception {
+        manager = BaseNDManager.getManager();
         setKeyContextElement(context.element);
         wrappedOperator.open();
         System.gc();
@@ -343,11 +347,14 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void handleOperatorEvent(OperatorEvent evt) {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try {
             // Need to open context here because out of main mailbox loop
+            manager.delay();
             processElement(context.element.replace(new GraphOp((BaseOperatorEvent) evt)));
-        } catch (Exception e) {
+        }catch (Exception e){
             e.printStackTrace();
+        }finally {
+            manager.resume();
         }
     }
 
@@ -381,11 +388,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void processFeedback(StreamRecord<GraphOp> element) throws Exception {
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try {
             // Need to open context here because out of main context loop
+            manager.delay();
             setKeyContextElement(element);
             processElement(element);
         } finally {
+            manager.resume();
             element.getValue().resume();
         }
     }
@@ -689,6 +698,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public final StreamRecord<GraphOp> getElement() {
             return element;
+        }
+
+        public NDManager getNDManager(){
+            return manager;
         }
     }
 

@@ -81,7 +81,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public PtNDArray(PtNDManager manager, long handle) {
         super(handle);
         this.ptNDArrayEx = new PtNDArrayEx(this);
-        getManager().attachInternal(getUid(), this);
+        getManager().attachInternal(null, this);
     }
 
     /**
@@ -95,7 +95,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public PtNDArray(PtNDManager manager, long handle, ByteBuffer data) {
         super(handle);
         this.ptNDArrayEx = new PtNDArrayEx(this);
-        getManager().attachInternal(getUid(), this);
+        getManager().attachInternal(null, this);
         dataRef = new ByteBuffer[]{data};
     }
 
@@ -118,7 +118,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public PtNDManager getManager() {
-        return LifeCycleNDManager.getInstance();
+        return PtNDManager.getSystemManager().newSubManager(null);
     }
 
     /**
@@ -378,7 +378,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void detach() {
-        getManager().detachInternal(getUid(), this);
+        getManager().detachInternal(null, this);
         if (cleanable == null)
             cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
 
@@ -391,7 +391,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public void delay() {
         if (cleanable != null) return;
         if (++delayed == 1) {
-            getManager().detachInternal(getUid(), this);
+            getManager().detachInternal(null, this);
         }
     }
 
@@ -402,7 +402,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     public void resume() {
         if (cleanable != null) return;
         if (--delayed == 0) {
-            getManager().attachInternal(getUid(), this);
+            getManager().attachInternal(null, this);
         }
     }
 
@@ -1900,7 +1900,24 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if (shape != null && delayed == 0) getManager().detachInternal(getUid(), this);
+            if (delayed == 0) getManager().detachInternal(null, this);
+        }
+        if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
+            UNSAFE.invokeCleaner(dataRef[0]);
+            dataRef[0] = null;
+        }
+        if (cleanable != null) cleanable.clean();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        if (cleanable != null) return;
+        Long pointer = handle.getAndSet(null);
+        if (pointer != null) {
+            JniUtils.deleteNDArray(pointer);
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);

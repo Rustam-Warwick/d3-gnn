@@ -1,8 +1,8 @@
 package helpers;
 
 import ai.djl.Model;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
-import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
@@ -10,7 +10,6 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.HGNNBlock;
 import ai.djl.nn.gnn.HyperSAGEConv;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
@@ -43,7 +42,7 @@ public class Main {
         );
         PtModel model = (PtModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.getBlock().initialize(LifeCycleNDManager.getInstance(), DataType.FLOAT32, new Shape(602));
+        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(602));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
@@ -56,7 +55,6 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         // Configuration
 
-        NDManager.newBaseManager().create(22);
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow

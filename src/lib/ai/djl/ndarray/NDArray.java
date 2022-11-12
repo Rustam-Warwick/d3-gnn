@@ -39,7 +39,7 @@ import java.util.stream.LongStream;
  * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
  * Memory Management Guide</a>
  */
-public interface NDArray extends NDResource, BytesSupplier, ObjectPoolControl {
+public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
 
     /**
      * Decodes {@code NDArray} from bytes.

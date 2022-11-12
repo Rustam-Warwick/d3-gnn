@@ -1,11 +1,7 @@
 package plugins.vertex_classification;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDArrayCollector;
-import ai.djl.ndarray.NDArrays;
-import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.*;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.loss.Loss;
@@ -59,7 +55,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
 //    public void addElementCallback(GraphElement element) {
 //        super.addElementCallback(element);
 //        if(element.elementType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
-//            element.setFeature("train_l", new Tensor(LifeCycleNDManager.getInstance().ones(new Shape()),false, null));
+//            element.setFeature("train_l", new Tensor(storage.layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
 //        }
 //    }
 
@@ -88,7 +84,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
         previousLoss = meanLoss.getFloat();
-        JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) LifeCycleNDManager.getInstance().ones(new Shape()), false, false);
+        JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) storage.layerFunction.getWrapperContext().getNDManager().ones(new Shape()), false, false);
         NDArray gradient = batchedInputs.get(0).getGradient();
         // 2. Prepare the HashMap for Each Vertex and send to previous layer
         HashMap<String, NDArray> backwardGrads = new NDArrayCollector<>(false);

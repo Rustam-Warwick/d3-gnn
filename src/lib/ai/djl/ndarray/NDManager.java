@@ -1649,7 +1649,7 @@ import java.nio.file.Path;
  * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
  * Memory Management Guide</a>
  */
-public interface NDManager extends AutoCloseable {
+public interface NDManager extends AutoCloseable, LifeCycleControl {
 
     /**
      * Creates a new top-level {@code NDManager}.

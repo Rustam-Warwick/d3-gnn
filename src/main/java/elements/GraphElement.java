@@ -1,6 +1,6 @@
 package elements;
 
-import ai.djl.ndarray.ObjectPoolControl;
+import ai.djl.ndarray.LifeCycleControl;
 import elements.annotations.OmitStorage;
 import elements.enums.CacheFeatureContext;
 import elements.enums.CopyContext;
@@ -21,7 +21,7 @@ import java.util.function.Consumer;
  * CRUD Methods for interacting with the storage layer
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
-public abstract class GraphElement implements Serializable, ObjectPoolControl {
+public abstract class GraphElement implements Serializable, LifeCycleControl {
     protected static final Tuple2<Consumer<BaseStorage>, GraphElement> reuse = Tuple2.of(null, null);
     @OmitStorage
     public short partId = -1; // Part id where this object is/was located
@@ -315,12 +315,12 @@ public abstract class GraphElement implements Serializable, ObjectPoolControl {
 
     @Override
     public void delay() {
-        if (features != null) features.forEach(ObjectPoolControl::delay);
+        if (features != null) features.forEach(LifeCycleControl::delay);
     }
 
     @Override
     public void resume() {
-        if (features != null) features.forEach(ObjectPoolControl::resume);
+        if (features != null) features.forEach(LifeCycleControl::resume);
     }
 
     @Override

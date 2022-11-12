@@ -1,6 +1,6 @@
 package datasets;
 
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.BaseNDManager;
 import elements.DEdge;
 import elements.GraphOp;
 import elements.Vertex;
@@ -82,7 +82,7 @@ public class SignedNetworkDataset implements Dataset {
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
             DEdge e = new DEdge(new Vertex(values[0]), new Vertex(values[1]));
-            e.setFeature("sign", new Tensor(LifeCycleNDManager.getInstance().create(1)));
+            e.setFeature("sign", new Tensor(BaseNDManager.getManager().create(1)));
             return new GraphOp(Op.COMMIT, e);
         }
     }

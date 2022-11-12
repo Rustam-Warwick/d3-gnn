@@ -32,7 +32,7 @@ import java.util.zip.ZipOutputStream;
  *
  * @see NDArray
  */
-public class NDList extends ArrayList<NDArray> implements NDResource, BytesSupplier, ObjectPoolControl {
+public class NDList extends ArrayList<NDArray> implements NDResource, BytesSupplier, LifeCycleControl {
 
     private static final long serialVersionUID = 1L;
 
@@ -386,12 +386,12 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
 
     @Override
     public void delay() {
-        forEach(ObjectPoolControl::delay);
+        forEach(LifeCycleControl::delay);
     }
 
     @Override
     public void resume() {
-        forEach(ObjectPoolControl::resume);
+        forEach(LifeCycleControl::resume);
     }
 
     /**

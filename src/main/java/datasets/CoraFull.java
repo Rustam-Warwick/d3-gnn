@@ -1,8 +1,8 @@
 package datasets;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDHelper;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import elements.DEdge;
 import elements.GraphOp;
 import elements.Vertex;
@@ -142,8 +142,8 @@ public class CoraFull implements Dataset {
             super.open(parameters);
             FileInputStream vertexFeaturesIn = new FileInputStream(vertexFeaturesFile);
             FileInputStream vertexLabelsIn = new FileInputStream(vertexLabelsFile);
-            this.vertexFeatures = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexFeaturesIn);
-            this.vertexLabels = NDHelper.decodeNumpy(LifeCycleNDManager.getInstance(), vertexLabelsIn);
+            this.vertexFeatures = NDHelper.decodeNumpy(BaseNDManager.getManager(), vertexFeaturesIn);
+            this.vertexLabels = NDHelper.decodeNumpy(BaseNDManager.getManager(), vertexLabelsIn);
             this.seenVertices = new ArrayList<>(5000);
             this.timestamp = 0;
         }

@@ -1,9 +1,10 @@
 package ai.djl.serializers;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
@@ -22,7 +23,9 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
     private static final LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
     private static final ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
-    private Boolean isStorage; // If we are serializing to a storage backend
+    private transient Boolean isStorage; // If we are serializing to a storage backend
+
+    private transient NDManager manager = BaseNDManager.getManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
@@ -63,7 +66,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
         byte[] compressedData = input.readBytes(lens[1]);
         lz4DeCompressor.decompress(ByteBuffer.wrap(compressedData), 0, compressedData.length, thisReuse, 0, lens[0]);
         thisReuse.position(0);
-        return LifeCycleNDManager.getInstance().create(thisReuse, shape, dataType);
+        return manager.create(thisReuse, shape, dataType);
     }
 
     private void increaseBufferIfNeeded(int capacity) {

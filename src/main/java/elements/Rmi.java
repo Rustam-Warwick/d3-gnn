@@ -1,6 +1,6 @@
 package elements;
 
-import ai.djl.ndarray.ObjectPoolControl;
+import ai.djl.ndarray.LifeCycleControl;
 import com.esotericsoftware.reflectasm.MethodAccess;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
@@ -114,7 +114,7 @@ public class Rmi extends GraphElement {
     public void delay() {
         super.delay();
         for (Object arg : args) {
-            if (arg instanceof ObjectPoolControl) ((ObjectPoolControl) arg).delay();
+            if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).delay();
         }
     }
 
@@ -122,7 +122,7 @@ public class Rmi extends GraphElement {
     public void resume() {
         super.resume();
         for (Object arg : args) {
-            if (arg instanceof ObjectPoolControl) ((ObjectPoolControl) arg).resume();
+            if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).resume();
         }
     }
 

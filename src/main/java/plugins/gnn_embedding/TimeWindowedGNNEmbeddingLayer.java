@@ -2,7 +2,7 @@ package plugins.gnn_embedding;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.pytorch.engine.LifeCycleNDManager;
+import ai.djl.ndarray.NDManager;
 import ai.djl.translate.Batchifier;
 import ai.djl.translate.StackBatchifier;
 import elements.Feature;
@@ -82,7 +82,8 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
     @Override
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
-        try (LifeCycleNDManager.Scope ignored = LifeCycleNDManager.getInstance().getScope().start()) {
+        try {
+            NDManager.newBaseManager().delay();
             Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
             List<NDList> inputs = new ArrayList<>();
             List<Vertex> vertices = new ArrayList<>();
@@ -115,6 +116,8 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             }
         } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
+        }finally {
+            NDManager.newBaseManager().resume();
         }
     }
 
