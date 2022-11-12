@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
 public class NDArrayRawSerializer extends Serializer<NDArray> {
     private static final DataType[] dataTypes = DataType.values();
 
-    private transient NDManager manager = BaseNDManager.getManager();
+    private final transient NDManager manager = BaseNDManager.getManager();
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {

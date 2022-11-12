@@ -116,7 +116,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             }
         } catch (Exception e) {
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
-        }finally {
+        } finally {
             NDManager.newBaseManager().resume();
         }
     }

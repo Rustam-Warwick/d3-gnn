@@ -56,16 +56,13 @@ public abstract class AbstractStreamTaskNetworkInput<
     protected final DeserializationDelegate<StreamElement> deserializationDelegate;
     protected final TypeSerializer<T> inputSerializer;
     protected final Map<InputChannelInfo, R> recordDeserializers;
-
-    protected transient NDManager manager;
-
     protected final Map<InputChannelInfo, Integer> flattenedChannelIndices = new HashMap<>();
     /**
      * Valve that controls how watermarks and watermark statuses are forwarded.
      */
     protected final StatusWatermarkValve statusWatermarkValve;
-
     protected final int inputIndex;
+    protected transient NDManager manager;
     private InputChannelInfo lastChannel = null;
     private R currentRecordDeserializer = null;
 
@@ -93,7 +90,7 @@ public abstract class AbstractStreamTaskNetworkInput<
 
     @Override
     public DataInputStatus emitNext(DataOutput<T> output) throws Exception {
-        if(manager == null) manager = BaseNDManager.getManager();
+        if (manager == null) manager = BaseNDManager.getManager();
         while (true) {
             // get the stream element from the deserializer
             try {
@@ -137,7 +134,7 @@ public abstract class AbstractStreamTaskNetworkInput<
                     }
                     return DataInputStatus.NOTHING_AVAILABLE;
                 }
-            }finally {
+            } finally {
                 manager.resume();
             }
         }

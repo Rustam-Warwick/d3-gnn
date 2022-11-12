@@ -91,7 +91,8 @@ public final class HEdge extends ReplicableGraphElement {
     @Override
     public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        if(storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC) return super.updateElement(newElement, memento);
+        if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC)
+            return super.updateElement(newElement, memento);
         Set<String> t = HELPER_SET.get();
         t.clear();
         t.addAll(vertexIds);

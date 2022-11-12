@@ -3,7 +3,6 @@ package plugins.gnn_embedding;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
-import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
@@ -14,7 +13,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 
-import java.util.*;
+import java.util.Objects;
 
 public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
@@ -111,36 +110,24 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      */
     public void reduceOutEdges(Vertex v) {
         Iterable<DEdge> outEdges = storage.getIncidentEdges(v, EdgeType.OUT);
-        final NDList[] msg = new NDList[1];
-        HashMap<Short, List<String>> reduceMessages = null;
+        final Object[] msg = new Object[]{null, 1};
         for (DEdge dEdge : outEdges) {
             if (messageReady(dEdge)) {
                 if (Objects.isNull(msg[0])) {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
-                    reduceMessages = new HashMap<>();
                 }
-                reduceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item -> new ArrayList<>());
-                reduceMessages.get(dEdge.getDest().masterPart()).add(dEdge.getDest().getId());
+                Rmi.buildAndRun(
+                        new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
+                                "reduce",
+                                ElementType.ATTACHED_FEATURE,
+                                msg,
+                                true
+                        ),
+                        storage,
+                        v.masterPart(),
+                        MessageDirection.ITERATE
+                );
             }
-        }
-        if (reduceMessages == null) return;
-        for (Map.Entry<Short, List<String>> shortTuple2Entry : reduceMessages.entrySet()) {
-            Rmi.buildAndRun(
-                    new Rmi(getId(), "receiveReduceOutEdges", elementType(), new Object[]{shortTuple2Entry.getValue(), msg[0]}, false), storage,
-                    shortTuple2Entry.getKey(),
-                    MessageDirection.ITERATE
-            );
-        }
-    }
-
-    @RemoteFunction
-    public void receiveReduceOutEdges(List<String> vertices, NDList message) {
-        Rmi rmi = new Rmi(null, "reduce", null, new Object[]{message, 1}, true);
-        for (String vertex : vertices) {
-            if(!storage.containsAttachedFeature(ElementType.VERTEX, vertex, "agg", null)){
-
-            }
-            Rmi.execute(storage.getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), rmi);
         }
     }
 
@@ -152,36 +139,27 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
         Iterable<DEdge> outEdges = storage.getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDList[] msgOld = new NDList[1];
-        NDList[] msgNew = new NDList[1];
-        HashMap<Short, List<String>> replaceMessages = null;
+        NDList[] msgs = new NDList[2];
         for (DEdge dEdge : outEdges) {
             if (messageReady(dEdge)) {
-                if (Objects.isNull(msgOld[0])) {
-                    msgOld[0] = MESSAGE(new NDList(oldFeature.getValue()), false);
-                    msgNew[0] = MESSAGE(new NDList(newFeature.getValue()), false);
-                    replaceMessages = new HashMap<>();
+                if (Objects.isNull(msgs[0])) {
+                    msgs[0] = MESSAGE(new NDList(newFeature.getValue()), false);
+                    msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
                 }
-                replaceMessages.computeIfAbsent(dEdge.getDest().masterPart(), item -> new ArrayList<>());
-                replaceMessages.get(dEdge.getDest().masterPart()).add(dEdge.getDest().getId());
+                Rmi.buildAndRun(
+                        new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, newFeature.attachedTo.f1, "agg"),
+                                "replace",
+                                ElementType.ATTACHED_FEATURE,
+                                msgs,
+                                true
+                        ),
+                        storage,
+                        newFeature.masterPart(),
+                        MessageDirection.ITERATE
+                );
             }
         }
 
-        if (replaceMessages == null) return;
-        for (Map.Entry<Short, List<String>> shortTuple2Entry : replaceMessages.entrySet()) {
-            Rmi.buildAndRun(
-                    new Rmi(getId(), "receiveReplaceOutEdges", elementType(), new Object[]{shortTuple2Entry.getValue(), msgNew[0], msgOld[0]}, false), storage,
-                    shortTuple2Entry.getKey(),
-                    MessageDirection.ITERATE
-            );
-        }
     }
 
-    @RemoteFunction
-    public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-//        Rmi rmi = new Rmi(null, "replace", null, new Object[]{messageNew, messageOld}, true);
-//        for (String vertex : vertices) {
-//            Rmi.execute(storage.getAttachedFeature(vertex, "agg", ElementType.VERTEX, null), rmi);
-//        }
-    }
 }

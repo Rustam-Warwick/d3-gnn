@@ -20,7 +20,7 @@ public interface LifeCycleControl {
     /**
      * Pool is destroying this object last actions
      */
-    default void destroy(){
+    default void destroy() {
 
     }
 

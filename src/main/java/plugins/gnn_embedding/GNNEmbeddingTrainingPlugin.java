@@ -1,6 +1,9 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.*;
+import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDArrayCollector;
+import ai.djl.ndarray.NDArrays;
+import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;

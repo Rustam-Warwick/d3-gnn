@@ -1,5 +1,6 @@
 package helpers;
 
+import ai.djl.BaseModel;
 import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
@@ -8,16 +9,14 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HGNNBlock;
-import ai.djl.nn.gnn.HyperSAGEConv;
-import ai.djl.pytorch.engine.PtModel;
+import ai.djl.nn.gnn.GNNBlock;
+import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.debugging.PrintHEdgePlugin;
-import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.CompressedListStorage;
 
 import java.text.SimpleDateFormat;
@@ -27,8 +26,8 @@ import java.util.function.Function;
 public class Main {
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HyperSAGEConv(64, true));
-        sb.add(new HyperSAGEConv(32, true));
+        sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(41).optBias(true).build())
@@ -40,12 +39,12 @@ public class Main {
                         })
 
         );
-        PtModel model = (PtModel) Model.newInstance("GNN");
+        BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
         model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(602));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
-            PtModel tmp = (PtModel) Model.newInstance("GNN"); // Should all have the same name
+            BaseModel tmp = (BaseModel) Model.newInstance("GNN"); // Should all have the same name
             tmp.setBlock(item.getValue());
             models.add(tmp);
         });
@@ -55,25 +54,27 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         // Configuration
 
+        BaseNDManager.getManager().delay();
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
-        env.setParallelism(10);
-        env.setMaxParallelism(10);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new CompressedListStorage()
-                        .withPlugin(new ModelServer<HGNNBlock>(models.get(0)))
-                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(),true))
-                        .withPlugin(new PrintHEdgePlugin("22d4b157-3204-4db0-8de8-510ab524b328"))
+                        .withPlugin(new ModelServer<GNNBlock>(models.get(0)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                ),
+                new StreamingGNNLayerFunction(new CompressedListStorage()
+                        .withPlugin(new ModelServer<GNNBlock>(models.get(1)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
         );
 
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Training");
-
         env.execute(jobName);
+        BaseNDManager.getManager().resume();
     }
 }

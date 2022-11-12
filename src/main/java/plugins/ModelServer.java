@@ -99,6 +99,7 @@ public class ModelServer<T extends Block> extends Plugin {
     }
 
     public class ParameterStoreWrapper extends ParameterStore {
+
         /**
          * Method to be called from master part of modelServer to sync all parameters of out model
          */

@@ -82,8 +82,8 @@ dependencies {
     flinkLibShadowJar 'ai.djl:api:0.19.0'
     flinkLibShadowJar 'ai.djl.pytorch:pytorch-engine:0.19.0'
     flinkLibShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.12.1'
-//    flinkLibShadowJar 'ai.djl.mxnet:mxnet-engine:0.19.0'
-//    flinkLibShadowJar 'ai.djl.mxnet:mxnet-native-auto:1.8.0'
+    flinkLibShadowJar 'ai.djl.mxnet:mxnet-engine:0.19.0'
+    flinkLibShadowJar 'ai.djl.mxnet:mxnet-native-auto:1.8.0'
     flinkLibShadowJar 'com.boundary:high-scale-lib:1.0.6'
     flinkLibShadowJar 'com.github.ben-manes.caffeine:caffeine:3.1.0'
     flinkLibShadowJar 'com.esotericsoftware:reflectasm:1.11.9'
@@ -137,7 +137,8 @@ task libShadowJar(type: ShadowJar){
     from sourceSets.lib.output
 }
 
-libShadowJar.archiveBaseName.set("flink-gnn")
+libShadowJar.archiveBaseName.set(rootProject.name)
+libShadowJar.archiveAppendix.set("lib")
 
 task copyLibJar(type: Copy){
     from 'build/libs/flink-gnn-0.1-SNAPSHOT.jar'

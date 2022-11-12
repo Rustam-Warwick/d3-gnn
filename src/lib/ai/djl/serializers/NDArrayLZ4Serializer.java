@@ -23,13 +23,34 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final LZ4Compressor lz4Compressor = LZ4Factory.fastestInstance().fastCompressor();
     private static final LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
     private static final ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
-    private transient Boolean isStorage; // If we are serializing to a storage backend
+    private final transient NDManager manager = BaseNDManager.getManager();
+    private transient boolean isStorage = false; // If we are serializing to a storage backend
 
-    private transient NDManager manager = BaseNDManager.getManager();
+    public NDArrayLZ4Serializer() {
+        calculateIsStorage();
+    }
+
+    public NDArrayLZ4Serializer(boolean acceptsNull) {
+        super(acceptsNull);
+        calculateIsStorage();
+    }
+
+    public NDArrayLZ4Serializer(boolean acceptsNull, boolean immutable) {
+        super(acceptsNull, immutable);
+        calculateIsStorage();
+    }
+
+    private void calculateIsStorage() {
+        for (StackTraceElement stackTraceElement : Thread.currentThread().getStackTrace()) {
+            if (stackTraceElement.getClassName().contains("UserFacingMapState")) {
+                isStorage = true;
+                break;
+            }
+        }
+    }
 
     @Override
     public void write(Kryo kryo, Output output, NDArray o) {
-        if (isStorage == null) setIsStorage();
         ByteBuffer bb = o.toByteBuffer();
         output.writeByte(o.getDataType().ordinal()); // Data Types
         output.writeByte(o.getShape().getShape().length); // Shape length
@@ -53,7 +74,6 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
 
     @Override
     public NDArray read(Kryo kryo, Input input, Class aClass) {
-        if (isStorage == null) setIsStorage();
         int ordinal = input.readByte();
         DataType dataType = dataTypes[ordinal]; // Data Type
         long[] shapes = input.readLongs(input.readByte(), true);
@@ -72,16 +92,6 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private void increaseBufferIfNeeded(int capacity) {
         if (capacity > reuse.get().capacity()) {
             reuse.set(ByteBuffer.allocate(capacity));
-        }
-    }
-
-    private void setIsStorage() {
-        isStorage = false;
-        for (StackTraceElement stackTraceElement : Thread.currentThread().getStackTrace()) {
-            if (stackTraceElement.getClassName().contains("UserFacingMapState")) {
-                isStorage = true;
-                return;
-            }
         }
     }
 

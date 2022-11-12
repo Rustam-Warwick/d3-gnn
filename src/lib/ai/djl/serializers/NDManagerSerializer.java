@@ -11,7 +11,8 @@ import com.esotericsoftware.kryo.io.Output;
  * Kryo Serializer for NDManagers. Send nothing, retrieve the local BaseNDManager
  */
 public class NDManagerSerializer extends Serializer<NDManager> {
-    private transient NDManager manager = BaseNDManager.getManager();
+    private final transient NDManager manager = BaseNDManager.getManager();
+
     @Override
     public void write(Kryo kryo, Output output, NDManager object) {
         // Do not write

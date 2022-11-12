@@ -351,9 +351,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             // Need to open context here because out of main mailbox loop
             manager.delay();
             processElement(context.element.replace(new GraphOp((BaseOperatorEvent) evt)));
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             manager.resume();
         }
     }
@@ -700,7 +700,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return element;
         }
 
-        public NDManager getNDManager(){
+        public NDManager getNDManager() {
             return manager;
         }
     }

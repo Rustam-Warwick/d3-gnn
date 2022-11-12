@@ -54,6 +54,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     public Shape shape;
+
     private transient Cleaner.Cleanable cleanable;
 
     private Device device;
@@ -381,7 +382,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         getManager().detachInternal(null, this);
         if (cleanable == null)
             cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
-
     }
 
     /**
@@ -400,7 +400,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void resume() {
-        if (cleanable != null) return;
+        if (cleanable != null || delayed == 0) return;
         if (--delayed == 0) {
             getManager().attachInternal(null, this);
         }
@@ -1877,10 +1877,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof PtNDArray) {
-            return obj == this;
-        }
-        return false;
+        return obj == this;
     }
 
     /**

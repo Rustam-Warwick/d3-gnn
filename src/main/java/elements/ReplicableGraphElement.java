@@ -61,7 +61,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
             if (!containsFeature("p")) setFeature("p", new Parts(new ArrayList<>(), true));
             Rmi.execute(
                     getFeature("p"),
-                    new Rmi(Feature.encodeFeatureId(elementType(), getId(), "p"), "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
+                    new Rmi(null, "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
             );
             GraphElement cpy = copy(CopyContext.SYNC);
             if (cpy.features != null || cpy.elementType() == ElementType.STANDALONE_FEATURE)

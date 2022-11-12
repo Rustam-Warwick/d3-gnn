@@ -6,7 +6,7 @@ import elements.enums.ReplicaState;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
- * Simple Wrapper element used for sending SYNC messages
+ * Simple Wrapper element used for sending SYNC_REQUEST messages
  *
  * @implNote Regular RMI is not well suited since we also need to have info about part_id where this message was sent
  */

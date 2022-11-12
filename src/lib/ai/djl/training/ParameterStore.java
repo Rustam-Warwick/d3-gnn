@@ -6,17 +6,30 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
 
-public abstract class ParameterStore {
-    abstract public void updateAllParameters();
+public class ParameterStore {
+    public ParameterStore() {
 
-    abstract public NDArray getValue(Parameter parameter, Device device, boolean training);
+    }
+
+    public ParameterStore(NDManager manager, boolean copy) {
+
+    }
+
+    public void updateAllParameters() {
+    }
+
+    public NDArray getValue(Parameter parameter, Device device, boolean training) {
+        return null;
+    }
 
     public NDManager getManager() {
         return BaseNDManager.getManager();
     }
 
-    abstract public void sync();
+    public void sync() {
+    }
 
     public void setParameterServer() {
     }
+
 }

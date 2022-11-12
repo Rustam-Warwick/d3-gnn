@@ -68,15 +68,6 @@ public final class DEdge extends GraphElement {
         }
     }
 
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public DEdge copy(CopyContext context) {
-        return new DEdge(this, context);
-    }
-
     /**
      * Returns [src_id, dest_id, att]
      */
@@ -91,6 +82,14 @@ public final class DEdge extends GraphElement {
     public static String encodeEdgeId(String srcId, String destId, @Nullable String attributedId) {
         if (attributedId != null) return srcId + DELIMITER + destId + DELIMITER + attributedId;
         return srcId + DELIMITER + destId + DELIMITER;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public DEdge copy(CopyContext context) {
+        return new DEdge(this, context);
     }
 
     @Nullable
