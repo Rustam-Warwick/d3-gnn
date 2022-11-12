@@ -76,8 +76,7 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
 
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
-        List<WrapperOperatorEventHandler> handlers = class2Handler.getOrDefault(event.getClass(), null);
-        assert handlers != null;
+        List<WrapperOperatorEventHandler> handlers = class2Handler.getOrDefault(event.getClass(), Collections.emptyList());
         for (WrapperOperatorEventHandler handler : handlers) {
             handler.handleEventFromOperator(subtask, attemptNumber, event);
         }
@@ -150,7 +149,6 @@ public class WrapperOperatorCoordinator implements OperatorCoordinator {
         @Override
         public OperatorCoordinator create(Context context) {
             WrapperOperatorCoordinator tmp = new WrapperOperatorCoordinator(context, position, layers);
-            tmp.subscribe(new BatchedTrainingEventHandler());
             return tmp;
         }
     }

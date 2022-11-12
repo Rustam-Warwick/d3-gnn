@@ -28,7 +28,7 @@ public class RedditHyperlink implements Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
-        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
+        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
             @Override

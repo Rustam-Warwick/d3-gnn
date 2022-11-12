@@ -49,9 +49,9 @@ public abstract class BaseNDManager implements NDManager {
                 }
             }).expireAfterWrite(50, TimeUnit.NANOSECONDS)
             .ticker(ticker)
-            .initialCapacity(4)
             .scheduler(Scheduler.systemScheduler())
             .build();
+
     protected NDManager parent;
     protected String uid;
 

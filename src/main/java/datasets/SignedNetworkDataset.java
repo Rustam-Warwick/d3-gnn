@@ -34,6 +34,7 @@ public class SignedNetworkDataset implements Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         DataStream<GraphOp> out;
+
         SingleOutputStreamOperator<String> fileReader = env.readTextFile(fileName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {

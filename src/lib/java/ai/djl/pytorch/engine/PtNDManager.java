@@ -66,14 +66,13 @@ public class PtNDManager extends BaseNDManager {
                 if (!val.f0.isAlive()) {
                     // Clean the data structure, thread is no longer needed
                     try {
-                        int closedCount = val.f1.attached.asMap().size();
                         for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
                             value.close();
                         }
                         val.f1.attached.asMap().clear();
                         threadLocal.remove();
                         System.gc();
-                        logger.info(String.format("Finally %s Tensors closed +gc run in Thread: %s", closedCount, val.f0));
+                        logger.info(String.format("Finally Tensors closed +gc run in Thread: %s", val.f0));
                     } catch (Exception ignored) {
                         logger.error("Exception in trying to close all Tensors");
                     }

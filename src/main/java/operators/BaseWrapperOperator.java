@@ -192,9 +192,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void finish() throws Exception {
-        feedbackChannel.getPhaser().awaitAdvanceInterruptibly(feedbackChannel.getPhaser().arrive());
         do {
-            Thread.sleep(5000);
+            Thread.sleep(2000);
         } while (mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0);
         wrappedOperator.finish();
     }

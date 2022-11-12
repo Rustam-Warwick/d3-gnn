@@ -17,7 +17,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import storage.CompressedListStorage;
+import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -53,19 +53,18 @@ public class Main {
 
     public static void main(String[] args) throws Throwable {
         // Configuration
-
         BaseNDManager.getManager().delay();
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
-                new StreamingGNNLayerFunction(new CompressedListStorage()
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<GNNBlock>(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
-                new StreamingGNNLayerFunction(new CompressedListStorage()
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<GNNBlock>(models.get(1)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
 //                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))

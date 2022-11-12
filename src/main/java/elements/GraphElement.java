@@ -70,7 +70,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
         if (storage.addElement(this)) {
             callback = storage -> {
                 storage.getPlugins().forEach(item -> item.addElementCallback(this));
-                storage.flushDelayedEvents(this);
             };
             if (features != null) {
                 for (Feature<?, ?> feature : features) {

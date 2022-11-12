@@ -4,7 +4,6 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import elements.enums.Op;
 import functions.gnn_layers.GNNLayerFunction;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -17,7 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.*;
+import java.util.HashMap;
 import java.util.function.Consumer;
 
 /**
@@ -40,10 +39,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * The function that this BaseStorage is attached to
      */
     public GNNLayerFunction layerFunction;
-    /**
-     * Late events addressed to element that is not here yet
-     */
-    public transient Map<ElementType, Map<String, List<GraphOp>>> lateEvents;
+
     /**
      * KeySelector change listener
      */
@@ -127,36 +123,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     /**
-     * Delay this event until later time
-     */
-    public final void delayEvent(String id, ElementType elementType, GraphOp op) {
-        lateEvents.computeIfAbsent(elementType, (key) -> new HashMap<>(100));
-        lateEvents.get(elementType).compute(id, (key, val) -> {
-            if (val == null) val = new ArrayList<>(5);
-            val.add(op);
-            op.delay();
-            return val;
-        });
-    }
-
-    /**
-     * Flush or delayed events
-     */
-    public final void flushDelayedEvents(GraphElement el) {
-        if (lateEvents.containsKey(el.elementType())) {
-            Objects.<List<GraphOp>>requireNonNullElse(
-                    lateEvents.get(el.elementType()).remove(el.getId()),
-                    Collections.emptyList()
-            ).forEach(op -> {
-                if (op.getOp() == Op.SYNC_REQUEST) el.sync(op.getElement());
-                else if (op.getOp() == Op.RMI) Rmi.execute(el, (Rmi) op.getElement());
-                else layerFunction.process(op);
-                op.resume();
-            });
-        }
-    }
-
-    /**
      * Retrive plugin
      */
     public final Plugin getPlugin(String id) {
@@ -191,7 +157,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public void open() throws Exception {
         removeCachedFeatures = new RemoveCachedFeatures();
         layerFunction.registerKeyChangeListener(removeCachedFeatures);
-        lateEvents = new HashMap<>(10);
         plugins.values().forEach(plugin -> plugin.setStorage(this));
         for (Plugin value : plugins.values()) {
             value.open();

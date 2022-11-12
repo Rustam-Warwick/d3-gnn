@@ -1,13 +1,14 @@
 plugins {
     id 'java'
     id 'application'
-    // shadow plugin to produce fat JARs
     id 'com.github.johnrengelman.shadow' version '7.1.2'
 }
 
-// artifact properties
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+
 group = 'org.apache.flink.gnn'
-version = '0.1-SNAPSHOT'
+version = '1.0'
 mainClassName = 'helpers.Main'
 description = """GNN Plugin for apache Flink"""
 
@@ -22,9 +23,6 @@ ext {
 sourceCompatibility = "11"
 targetCompatibility = "11"
 
-tasks.withType(JavaCompile) {
-    options.encoding = 'UTF-8'
-}
 applicationDefaultJvmArgs = ["-Dlog4j.configurationFile=log4j2.properties", "-Dfile.encoding=ASCII"]
 
 // declare where to find the dependencies of your project
@@ -37,116 +35,76 @@ repositories {
         }
     }
 }
-// NOTE: We cannot use "compileOnly" or "shadow" configurations since then we could not run code
-// in the IDE or with "gradle run". We also cannot exclude transitive dependencies from the
-// shadowJar yet (see https://github.com/johnrengelman/shadow/issues/159).
-// -> Explicitly define the // libraries we want to be included in the "flinkShadowJar" configuration!
 
-configurations {
-    flinkShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
-    flinkShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    flinkShadowJar.exclude group: 'org.slf4j'
-    flinkShadowJar.exclude group: 'org.apache.logging.log4j'
-    // Dependencies that should be preloaded to the Flink Cluster before the start
-    flinkLibShadowJar.exclude group: 'org.apache.flink', module: 'force-shading'
-    flinkLibShadowJar.exclude group: 'com.google.code.findbugs', module: 'jsr305'
-    flinkLibShadowJar.exclude group: 'org.slf4j'
-    flinkLibShadowJar.exclude group: 'org.apache.logging.log4j'
 
+tasks.getByName("compileJava"){
+    options.encoding = "UTF-8"
 }
-// declare the dependencies for your production and test code
-dependencies {
-    // --------------------------------------------------------------
-    // Compile-time dependencies that should NOT be part of the
-    // shadow (uber) jar and are provided in the lib folder of Flink
-    // --------------------------------------------------------------
+
+sourceSets{
+    lib{
+        java{
+
+        }
+    }
+    main{
+        java{
+            compileClasspath = sourceSets.lib.output + compileClasspath
+            runtimeClasspath = sourceSets.lib.output + runtimeClasspath
+        }
+    }
+}
+
+configurations{
+    libImplementation.extendsFrom(libApi)
+    implementation.extendsFrom(libImplementation)
+    libApi.exclude group: 'org.apache.flink', module: 'force-shading'
+}
+
+dependencies{
+
     implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
     implementation 'org.jetbrains:annotations:20.1.0'
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
-//    implementation "org.openjdk.jol:jol-core:0.16"
+    implementation "org.apache.flink:flink-connector-files:${flinkVersion}"
 
-    // --------------------------------------------------------------
-    // Dependencies that should be part of the Lib shadow jar, e.g.
-    // --------------------------------------------------------------
-    flinkLibShadowJar("org.apache.flink:statefun-flink-core:3.2.0"){
-        // Need only the main classes from here
-        transitive(false)
-    }
-
-    flinkLibShadowJar('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
-        // Need only the main classes from here
-        transitive(false)
-    }
-
-    flinkLibShadowJar 'ai.djl:api:0.19.0'
-    flinkLibShadowJar 'ai.djl.pytorch:pytorch-engine:0.19.0'
-    flinkLibShadowJar 'ai.djl.pytorch:pytorch-native-cpu:1.12.1'
-    flinkLibShadowJar 'ai.djl.mxnet:mxnet-engine:0.19.0'
-    flinkLibShadowJar 'ai.djl.mxnet:mxnet-native-auto:1.8.0'
-    flinkLibShadowJar 'com.boundary:high-scale-lib:1.0.6'
-    flinkLibShadowJar 'com.github.ben-manes.caffeine:caffeine:3.1.0'
-    flinkLibShadowJar 'com.esotericsoftware:reflectasm:1.11.9'
-
-    // Packages delivered to the Jar only
-
-    flinkShadowJar "org.apache.flink:flink-connector-files:${flinkVersion}"
-    // Packages that should be part of library put into flink statically
-
-
-    // Runtime only dependencies
     runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
-}
 
-// make compileOnly dependencies available for tests:
-sourceSets {
-    lib{
-        // Lib files that should go to flink
-        java{
-            srcDirs = [files("src/lib") ]
-        }
+    libCompileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}"
 
-        runtimeClasspath = configurations.flinkLibShadowJar + configurations.flinkShadowJar + configurations.runtimeClasspath
-        compileClasspath = configurations.flinkLibShadowJar + configurations.flinkShadowJar + configurations.runtimeClasspath
+    libApi("org.apache.flink:statefun-flink-core:3.2.0"){
+        // Need only the main classes from here
+        transitive(false)
     }
 
-    main.compileClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar  + main.compileClasspath
-    main.runtimeClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar + main.runtimeClasspath
-
-//    test.compileClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar  + test.compileClasspath
-//    test.runtimeClasspath = lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar + test.runtimeClasspath
-
-    javadoc.classpath += (lib.output + configurations.flinkShadowJar + configurations.flinkLibShadowJar )
-}
-
-run.classpath = sourceSets.main.runtimeClasspath
-
-jar {
-    manifest {
-        attributes 'Built-By': System.getProperty('user.name'),
-                'Build-Jdk': System.getProperty('java.version')
+    libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
+        // Need only the main classes from here
+        transitive(false)
     }
+
+    libApi 'ai.djl:api:0.19.0'
+    libApi 'ai.djl.pytorch:pytorch-engine:0.19.0'
+    libApi 'com.boundary:high-scale-lib:1.0.6'
+    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.0'
+    libApi 'com.esotericsoftware:reflectasm:1.11.9'
 }
 
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 task libShadowJar(type: ShadowJar){
     // Other Shadow Task that prepares all the library dependencies
-    configurations = [project.configurations.flinkLibShadowJar]
+    configurations =  [project.configurations.libApi]
     from sourceSets.lib.output
+    archiveAppendix.set('lib')
+    mergeServiceFiles()
 }
 
-libShadowJar.archiveBaseName.set(rootProject.name)
-libShadowJar.archiveAppendix.set("lib")
-
-task copyLibJar(type: Copy){
-    from 'build/libs/flink-gnn-0.1-SNAPSHOT.jar'
-    into '/Users/rustamwarwick/flink-1.15.0/lib'
+shadowJar{
+    configurations = []
+    archiveClassifier.set("")
 }
 
-
-shadowJar {
-    configurations = [project.configurations.flinkShadowJar]
-//    exclude("ai","elements")
+task bothJars{
+    dependsOn(libShadowJar, shadowJar)
 }

@@ -7,7 +7,7 @@ import elements.DEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
-import features.MeanAggregator;
+import features.InPlaceMeanAggregator;
 import features.Tensor;
 import plugins.ModelServer;
 
@@ -133,7 +133,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
             NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new MeanAggregator(aggStart, true, (short) -1));
+            element.setFeature("agg", new InPlaceMeanAggregator(aggStart, true, (short) -1));
             if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
                 NDArray embeddingRandom = storage.layerFunction.getWrapperContext().getNDManager().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
                 // @todo Can make it as mean of some existing features to tackle the cold-start problem

@@ -1885,7 +1885,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public int hashCode() {
-        return handle.hashCode();
+        return handle.getPlain().hashCode();
     }
 
     /**
@@ -1894,10 +1894,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public void close() {
         if (cleanable != null) return;
+        if (delayed == 0) getManager().detachInternal(null, this);
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
-            if (delayed == 0) getManager().detachInternal(null, this);
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);
