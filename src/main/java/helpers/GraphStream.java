@@ -10,13 +10,16 @@ import features.Parts;
 import features.Tensor;
 import functions.selectors.PartKeySelector;
 import operators.BaseWrapperOperator;
+import operators.IterationSourceOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
 import org.apache.commons.cli.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -182,7 +185,62 @@ public class GraphStream {
         return partitionedOutput;
     }
 
-    protected SingleOutputStreamOperator<GraphOp> streamingGNNLayerAsSource(DataStream<GraphOp> inputData, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
+    protected SingleOutputStreamOperator<GraphOp> streamingStorageWithIterationHead(DataStream<GraphOp> inputData, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
+        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
+        IterationID localIterationId = new IterationID();
+        SingleOutputStreamOperator<GraphOp> forward;
+
+        if (position_index > 0 || hasFoolLoopIteration) {
+            // Add the iteration heads
+            SingleOutputStreamOperator<GraphOp> iterationHead = new DataStreamSource<>(env, TypeInformation.of(GraphOp.class), new IterationSourceOperator(localIterationId), true, String.format("IterationHead - %s", position_index), Boundedness.BOUNDED).setParallelism(thisParallelism);
+            forward = inputData.union(iterationHead).keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
+            iterationHead.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            forward.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            if (fineGrainedResourceManagementEnabled) {
+                forward.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0)); // position 0 and 1 in same slot sharing group preferably
+                iterationHead.getTransformation().setSlotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
+            }
+            if (position_index == 0) {
+                // This was Splitter Full-Loop iteration
+                fullLoopIterationId = localIterationId;
+            }
+        } else {
+            forward = inputData.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position_index), TypeInformation.of(GraphOp.class), new WrapperOperatorFactory(new KeyedProcessOperator(processFunction), localIterationId, position_index, layers)).setParallelism(thisParallelism).uid(String.format("GNN Operator - %s", position_index));
+            if (fineGrainedResourceManagementEnabled)
+                forward.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
+        }
+
+        if (position_index > 0) {
+            // Iteration Tails
+            SingleOutputStreamOperator<Void> iterationHandler = forward.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).forward().transform(String.format("IterationTail - %s", position_index), TypeInformation.of(Void.class), new IterationTailOperator(localIterationId)).setParallelism(thisParallelism).uid(String.format("IterationTail - %s", position_index));
+            iterationHandler.getTransformation().setCoLocationGroupKey("gnn-" + position_index);
+            if (fineGrainedResourceManagementEnabled)
+                iterationHandler.slotSharingGroup("gnn-" + Math.max(position_index - 1, 0));
+        }
+
+        if (position_index > 1 && hasBackwardIteration) {
+            // Add Backward Iteration
+            int previousParallelism = (int) (env.getParallelism() * Math.pow(lambda, position_index - 2));
+            DataStream<GraphOp> backFilter = forward.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG);
+            SingleOutputStreamOperator<Void> backwardIteration = backFilter.transform(String.format("BackwardTail - %s", position_index - 1), TypeInformation.of(Void.class), new IterationTailOperator(this.lastIterationID)).setParallelism(previousParallelism).uid(String.format("BackwardTail - %s", position_index - 1));
+            backwardIteration.getTransformation().setCoLocationGroupKey("gnn-" + (position_index - 1));
+            if (fineGrainedResourceManagementEnabled)
+                backwardIteration.slotSharingGroup("gnn-" + Math.max(position_index - 2, 0));
+        }
+        if (position_index == layers && hasFoolLoopIteration) {
+            // Add Full Loop Iteration
+            DataStream<GraphOp> fullLoopFilter = forward.getSideOutput(BaseWrapperOperator.FULL_ITERATE_OUTPUT_TAG);
+            SingleOutputStreamOperator<Void> fullLoopIteration = fullLoopFilter.transform("FullLoopTail", TypeInformation.of(Void.class), new IterationTailOperator(this.fullLoopIterationId)).setParallelism(env.getParallelism()).uid("FullLoopTail");
+            fullLoopIteration.getTransformation().setCoLocationGroupKey("gnn-0");
+            if (fineGrainedResourceManagementEnabled) fullLoopIteration.slotSharingGroup("gnn-0");
+        }
+        this.position_index++;
+        this.lastIterationID = localIterationId;
+        return forward;
+    }
+
+
+    protected SingleOutputStreamOperator<GraphOp> streamingStorageLayer(DataStream<GraphOp> inputData, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, boolean hasBackwardIteration, boolean hasFoolLoopIteration) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position_index - 1, 0)));
         IterationID localIterationId = new IterationID();
         SingleOutputStreamOperator<GraphOp> forward;
@@ -261,22 +319,22 @@ public class GraphStream {
             KeyedProcessFunction processFn = processFunctions[i];
             assert processFn != null;
             if (i == 0) {
-                previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
+                previousLayerUpdates = streamingStorageLayer(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
                 topologyUpdates = previousLayerUpdates.getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
                 trainTestSplit = previousLayerUpdates.getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);
             } else if (i == 1) {
-                previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
+                previousLayerUpdates = streamingStorageLayer(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
             } else if (i < layers) {
-                previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
+                previousLayerUpdates = streamingStorageLayer(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
             } else {
                 if (hasLastLayerTopology && hasBackwardIteration)
-                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates, trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
+                    previousLayerUpdates = streamingStorageLayer(previousLayerUpdates.union(topologyUpdates, trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
                 else if (hasLastLayerTopology) {
-                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
+                    previousLayerUpdates = streamingStorageLayer(previousLayerUpdates.union(topologyUpdates), processFn, hasBackwardIteration, hasFullLoopIteration);
                 } else if (hasBackwardIteration) {
-                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates.union(trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
+                    previousLayerUpdates = streamingStorageLayer(previousLayerUpdates.union(trainTestSplit), processFn, hasBackwardIteration, hasFullLoopIteration);
                 } else {
-                    previousLayerUpdates = streamingGNNLayerAsSource(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
+                    previousLayerUpdates = streamingStorageLayer(previousLayerUpdates, processFn, hasBackwardIteration, hasFullLoopIteration);
                 }
             }
             layerOutputs[i + 1] = previousLayerUpdates;

@@ -1,7 +1,8 @@
 package functions.gnn_layers;
 
-import elements.*;
-import elements.enums.ElementType;
+import elements.GraphElement;
+import elements.GraphOp;
+import elements.Rmi;
 import elements.enums.MessageDirection;
 import operators.BaseWrapperOperator;
 import org.apache.flink.api.common.functions.RichFunction;
@@ -17,7 +18,6 @@ import storage.BaseStorage;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.Collections;
 
 /**
  * Interface that the storage and everything else interacts with
@@ -154,22 +154,6 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
         getWrapperContext().deRegisterKeyChangeListener(listener);
     }
 
-    default GraphElement createLateElement(String id, ElementType elementType) {
-        switch (elementType) {
-            case VERTEX:
-                Vertex v = new Vertex(id, getCurrentPart());
-                v.setStorage(getStorage());
-                v.create();
-                return v;
-            case HYPEREDGE:
-                HEdge e = new HEdge(id, Collections.emptyList(), getCurrentPart());
-                e.setStorage(getStorage());
-                e.create();
-                return e;
-        }
-        return null;
-    }
-
     /**
      * @param value Process The Incoming Value
      */
@@ -188,7 +172,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
                 case SYNC_REQUEST:
                     if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
                         // This can only occur if master is not here yet
-                        GraphElement el = createLateElement(value.element.getId(), value.element.elementType());
+                        GraphElement el = getStorage().createLateElement(value.element.getId(), value.element.elementType());
                         el.sync(value.element);
                     } else {
                         GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());

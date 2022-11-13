@@ -5,6 +5,7 @@ import ai.djl.ndarray.NDList;
 import elements.*;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
+import elements.enums.Op;
 import elements.enums.ReplicaState;
 import features.MeanAggregator;
 import features.Tensor;
@@ -59,7 +60,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.getName().equals("f") && feature.attachedTo.f0 == ElementType.VERTEX) {
                 reduceF1((Tensor) feature); // Reduce to hyper-edges for the given vertex feature (F1)
-                if (feature.state() == ReplicaState.MASTER) ; // @todo add forward
+                if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             } else if (feature.getName().equals("agg") && feature.attachedTo.f0 == ElementType.HYPEREDGE) {
                 reduceF2((MeanAggregator) feature); // Reduce all vertex messages
             }
@@ -79,13 +80,29 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (newFeature.getName().equals("f") && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 replaceF1((Tensor) newFeature, (Tensor) oldFeature); // Replace previously reduced hyper-edges (F1)
-                // @todo Forward
+                if(newFeature.state() == ReplicaState.MASTER) forward((Vertex) newFeature.getElement());
             } else if (newFeature.getName().equals("agg") && newFeature.attachedTo.f0 == ElementType.HYPEREDGE) {
                 replaceF2((MeanAggregator) newFeature, (MeanAggregator) oldFeature); // Replace previously reduced vertices (F2)
             } else if (newFeature.getName().equals("agg") && newFeature.attachedTo.f0 == ElementType.VERTEX) {
-                // @todo Forward
+                Vertex v = (Vertex) newFeature.getElement();
+                if(v.containsFeature("f")) forward((Vertex) newFeature.getElement());
             }
         }
+    }
+   /**
+     * Push the embedding of this vertex to the next layer
+     */
+    @SuppressWarnings("all")
+    public void forward(Vertex v) {
+        NDArray ft = (NDArray) (v.getFeature("f")).getValue();
+        NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
+        NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
+        Tensor tmp = new Tensor("f", update, false, v.masterPart());
+        tmp.attachedTo.f0 = ElementType.VERTEX;
+        tmp.attachedTo.f1 = v.getId();
+        throughput.inc();
+        latency.inc(storage.layerFunction.getTimerService().currentProcessingTime() - storage.layerFunction.currentTimestamp());
+        storage.layerFunction.message(new GraphOp(Op.COMMIT, tmp.masterPart(), tmp), MessageDirection.FORWARD);
     }
 
     /**
@@ -208,6 +225,21 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     public void replaceF2(MeanAggregator newAggregator, MeanAggregator oldAggregator) {
         NDList newMessage = MESSAGE(new NDList(newAggregator.getValue()), false);
         NDList oldMessage = MESSAGE(new NDList(oldAggregator.getValue()), false);
+        HEdge edge = (HEdge) newAggregator.getElement();
+        for (Vertex vertex : edge.getVertices()) {
+            Rmi.buildAndRun(
+                    new Rmi(
+                            Feature.encodeFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
+                            "replace",
+                            ElementType.ATTACHED_FEATURE,
+                            new Object[]{newMessage, oldMessage},
+                            true
+                    ),
+                    storage,
+                    vertex.masterPart(),
+                    MessageDirection.ITERATE
+            );
+        }
     }
 
 

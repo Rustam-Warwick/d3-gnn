@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Consumer;
 
@@ -27,6 +28,7 @@ import java.util.function.Consumer;
  * @implNote However, do check for redundancy is create methods.
  */
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
+
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
@@ -113,7 +115,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
 
     // -------------------------- BASESTORAGE METHODS ------------------------------
-
 
     /**
      * Do elements need to delay Tensors on serialization
@@ -345,6 +346,22 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             default:
                 return null;
         }
+    }
+
+    public final GraphElement createLateElement(String id, ElementType elementType) {
+        switch (elementType) {
+            case VERTEX:
+                Vertex v = new Vertex(id, layerFunction.getCurrentPart());
+                v.setStorage(this);
+                v.create();
+                return v;
+            case HYPEREDGE:
+                HEdge e = new HEdge(id,  new ArrayList<>() , layerFunction.getCurrentPart());
+                e.setStorage(this);
+                e.create();
+                return e;
+        }
+        return null;
     }
 
     // Remove Cached Plugin Features on Key Change. Important since plugins are always in memory

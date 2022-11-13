@@ -21,14 +21,11 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.ndarray.types.SparseFormat;
 import ai.djl.pytorch.jni.JniUtils;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
-import java.util.Iterator;
 
 /**
  * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
@@ -37,14 +34,7 @@ public class PtNDManager extends BaseNDManager {
 
     private static final PtNDManager SYSTEM_MANAGER = new SystemManager();
 
-    private static final NonBlockingHashMapLong<Tuple2<Thread, PtNDManager>> THREADS = new NonBlockingHashMapLong<>();
-
-    static {
-        // Start the Tensor cleaner thread in this JVM globally
-        Thread cleanerThread = new Thread(PtNDManager::clean);
-        cleanerThread.setPriority(Thread.MIN_PRIORITY);
-        cleanerThread.start();
-    }
+    private static final ThreadLocal<PtNDManager> PT_ND_MANAGER_THREAD_LOCAL = ThreadLocal.withInitial(() -> new PtNDManager(SYSTEM_MANAGER, SYSTEM_MANAGER.getDevice()));
 
     protected PtNDManager(NDManager parent, Device device) {
         super(parent, device);
@@ -52,39 +42,6 @@ public class PtNDManager extends BaseNDManager {
 
     static PtNDManager getSystemManager() {
         return SYSTEM_MANAGER;
-    }
-
-    /**
-     * Cleaning attached NDArrays
-     */
-    public static void clean() {
-        boolean notInterrupted = true;
-        while (notInterrupted) {
-            // Cleanup closed threads
-            for (Iterator<Tuple2<Thread, PtNDManager>> threadLocal = THREADS.values().iterator(); threadLocal.hasNext(); ) {
-                Tuple2<Thread, PtNDManager> val = threadLocal.next();
-                if (!val.f0.isAlive()) {
-                    // Clean the data structure, thread is no longer needed
-                    try {
-                        for (AutoCloseable value : val.f1.attached.asMap().keySet()) {
-                            value.close();
-                        }
-                        val.f1.attached.asMap().clear();
-                        threadLocal.remove();
-                        System.gc();
-                        logger.info(String.format("Finally Tensors closed +gc run in Thread: %s", val.f0));
-                    } catch (Exception ignored) {
-                        logger.error("Exception in trying to close all Tensors");
-                    }
-                }
-            }
-            try {
-                Thread.sleep(15000);
-            } catch (InterruptedException e) {
-                logger.info("Interrupted Cleaner Thread ");
-                notInterrupted = false;
-            }
-        }
     }
 
     /**
@@ -248,8 +205,7 @@ public class PtNDManager extends BaseNDManager {
      */
     @Override
     public PtNDManager newSubManager(Device device) {
-        THREADS.computeIfAbsent(Thread.currentThread().getId(), (a) -> Tuple2.of(Thread.currentThread(), new PtNDManager(SYSTEM_MANAGER, SYSTEM_MANAGER.defaultDevice())));
-        return THREADS.get(Thread.currentThread().getId()).f1;
+        return PT_ND_MANAGER_THREAD_LOCAL.get();
     }
 
     /**

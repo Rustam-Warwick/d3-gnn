@@ -15,6 +15,10 @@ import org.apache.flink.metrics.SimpleCounter;
 
 import java.util.Objects;
 
+/**
+ * {@inheritDoc}
+ * Each update produces a new cascading effect and no optimizations are happening
+ */
 public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     protected transient Counter throughput; // Throughput counter, only used for last layer
@@ -33,6 +37,9 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void open() throws Exception {
         super.open();
@@ -42,6 +49,9 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         storage.layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
@@ -67,6 +77,9 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
@@ -86,9 +99,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     /**
      * Push the embedding of this vertex to the next layer
-     * After first layer, this is only fushed if agg and features are in sync
-     *
-     * @param v Vertex
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {

@@ -23,6 +23,7 @@ import com.github.benmanes.caffeine.cache.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.ref.Cleaner;
 import java.nio.Buffer;
 import java.nio.*;
 import java.nio.charset.Charset;
@@ -32,9 +33,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * {@code BaseNDManager} is the default implementation of {@link NDManager}.
+ * <strong>
+ * Fully changed code such that all registered NDArrays are cleared in a sliding window
+ * NDarrays can call {@link LifeCycleControl} methods to delay or resume them from being cleared up
+ * </strong>
  */
 public abstract class BaseNDManager implements NDManager {
     protected static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
+    protected static final Cleaner cleaner = Cleaner.create();
     protected static final Engine engineDefault = Engine.getInstance();
     protected final BaseNDManager.ManualTicker ticker = new BaseNDManager.ManualTicker(); // Logical timer depending on the data-rate
 
@@ -65,12 +71,13 @@ public abstract class BaseNDManager implements NDManager {
         this.parent = parent;
         this.device = device == null ? defaultDevice() : device;
         uid = Thread.currentThread().getName() + UUID.randomUUID();
+        cleaner.register(this, new NDManagerFinalizeTask(this));
     }
 
     // -------------------------- MY METHODS ---------------------------
 
     public static NDManager getManager() {
-        return engineDefault.newBaseManager();
+        return engineDefault.newBaseManager(null);
     }
 
     /**
@@ -577,4 +584,22 @@ public abstract class BaseNDManager implements NDManager {
         }
     }
 
+    /**
+     * Cleanup remaining tensors after the Thread is dead
+     */
+    static class NDManagerFinalizeTask implements Runnable {
+        private final Cache<AutoCloseable, AutoCloseable> attached;
+
+        public NDManagerFinalizeTask(BaseNDManager manager) {
+            attached = manager.attached;
+        }
+
+        @Override
+        public void run() {
+            attached.asMap().forEach((key, value) -> {
+                ((LifeCycleControl) key).destroy();
+            });
+            attached.invalidateAll();
+        }
+    }
 }

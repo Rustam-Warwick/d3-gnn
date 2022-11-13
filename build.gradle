@@ -6,7 +6,6 @@ plugins {
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
-
 group = 'org.apache.flink.gnn'
 version = '1.0'
 mainClassName = 'helpers.Main'

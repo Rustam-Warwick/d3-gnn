@@ -6,11 +6,13 @@ import elements.HGraph;
 import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
@@ -26,8 +28,9 @@ public class CoAuthDBLPVertexStream implements Dataset {
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        SingleOutputStreamOperator<String> vertexStreamString = env.readTextFile(vertexStreamFile).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.map(new ParseVertexStream());
+
+        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.map(new ParseVertexStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             vertexStreamString.slotSharingGroup("file-input");

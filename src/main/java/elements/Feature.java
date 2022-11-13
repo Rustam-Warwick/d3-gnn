@@ -117,7 +117,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         else {
             if (!storage.containsElement(attachedTo.f1, attachedTo.f0)) {
                 // Parent element not yet here
-                storage.layerFunction.createLateElement(attachedTo.f1, attachedTo.f0);
+                storage.createLateElement(attachedTo.f1, attachedTo.f0);
             }
             Consumer<BaseStorage> callback = createElement();
             if (callback != null && !isHalo() && isReplicable() && !replicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
