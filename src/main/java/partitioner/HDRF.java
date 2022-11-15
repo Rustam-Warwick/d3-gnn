@@ -29,14 +29,6 @@ public class HDRF extends BasePartitioner {
      * {@inheritDoc}
      */
     @Override
-    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
-        return this;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
         int numThreats = 1;
         return inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),

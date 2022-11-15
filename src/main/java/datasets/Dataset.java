@@ -29,7 +29,10 @@ public interface Dataset extends Serializable {
             return new Reddit();
         }
         if (name.equals("coauth-DBLP-vertex-stream")) {
-            return new CoAuthDBLPVertexStream(Path.of(System.getenv("DATASET_DIR")).toString());
+            return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString());
+        }
+        if(name.equals("coauth-DBLP-edge-stream")){
+            return new CoAuthDBLPEStream(Path.of(System.getenv("DATASET_DIR")).toString());
         }
         if (name.equals("stackoverflow")) {
             return new Stackoverflow(Path.of(System.getenv("DATASET_DIR")).toString());

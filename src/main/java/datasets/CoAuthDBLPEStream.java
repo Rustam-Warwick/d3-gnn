@@ -1,11 +1,8 @@
 package datasets;
 
-import elements.GraphOp;
-import elements.HEdge;
-import elements.HGraph;
-import elements.Vertex;
+import elements.*;
 import elements.enums.Op;
-import org.apache.flink.api.common.functions.RichMapFunction;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -19,24 +16,23 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CoAuthDBLPVertexStream implements Dataset {
+public class CoAuthDBLPEStream implements Dataset {
     private final String vertexStreamFile;
 
-    public CoAuthDBLPVertexStream(String datasetDir) {
+    public CoAuthDBLPEStream(String datasetDir) {
         vertexStreamFile = Path.of(datasetDir, "coauth-DBLP-full", "coauth-DBLP-vertex-stream.txt").toString();
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-
         SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.map(new ParseVertexStream()).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> edges = vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             vertexStreamString.slotSharingGroup("file-input");
-            nets.slotSharingGroup("file-input");
+            edges.slotSharingGroup("file-input");
         }
-        return nets;
+        return edges;
     }
 
     @Override
@@ -50,19 +46,20 @@ public class CoAuthDBLPVertexStream implements Dataset {
         };
     }
 
-    public static class ParseVertexStream extends RichMapFunction<String, GraphOp> {
+    public static class ParseEdgeStream implements FlatMapFunction<String, GraphOp> {
+        int count;
         @Override
-        public GraphOp map(String value) throws Exception {
-            String[] values = value.split(",");
-            List<Vertex> src = List.of(new Vertex(values[0]));
-            List<String> srcId = List.of(src.get(0).getId());
-            List<HEdge> hEdges = new ArrayList<>(values.length - 1);
-            for (int i = 1; i < values.length; i++) {
-                String netId = values[i];
-                hEdges.add(new HEdge(netId, srcId, (short) -1));
+        public void flatMap(String value, Collector<GraphOp> out){
+            if(++count > 1000) {
+                return;
             }
-            HGraph hGraph = new HGraph(src, hEdges);
-            return new GraphOp(Op.COMMIT, hGraph);
+            String[] values = value.split(",");
+            Vertex src = new Vertex(values[0]);
+            for (int i = 1; i < values.length; i++) {
+                Vertex dest = new Vertex(values[i]);
+                out.collect(new GraphOp(Op.COMMIT, new DEdge(src, dest)));
+                out.collect(new GraphOp(Op.COMMIT, new DEdge(dest,src)));
+            }
         }
     }
 }

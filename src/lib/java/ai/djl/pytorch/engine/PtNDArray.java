@@ -66,6 +66,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
     private transient Boolean hasGradient;
+
     private PtNDArrayEx ptNDArrayEx;
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")

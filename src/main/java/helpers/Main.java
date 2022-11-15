@@ -11,11 +11,14 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.nn.gnn.HyperSAGEConv;
+import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbeddingLayer;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
@@ -41,7 +44,7 @@ public class Main {
         );
         BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(602));
+        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(128));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             BaseModel tmp = (BaseModel) Model.newInstance("GNN"); // Should all have the same name
@@ -60,14 +63,14 @@ public class Main {
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
-                        .withPlugin(new ModelServer<GNNBlock>(models.get(0)))
+                        .withPlugin(new ModelServer<>(models.get(0)))
                         .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
-                        .withPlugin(new ModelServer<GNNBlock>(models.get(1)))
-                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), false))
-//                        .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                        .withPlugin(new ModelServer<>(models.get(1)))
+                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
         );
 

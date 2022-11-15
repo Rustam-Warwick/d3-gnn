@@ -6,6 +6,7 @@ import elements.HGraph;
 import elements.Vertex;
 import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -17,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class HyperGraphMinMax extends BasePartitioner {
 
@@ -30,6 +32,8 @@ public class HyperGraphMinMax extends BasePartitioner {
         private final int s;
         private transient ConcurrentHashMap<String, List<Short>> n2p;
         private transient ConcurrentHashMap<String, List<Short>> vertex2p;
+        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
+        public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
         private transient String[] mark;
         private transient short[] pids;
         private transient int[] indx;
@@ -57,6 +61,15 @@ public class HyperGraphMinMax extends BasePartitioner {
             indx = new int[partitions];
             parts = new int[partitions];
             minParts = Arrays.stream(parts).min().getAsInt();
+            getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
+                @Override
+                public Integer getValue() {
+                    int totalVertices = totalNumberOfVertices.get();
+                    int totalReplicas = totalNumberOfReplicas.get();
+                    if (totalVertices == 0) return 0;
+                    return (int) ((float) totalReplicas / totalVertices * 1000);
+                }
+            });
         }
 
         public short partitionSubHyperGraph(HGraph graph) {
@@ -104,7 +117,9 @@ public class HyperGraphMinMax extends BasePartitioner {
                             vertex.master = part;
                             return new ArrayList<>(List.of(part));
                         } else {
-                            if (!val.contains(part)) val.add(part);
+                            if (!val.contains(part)) {
+                                val.add(part);
+                            };
                             vertex.master = val.get(0);
                             return val;
                         }
@@ -115,6 +130,7 @@ public class HyperGraphMinMax extends BasePartitioner {
                         // Update hyperedge part table and master part
                         // Increment the part weights according to hyperedge additions to part
                         if (val == null) {
+                            totalNumberOfVertices.incrementAndGet();
                             hEdge.master = part;
                             parts[part]++;
                             return new ArrayList<>(List.of(part));
@@ -122,6 +138,7 @@ public class HyperGraphMinMax extends BasePartitioner {
                             if (!val.contains(part)) {
                                 parts[part]++;
                                 val.add(part);
+                                totalNumberOfReplicas.incrementAndGet();
                             }
                             hEdge.master = val.get(0);
                             return val;

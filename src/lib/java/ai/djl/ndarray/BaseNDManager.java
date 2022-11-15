@@ -40,8 +40,11 @@ import java.util.concurrent.TimeUnit;
  */
 public abstract class BaseNDManager implements NDManager {
     protected static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
+
     protected static final Cleaner cleaner = Cleaner.create();
+
     protected static final Engine engineDefault = Engine.getInstance();
+
     protected final BaseNDManager.ManualTicker ticker = new BaseNDManager.ManualTicker(); // Logical timer depending on the data-rate
 
     protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
@@ -59,12 +62,15 @@ public abstract class BaseNDManager implements NDManager {
             .build();
 
     protected NDManager parent;
+
     protected String uid;
 
     protected String name;
 
     protected Device device;
+
     protected byte delayed = 0; // Count of this NDManager getting delayed
+
     protected int scopedCount = 0; // Count of opened tensors when we are in a scope
 
     protected BaseNDManager(NDManager parent, Device device) {
