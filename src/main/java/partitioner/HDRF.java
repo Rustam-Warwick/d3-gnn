@@ -3,7 +3,6 @@ package partitioner;
 import elements.DEdge;
 import elements.GraphElement;
 import elements.GraphOp;
-import elements.Vertex;
 import elements.enums.ElementType;
 import operators.MultiThreadedProcessOperator;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -81,11 +80,11 @@ public class HDRF extends BasePartitioner {
         }
 
         public float REP(DEdge dEdge, short partition) {
-            int srcDeg = partialDegTable.get(dEdge.getSrc().getId());
-            int destDeg = partialDegTable.get(dEdge.getDest().getId());
+            int srcDeg = partialDegTable.get(dEdge.getSrcId());
+            int destDeg = partialDegTable.get(dEdge.getDestId());
             float srcDegNormal = (float) srcDeg / (srcDeg + destDeg);
             float destDegNormal = 1 - srcDegNormal;
-            return this.G(dEdge.getSrc().getId(), srcDegNormal, partition) + this.G(dEdge.getDest().getId(), destDegNormal, partition);
+            return this.G(dEdge.getSrcId(), srcDegNormal, partition) + this.G(dEdge.getDestId(), destDegNormal, partition);
         }
 
         public float BAL(short partition) {
@@ -95,8 +94,8 @@ public class HDRF extends BasePartitioner {
 
         public short computePartition(DEdge dEdge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(dEdge.getSrc().getId(), 1, Integer::sum);
-            partialDegTable.merge(dEdge.getDest().getId(), 1, Integer::sum);
+            partialDegTable.merge(dEdge.getSrcId(), 1, Integer::sum);
+            partialDegTable.merge(dEdge.getDestId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
@@ -114,79 +113,51 @@ public class HDRF extends BasePartitioner {
 
             // 3. Update the tables
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
-
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
-            partitionTable.compute(dEdge.getSrc().getId(), (key, val) -> {
-                if (val == null) {
-                    // This is the first part of this vertex hence the master
-                    totalNumberOfVertices.incrementAndGet();
-                    return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
-                } else {
-                    if (!val.contains(finalSelected)) {
-                        // Seocond or more part hence the replica
-                        totalNumberOfReplicas.incrementAndGet();
-                        val.add(finalSelected);
-                    }
-                    return val;
-                }
-            });
-            // Same as previous
-            partitionTable.compute(dEdge.getDest().getId(), (key, val) -> {
-                if (val == null) {
-                    totalNumberOfVertices.incrementAndGet();
-                    return Collections.synchronizedList(new ArrayList<Short>(List.of(finalSelected)));
-                } else {
-                    if (!val.contains(finalSelected)) {
-                        totalNumberOfReplicas.incrementAndGet();
-                        val.add(finalSelected);
-                    }
-                    return val;
-                }
-            });
-
             return finalSelected;
-        }
-
-        public short computePartition(Vertex vertex) {
-            // Initialize the tables if absent
-            partitionTable.putIfAbsent(vertex.getId(), new ArrayList<>());
-            if (partitionTable.get(vertex.getId()).isEmpty()) {
-                // If no previously assigned partition for this vertex
-                float maxScore = Float.NEGATIVE_INFINITY;
-                short selected = 0;
-                for (short i = 0; i < this.numPartitions; i++) {
-                    float score = BAL(i);
-                    if (score > maxScore) {
-                        maxScore = score;
-                        selected = i;
-                    }
-                }
-                this.partitionTable.get(vertex.getId()).add(selected);
-                return selected;
-            } else {
-                // If already assigned use that as master
-                return partitionTable.get(vertex.getId()).get(0);
-            }
-
         }
 
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             GraphElement elementToPartition = value.element;
             if (elementToPartition.elementType() == ElementType.EDGE) {
-                // Main partitioning logic, otherwise just assign edges
                 DEdge dEdge = (DEdge) elementToPartition;
-//                while (currentlyProcessing.contains(edge.src.getId()) || currentlyProcessing.contains(edge.dest.getId())) {
-//                    // Wait for completion
-//                }
-//                currentlyProcessing.add(edge.src.getId());
-//                currentlyProcessing.add(edge.dest.getId());
                 short partition = this.computePartition(dEdge);
-                dEdge.getSrc().master = this.partitionTable.get(dEdge.getSrc().getId()).get(0);
-                dEdge.getDest().master = this.partitionTable.get(dEdge.getDest().getId()).get(0);
-//                currentlyProcessing.remove(edge.src.getId());
-//                currentlyProcessing.remove(edge.dest.getId());
+                partitionTable.compute(dEdge.getSrcId(), (key, val) -> {
+                    if (val == null) {
+                        // This is the first part of this vertex hence the master
+                        dEdge.getSrc().master = partition;
+                        totalNumberOfVertices.incrementAndGet();
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
+                    } else {
+                        if (!val.contains(partition)) {
+                            // Seocond or more part hence the replica
+                            totalNumberOfReplicas.incrementAndGet();
+                            val.add(partition);
+                        }
+                        dEdge.getSrc().master = val.get(0);
+                        return val;
+                    }
+                });
+
+                partitionTable.compute(dEdge.getDestId(), (key, val) -> {
+                    if (val == null) {
+                        // This is the first part of this vertex hence the master
+                        dEdge.getDest().master = partition;
+                        totalNumberOfVertices.incrementAndGet();
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
+                    } else {
+                        if (!val.contains(partition)) {
+                            // Seocond or more part hence the replica
+                            totalNumberOfReplicas.incrementAndGet();
+                            val.add(partition);
+                        }
+                        dEdge.getDest().master = val.get(0);
+                        return val;
+                    }
+                });
+
                 value.partId = partition;
             }
             out.collect(value);

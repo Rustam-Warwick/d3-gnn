@@ -1,6 +1,8 @@
 package datasets;
 
-import elements.*;
+import elements.DEdge;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
@@ -13,8 +15,6 @@ import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 public class CoAuthDBLPEStream implements Dataset {
     private final String vertexStreamFile;
@@ -50,7 +50,7 @@ public class CoAuthDBLPEStream implements Dataset {
         int count;
         @Override
         public void flatMap(String value, Collector<GraphOp> out){
-            if(++count > 1000) {
+            if(++count > 2000) {
                 return;
             }
             String[] values = value.split(",");

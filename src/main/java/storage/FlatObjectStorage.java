@@ -1,5 +1,6 @@
 package storage;
 
+import ai.djl.ndarray.LifeCycleControl;
 import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
@@ -52,6 +53,12 @@ public class FlatObjectStorage extends BaseStorage {
         super.open();
     }
 
+    @Override
+    public void close() throws Exception {
+        attachedFeatureTable.values().forEach(LifeCycleControl::resume);
+        independentFeatureTable.values().forEach(LifeCycleControl::resume);
+        super.close();
+    }
 
     @Override
     public boolean addStandaloneFeature(Feature<?, ?> feature) {
@@ -91,18 +98,19 @@ public class FlatObjectStorage extends BaseStorage {
         try {
             edgeTable.put(dEdge.getId(), dEdge);
             if (!outEdgeTable.contains(dEdge.getSrc().getId()))
-                outEdgeTable.put(dEdge.getSrc().getId(), new HashMap<>());
-            if (!inEdgeTable.contains(dEdge.getDest().getId()))
+                outEdgeTable.put(dEdge.getSrcId(), new HashMap<>());
+            if (!inEdgeTable.contains(dEdge.getDestId()))
                 inEdgeTable.put(dEdge.getDest().getId(), new HashMap<>());
             Map<String, List<String>> outEdges = outEdgeTable.get(dEdge.getSrc().getId());
             Map<String, List<String>> inEdges = inEdgeTable.get(dEdge.getDest().getId());
             if (!outEdges.containsKey(dEdge.getDest().getId()))
-                outEdges.put(dEdge.getDest().getId(), new ArrayList());
-            if (!inEdges.containsKey(dEdge.getSrc().getId())) inEdges.put(dEdge.getSrc().getId(), new ArrayList());
-            outEdges.get(dEdge.getDest().getId()).add(dEdge.getId());
-            inEdges.get(dEdge.getSrc().getId()).add(dEdge.getId());
-            outEdgeTable.put(dEdge.getSrc().getId(), outEdges);
-            inEdgeTable.put(dEdge.getDest().getId(), inEdges);
+                outEdges.put(dEdge.getDestId(), new ArrayList<>());
+            if (!inEdges.containsKey(dEdge.getSrc().getId()))
+                inEdges.put(dEdge.getSrcId(), new ArrayList<>());
+            outEdges.get(dEdge.getDestId()).add(dEdge.getId());
+            inEdges.get(dEdge.getSrcId()).add(dEdge.getId());
+            outEdgeTable.put(dEdge.getSrcId(), outEdges);
+            inEdgeTable.put(dEdge.getDestId(), inEdges);
             return true;
         } catch (Exception e) {
             e.printStackTrace();

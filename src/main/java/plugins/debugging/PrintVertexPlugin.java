@@ -7,15 +7,15 @@ import elements.Plugin;
 import elements.enums.ElementType;
 import operators.BaseWrapperOperator;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Function for debugging the interaction of vertices in the system
  */
 public class PrintVertexPlugin extends Plugin {
-    public List<String> registeredVertices = new ArrayList<String>();
+    public Set<String> registeredVertices = new HashSet<>();
 
     public PrintVertexPlugin(String... vertices) {
         Collections.addAll(registeredVertices, vertices);
@@ -35,7 +35,7 @@ public class PrintVertexPlugin extends Plugin {
         }
         if (element.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp(), feature.value));
             }
         }
@@ -46,7 +46,7 @@ public class PrintVertexPlugin extends Plugin {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
-            if (feature.attachedTo != null && registeredVertices.contains(feature.attachedTo.f1)) {
+            if (feature.attachedTo.f0 == ElementType.VERTEX && registeredVertices.contains(feature.attachedTo.f1)) {
                 BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp(), feature.value));
             }
         }
