@@ -173,8 +173,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
                 OperatorUtils.createFeedbackKey(iterationId, 0);
         SubtaskFeedbackKey<StreamRecord<GraphOp>> realKey =
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, attemptNum);
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        feedbackChannel = broker.getChannel(realKey);
+        feedbackChannel = FeedbackChannelBroker.get().getChannel(realKey);
         feedbackChannel.getPhaser().register();
         Tuple2<Meter, Meter> meters = Tuple2.of(((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsOutRate(), ((InternalOperatorMetricGroup) getRuntimeContext().getMetricGroup()).getIOMetricGroup().getNumRecordsInRateMeter());
         feedbackChannel.registerPublisher(operatorID, meters);

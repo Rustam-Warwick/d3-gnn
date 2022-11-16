@@ -62,7 +62,8 @@ public abstract class AbstractStreamTaskNetworkInput<
      */
     protected final StatusWatermarkValve statusWatermarkValve;
     protected final int inputIndex;
-    protected transient NDManager manager;
+
+    protected transient NDManager manager = BaseNDManager.getManager();
     private InputChannelInfo lastChannel = null;
     private R currentRecordDeserializer = null;
 
@@ -90,7 +91,6 @@ public abstract class AbstractStreamTaskNetworkInput<
 
     @Override
     public DataInputStatus emitNext(DataOutput<T> output) throws Exception {
-        if (manager == null) manager = BaseNDManager.getManager();
         while (true) {
             // get the stream element from the deserializer
             try {

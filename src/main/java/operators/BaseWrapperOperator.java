@@ -105,6 +105,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected final InternalOperatorMetricGroup metrics;
 
+    protected transient NDManager manager; // NDManager local to this Thread exposed through interface
+
     protected final OperatorEventGateway operatorEventGateway; // Event gateway
 
     /**
@@ -118,24 +120,33 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final short parallelism; // Parallelism of this operator
 
     protected final short totalLayers; // Total horizontal layers
-    protected final IterationID iterationID; // Id for the Iteration
-    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
-    protected transient NDManager manager; // NDManager local to this Thread exposed through interface
+    protected final IterationID iterationID; // Id for the Iteration
+
+    protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
     /**
      * Watermarking, Broadcasting, Partitioning CheckPoiting PROPS
      */
     protected transient Map<OutputTag<?>, Tuple2<BroadcastOutput<?>, Integer>> broadcastOutputs;
+
     protected transient int numPreviousLayerInputChannels; // Forwarded from previous layer
+
     protected transient List<Short> thisParts; // Part Keys hashed to this operator, first one is regarded MASTER key. Used in broadcast outputs
+
     protected transient List<Short> otherMasterParts; // Master Parts that are mapped to other operators
 
     protected transient Map<BaseOperatorEvent, Short> events; // Table of FlowingOperatorEvents received by this operator
+
+    /**
+     * Iterations
+     */
     private transient MailboxExecutor mailboxExecutor; // Mailbox for consuming iteration events
+
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
-    // MAIN CONSTRUCTOR
+
+
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
             StreamOperatorFactory<GraphOp> operatorFactory,
@@ -165,13 +176,17 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         this.parallelism = (short) containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
         this.events = new HashMap<>();
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        this.broadcastOutputs = new HashMap<>(5);
-        parameters
+        this.broadcastOutputs = new HashMap<>();
+        this.manager = BaseNDManager.getManager();
+        this.parameters
                 .getOperatorEventDispatcher()
                 .registerEventHandler(getOperatorID(), this);
+
+        calculateParts();
+        this.context = new Context();
         createInputAndOutputs(output);
-        calculateParts(); // Should be before the context is initialized
-        context = new Context();
+        this.mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
+        registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, "Feedback"));
     }
 
     /**
@@ -183,7 +198,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void open() throws Exception {
-        manager = BaseNDManager.getManager();
         setKeyContextElement(context.element);
         wrappedOperator.open();
         System.gc();
@@ -282,8 +296,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public final void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
-        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
-        registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, "Feedback"));
         RecordingStreamTaskStateInitializer recordingStreamTaskStateInitializer =
                 new RecordingStreamTaskStateInitializer(streamTaskStateManager);
         wrappedOperator.initializeState(recordingStreamTaskStateInitializer);
@@ -661,7 +673,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public void runForAllKeys(Runnable o) throws IllegalStateException {
             try {
-                Short tmp = element.getValue().getPartId();
+                short tmp = element.getValue().getPartId();
                 for (Short thisPart : thisParts) {
                     element.getValue().setPartId(thisPart);
                     setKeyContextElement(element);

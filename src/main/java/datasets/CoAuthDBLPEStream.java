@@ -25,7 +25,7 @@ public class CoAuthDBLPEStream implements Dataset {
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
+        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> edges = vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
@@ -50,7 +50,7 @@ public class CoAuthDBLPEStream implements Dataset {
         int count;
         @Override
         public void flatMap(String value, Collector<GraphOp> out){
-            if(++count > 2000) {
+            if(++count > 20) {
                 return;
             }
             String[] values = value.split(",");
