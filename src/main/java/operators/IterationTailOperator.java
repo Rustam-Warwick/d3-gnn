@@ -44,6 +44,8 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -57,6 +59,8 @@ import java.util.function.Consumer;
  */
 public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {
+
+    private static Logger logger = LoggerFactory.getLogger(IterationTailOperator.class);
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
@@ -134,7 +138,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
-            BaseWrapperOperator.LOG.info(String.format("Watermark Arrived %s", getRuntimeContext().getTaskNameWithSubtasks()));
+            logger.info(String.format("Watermark Arrived %s", getRuntimeContext().getTaskNameWithSubtasks()));
             feedbackChannel.getPhaser().arrive();
         }
         super.processWatermark(mark);

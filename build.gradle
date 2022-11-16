@@ -64,7 +64,7 @@ dependencies{
 
     implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
     implementation "org.apache.flink:flink-clients:${flinkVersion}"
-    implementation 'org.jetbrains:annotations:20.1.0'
+    implementation 'org.jetbrains:annotations:23.0.0'
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
     implementation "org.apache.flink:flink-connector-files:${flinkVersion}"
 
@@ -86,8 +86,10 @@ dependencies{
 
     libApi 'ai.djl:api:0.19.0'
     libApi 'ai.djl.pytorch:pytorch-engine:0.19.0'
+    libApi 'ai.djl.tensorflow:tensorflow-api:0.19.0'
+    libApi 'ai.djl.tensorflow:tensorflow-engine:0.19.0'
     libApi 'com.boundary:high-scale-lib:1.0.6'
-    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.0'
+    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.1'
     libApi 'com.esotericsoftware:reflectasm:1.11.9'
 }
 

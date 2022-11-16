@@ -34,8 +34,6 @@ public class PtNDManager extends BaseNDManager {
 
     private static final PtNDManager SYSTEM_MANAGER = new SystemManager();
 
-    private static final ThreadLocal<PtNDManager> PT_ND_MANAGER_THREAD_LOCAL = ThreadLocal.withInitial(() -> new PtNDManager(SYSTEM_MANAGER, SYSTEM_MANAGER.getDevice()));
-
     protected PtNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
@@ -205,7 +203,12 @@ public class PtNDManager extends BaseNDManager {
      */
     @Override
     public PtNDManager newSubManager(Device device) {
-        return PT_ND_MANAGER_THREAD_LOCAL.get();
+        BaseNDManager manager = ND_MANAGER_THREAD_LOCAL.get();
+        if(manager == null){
+            manager = new PtNDManager(SYSTEM_MANAGER, SYSTEM_MANAGER.device);
+            ND_MANAGER_THREAD_LOCAL.set(manager);
+        }
+        return (PtNDManager) manager;
     }
 
     /**

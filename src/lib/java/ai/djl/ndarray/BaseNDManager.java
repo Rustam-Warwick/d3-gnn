@@ -16,14 +16,17 @@ import ai.djl.Device;
 import ai.djl.engine.Engine;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
+import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
 import ai.djl.util.RandomUtils;
+import com.esotericsoftware.reflectasm.ConstructorAccess;
 import com.github.benmanes.caffeine.cache.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.Cleaner;
+import java.lang.reflect.Constructor;
 import java.nio.Buffer;
 import java.nio.*;
 import java.nio.charset.Charset;
@@ -39,16 +42,19 @@ import java.util.concurrent.TimeUnit;
  * </strong>
  */
 public abstract class BaseNDManager implements NDManager {
+
     protected static final Logger logger = LoggerFactory.getLogger(BaseNDManager.class);
 
     protected static final Cleaner cleaner = Cleaner.create();
 
     protected static final Engine engineDefault = Engine.getInstance();
 
+    protected static final ThreadLocal<BaseNDManager> ND_MANAGER_THREAD_LOCAL = new ThreadLocal<>();
+
     protected final BaseNDManager.ManualTicker ticker = new BaseNDManager.ManualTicker(); // Logical timer depending on the data-rate
 
-    protected final Cache<AutoCloseable, AutoCloseable> attached = Caffeine.newBuilder()
-            .evictionListener((RemovalListener<AutoCloseable, AutoCloseable>) (key, value, cause) -> {
+    protected final Cache<AutoCloseable, Void> attached = Caffeine.newBuilder()
+            .evictionListener((RemovalListener<AutoCloseable, Void>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
                         ((LifeCycleControl) key).destroy();
@@ -161,7 +167,7 @@ public abstract class BaseNDManager implements NDManager {
     public void attachInternal(String resourceId, AutoCloseable resource) {
         if (delayed == 0) ticker.increment();
         else scopedCount++;
-        attached.put(resource, resource);
+        attached.put(resource, NDHelper.VOID);
     }
 
     @Override
@@ -594,7 +600,7 @@ public abstract class BaseNDManager implements NDManager {
      * Cleanup remaining tensors after the Thread is dead
      */
     static class NDManagerFinalizeTask implements Runnable {
-        private final Cache<AutoCloseable, AutoCloseable> attached;
+        private final Cache<AutoCloseable, Void> attached;
 
         public NDManagerFinalizeTask(BaseNDManager manager) {
             attached = manager.attached;

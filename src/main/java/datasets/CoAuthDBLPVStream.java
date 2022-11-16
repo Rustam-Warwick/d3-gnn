@@ -29,7 +29,7 @@ public class CoAuthDBLPVStream implements Dataset {
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
+        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group

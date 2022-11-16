@@ -185,8 +185,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         calculateParts();
         this.context = new Context();
         createInputAndOutputs(output);
-        this.mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
-        registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, "Feedback"));
+
     }
 
     /**
@@ -206,12 +205,15 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void finish() throws Exception {
+        while(mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0){
+            Thread.sleep(3000); // Wait for 200 seconds try to get all feedback elements and so on
+        }
+        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.finish();
     }
 
     @Override
     public void close() throws Exception {
-        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.close();
     }
 
@@ -278,7 +280,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
-        // Pass
+        this.mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
+        registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, ""));
     }
 
     /**
@@ -496,8 +499,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 OperatorUtils.createFeedbackKey(iterationID, 0);
         SubtaskFeedbackKey<StreamRecord<GraphOp>> key =
                 feedbackKey.withSubTaskIndex(indexOfThisSubtask, getWrappedOperator().getRuntimeContext().getAttemptNumber());
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        this.feedbackChannel = broker.getChannel(key);
+        feedbackChannel = FeedbackChannelBroker.get().getChannel(key);
         feedbackChannel.registerConsumer(this, mailboxExecutor);
         feedbackChannel.getPhaser().register();
     }

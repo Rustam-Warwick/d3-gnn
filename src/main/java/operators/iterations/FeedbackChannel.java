@@ -18,12 +18,12 @@
 package operators.iterations;
 
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.Meter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.statefun.flink.core.feedback.FeedbackConsumer;
 import org.apache.flink.statefun.flink.core.feedback.SubtaskFeedbackKey;
 import org.apache.flink.util.IOUtils;
-import org.apache.flink.util.Preconditions;
 
 import java.io.Closeable;
 import java.util.ArrayDeque;
@@ -32,57 +32,48 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Phaser;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Multi producer, single consumer channel.
  */
 public final class FeedbackChannel<T> implements Closeable {
 
-    public final ConcurrentHashMap<OperatorID, Tuple2<Meter, Meter>> meters; // Multi-Producer meters
+    private final ConcurrentHashMap<OperatorID, Tuple3<LockFreeBatchFeedbackQueue<T>, ConsumerTask<T>, Tuple2<Meter, Meter>>> publishers = new ConcurrentHashMap<>(); // Multi-Producers
 
-    private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues; // Multi-Producers
+    private Tuple2<FeedbackConsumer<T>, Executor> consumer; // Consumer
 
     private final SubtaskFeedbackKey<T> key; // Key of this FeedbackChannel
-
-    private final AtomicReference<ConsumerTask<T>> consumerRef = new AtomicReference<>(); // Referenceof the ConsumerTask
 
     private final Phaser phaser = new Phaser(); // Phaser used for coordinating the finishing of the input
 
     FeedbackChannel(SubtaskFeedbackKey<T> key) {
         this.key = Objects.requireNonNull(key);
-        this.queues = new ConcurrentHashMap<>();
-        this.meters = new ConcurrentHashMap<>();
     }
 
     /**
      * Has this channel any consumers
      */
     public boolean hasConsumer() {
-        return consumerRef.get() != null;
+        return consumer != null;
     }
 
     /**
      * Has this channel any Producers
      */
     public boolean hasProducer() {
-        return !queues.isEmpty();
+        return !publishers.isEmpty();
     }
 
     /**
      * Adds a feedback result to this channel.
      */
     public void put(T value, OperatorID publisherId) {
-        if (queues.containsKey(publisherId)) {
-            queues.get(publisherId).addAndCheckIfWasEmpty(value);
-            @SuppressWarnings("resource") final ConsumerTask<T> consumer = consumerRef.get();
-            if (Objects.nonNull(consumer)) {
-                consumer.scheduleDrainAll();
-            }
-        } else {
-            // Can only happen if the channel is interrupted, external job cancel signal
-            // Not an issue since it is closing any way
-        }
+        publishers.computeIfPresent(publisherId, (key, val)->{
+           val.f0.addAndCheckIfWasEmpty(value);
+           if(val.f1 != null) val.f1.schedule();
+           return val;
+        });
     }
 
     /**
@@ -91,25 +82,28 @@ public final class FeedbackChannel<T> implements Closeable {
      * @param publisherId OperatorId of the published operator
      */
     public void registerPublisher(OperatorID publisherId, Tuple2<Meter, Meter> flowCounters) {
-        Preconditions.checkNotNull(publisherId);
-        if (queues.containsKey(publisherId)) {
-            throw new IllegalStateException("There can be only a single producer with same operatorId in a FeedbackChannel.");
+        synchronized (this){
+            assert !publishers.containsKey(publisherId);
+            publishers.computeIfAbsent(publisherId, (key) -> {
+                LockFreeBatchFeedbackQueue<T> tmp = new LockFreeBatchFeedbackQueue<>();
+                if(consumer == null) return Tuple3.of(tmp, null, flowCounters);
+                else return Tuple3.of(tmp, new ConsumerTask<>(consumer.f1, consumer.f0, tmp), flowCounters);
+            });
         }
-        queues.computeIfAbsent(publisherId, (key) -> new LockFreeBatchFeedbackQueue<>());
-        meters.computeIfAbsent(publisherId, (key) -> flowCounters);
     }
 
     /**
      * Register a feedback iteration consumer
-     *
      * @param consumer the feedback events consumer.
      * @param executor the executor to schedule feedback consumption on.
      */
     public void registerConsumer(final FeedbackConsumer<T> consumer, Executor executor) {
-        Preconditions.checkNotNull(consumer);
-        ConsumerTask<T> consumerTask = new ConsumerTask<T>(executor, consumer, queues);
-        if (!this.consumerRef.compareAndSet(null, consumerTask)) {
-            throw new IllegalStateException("There can be only a single consumer in a FeedbackChannel.");
+        synchronized (this){
+            assert this.consumer != null;
+            this.consumer = Tuple2.of(consumer, executor);
+            publishers.forEach((key, value)->{
+                value.f1 = new ConsumerTask<>(executor, consumer, value.f0);
+            });
         }
     }
 
@@ -117,8 +111,8 @@ public final class FeedbackChannel<T> implements Closeable {
      * Registers snapshot in all queues
      */
     public void addSnapshot(long snapshotId) {
-        queues.forEach((key, item) -> {
-            item.addSnapshot(snapshotId);
+        publishers.forEach((key, item) -> {
+            item.f0.addSnapshot(snapshotId);
         });
     }
 
@@ -126,7 +120,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * Finish snapshot from a particular queue
      */
     public void finishSnapshot(long snapshotId, OperatorID operatorID) {
-        queues.get(operatorID).snapshotFinalize(snapshotId);
+        publishers.get(operatorID).f0.snapshotFinalize(snapshotId);
     }
 
     /**
@@ -135,7 +129,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * @implNote Unsafe, use single threaded
      */
     public ArrayDeque<T> getUnsafeBuffer(OperatorID operatorID) {
-        return queues.get(operatorID).queue.getUnsafeBuffer();
+        return publishers.get(operatorID).f0.queue.getUnsafeBuffer();
     }
 
     /**
@@ -150,7 +144,7 @@ public final class FeedbackChannel<T> implements Closeable {
      * Used in the iteration consumer to detect termination
      */
     public double getTotalFlowingMessageCount() {
-        return meters.values().stream().mapToDouble(item -> item.f0.getRate() + item.f1.getRate()).sum();
+        return publishers.values().stream().mapToDouble(item->item.f2.f0.getRate() + item.f2.f1.getRate()).sum();
     }
 
     /**
@@ -158,13 +152,10 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     @Override
     public void close() {
-        queues.clear();
-        meters.clear();
+        publishers.forEach((opId, val)->IOUtils.closeQuietly(val.f1));
+        publishers.clear();
         phaser.forceTermination();
-        ConsumerTask<T> consumer = consumerRef.getAndSet(null);
-        IOUtils.closeQuietly(consumer);
-        FeedbackChannelBroker broker = FeedbackChannelBroker.get();
-        broker.removeChannel(key);
+        FeedbackChannelBroker.get().removeChannel(key);
     }
 
     /**
@@ -174,35 +165,39 @@ public final class FeedbackChannel<T> implements Closeable {
      */
     private static final class ConsumerTask<T> implements Runnable, Closeable {
         private final Executor executor;
-        private final ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues;
+
+        private final LockFreeBatchFeedbackQueue<T> queue;
+
         private FeedbackConsumer<T> consumer;
 
-        ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, ConcurrentHashMap<OperatorID, LockFreeBatchFeedbackQueue<T>> queues) {
+        private final AtomicInteger scheduleCount = new AtomicInteger();
+
+        ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, LockFreeBatchFeedbackQueue<T> queue) {
             this.executor = Objects.requireNonNull(executor);
             this.consumer = Objects.requireNonNull(consumer);
-            this.queues = Objects.requireNonNull(queues);
+            this.queue = Objects.requireNonNull(queue);
         }
 
-        void scheduleDrainAll() {
-            executor.execute(this);
+        void schedule() {
+            if(scheduleCount.get() == 0 && consumer != null){
+                scheduleCount.incrementAndGet();
+                executor.execute(this);
+            }
         }
 
         @Override
         public void run() {
-            for (LockFreeBatchFeedbackQueue<T> value : queues.values()) {
-                if (value.hasPendingSnapshots()) {
-                    continue;
+            scheduleCount.decrementAndGet();
+            if (queue.hasPendingSnapshots()) return;
+            final Deque<T> buffer = queue.drainAll();
+            try {
+                T element;
+                while ((element = buffer.pollFirst()) != null) {
+                    if (consumer == null) return;
+                    consumer.processFeedback(element);
                 }
-                final Deque<T> buffer = value.drainAll();
-                try {
-                    T element;
-                    while ((element = buffer.pollFirst()) != null) {
-                        if (consumer == null) return;
-                        consumer.processFeedback(element);
-                    }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         }
 

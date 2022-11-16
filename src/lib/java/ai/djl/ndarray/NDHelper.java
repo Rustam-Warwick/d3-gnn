@@ -11,16 +11,35 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.*;
 
 public class NDHelper {
+    public static Void VOID;
+    static {
+        try {
+            Constructor<Void> c = Void.class.getDeclaredConstructor();
+            c.setAccessible(true);
+            VOID = c.newInstance();
+            c.setAccessible(false);
+        } catch (NoSuchMethodException | InvocationTargetException | InstantiationException | IllegalAccessException e) {
+            e.printStackTrace();
+        }
+    }
 
+    /**
+     * Decode numpy to NDArray
+     */
     public static NDArray decodeNumpy(NDManager manager, InputStream is) throws IOException {
         return NDSerializer.decodeNumpy(manager, is);
     }
 
+    /**
+     * Add all the necessary serializers for Tensor related stuff
+     */
     public static ExecutionConfig addSerializers(ExecutionConfig config) {
         config.addDefaultKryoSerializer(NDArray.class, NDArrayLZ4Serializer.class);
         config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
@@ -31,6 +50,10 @@ public class NDHelper {
         return config;
     }
 
+    /**
+     * Reflectively copy fields from one Object to another
+     * @implNote Should be of the same type
+     */
     public static void copyFields(Object from, Object to) {
         assert Objects.equals(from.getClass(), to.getClass());
         List<Field> fields = TypeExtractor.getAllDeclaredFields(from.getClass(), false);
@@ -46,6 +69,9 @@ public class NDHelper {
         }
     }
 
+    /**
+     * Load a model from the given path
+     */
     public static void loadModel(Path modelPath, Model model) {
         File folder = new File(String.valueOf(modelPath));
         FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
