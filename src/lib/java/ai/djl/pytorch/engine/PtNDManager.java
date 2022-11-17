@@ -204,7 +204,7 @@ public class PtNDManager extends BaseNDManager {
     @Override
     public PtNDManager newSubManager(Device device) {
         BaseNDManager manager = ND_MANAGER_THREAD_LOCAL.get();
-        if(manager == null){
+        if (manager == null) {
             manager = new PtNDManager(SYSTEM_MANAGER, SYSTEM_MANAGER.device);
             ND_MANAGER_THREAD_LOCAL.set(manager);
         }

@@ -188,12 +188,11 @@ public final class FeedbackChannel<T> implements Closeable {
         @Override
         public void run() {
             scheduleCount.decrementAndGet();
-            if (queue.hasPendingSnapshots()) return;
+            if (queue.hasPendingSnapshots() || consumer == null) return;
             final Deque<T> buffer = queue.drainAll();
             try {
                 T element;
                 while ((element = buffer.pollFirst()) != null) {
-                    if (consumer == null) return;
                     consumer.processFeedback(element);
                 }
             } catch (Exception e) {
@@ -201,6 +200,10 @@ public final class FeedbackChannel<T> implements Closeable {
             }
         }
 
+        /**
+         * {@inheritDoc}
+         * run() and close() cannot be run in parallel
+         */
         @Override
         public void close() {
             consumer = null;

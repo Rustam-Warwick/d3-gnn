@@ -19,6 +19,7 @@ import java.util.*;
 
 public class NDHelper {
     public static Void VOID;
+
     static {
         try {
             Constructor<Void> c = Void.class.getDeclaredConstructor();
@@ -52,6 +53,7 @@ public class NDHelper {
 
     /**
      * Reflectively copy fields from one Object to another
+     *
      * @implNote Should be of the same type
      */
     public static void copyFields(Object from, Object to) {

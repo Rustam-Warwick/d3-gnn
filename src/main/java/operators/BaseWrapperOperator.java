@@ -79,11 +79,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
 
-    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<>("iterate", TypeInformation.of(GraphOp.class));
 
-    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<GraphOp>("backward", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<>("backward", TypeInformation.of(GraphOp.class));
 
-    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<GraphOp>("full-iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<>("full-iterate", TypeInformation.of(GraphOp.class));
 
     /**
      * OPERATOR PROPS
@@ -145,8 +145,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
 
-
-
     public BaseWrapperOperator(
             StreamOperatorParameters<GraphOp> parameters,
             StreamOperatorFactory<GraphOp> operatorFactory,
@@ -170,8 +168,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                                 output,
                                 parameters.getOperatorEventDispatcher())
                                 .f0;
-
-        this.metrics = createOperatorMetricGroup(containingTask.getEnvironment(), streamConfig);
+        this.metrics = (InternalOperatorMetricGroup) wrappedOperator.getMetricGroup();
         this.operatorIndex = (short) containingTask.getEnvironment().getTaskInfo().getIndexOfThisSubtask();
         this.parallelism = (short) containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks();
         this.events = new HashMap<>();
@@ -185,7 +182,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
         calculateParts();
         this.context = new Context();
         createInputAndOutputs(output);
-
     }
 
     /**
@@ -205,8 +201,12 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void finish() throws Exception {
-        while(mailboxExecutor.tryYield() || feedbackChannel.getTotalFlowingMessageCount() > 0){
-            Thread.sleep(3000); // Wait for 200 seconds try to get all feedback elements and so on
+        if(feedbackChannel.hasProducer()) {
+            long finish = System.currentTimeMillis() + 10000;
+            do {
+                if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 10000;
+                Thread.onSpinWait();
+            } while (System.currentTimeMillis() < finish);
         }
         IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.finish();
@@ -280,7 +280,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
-        this.mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
+        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
         registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, ""));
     }
 
@@ -345,6 +345,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
+            System.out.println("Watermark received " + Thread.currentThread());
             operatorEventGateway.sendEventToCoordinator(new FinalWatermarkArrived());
         }
         wrappedOperator.processWatermark(mark);
@@ -413,27 +414,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     /**
      * SETUP OF: BROADCAST Context + Feedback Registration + MetricGroup + ProxyOutput + This Parts
      */
-
-    /**
-     * Create metric group for this operator
-     */
-    private InternalOperatorMetricGroup createOperatorMetricGroup(
-            Environment environment, StreamConfig streamConfig) {
-        try {
-            InternalOperatorMetricGroup operatorMetricGroup =
-                    environment
-                            .getMetricGroup()
-                            .getOrAddOperator(
-                                    streamConfig.getOperatorID(), streamConfig.getOperatorName());
-            if (streamConfig.isChainEnd()) {
-                operatorMetricGroup.getIOMetricGroup().reuseOutputMetricsForTask();
-            }
-            return operatorMetricGroup;
-        } catch (Exception e) {
-            LOG.warn("An error occurred while instantiating task metrics.", e);
-            return UnregisteredMetricGroups.createUnregisteredOperatorMetricGroup();
-        }
-    }
 
     /**
      * Calculate and assign all the parts mapped to this physical operator, and other master parts

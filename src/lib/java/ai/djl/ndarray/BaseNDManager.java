@@ -16,17 +16,14 @@ import ai.djl.Device;
 import ai.djl.engine.Engine;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
 import ai.djl.util.RandomUtils;
-import com.esotericsoftware.reflectasm.ConstructorAccess;
 import com.github.benmanes.caffeine.cache.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.Cleaner;
-import java.lang.reflect.Constructor;
 import java.nio.Buffer;
 import java.nio.*;
 import java.nio.charset.Charset;

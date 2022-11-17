@@ -18,10 +18,11 @@ import ai.djl.pytorch.engine.PtNDManager;
 import elements.GraphOp;
 import elements.Vertex;
 import functions.gnn_layers.StreamingGNNLayerFunction;
+import org.apache.flink.metrics.MeterView;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.tensorflow.ndarray.NdArrays;
 import plugins.ModelServer;
+import plugins.debugging.PrintVertexPlugin;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
@@ -60,21 +61,8 @@ public class Main {
         return models;
     }
 
-    public static void test(){
-        NDManager manager = BaseNDManager.getManager();
-        NDArray ten = manager.create(10);
-        NDArray two = manager.create(2);
-        ByteBuffer tenBuffer = ten.toByteBuffer();
-        System.out.println(tenBuffer.array());
-        ten.muli(two).muli(two);
-        System.out.println(tenBuffer.array());
-        Object a = NdArrays.ofBooleans(org.tensorflow.ndarray.Shape.of(1,1));
-        System.out.println(a);
-    }
-
     public static void main(String[] args) throws Throwable {
         // Configuration
-        test();
         BaseNDManager.getManager().delay();
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();

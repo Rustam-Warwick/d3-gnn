@@ -30,10 +30,10 @@ public class HyperGraphMinMax extends BasePartitioner {
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
         private final int partitions;
         private final int s;
-        private transient ConcurrentHashMap<String, List<Short>> n2p;
-        private transient ConcurrentHashMap<String, List<Short>> vertex2p;
         public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
         public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
+        private transient ConcurrentHashMap<String, List<Short>> n2p;
+        private transient ConcurrentHashMap<String, List<Short>> vertex2p;
         private transient String[] mark;
         private transient short[] pids;
         private transient int[] indx;
@@ -119,7 +119,7 @@ public class HyperGraphMinMax extends BasePartitioner {
                         } else {
                             if (!val.contains(part)) {
                                 val.add(part);
-                            };
+                            }
                             vertex.master = val.get(0);
                             return val;
                         }

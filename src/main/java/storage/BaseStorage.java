@@ -132,8 +132,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     /**
      * Iterate over all plugins
-     *
-     * @return
      */
     public final Iterable<Plugin> getPlugins() {
         return this.plugins.values();

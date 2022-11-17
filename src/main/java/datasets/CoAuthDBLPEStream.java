@@ -50,7 +50,7 @@ public class CoAuthDBLPEStream implements Dataset {
         int count;
         @Override
         public void flatMap(String value, Collector<GraphOp> out){
-            if(++count > 1000) {
+            if(++count > 20) {
                 return;
             }
             String[] values = value.split(",");

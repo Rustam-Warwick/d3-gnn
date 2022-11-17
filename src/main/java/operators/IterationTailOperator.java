@@ -60,7 +60,7 @@ import java.util.function.Consumer;
 public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {
 
-    private static Logger logger = LoggerFactory.getLogger(IterationTailOperator.class);
+    private static final Logger logger = LoggerFactory.getLogger(IterationTailOperator.class);
 
     private final IterationID iterationId; // Iteration Id is a unique id of the iteration. Can be shared by many producers
 
@@ -69,8 +69,6 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     private transient Consumer<StreamRecord<GraphOp>> recordConsumer; // Depending on the Object Reuse enabled or not
 
     private transient FeedbackChannel<StreamRecord<GraphOp>> feedbackChannel; // Channel to send feedbacks to
-
-    private transient TypeSerializer<StreamElement> recordSerializer; // StreamElement serializer
 
     private transient ListState<StreamRecord<GraphOp>> bufferedRecords; // Buffered records for the checkpointing the state
 
@@ -85,13 +83,7 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void setup(StreamTask<?, ?> containingTask, StreamConfig config, Output<StreamRecord<Void>> output) {
         super.setup(containingTask, config, output);
-        operatorID = getOperatorID();
-        recordSerializer = new StreamElementSerializer<StreamRecord<GraphOp>>(getContainingTask().getConfiguration().getTypeSerializerIn(0, getClass().getClassLoader()));
-        recordConsumer =
-                getExecutionConfig().isObjectReuseEnabled()
-                        ? this::processIfObjectReuseEnabled
-                        : this::processIfObjectReuseNotEnabled;
-        registerFeedbackWriter();
+
     }
 
     /**
@@ -100,9 +92,14 @@ public class IterationTailOperator extends AbstractStreamOperator<Void>
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        while (!feedbackChannel.hasConsumer()) {
-            Thread.sleep(500);
-        }
+        operatorID = getOperatorID();
+        // StreamElement serializer
+        TypeSerializer<StreamElement> recordSerializer = new StreamElementSerializer<StreamRecord<GraphOp>>(getContainingTask().getConfiguration().getTypeSerializerIn(0, getClass().getClassLoader()));
+        recordConsumer =
+                getExecutionConfig().isObjectReuseEnabled()
+                        ? this::processIfObjectReuseEnabled
+                        : this::processIfObjectReuseNotEnabled;
+        registerFeedbackWriter();
         ListStateDescriptor<StreamRecord<GraphOp>> descriptor =
                 new ListStateDescriptor(
                         "buffered-records",
