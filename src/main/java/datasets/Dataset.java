@@ -31,10 +31,10 @@ public interface Dataset extends Serializable {
                 return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString(), CoAuthDBLPVStream.TYPE.HYPERVERTEX_STREAM);
             case "coauth-DBLP-edge-stream":
                 return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString(), CoAuthDBLPVStream.TYPE.EDGE_STREAM);
-            case "tags-ask-ubuntu-vertex-stream":
-                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.HYPERVERTEX_STREAM);
-            case "tags-ask-ubuntu-edge-stream":
-                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.EDGE_STREAM);
+            case "tags-ask-ubuntu-hypergraph":
+                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.HYPERGRAPH_STREAM);
+            case "tags-ask-ubuntu-star-expansion":
+                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.STAR_EXPANSION_STREAM);
             case "stackoverflow":
                 return new Stackoverflow(Path.of(System.getenv("DATASET_DIR")).toString());
             default:

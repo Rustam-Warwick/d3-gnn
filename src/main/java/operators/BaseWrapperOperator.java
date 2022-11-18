@@ -43,7 +43,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.StreamTask;
-import org.apache.flink.streaming.runtime.tasks.mailbox.TaskMailbox;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.IOUtils;
@@ -102,17 +101,25 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final Context context;
 
     protected final InternalOperatorMetricGroup metrics;
+
     protected final OperatorEventGateway operatorEventGateway; // Event gateway
+
     /**
      * My additions for GNN
      */
 
     protected final short position; // Horizontal position
+
     protected final short operatorIndex; // Vertical position
+
     protected final short parallelism; // Parallelism of this operator
+
     protected final short totalLayers; // Total horizontal layers
+
     protected final IterationID iterationID; // Id for the Iteration
+
     protected transient NDManager manager; // NDManager local to this Thread exposed through interface
+
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
     /**
@@ -681,6 +688,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return element;
         }
 
+        /**
+         * Cached NDManager for this operator
+         */
         public NDManager getNDManager() {
             return manager;
         }

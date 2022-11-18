@@ -9,19 +9,13 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HyperSAGEConv;
 import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.util.Collector;
 import plugins.ModelServer;
-import plugins.debugging.PrintVertexPlugin;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
-import storage.CompressedListStorage;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -64,9 +58,14 @@ public class Main {
         // DataFlow
         GraphStream gs = new GraphStream(env, args);
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
-                new StreamingGNNLayerFunction(new CompressedListStorage()
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(0)))
                         .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                ),
+                new StreamingGNNLayerFunction(new FlatObjectStorage()
+                        .withPlugin(new ModelServer<>(models.get(1)))
+                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
         );

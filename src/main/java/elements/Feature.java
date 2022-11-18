@@ -78,24 +78,17 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Given featureName and attached Element id return the unique id for this feature
      */
-    public static String encodeFeatureId(ElementType type, String attachedElementId, String featureName) {
+    public static String encodeFeatureId(ElementType type, @Nullable String attachedElementId, String featureName) {
         if (type == ElementType.NONE) return featureName;
         return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
     }
 
     /**
-     * Given an attached Feature id, decode it returns an array of [Element Type, element Id, Feature Name]
+     * Given an attached Feature id, decode it returns an array of [Element Type, element_id , Feature Name]
      */
     public static Tuple3<ElementType, String, String> decodeAttachedFeatureId(String attachedFeatureId) {
         String[] val = attachedFeatureId.split(DELIMITER);
         return Tuple3.of(ELEMENT_VALUES[Integer.parseInt(val[2])], val[0], val[1]);
-    }
-
-    /**
-     * Does this id belong to attached feature or not
-     */
-    public static boolean isAttached(String featureId) {
-        return featureId.contains(DELIMITER);
     }
 
     /**

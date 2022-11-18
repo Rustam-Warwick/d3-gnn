@@ -14,7 +14,7 @@ import storage.BaseStorage;
 import java.util.function.Consumer;
 
 /**
- * Mean aggregator that does inplace operation hence the updated oldValue is never used
+ * Mean aggregator that does inplace operation hence the updated oldValue is never updated
  */
 public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDArray> implements Aggregator {
 

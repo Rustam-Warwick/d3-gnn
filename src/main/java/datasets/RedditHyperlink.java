@@ -6,6 +6,7 @@ import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
@@ -29,7 +30,14 @@ public class RedditHyperlink implements Dataset {
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         String fileName = Path.of(baseDirectory, "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, FileProcessingMode.PROCESS_CONTINUOUSLY, 100000).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).setParallelism(1).filter(new FilterFunction<GraphOp>() {
+            int counter;
+
+            @Override
+            public boolean filter(GraphOp value) throws Exception {
+                return ++counter <= 10000;
+            }
+        }).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> timestampExtracted = parsed.assignTimestampsAndWatermarks(WatermarkStrategy.<GraphOp>noWatermarks().withTimestampAssigner(new SerializableTimestampAssigner<GraphOp>() {
             @Override
             public long extractTimestamp(GraphOp element, long recordTimestamp) {
@@ -53,8 +61,6 @@ public class RedditHyperlink implements Dataset {
     }
 
     static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
-        int count;
-
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
@@ -65,8 +71,8 @@ public class RedditHyperlink implements Dataset {
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split(",");
-            DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1])); // Attributed edges
+            String[] values = value.split("\t");
+            DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]); // Attributed edges
 //            float[] features = new float[values.length - 4];
 //            for(int i=4;i<values.length;i++){
 //                String processed = values[i].replaceAll("[^0-9.]", "");

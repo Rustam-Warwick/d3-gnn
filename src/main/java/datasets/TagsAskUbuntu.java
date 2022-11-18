@@ -2,7 +2,6 @@ package datasets;
 
 import elements.*;
 import elements.enums.Op;
-import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
@@ -23,14 +22,14 @@ public class TagsAskUbuntu implements Dataset {
     private final TYPE outputType;
 
     public TagsAskUbuntu(String datasetDir, TYPE outputType) {
-        vertexStreamFile = Path.of(datasetDir, "tags-ask-ubuntu", outputType == TYPE.EDGE_STREAM ? "tags-ask-ubuntu-simplex-node.txt":"tags-ask-ubuntu-node-simplex.txt").toString();
+        vertexStreamFile = Path.of(datasetDir, "tags-ask-ubuntu", outputType == TYPE.STAR_EXPANSION_STREAM ? "tags-ask-ubuntu-simplex-node.txt" : "tags-ask-ubuntu-node-simplex.txt").toString();
         this.outputType = outputType;
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> results = outputType == TYPE.HYPERVERTEX_STREAM ? vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1) : vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> results = outputType == TYPE.HYPERGRAPH_STREAM ? vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1) : vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             vertexStreamString.slotSharingGroup("file-input");
@@ -51,8 +50,8 @@ public class TagsAskUbuntu implements Dataset {
     }
 
     public enum TYPE {
-        HYPERVERTEX_STREAM,
-        EDGE_STREAM
+        HYPERGRAPH_STREAM,
+        STAR_EXPANSION_STREAM
     }
 
     public static class ParseEdgeStream implements FlatMapFunction<String, GraphOp> {

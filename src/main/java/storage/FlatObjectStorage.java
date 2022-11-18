@@ -97,15 +97,15 @@ public class FlatObjectStorage extends BaseStorage {
     public boolean addEdge(DEdge dEdge) {
         try {
             edgeTable.put(dEdge.getId(), dEdge);
-            if (!outEdgeTable.contains(dEdge.getSrc().getId()))
+            if (!outEdgeTable.contains(dEdge.getSrcId()))
                 outEdgeTable.put(dEdge.getSrcId(), new HashMap<>());
             if (!inEdgeTable.contains(dEdge.getDestId()))
-                inEdgeTable.put(dEdge.getDest().getId(), new HashMap<>());
-            Map<String, List<String>> outEdges = outEdgeTable.get(dEdge.getSrc().getId());
-            Map<String, List<String>> inEdges = inEdgeTable.get(dEdge.getDest().getId());
-            if (!outEdges.containsKey(dEdge.getDest().getId()))
+                inEdgeTable.put(dEdge.getDestId(), new HashMap<>());
+            Map<String, List<String>> outEdges = outEdgeTable.get(dEdge.getSrcId());
+            Map<String, List<String>> inEdges = inEdgeTable.get(dEdge.getDestId());
+            if (!outEdges.containsKey(dEdge.getDestId()))
                 outEdges.put(dEdge.getDestId(), new ArrayList<>());
-            if (!inEdges.containsKey(dEdge.getSrc().getId()))
+            if (!inEdges.containsKey(dEdge.getSrcId()))
                 inEdges.put(dEdge.getSrcId(), new ArrayList<>());
             outEdges.get(dEdge.getDestId()).add(dEdge.getId());
             inEdges.get(dEdge.getSrcId()).add(dEdge.getId());

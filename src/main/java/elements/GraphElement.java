@@ -300,6 +300,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
      *
      * @param name    name of the feature to be added
      * @param feature feature itself
+     * @implNote If storage is not null, exists check will also look for storage, so this method is not caching the feature if it exists in storage
      */
     public void setFeature(String name, Feature<?, ?> feature) {
         if (!containsFeature(name)) {

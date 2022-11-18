@@ -25,9 +25,9 @@ public class CompressedListStorage extends BaseStorage {
 
     public transient MapState<String, Short> vertexTable;
 
-    public transient MapState<String, HashSet<String>> eOutTable;
+    public transient MapState<String, Set<Tuple2<String, String>>> eOutTable;
 
-    public transient MapState<String, HashSet<String>> eInTable;
+    public transient MapState<String, Set<Tuple2<String, String>>> eInTable;
 
     public transient MapState<String, List<String>> v2HEdge;
 
@@ -37,17 +37,20 @@ public class CompressedListStorage extends BaseStorage {
 
     public transient Tuple2<String, ElementType> reuse;
 
+    public transient Tuple2<String, String> reuse2;
+
     @Override
     public void open() throws Exception {
         vertexTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
-        eOutTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
+        eOutTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
+        })));
+        eInTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
         })));
         v2HEdge = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, List<String>>("v2HEdge", Types.STRING, Types.LIST(Types.STRING)));
         hyperEdges = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Tuple2<Short, List<String>>>("hyperEdges", Types.STRING, Types.TUPLE(Types.SHORT, Types.LIST(Types.STRING))));
-        eInTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<HashSet<String>>() {
-        })));
         attFeatureTable = new HashMap<>(1 << 3);
         reuse = new Tuple2<>();
+        reuse2 = new Tuple2<>();
         super.open();
     }
 
@@ -100,12 +103,12 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public boolean addEdge(DEdge dEdge) {
         try {
-            HashSet<String> eOut = eOutTable.get(dEdge.getSrcId());
+            Set<Tuple2<String, String>> eOut = eOutTable.get(dEdge.getSrcId());
             if (eOut == null) eOut = new HashSet<>(10);
-            HashSet<String> eIn = eInTable.get(dEdge.getDestId());
+            Set<Tuple2<String, String>> eIn = eInTable.get(dEdge.getDestId());
             if (eIn == null) eIn = new HashSet<>(10);
-            eOut.add(dEdge.getDestId());
-            eIn.add(dEdge.getSrcId());
+            eOut.add(Tuple2.of(dEdge.getDestId(), dEdge.getAttribute()));
+            eIn.add(Tuple2.of(dEdge.getSrcId(), dEdge.getAttribute()));
             eOutTable.put(dEdge.getSrcId(), eOut);
             eInTable.put(dEdge.getDestId(), eIn);
             return true;
@@ -236,7 +239,6 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public DEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
         try {
-            assert attributeId == null;
             DEdge edge = new DEdge(srcId, destId, attributeId);
             edge.setStorage(this);
             return edge;
@@ -259,8 +261,8 @@ public class CompressedListStorage extends BaseStorage {
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (eOutTable.contains(vertex.getId())) {
                     outEdgesIter = IteratorUtils.transformedIterator(eOutTable.get(vertex.getId()).iterator(), (v) -> {
-                        String destId = (String) v;
-                        DEdge edge = new DEdge(vertex.getId(), destId, null);
+                        Tuple2<String, String> destIdAndAttribute = (Tuple2<String, String>) v;
+                        DEdge edge = new DEdge(vertex.getId(), destIdAndAttribute.f0, destIdAndAttribute.f1);
                         edge.src = vertex;
                         edge.setStorage(this);
                         return edge;
@@ -270,8 +272,8 @@ public class CompressedListStorage extends BaseStorage {
             if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
                 if (eInTable.contains(vertex.getId())) {
                     inEdgesIter = IteratorUtils.transformedIterator(eInTable.get(vertex.getId()).iterator(), (v) -> {
-                        String srcId = (String) v;
-                        DEdge edge = new DEdge(srcId, vertex.getId(), null);
+                        Tuple2<String, String> srcIdAndAttribute = (Tuple2<String, String>) v;
+                        DEdge edge = new DEdge(srcIdAndAttribute.f0, vertex.getId(), srcIdAndAttribute.f1);
                         edge.dest = vertex;
                         edge.setStorage(this);
                         return edge;
@@ -372,8 +374,9 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
         try {
-            assert attributeId == null;
-            return eOutTable.contains(srcId) && eOutTable.get(srcId).contains(destId);
+            reuse2.f0 = destId;
+            reuse2.f1 = attributeId;
+            return eOutTable.contains(srcId) && eOutTable.get(srcId).contains(reuse2);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -393,13 +396,12 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public void cacheFeatures(GraphElement element, CacheFeatureContext context) {
         try {
-            String elId = null;
+            String elId = element.getId();
             for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
-                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.elementType() || !tuple2Tuple3Entry.getValue().f0.contains(element.getId()))
+                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.elementType() || !tuple2Tuple3Entry.getValue().f0.contains(elId))
                     continue;
                 if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(tuple2Tuple3Entry.getKey().f0)))
                     return;
-                if (elId == null) elId = element.getId();
                 Feature<?, ?> feature = getAttachedFeature(element.elementType(), elId, tuple2Tuple3Entry.getKey().f0, null);
                 feature.setElement(element);
             }

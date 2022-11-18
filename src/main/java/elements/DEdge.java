@@ -32,7 +32,7 @@ public final class DEdge extends GraphElement {
 
     public DEdge() {
         super();
-        ids = new Tuple3();
+        ids = new Tuple3<>();
     }
 
     public DEdge(String id) {

@@ -24,7 +24,7 @@ public class HDRF extends BasePartitioner {
 
     public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
 
-    public final float lambda = 2f; // More means more balance constraint comes into play
+    public final float lambda = 4f; // More means more balance constraint comes into play
 
     public final int numThreads = 1; // Number of thread that will process this dataset
 
@@ -38,6 +38,9 @@ public class HDRF extends BasePartitioner {
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).uid(String.format("%s-%sThreads", "HDRF", numThreads)).setParallelism(1);
     }
 
+    /**
+     * Actual ProcessFunction for HDRF
+     */
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         public final short numPartitions;
         public final float lamb;
@@ -111,8 +114,8 @@ public class HDRF extends BasePartitioner {
                 } else if (score == maxScore) tmp.add(i);
             }
 
-//            final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
-            final short finalSelected = tmp.get(0);
+            final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
+//            final short finalSelected = tmp.get(0);
             // 3. Update the tables
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
