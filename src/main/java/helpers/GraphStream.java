@@ -146,15 +146,13 @@ public class GraphStream {
         options.addOption(fineGrainedResources);
         options.addOption(tensorCompression);
         try {
-            CommandLine commandLine = parser.parse(options, cmdArgs);
+            CommandLine commandLine = parser.parse(options, cmdArgs, true);
             if (commandLine.hasOption("l")) {
                 String lambdaValue = commandLine.getOptionValue("lambda");
-                double r = Double.valueOf(lambdaValue);
-                this.lambda = r;
+                this.lambda = Double.parseDouble(lambdaValue);
             }
             if (commandLine.hasOption("p")) {
-                String lambdaValue = commandLine.getOptionValue("p");
-                this.partitionerName = lambdaValue;
+                this.partitionerName = commandLine.getOptionValue("p");
             }
             if (commandLine.hasOption("o")) {
                 this.env.getConfig().enableObjectReuse();

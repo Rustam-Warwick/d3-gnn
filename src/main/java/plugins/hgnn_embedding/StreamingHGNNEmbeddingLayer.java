@@ -80,16 +80,17 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (newFeature.getName().equals("f") && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 replaceF1((Tensor) newFeature, (Tensor) oldFeature); // Replace previously reduced hyper-edges (F1)
-                if(newFeature.state() == ReplicaState.MASTER) forward((Vertex) newFeature.getElement());
+                if (newFeature.state() == ReplicaState.MASTER) forward((Vertex) newFeature.getElement());
             } else if (newFeature.getName().equals("agg") && newFeature.attachedTo.f0 == ElementType.HYPEREDGE) {
                 replaceF2((MeanAggregator) newFeature, (MeanAggregator) oldFeature); // Replace previously reduced vertices (F2)
             } else if (newFeature.getName().equals("agg") && newFeature.attachedTo.f0 == ElementType.VERTEX) {
                 Vertex v = (Vertex) newFeature.getElement();
-                if(v.containsFeature("f")) forward((Vertex) newFeature.getElement());
+                if (v.containsFeature("f")) forward((Vertex) newFeature.getElement());
             }
         }
     }
-   /**
+
+    /**
      * Push the embedding of this vertex to the next layer
      */
     @SuppressWarnings("all")

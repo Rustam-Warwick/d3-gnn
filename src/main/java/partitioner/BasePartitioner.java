@@ -23,6 +23,8 @@ abstract public class BasePartitioner {
                 return new WindowedHDRF();
             case "windowed-random":
                 return new WindowedRandom();
+            case "buffered":
+                return new BufferedPartitioner();
             default:
                 return new RandomPartitioner();
         }

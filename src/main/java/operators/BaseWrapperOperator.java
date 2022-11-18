@@ -24,11 +24,9 @@ import org.apache.flink.iteration.operator.OperatorUtils;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
-import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
-import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
@@ -104,25 +102,17 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     protected final Context context;
 
     protected final InternalOperatorMetricGroup metrics;
-
-    protected transient NDManager manager; // NDManager local to this Thread exposed through interface
-
     protected final OperatorEventGateway operatorEventGateway; // Event gateway
-
     /**
      * My additions for GNN
      */
 
     protected final short position; // Horizontal position
-
     protected final short operatorIndex; // Vertical position
-
     protected final short parallelism; // Parallelism of this operator
-
     protected final short totalLayers; // Total horizontal layers
-
     protected final IterationID iterationID; // Id for the Iteration
-
+    protected transient NDManager manager; // NDManager local to this Thread exposed through interface
     protected transient StreamOperatorStateHandler stateHandler; // State handler similar to the AbstractStreamOperator
 
     /**
@@ -201,7 +191,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void finish() throws Exception {
-        if(feedbackChannel.hasProducer()) {
+        if (feedbackChannel.hasProducer()) {
             long finish = System.currentTimeMillis() + 10000;
             do {
                 if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 10000;
@@ -214,6 +204,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     @Override
     public void close() throws Exception {
+        IOUtils.closeQuietly(feedbackChannel);
         wrappedOperator.close();
     }
 
@@ -280,7 +271,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
-        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(TaskMailbox.MAX_PRIORITY);
+        mailboxExecutor = containingTask.getMailboxExecutorFactory().createExecutor(5);
         registerFeedbackConsumer((Runnable task) -> mailboxExecutor.execute(task::run, ""));
     }
 

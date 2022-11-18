@@ -354,7 +354,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 v.create();
                 return v;
             case HYPEREDGE:
-                HEdge e = new HEdge(id,  new ArrayList<>() , layerFunction.getCurrentPart());
+                HEdge e = new HEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
                 e.setStorage(this);
                 e.create();
                 return e;

@@ -28,16 +28,20 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class Reddit implements Dataset {
+    private final String baseDir;
+
+    public Reddit(String baseDir) {
+        this.baseDir = baseDir;
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        String baseDirectory = Path.of(System.getenv("DATASET_DIR")).toString();
-        String fileName = Path.of(baseDirectory, "reddit", "graph.tsv").toString();
-        String labelFileName = Path.of(baseDirectory, "reddit", "node_labels.npy").toString();
-        String featureFileName = Path.of(baseDirectory, "reddit", "node_features.npy").toString();
+        String fileName = Path.of(baseDir, "reddit", "graph.tsv").toString();
+        String labelFileName = Path.of(baseDir, "reddit", "node_labels.npy").toString();
+        String featureFileName = Path.of(baseDir, "reddit", "node_features.npy").toString();
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = null;
         try {

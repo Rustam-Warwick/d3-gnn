@@ -13,26 +13,29 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
 
-    public final float epsilon = 8; // Leave it as is, used to not have division by zero errors
+    public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
 
-    public float lambda = 1f; // More means more balance constraint comes into play
+    public final float lambda = 2f; // More means more balance constraint comes into play
+
+    public final int numThreads = 1; // Number of thread that will process this dataset
 
     /**
      * {@inheritDoc}
      */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        int numThreats = 1;
-        return inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreats),
+        return inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreads),
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreats)).uid(String.format("%s-%sThreads", "HDRF", numThreats)).setParallelism(1);
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).uid(String.format("%s-%sThreads", "HDRF", numThreads)).setParallelism(1);
     }
 
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
@@ -43,7 +46,6 @@ public class HDRF extends BasePartitioner {
         public ConcurrentHashMap<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
         public ConcurrentHashMap<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
 
-        public Set<String> currentlyProcessing = Collections.synchronizedSet(new HashSet<String>());
         public AtomicInteger maxSize = new AtomicInteger(0);
         public AtomicInteger minSize = new AtomicInteger(0);
         // Metrics proprs
@@ -109,8 +111,8 @@ public class HDRF extends BasePartitioner {
                 } else if (score == maxScore) tmp.add(i);
             }
 
-            final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
-
+//            final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
+            final short finalSelected = tmp.get(0);
             // 3. Update the tables
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));

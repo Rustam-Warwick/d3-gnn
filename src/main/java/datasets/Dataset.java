@@ -22,24 +22,23 @@ public interface Dataset extends Serializable {
      * @return Dataset object
      */
     static Dataset getDataset(String name) {
-        if (name.equals("reddit-hyperlink")) {
-            return new RedditHyperlink(Path.of(System.getenv("DATASET_DIR")).toString());
-        }
-        if (name.equals("reddit")) {
-            return new Reddit();
-        }
-        if (name.equals("coauth-DBLP-vertex-stream")) {
-            return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString());
-        }
-        if(name.equals("coauth-DBLP-edge-stream")){
-            return new CoAuthDBLPEStream(Path.of(System.getenv("DATASET_DIR")).toString());
-        }
-        if (name.equals("stackoverflow")) {
-            return new Stackoverflow(Path.of(System.getenv("DATASET_DIR")).toString());
-        } else if (name.contains("signed")) {
-            return new SignedNetworkDataset(Path.of(System.getenv("DATASET_DIR"), name).toString());
-        } else {
-            return new EdgeList(Path.of(System.getenv("DATASET_DIR"), "edge-list", name).toString());
+        switch (name) {
+            case "reddit-hyperlink":
+                return new RedditHyperlink(Path.of(System.getenv("DATASET_DIR")).toString());
+            case "reddit":
+                return new Reddit(Path.of(System.getenv("DATASET_DIR")).toString());
+            case "coauth-DBLP-vertex-stream":
+                return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString(), CoAuthDBLPVStream.TYPE.HYPERVERTEX_STREAM);
+            case "coauth-DBLP-edge-stream":
+                return new CoAuthDBLPVStream(Path.of(System.getenv("DATASET_DIR")).toString(), CoAuthDBLPVStream.TYPE.EDGE_STREAM);
+            case "tags-ask-ubuntu-vertex-stream":
+                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.HYPERVERTEX_STREAM);
+            case "tags-ask-ubuntu-edge-stream":
+                return new TagsAskUbuntu(Path.of(System.getenv("DATASET_DIR")).toString(), TagsAskUbuntu.TYPE.EDGE_STREAM);
+            case "stackoverflow":
+                return new Stackoverflow(Path.of(System.getenv("DATASET_DIR")).toString());
+            default:
+                throw new IllegalStateException("Dataset is not found");
         }
     }
 

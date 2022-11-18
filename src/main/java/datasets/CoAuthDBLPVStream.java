@@ -1,12 +1,8 @@
 package datasets;
 
-import elements.GraphOp;
-import elements.HEdge;
-import elements.HGraph;
-import elements.Vertex;
+import elements.*;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.FlatMapFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -22,15 +18,17 @@ import java.util.List;
 
 public class CoAuthDBLPVStream implements Dataset {
     private final String vertexStreamFile;
+    private final TYPE outputType;
 
-    public CoAuthDBLPVStream(String datasetDir) {
+    public CoAuthDBLPVStream(String datasetDir, TYPE outputType) {
         vertexStreamFile = Path.of(datasetDir, "coauth-DBLP-full", "coauth-DBLP-vertex-stream.txt").toString();
+        this.outputType = outputType;
     }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
         SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> nets = vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> nets = outputType == TYPE.HYPERVERTEX_STREAM ? vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1) : vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             vertexStreamString.slotSharingGroup("file-input");
@@ -50,12 +48,27 @@ public class CoAuthDBLPVStream implements Dataset {
         };
     }
 
-    public static class ParseVertexStream implements FlatMapFunction<String, GraphOp> {
-        int count;
+    public enum TYPE {
+        HYPERVERTEX_STREAM,
+        EDGE_STREAM
+    }
 
+    public static class ParseEdgeStream implements FlatMapFunction<String, GraphOp> {
         @Override
-        public void flatMap(String value, Collector<GraphOp> out){
-            if(++count > 1000) return;
+        public void flatMap(String value, Collector<GraphOp> out) {
+            String[] values = value.split(",");
+            Vertex src = new Vertex(values[0]);
+            for (int i = 1; i < values.length; i++) {
+                Vertex dest = new Vertex(values[i]);
+                out.collect(new GraphOp(Op.COMMIT, new DEdge(src, dest)));
+                out.collect(new GraphOp(Op.COMMIT, new DEdge(dest, src)));
+            }
+        }
+    }
+
+    public static class ParseVertexStream implements FlatMapFunction<String, GraphOp> {
+        @Override
+        public void flatMap(String value, Collector<GraphOp> out) {
             String[] values = value.split(",");
             List<Vertex> src = List.of(new Vertex(values[0]));
             List<String> srcId = List.of(src.get(0).getId());

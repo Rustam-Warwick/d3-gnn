@@ -37,6 +37,11 @@ import java.util.concurrent.TimeUnit;
  * Fully changed code such that all registered NDArrays are cleared in a sliding window
  * NDarrays can call {@link LifeCycleControl} methods to delay or resume them from being cleared up
  * </strong>
+ *
+ * <strong>
+ * To add a new engine support we need to create NDManager and place it in ThreadLocal
+ * Further retrievals should also be done through threadlocal as well
+ * </strong>
  */
 public abstract class BaseNDManager implements NDManager {
 
@@ -72,9 +77,9 @@ public abstract class BaseNDManager implements NDManager {
 
     protected Device device;
 
-    protected byte delayed = 0; // Count of this NDManager getting delayed
+    protected byte delayed = 0; // Count of this NDManager getting delayed. Ticker is not incrementing once in delayed state
 
-    protected int scopedCount = 0; // Count of opened tensors when we are in a scope
+    protected int scopedCount = 0; // Count of opened tensors when we are in a delayed state
 
     protected BaseNDManager(NDManager parent, Device device) {
         this.parent = parent;
@@ -85,6 +90,9 @@ public abstract class BaseNDManager implements NDManager {
 
     // -------------------------- MY METHODS ---------------------------
 
+    /**
+     * Get NDManager from the default engine
+     */
     public static NDManager getManager() {
         return engineDefault.newBaseManager(null);
     }
@@ -160,6 +168,9 @@ public abstract class BaseNDManager implements NDManager {
         target.rewind();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void attachInternal(String resourceId, AutoCloseable resource) {
         if (delayed == 0) ticker.increment();
@@ -167,6 +178,9 @@ public abstract class BaseNDManager implements NDManager {
         attached.put(resource, NDHelper.VOID);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void detachInternal(String resourceId, AutoCloseable resource) {
         attached.invalidate(resource); // !This might cause eviction is the time is late
@@ -174,11 +188,17 @@ public abstract class BaseNDManager implements NDManager {
 
     // -------------------------- DEFAULT METHODS ---------------------------
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void delay() {
         delayed++;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void resume() {
         if (--delayed == 0) {

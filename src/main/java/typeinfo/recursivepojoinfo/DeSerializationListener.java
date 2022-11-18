@@ -5,6 +5,6 @@ package typeinfo.recursivepojoinfo;
  */
 public interface DeSerializationListener {
     default void deserialized() {
+        // Do something after de-serialization
     }
-
 }

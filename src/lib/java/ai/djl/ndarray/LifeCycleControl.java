@@ -1,7 +1,12 @@
 package ai.djl.ndarray;
 
 /**
- * Elements which are controlled by object pool and can be delayed or resumed to object pool
+ * Elements whose life-cycle can be controlled should implement this unified interface.
+ * Delay -> Delay some common logic for these elements
+ * Resume -> Resume some common logic for these elements
+ * Destroy -> Destroy some common logic for these elements
+ *
+ * @implNote The actual logic of those functions differ from class to class, {@see NDManager, NDArray, GraphElement}
  */
 public interface LifeCycleControl {
 
