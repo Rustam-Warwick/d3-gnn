@@ -306,7 +306,6 @@ public class GraphStream {
         DataStream<GraphOp> topologyUpdates = null;
         DataStream<GraphOp> trainTestSplit = null;
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
-
         // 2. Partitiong the incoming stream
 //        SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain)).disableChaining().process(new Throttler(500, 50000)).name("Throttler").setParallelism(1);
         SingleOutputStreamOperator<GraphOp> previousLayerUpdates = ((SingleOutputStreamOperator<GraphOp>) partition(dataStreamMain));

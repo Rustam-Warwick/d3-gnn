@@ -1,4 +1,4 @@
-package plugins.gnn_embedding;
+package plugins.hgnn_embedding;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrays;
@@ -13,7 +13,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.*;
 
-public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
+public class CountWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLayer {
 
     public final int BATCH_SIZE; // Batch size of the operator as a whole
 
@@ -21,17 +21,17 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     public transient Map<Short, Tuple2<Integer, Set<String>>> BATCH;
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, int BATCH_SIZE) {
+    public CountWindowedHGNNEmbeddingLayer(String modelName, int BATCH_SIZE) {
         super(modelName);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
+    public CountWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
         super(modelName, trainableVertexEmbeddings);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
+    public CountWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.BATCH_SIZE = BATCH_SIZE;
     }

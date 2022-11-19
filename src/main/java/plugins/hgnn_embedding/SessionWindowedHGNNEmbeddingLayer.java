@@ -1,70 +1,61 @@
-package plugins.gnn_embedding;
+package plugins.hgnn_embedding;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
-import elements.Feature;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
 import features.Tensor;
-import operators.BaseWrapperOperator;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
-import org.apache.flink.util.ExceptionUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
+public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLayer {
 
-    public final int windowInterval; // Window Interval for graph element updates in milliseconds
+    public final int sessionInterval; // Window Interval for graph element updates in milliseconds
+
+    public transient Map<Short,HashMap<String, Long>> BATCH; // Map for storing processingTimes
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public TimeWindowedGNNEmbeddingLayer(String modelName, int windowInterval) {
+    public SessionWindowedHGNNEmbeddingLayer(String modelName, int sessionInterval) {
         super(modelName);
-        this.windowInterval = windowInterval;
+        this.sessionInterval = sessionInterval;
     }
 
-    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int windowInterval) {
+    public SessionWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
-        this.windowInterval = windowInterval;
+        this.sessionInterval = sessionInterval;
     }
 
-    public TimeWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int windowInterval) {
+    public SessionWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
-        this.windowInterval = windowInterval;
+        this.sessionInterval = sessionInterval;
     }
 
     @Override
     public void open() throws Exception {
         super.open();
         windowThroughput = new SimpleCounter();
+        BATCH = new HashMap<>();
         storage.layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
-        try {
-            storage.layerFunction.getWrapperContext().runForAllKeys(() -> {
-                Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = new Feature<>("elementUpdates", new HashMap<>(), true, storage.layerFunction.getCurrentPart());
-                elementUpdates.setStorage(storage);
-                elementUpdates.create();
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     public void forward(Vertex v) {
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
-        long thisElementUpdateTime = currentProcessingTime + windowInterval;
+        long thisElementUpdateTime = currentProcessingTime + sessionInterval;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
-        elementUpdates.getValue().put(v.getId(), Tuple2.of(thisElementUpdateTime, storage.layerFunction.currentTimestamp()));
-        storage.updateElement(elementUpdates, elementUpdates);
+        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored)->new HashMap<>());
+        HashMap<String, Long> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
+        PART_BATCH.put(v.getId(), thisElementUpdateTime);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }
@@ -79,12 +70,12 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
         super.onTimer(timestamp);
         try {
             storage.layerFunction.getWrapperContext().getNDManager().delay();
-            Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>> elementUpdates = (Feature<HashMap<String, Tuple2<Long, Long>>, HashMap<String, Tuple2<Long, Long>>>) storage.getStandaloneFeature("elementUpdates");
+            HashMap<String, Long> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
             NDList features = new NDList();
             NDList aggregators = new NDList();
             List<Vertex> vertices = new ArrayList<>();
-            elementUpdates.getValue().forEach((key, val) -> {
-                if (val.f0 <= timestamp) {
+            PART_BATCH.forEach((key, val) -> {
+                if (val <= timestamp) {
                     Vertex v = storage.getVertex(key);
                     features.add((NDArray) (v.getFeature("f")).getValue());
                     aggregators.add((NDArray) (v.getFeature("agg")).getValue());
@@ -95,7 +86,7 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
             NDList batchedInput = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
             NDArray batchedUpdates = UPDATE(batchedInput, false).get(0);
             for (int i = 0; i < vertices.size(); i++) {
-                elementUpdates.getValue().remove(vertices.get(i).getId());
+                PART_BATCH.remove(vertices.get(i).getId());
                 Vertex messageVertex = vertices.get(i);
                 Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.masterPart());
                 updateTensor.attachedTo.f0 = ElementType.VERTEX;
@@ -103,9 +94,10 @@ public class TimeWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD);
                 throughput.inc();
             }
-        } catch (Exception e) {
-            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
-        } finally {
+        }catch (Exception e){
+            System.out.println();
+        }
+        finally{
             storage.layerFunction.getWrapperContext().getNDManager().resume();
         }
     }
