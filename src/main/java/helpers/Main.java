@@ -15,7 +15,7 @@ import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import plugins.gnn_embedding.TimeWindowedGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -60,17 +60,17 @@ public class Main {
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(0)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                        .withPlugin(new TimeWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 200))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(1)))
-                        .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
+                        .withPlugin(new TimeWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 200))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
         );
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Training");
+        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Window-200ms");
         env.execute(jobName);
         BaseNDManager.getManager().resume();
     }
