@@ -8,10 +8,10 @@ import elements.enums.ElementType;
 import elements.enums.ReplicaState;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.Consumer;

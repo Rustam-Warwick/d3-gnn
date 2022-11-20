@@ -3,8 +3,8 @@ package operators.coordinators;
 import operators.events.StartTraining;
 import operators.events.StopTraining;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 @Deprecated

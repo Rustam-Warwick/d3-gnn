@@ -3,26 +3,25 @@ package partitioner;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.jetbrains.annotations.Nullable;
 import picocli.CommandLine;
 
-import javax.annotation.Nullable;
-
-abstract public class BasePartitioner {
-
-    public BasePartitioner(String[] cmdArgs){
-        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
-    }
+abstract public class Partitioner {
 
     /**
-     * Number of partitions we should partition into
+     * Number of logical parts the partitioner sees, usually set to {@code env.getMaxParallelism()}
      */
     protected short partitions = -1;
+
+    public Partitioner(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
+    }
 
     /**
      * Static Helper for getting the desired partitioner from its name
      */
     @Nullable
-    public static BasePartitioner getPartitioner(String name, String[] cmdArgs) {
+    public static Partitioner getPartitioner(String name, String[] cmdArgs) {
         switch (name) {
             case "hypergraph-minmax":
                 return new HyperGraphMinMax(cmdArgs);
@@ -43,11 +42,14 @@ abstract public class BasePartitioner {
      * In such cases it either cache/delay its partitioning or assign parts on the fly usually randomly
      * </p>
      *
-     * @return partition stream
+     * @return partition {@link DataStream}
      */
     public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
 
-    public final BasePartitioner setPartitions(short partitions) {
+    /**
+     * Set number of logical parts in this partitioner
+     */
+    public final Partitioner setPartitions(short partitions) {
         this.partitions = partitions;
         return this;
     }

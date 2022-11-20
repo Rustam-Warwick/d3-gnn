@@ -1,7 +1,7 @@
 package operators;
 
 import elements.GraphOp;
-import functions.gnn_layers.GNNLayerFunction;
+import functions.storage.StorageProcessFunction;
 import operators.coordinators.WrapperOperatorCoordinator;
 import org.apache.flink.iteration.IterationID;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -31,7 +31,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction) {
+            if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof StorageProcessFunction) {
                 return (T) new GNNLayerWrapperOperator(parameters, factory, iterationId, position, totalLayers);
             }
             return (T) new HeadUdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
@@ -43,7 +43,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
-            if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof GNNLayerFunction) {
+            if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof StorageProcessFunction) {
                 return GNNLayerWrapperOperator.class;
             }
             return HeadUdfWrapperOperator.class;

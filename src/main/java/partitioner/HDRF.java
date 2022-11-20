@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.Preconditions;
 import picocli.CommandLine;
 
 import java.util.ArrayList;
@@ -21,26 +22,40 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class HDRF extends BasePartitioner {
+/**
+ * Implementation of HDRF <strong>vertex-cut</strong> partitioning algorithm
+ */
+public class HDRF extends Partitioner {
+
+    /**
+     * A small value to overcome division by zero errors on score calculation
+     */
+    @CommandLine.Option(names = {"--hdrf:epsilon"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Epsilon to be used in HDRF"})
+    public float epsilon;
+
+    /**
+     * <strong>Balance coefficient</strong>. Higher value usually means higher distribution of edges.
+     */
+    @CommandLine.Option(names = {"--hdrf:lambda"}, defaultValue = "4", fallbackValue = "4", arity = "1", description = {"Lambda to be used in HDRF"})
+    public float lambda;
+
+    /**
+     * Number of threads to use for partitioning
+     */
+    @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Number of threads to distribute HDRF"})
+    public int numThreads;
 
     public HDRF(String[] cmdArgs) {
         super(cmdArgs);
     }
-
-    @CommandLine.Option(names = {"--hdrf:epsilon"}, defaultValue = "1", fallbackValue = "1", arity = "1", description= {"Epsilon to be used in HDRF"})
-    public float epsilon;
-
-    @CommandLine.Option(names = {"--hdrf:lambda"}, defaultValue = "4", fallbackValue = "4", arity = "1", description= {"Lambda to be used in HDRF"})
-    public float lambda;
-
-    @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "1", fallbackValue = "1", arity = "1", description= {"Number of threads to distribute HDRF"})
-    public int numThreads;
 
     /**
      * {@inheritDoc}
      */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        Preconditions.checkState(partitions > 0);
+        Preconditions.checkNotNull(inputDataStream);
         String opName = String.format("HDRF[l=%s,eps=%s,threads=%s]", lambda, epsilon, numThreads);
         return inputDataStream.transform(opName,
                 TypeInformation.of(GraphOp.class),
@@ -48,7 +63,7 @@ public class HDRF extends BasePartitioner {
     }
 
     /**
-     * Actual ProcessFunction for HDRF
+     * Actual HDRF Processing Function
      */
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         public final short numPartitions;

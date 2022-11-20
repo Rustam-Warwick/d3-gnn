@@ -19,7 +19,7 @@ import java.util.List;
 
 public class TagsAskUbuntu extends Dataset {
 
-    @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description= {"Type of tags stream: hypergraph or star-graph"})
+    @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of tags stream: hypergraph or star-graph"})
     protected String type;
 
     public TagsAskUbuntu(String[] cmdArgs) {
@@ -29,7 +29,7 @@ public class TagsAskUbuntu extends Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String fileName;
-        switch (type){
+        switch (type) {
             case "hypergraph":
                 fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-node-simplex.txt").toString();
                 break;
@@ -40,8 +40,8 @@ public class TagsAskUbuntu extends Dataset {
                 throw new IllegalStateException("TagsAskUbuntu operates in 2 modes: hypergraph or star-graph");
         }
         String opName = String.format("TagsAskUbuntu[%s]", type);
-        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce?FileProcessingMode.PROCESS_ONCE:FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce?0:1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed =  (type.equals("hypergraph")? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseGraph())).setParallelism(1).name(String.format("Map %s", opName));
+        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed = (type.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseGraph())).setParallelism(1).name(String.format("Map %s", opName));
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             fileReader.slotSharingGroup("file-input");
@@ -51,7 +51,7 @@ public class TagsAskUbuntu extends Dataset {
     }
 
     @Override
-    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
+    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {

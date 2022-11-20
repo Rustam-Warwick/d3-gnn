@@ -1,4 +1,4 @@
-package functions.gnn_layers;
+package functions.storage;
 
 import elements.GraphOp;
 import elements.enums.ElementType;
@@ -18,7 +18,7 @@ import storage.BaseStorage;
 /**
  * GNNLayerFunction that also handles late sync message events
  */
-public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> implements GNNLayerFunction {
+public class StreamingStorageProcessFunction extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> implements StorageProcessFunction {
 
     public BaseStorage storage;
 
@@ -30,7 +30,7 @@ public class StreamingGNNLayerFunction extends KeyedProcessFunction<PartNumber, 
 
     public transient Tuple2<String, ElementType> reuse;
 
-    public StreamingGNNLayerFunction(BaseStorage storage) {
+    public StreamingStorageProcessFunction(BaseStorage storage) {
         this.storage = storage;
         storage.layerFunction = this;
     }

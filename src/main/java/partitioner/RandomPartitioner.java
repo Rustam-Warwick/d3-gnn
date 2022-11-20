@@ -18,16 +18,25 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-class RandomPartitioner extends BasePartitioner {
+/**
+ * Implementation of Random graph partitioning algorithm
+ */
+class RandomPartitioner extends Partitioner {
     public RandomPartitioner(String[] cmdArgs) {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.map(new RandomMapFunction(this.partitions)).name("Random Partitioner").setParallelism(1);
     }
 
+    /**
+     * Actual Random graph partitioning process function
+     */
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
         public final short partitions;
         public Map<String, List<Short>> masters = new ConcurrentHashMap<>(5000);

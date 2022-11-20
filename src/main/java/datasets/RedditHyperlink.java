@@ -20,7 +20,7 @@ import java.nio.file.Path;
 
 public class RedditHyperlink extends Dataset {
 
-    @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description= {"Type of reddit hyperlink: body, title, full"})
+    @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
     protected String type;
 
     public RedditHyperlink(String[] cmdArgs) {
@@ -30,7 +30,7 @@ public class RedditHyperlink extends Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String fileName;
-        switch (type){
+        switch (type) {
             case "body":
                 fileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
                 break;
@@ -44,7 +44,7 @@ public class RedditHyperlink extends Dataset {
                 throw new IllegalStateException("RedditHyperlink operates in 3 modes: body, title and full");
         }
         String opName = String.format("Reddit Hyperlink[%s]", type);
-        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce?FileProcessingMode.PROCESS_ONCE:FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce?0:1000).name(opName).setParallelism(1);
+        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).name(String.format("Map %s", opName)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             fileReader.slotSharingGroup("file-input");
@@ -54,7 +54,7 @@ public class RedditHyperlink extends Dataset {
     }
 
     @Override
-    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter() {
+    public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new TrainTestSplitter();
     }
 

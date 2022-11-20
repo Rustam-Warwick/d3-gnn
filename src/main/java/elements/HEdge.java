@@ -4,9 +4,9 @@ import elements.annotations.OmitStorage;
 import elements.enums.*;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
 
-import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;

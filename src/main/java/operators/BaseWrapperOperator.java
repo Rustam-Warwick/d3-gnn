@@ -47,11 +47,11 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Executor;
@@ -498,13 +498,13 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
         @Override
         public StreamOperatorStateContext streamOperatorStateContext(
-                @Nonnull OperatorID operatorID,
-                @Nonnull String s,
-                @Nonnull ProcessingTimeService processingTimeService,
-                @Nonnull KeyContext keyContext,
+                @NotNull OperatorID operatorID,
+                @NotNull String s,
+                @NotNull ProcessingTimeService processingTimeService,
+                @NotNull KeyContext keyContext,
                 @Nullable TypeSerializer<?> typeSerializer,
-                @Nonnull CloseableRegistry closeableRegistry,
-                @Nonnull MetricGroup metricGroup,
+                @NotNull CloseableRegistry closeableRegistry,
+                @NotNull MetricGroup metricGroup,
                 double v,
                 boolean b)
                 throws Exception {

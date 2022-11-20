@@ -11,7 +11,7 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.HyperSAGEConv;
 import elements.GraphOp;
-import functions.gnn_layers.StreamingGNNLayerFunction;
+import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -22,8 +22,11 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.function.Function;
 
+/**
+ * Application entrypoint
+ */
 public class Main {
-    // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f
+    // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
         sb.add(new HyperSAGEConv(64, true));
@@ -50,29 +53,34 @@ public class Main {
         });
         return models;
     }
+
     public static void main(String[] args) throws Throwable {
-        // Configuration
-        BaseNDManager.getManager().delay();
-        ArrayList<Model> models = layeredModel(); // Get the model to be served
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        // DataFlow
-        DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
-                new StreamingGNNLayerFunction(new FlatObjectStorage()
-                        .withPlugin(new ModelServer<>(models.get(0)))
-                        .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
-                ),
-                new StreamingGNNLayerFunction(new FlatObjectStorage()
-                        .withPlugin(new ModelServer<>(models.get(1)))
-                        .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
-                )
-        ).build();
+        try {
+            BaseNDManager.getManager().delay();
 
-        String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
+            ArrayList<Model> models = layeredModel(); // Get the model to be served
+            StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        env.execute(jobName);
-        BaseNDManager.getManager().resume();
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
+                    new StreamingStorageProcessFunction(new FlatObjectStorage()
+                            .withPlugin(new ModelServer<>(models.get(0)))
+                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                    ),
+                    new StreamingStorageProcessFunction(new FlatObjectStorage()
+                            .withPlugin(new ModelServer<>(models.get(1)))
+                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                    )
+            ).build();
+
+            String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
+            String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
+            env.execute(jobName);
+        } catch (Exception e) {
+            throw e;
+        } finally {
+            BaseNDManager.getManager().resume();
+        }
     }
 }

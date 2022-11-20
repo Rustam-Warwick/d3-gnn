@@ -1,4 +1,4 @@
-package functions.gnn_layers;
+package functions.storage;
 
 import elements.GraphElement;
 import elements.GraphOp;
@@ -14,16 +14,17 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 /**
  * Interface that the storage and everything else interacts with
  * Real implementation should be tightly coupled with their respective operators
  */
-public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
+public interface StorageProcessFunction extends RichFunction, CheckpointedFunction {
+
     /**
      * @return Attached storage engine
      */
@@ -66,7 +67,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     /**
      * Message but also include the new timestmap as the timestmap of StreamRecord
      */
-    void message(GraphOp op, MessageDirection direction, @Nonnull Long timestamp);
+    void message(GraphOp op, MessageDirection direction, @NotNull Long timestamp);
 
     /**
      * Broadcast message in a specific direction
@@ -76,7 +77,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     /**
      * Broadcast message with the specified timestamp
      */
-    void broadcastMessage(GraphOp op, MessageDirection direction, @Nonnull Long timestamp);
+    void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp);
 
     /**
      * Side outputs apart from those iterate, forward, backward messages
@@ -86,7 +87,7 @@ public interface GNNLayerFunction extends RichFunction, CheckpointedFunction {
     /**
      * Side outputs apart from those iterate, forward, backward messages with timestamp
      */
-    <OUT> void sideMessage(OUT op, @Nonnull OutputTag<OUT> outputTag, @Nonnull Long timestamp);
+    <OUT> void sideMessage(OUT op, @NotNull OutputTag<OUT> outputTag, @NotNull Long timestamp);
 
     /**
      * Send some event to the operator coordinator

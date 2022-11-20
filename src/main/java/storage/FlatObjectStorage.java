@@ -9,9 +9,9 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.jetbrains.annotations.Nullable;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
-import javax.annotation.Nullable;
 import java.util.*;
 
 /**

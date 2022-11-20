@@ -11,6 +11,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.Preconditions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -20,17 +21,28 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class HyperGraphMinMax extends BasePartitioner {
+/**
+ * Implementation of Min-Max <strong>hyperedge-cut</strong> hypergraph partitioning algorithm
+ */
+public class HyperGraphMinMax extends Partitioner {
 
     public HyperGraphMinMax(String[] cmdArgs) {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        Preconditions.checkState(partitions > 0);
+        Preconditions.checkNotNull(inputDataStream);
         return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax").setParallelism(1);
     }
 
+    /**
+     * Actual Min-Max partitioning function
+     */
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
         private final int partitions;
         private final int s;

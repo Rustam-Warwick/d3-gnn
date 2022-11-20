@@ -57,36 +57,26 @@ sourceSets{
 configurations{
     libImplementation.extendsFrom(libApi)
     implementation.extendsFrom(libImplementation)
-    libApi.exclude group: 'org.apache.flink', module: 'force-shading'
+    runtimeOnly.extendsFrom(libRuntimeOnly)
 }
 
 dependencies{
 
-    implementation "org.apache.flink:flink-streaming-java:${flinkVersion}"
-    implementation "org.apache.flink:flink-clients:${flinkVersion}"
-    implementation 'org.jetbrains:annotations:23.0.0'
+    libImplementation 'org.jetbrains:annotations:23.0.0'
+    libImplementation "org.apache.flink:flink-clients:${flinkVersion}"
+
     implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
     implementation "org.apache.flink:flink-connector-files:${flinkVersion}"
+
     runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
     runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+
     annotationProcessor 'info.picocli:picocli-codegen:4.7.0'
 
-
-    libCompileOnly "org.apache.flink:flink-streaming-java:${flinkVersion}"
-
     libApi 'info.picocli:picocli:4.7.0'
-
-    libApi("org.apache.flink:statefun-flink-core:3.2.0"){
-        // Need only the main classes from here
-        transitive(false)
-    }
-
-    libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){
-        // Need only the main classes from here
-        transitive(false)
-    }
-
+    libApi("org.apache.flink:statefun-flink-core:3.2.0"){transitive(false)}
+    libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){transitive(false)}
     libApi 'ai.djl:api:0.19.0'
     libApi 'ai.djl.pytorch:pytorch-engine:0.19.0'
     libApi 'com.boundary:high-scale-lib:1.0.6'
@@ -95,13 +85,19 @@ dependencies{
 }
 
 compileJava {
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"] // Using annotation processor for CMD args Parser
 }
 
 task libShadowJar(type: ShadowJar){
     // Other Shadow Task that prepares all the library dependencies
     configurations =  [project.configurations.libApi]
     from sourceSets.lib.output
+    dependencies {
+        exclude(dependency('org.apache.flink:force-shading'))
+        exclude(dependency('com.google.code.findbugs:jsr305'))
+        exclude(dependency('org.slf4j:'))
+        exclude(dependency('org.apache.logging.log4j:'))
+    }
     archiveAppendix.set('lib')
     mergeServiceFiles()
 }

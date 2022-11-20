@@ -7,9 +7,9 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.Nullable;
 import picocli.CommandLine;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 
 public abstract class Dataset implements Serializable {
@@ -29,7 +29,7 @@ public abstract class Dataset implements Serializable {
 
     /**
      * Helper method for getting the required dataset
-    */
+     */
     @Nullable
     public static Dataset getDataset(String name, String[] cmdArgs) {
         switch (name) {
@@ -48,8 +48,8 @@ public abstract class Dataset implements Serializable {
     public abstract DataStream<GraphOp> build(StreamExecutionEnvironment env);
 
     /**
-     * Return process function to split the label into train-test, topology and normal stream
+     *
      */
-    public abstract KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter();
+    public abstract KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter();
 
 }

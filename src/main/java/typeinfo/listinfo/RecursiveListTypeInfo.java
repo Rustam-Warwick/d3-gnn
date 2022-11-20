@@ -23,10 +23,10 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.common.typeutils.base.ListSerializer;
+import org.jetbrains.annotations.Nullable;
 import typeinfo.DummySerializer;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfo;
 
-import javax.annotation.Nullable;
 import java.util.List;
 
 /**

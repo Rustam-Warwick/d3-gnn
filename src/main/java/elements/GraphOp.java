@@ -8,7 +8,6 @@ import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.NotNull;
 import typeinfo.graphopinfo.GraphOpTypeInfoFactory;
 
-import javax.annotation.Nonnull;
 import java.util.Objects;
 
 /**
@@ -16,6 +15,7 @@ import java.util.Objects;
  */
 @TypeInfo(GraphOpTypeInfoFactory.class)
 public final class GraphOp implements LifeCycleControl {
+
     /**
      * {@link Op} represents the operation that is happening in the GraphElement
      */
@@ -36,7 +36,7 @@ public final class GraphOp implements LifeCycleControl {
     /**
      * Type of communication message Part-to-Part or Broadcast
      */
-    public @Nonnull
+    public @NotNull
     MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
     /**
      * Timestamp associated with this GraphOp

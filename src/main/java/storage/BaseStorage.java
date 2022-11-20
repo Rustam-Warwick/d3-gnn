@@ -4,17 +4,17 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import functions.gnn_layers.GNNLayerFunction;
+import functions.storage.StorageProcessFunction;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.runtime.state.KeyedStateBackend;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     /**
      * The function that this BaseStorage is attached to
      */
-    public GNNLayerFunction layerFunction;
+    public StorageProcessFunction layerFunction;
 
     /**
      * KeySelector change listener
