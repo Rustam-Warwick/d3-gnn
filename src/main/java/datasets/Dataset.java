@@ -11,9 +11,9 @@ import org.apache.flink.util.OutputTag;
 import java.io.Serializable;
 import java.nio.file.Path;
 
-public interface Dataset extends Serializable {
-    OutputTag<GraphOp> TRAIN_TEST_SPLIT_OUTPUT = new OutputTag<>("trainData", TypeInformation.of(GraphOp.class)); // Output of train test split data
-    OutputTag<GraphOp> TOPOLOGY_ONLY_DATA_OUTPUT = new OutputTag<>("topologyData", TypeInformation.of(GraphOp.class)); // Output that only contains the topology of the graph updates
+public abstract class Dataset implements Serializable {
+    public static OutputTag<GraphOp> TRAIN_TEST_SPLIT_OUTPUT = new OutputTag<>("trainData", TypeInformation.of(GraphOp.class)); // Output of train test split data
+    public static OutputTag<GraphOp> TOPOLOGY_ONLY_DATA_OUTPUT = new OutputTag<>("topologyData", TypeInformation.of(GraphOp.class)); // Output that only contains the topology of the graph updates
 
     /**
      * Helper method for getting the required dataset
@@ -21,7 +21,7 @@ public interface Dataset extends Serializable {
      * @param name name of the dataset.
      * @return Dataset object
      */
-    static Dataset getDataset(String name) {
+    public static Dataset getDataset(String name, String[] cmdArgs) {
         switch (name) {
             case "reddit-hyperlink":
                 return new RedditHyperlink(Path.of(System.getenv("DATASET_DIR")).toString());
@@ -49,7 +49,7 @@ public interface Dataset extends Serializable {
      * @param fineGrainedResourceManagementEnabled should slotSharingGroups be used or not
      * @return stream
      */
-    DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled);
+    public abstract DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled);
 
     /**
      * Split the label into train-test, topology and normal stream
@@ -61,16 +61,6 @@ public interface Dataset extends Serializable {
      *
      * @return {@link KeyedProcessFunction} for splitting this dataset after partitioning
      */
-    KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter();
-
-    /**
-     * Helper method for parsing partitioner specific command line arguments
-     *
-     * @param cmdArgs Array of parameter arguments passed
-     * @return same partitioner
-     */
-    default Dataset parseCmdArgs(String[] cmdArgs) {
-        return this;
-    }
+    public abstract KeyedProcessFunction<PartNumber, GraphOp, GraphOp> trainTestSplitter();
 
 }

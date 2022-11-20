@@ -19,7 +19,7 @@ import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
 
-public class RedditHyperlink implements Dataset {
+public class RedditHyperlink extends Dataset {
     private final transient String baseDirectory;
 
     public RedditHyperlink(String baseDirectory) {

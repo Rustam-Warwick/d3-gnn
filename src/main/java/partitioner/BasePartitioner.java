@@ -13,7 +13,7 @@ abstract public class BasePartitioner {
     /**
      * Static Helper for getting the desired partitioner from its name
      */
-    public static BasePartitioner getPartitioner(String name) {
+    public static BasePartitioner getPartitioner(String name, String[] cmdArgs) {
         switch (name) {
             case "hypergraph-minmax":
                 return new HyperGraphMinMax();
@@ -41,16 +41,6 @@ abstract public class BasePartitioner {
      * @return partition stream
      */
     public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled);
-
-    /**
-     * Helper method for parsing partitioner specific command line arguments
-     *
-     * @param cmdArgs Array of parameter arguments passed
-     * @return same partitioner
-     */
-    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
-        return this;
-    }
 
     public final BasePartitioner setPartitions(short partitions) {
         this.partitions = partitions;

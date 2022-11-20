@@ -56,8 +56,7 @@ public class Main {
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
+        DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(0)))
                         .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 50))
@@ -68,7 +67,7 @@ public class Main {
                         .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 50))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
-        );
+        ).build();
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
         String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Window-200ms");
         env.execute(jobName);

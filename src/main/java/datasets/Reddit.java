@@ -27,7 +27,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-public class Reddit implements Dataset {
+public class Reddit extends Dataset {
     private final String baseDir;
 
     public Reddit(String baseDir) {

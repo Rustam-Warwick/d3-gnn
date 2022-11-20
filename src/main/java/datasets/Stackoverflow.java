@@ -16,7 +16,7 @@ import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
 
-public class Stackoverflow implements Dataset {
+public class Stackoverflow extends Dataset {
     private final transient String baseDirectory;
 
     public Stackoverflow(String baseDirectory) {

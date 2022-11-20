@@ -26,10 +26,4 @@ public class WindowedRandom extends BasePartitioner {
         return out;
     }
 
-    @Override
-    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
-        return this;
-    }
-
-
 }

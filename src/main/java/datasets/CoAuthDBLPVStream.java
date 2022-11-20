@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CoAuthDBLPVStream implements Dataset {
+public class CoAuthDBLPVStream extends Dataset {
     private final String vertexStreamFile;
     private final TYPE outputType;
 

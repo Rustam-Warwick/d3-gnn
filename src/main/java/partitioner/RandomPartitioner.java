@@ -24,11 +24,6 @@ class RandomPartitioner extends BasePartitioner {
         return inputDataStream.map(new RandomMapFunction(this.partitions)).name("Random Partitioner").setParallelism(1);
     }
 
-    @Override
-    public BasePartitioner parseCmdArgs(String[] cmdArgs) {
-        return this;
-    }
-
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
         public final short partitions;
         public Map<String, List<Short>> masters = new ConcurrentHashMap<>(5000);
