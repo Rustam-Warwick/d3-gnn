@@ -9,13 +9,13 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.nn.gnn.HyperSAGEConv;
 import elements.GraphOp;
 import functions.gnn_layers.StreamingGNNLayerFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
+import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -25,8 +25,8 @@ import java.util.function.Function;
 public class Main {
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new SAGEConv(64, true));
-        sb.add(new SAGEConv(32, true));
+        sb.add(new HyperSAGEConv(64, true));
+        sb.add(new HyperSAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(41).optBias(true).build())
@@ -60,12 +60,12 @@ public class Main {
         DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(0)))
-                        .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 50))
+                        .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 ),
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(1)))
-                        .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 50))
+                        .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
         );
