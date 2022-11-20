@@ -18,17 +18,20 @@ import java.util.function.Consumer;
 
 /**
  * Abstract class representing a GraphElement.
- * CRUD Methods for interacting with the storage layer
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, LifeCycleControl {
     protected static final Tuple2<Consumer<BaseStorage>, GraphElement> reuse = Tuple2.of(null, null);
+
+    /**
+     * Part id where this object is located
+     */
     @OmitStorage
-    public short partId = -1; // Part id where this object is/was located
+    public short partId = -1;
 
-    @Nullable
-    public transient BaseStorage storage;
-
+    /**
+     * Features attached to this GraphElement
+     */
     @OmitStorage
     @Nullable
     public List<Feature<?, ?>> features;
@@ -146,7 +149,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
      * External Create GraphElement
      */
     public void create() {
-        // 
         storage.runCallback(createElement());
 
     }
@@ -155,7 +157,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
      * External Query to delete GraphElement
      */
     public void delete() {
-        // 
         storage.runCallback(deleteElement());
     }
 
@@ -174,7 +175,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
      * @param newElement external update element
      */
     public void update(GraphElement newElement) {
-        // 
         storage.runCallback(updateElement(newElement, null).f0);
     }
 
@@ -312,6 +312,9 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
             }
         }
     }
+
+    @Nullable
+    public BaseStorage getStorage(){ return BaseStorage.STORAGES.get();}
 
     @Override
     public void delay() {

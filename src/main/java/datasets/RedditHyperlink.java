@@ -20,6 +20,9 @@ import java.nio.file.Path;
 
 public class RedditHyperlink extends Dataset {
 
+    /**
+     * Type of reddit hyperlink stream: full, body, title
+     */
     @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
     protected String type;
 
@@ -27,6 +30,9 @@ public class RedditHyperlink extends Dataset {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String fileName;
@@ -53,11 +59,17 @@ public class RedditHyperlink extends Dataset {
         return parsed;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new TrainTestSplitter();
     }
 
+    /**
+     * Actual Splitter function
+     */
     static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
@@ -66,6 +78,9 @@ public class RedditHyperlink extends Dataset {
         }
     }
 
+    /**
+     * String -> {@link GraphOp} mapper
+     */
     static class Parser implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {

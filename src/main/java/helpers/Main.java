@@ -57,7 +57,6 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         try {
             BaseNDManager.getManager().delay();
-
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 

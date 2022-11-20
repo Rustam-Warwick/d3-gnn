@@ -19,6 +19,9 @@ import java.util.List;
 
 public class TagsAskUbuntu extends Dataset {
 
+    /**
+     * Type of TagAskUbuntu stream: hypergraph, star-graph stream
+     */
     @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of tags stream: hypergraph or star-graph"})
     protected String type;
 
@@ -26,6 +29,9 @@ public class TagsAskUbuntu extends Dataset {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String fileName;
@@ -50,6 +56,9 @@ public class TagsAskUbuntu extends Dataset {
         return parsed;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
@@ -61,6 +70,9 @@ public class TagsAskUbuntu extends Dataset {
         };
     }
 
+    /**
+     * String -> {@link GraphOp} for star-graph stream
+     */
     public static class ParseGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
@@ -74,6 +86,9 @@ public class TagsAskUbuntu extends Dataset {
         }
     }
 
+    /**
+     * String -> {@link GraphOp} hypergraph
+     */
     public static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) {

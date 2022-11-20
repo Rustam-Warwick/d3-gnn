@@ -31,6 +31,8 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
+    public static final  ThreadLocal<BaseStorage> STORAGES = new ThreadLocal<>();
+
     /**
      * List of plugins attached to this storage engine
      * These are stored separately in operator state store
@@ -160,6 +162,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         for (Plugin value : plugins.values()) {
             value.open();
         }
+        STORAGES.set(this);
     }
 
     /**

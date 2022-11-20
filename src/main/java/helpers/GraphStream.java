@@ -59,23 +59,28 @@ public class GraphStream {
      * If last Storage layer and splitter should have a connection
      */
     protected final boolean hasFullLoopIteration;
+
     /**
      * {@link Partitioner} to be used
      */
     protected final Partitioner partitionerInstance;
+
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
      */
     protected final short layers;
+
     /**
      * Explosion coefficient across the Storage layers
      */
     @CommandLine.Option(names = {"-l", "--lambda"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = "explosion coefficient")
     public double lambda; // GNN operator explosion coefficient. 1 means no explosion
+
     /**
      * {@link Dataset} to be used
      */
     protected Dataset datasetInstance;
+
     /**
      * Should the resources be fineGrained, adding slotSharingGroups and etc.
      */
@@ -201,7 +206,7 @@ public class GraphStream {
     protected DataStream<GraphOp>[] build() {
         Preconditions.checkNotNull(datasetInstance);
         Preconditions.checkNotNull(partitionerInstance);
-        if (internalPositionIndex != 0) throw new IllegalStateException("Cannot call this method twice");
+        Preconditions.checkState(internalPositionIndex == 0);
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
         layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) datasetInstance.build(env);
         layerOutputs[1] = partitionerInstance.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
