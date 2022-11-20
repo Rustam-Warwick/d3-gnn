@@ -3,8 +3,16 @@ package partitioner;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import picocli.CommandLine;
+
+import javax.annotation.Nullable;
 
 abstract public class BasePartitioner {
+
+    public BasePartitioner(String[] cmdArgs){
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
+    }
+
     /**
      * Number of partitions we should partition into
      */
@@ -13,20 +21,17 @@ abstract public class BasePartitioner {
     /**
      * Static Helper for getting the desired partitioner from its name
      */
+    @Nullable
     public static BasePartitioner getPartitioner(String name, String[] cmdArgs) {
         switch (name) {
             case "hypergraph-minmax":
-                return new HyperGraphMinMax();
+                return new HyperGraphMinMax(cmdArgs);
             case "hdrf":
-                return new HDRF();
-            case "windowed-hdrf":
-                return new WindowedHDRF();
-            case "windowed-random":
-                return new WindowedRandom();
-            case "buffered":
-                return new BufferedPartitioner();
+                return new HDRF(cmdArgs);
+            case "random":
+                return new RandomPartitioner(cmdArgs);
             default:
-                return new RandomPartitioner();
+                return null;
         }
     }
 
@@ -40,7 +45,7 @@ abstract public class BasePartitioner {
      *
      * @return partition stream
      */
-    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled);
+    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
 
     public final BasePartitioner setPartitions(short partitions) {
         this.partitions = partitions;

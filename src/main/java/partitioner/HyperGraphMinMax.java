@@ -22,8 +22,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HyperGraphMinMax extends BasePartitioner {
 
+    public HyperGraphMinMax(String[] cmdArgs) {
+        super(cmdArgs);
+    }
+
     @Override
-    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
+    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax").setParallelism(1);
     }
 

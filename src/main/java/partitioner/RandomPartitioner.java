@@ -19,8 +19,12 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 class RandomPartitioner extends BasePartitioner {
+    public RandomPartitioner(String[] cmdArgs) {
+        super(cmdArgs);
+    }
+
     @Override
-    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
+    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.map(new RandomMapFunction(this.partitions)).name("Random Partitioner").setParallelism(1);
     }
 

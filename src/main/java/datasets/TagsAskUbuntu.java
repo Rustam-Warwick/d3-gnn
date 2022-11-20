@@ -11,31 +11,43 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.util.Collector;
+import picocli.CommandLine;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
 public class TagsAskUbuntu extends Dataset {
-    private final String vertexStreamFile;
 
-    private final TYPE outputType;
+    @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description= {"Type of tags stream: hypergraph or star-graph"})
+    protected String type;
 
-    public TagsAskUbuntu(String datasetDir, TYPE outputType) {
-        vertexStreamFile = Path.of(datasetDir, "tags-ask-ubuntu", outputType == TYPE.STAR_EXPANSION_STREAM ? "tags-ask-ubuntu-simplex-node.txt" : "tags-ask-ubuntu-node-simplex.txt").toString();
-        this.outputType = outputType;
+    public TagsAskUbuntu(String[] cmdArgs) {
+        super(cmdArgs);
     }
 
     @Override
-    public DataStream<GraphOp> build(StreamExecutionEnvironment env, boolean fineGrainedResourceManagementEnabled) {
-        SingleOutputStreamOperator<String> vertexStreamString = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(vertexStreamFile)), vertexStreamFile, FileProcessingMode.PROCESS_ONCE, 0).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> results = outputType == TYPE.HYPERGRAPH_STREAM ? vertexStreamString.flatMap(new ParseVertexStream()).setParallelism(1) : vertexStreamString.flatMap(new ParseEdgeStream()).setParallelism(1);
+    public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
+        String fileName;
+        switch (type){
+            case "hypergraph":
+                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-node-simplex.txt").toString();
+                break;
+            case "star-graph":
+                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-simplex-node.txt").toString();
+                break;
+            default:
+                throw new IllegalStateException("TagsAskUbuntu operates in 2 modes: hypergraph or star-graph");
+        }
+        String opName = String.format("TagsAskUbuntu[%s]", type);
+        SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce?FileProcessingMode.PROCESS_ONCE:FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce?0:1000).name(opName).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed =  (type.equals("hypergraph")? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseGraph())).setParallelism(1).name(String.format("Map %s", opName));
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
-            vertexStreamString.slotSharingGroup("file-input");
-            results.slotSharingGroup("file-input");
+            fileReader.slotSharingGroup("file-input");
+            parsed.slotSharingGroup("file-input");
         }
-        return results;
+        return parsed;
     }
 
     @Override
@@ -49,12 +61,7 @@ public class TagsAskUbuntu extends Dataset {
         };
     }
 
-    public enum TYPE {
-        HYPERGRAPH_STREAM,
-        STAR_EXPANSION_STREAM
-    }
-
-    public static class ParseEdgeStream implements FlatMapFunction<String, GraphOp> {
+    public static class ParseGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
             String[] values = value.split(",");
@@ -67,7 +74,7 @@ public class TagsAskUbuntu extends Dataset {
         }
     }
 
-    public static class ParseVertexStream implements FlatMapFunction<String, GraphOp> {
+    public static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) {
             String[] values = value.split(",");

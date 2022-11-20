@@ -12,6 +12,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
+import picocli.CommandLine;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -22,20 +23,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class HDRF extends BasePartitioner {
 
-    public final float epsilon = 1; // Leave it as is, used to not have division by zero errors
+    public HDRF(String[] cmdArgs) {
+        super(cmdArgs);
+    }
 
-    public final float lambda = 4f; // More means more balance constraint comes into play
+    @CommandLine.Option(names = {"--hdrf:epsilon"}, defaultValue = "1", fallbackValue = "1", arity = "1", description= {"Epsilon to be used in HDRF"})
+    public float epsilon;
 
-    public final int numThreads = 1; // Number of thread that will process this dataset
+    @CommandLine.Option(names = {"--hdrf:lambda"}, defaultValue = "4", fallbackValue = "4", arity = "1", description= {"Lambda to be used in HDRF"})
+    public float lambda;
+
+    @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "1", fallbackValue = "1", arity = "1", description= {"Number of threads to distribute HDRF"})
+    public int numThreads;
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream, boolean fineGrainedResourceManagementEnabled) {
-        return inputDataStream.transform(String.format("%s-%sThreads", "HDRF", numThreads),
+    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        String opName = String.format("HDRF[l=%s,eps=%s,threads=%s]", lambda, epsilon, numThreads);
+        return inputDataStream.transform(opName,
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).uid(String.format("%s-%sThreads", "HDRF", numThreads)).setParallelism(1);
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).setParallelism(1);
     }
 
     /**
