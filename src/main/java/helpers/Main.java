@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.function.Function;
 
 public class Main {
+    // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
         sb.add(new HyperSAGEConv(64, true));
@@ -49,15 +50,13 @@ public class Main {
         });
         return models;
     }
-
     public static void main(String[] args) throws Throwable {
         // Configuration
         BaseNDManager.getManager().delay();
         ArrayList<Model> models = layeredModel(); // Get the model to be served
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         // DataFlow
-        GraphStream gs = new GraphStream(env, args);
-        DataStream<GraphOp>[] embeddings = gs.gnnEmbeddings(true, false, false,
+        DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                 new StreamingGNNLayerFunction(new FlatObjectStorage()
                         .withPlugin(new ModelServer<>(models.get(0)))
                         .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
@@ -68,9 +67,11 @@ public class Main {
                         .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                 )
-        );
+        ).build();
+
         String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "Window-200ms");
+        String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
+
         env.execute(jobName);
         BaseNDManager.getManager().resume();
     }

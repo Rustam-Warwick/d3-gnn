@@ -44,10 +44,10 @@ public class CountWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLayer
     }
 
     public void forward(Vertex v) {
-        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored)->Tuple2.of(0, new HashSet<>()));
+        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored) -> Tuple2.of(0, new HashSet<>()));
         Tuple2<Integer, Set<String>> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
         PART_BATCH.f1.add(v.getId());
-        if(++PART_BATCH.f0 > LOCAL_BATCH_SIZE){
+        if (++PART_BATCH.f0 > LOCAL_BATCH_SIZE) {
             List<Vertex> vertices = new ArrayList<>();
             NDList features = new NDList();
             NDList aggregators = new NDList();

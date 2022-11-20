@@ -22,7 +22,7 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
 
     public final int sessionInterval; // Window Interval for graph element updates in milliseconds
 
-    public transient Map<Short,HashMap<String, Long>> BATCH; // Map for storing processingTimes
+    public transient Map<Short, HashMap<String, Long>> BATCH; // Map for storing processingTimes
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
@@ -53,7 +53,7 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
         long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored)->new HashMap<>());
+        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
         HashMap<String, Long> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);
         storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
@@ -94,10 +94,9 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
                 storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD);
                 throughput.inc();
             }
-        }catch (Exception e){
+        } catch (Exception e) {
             System.out.println();
-        }
-        finally{
+        } finally {
             storage.layerFunction.getWrapperContext().getNDManager().resume();
         }
     }
