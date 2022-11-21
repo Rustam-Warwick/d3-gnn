@@ -150,14 +150,14 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
     @Override
     public T deserialize(DataInputView source) throws IOException {
         T obj = actualSerializer.deserialize(source);
-        if (deSerializationCallback) ((DeSerializationListener) obj).deserialized();
+        if (deSerializationCallback) ((DeSerializationListener) obj).onDeserialized();
         return obj;
     }
 
     @Override
     public T deserialize(T reuse, DataInputView source) throws IOException {
         T obj = actualSerializer.deserialize(reuse, source);
-        if (deSerializationCallback) ((DeSerializationListener) obj).deserialized();
+        if (deSerializationCallback) ((DeSerializationListener) obj).onDeserialized();
         return obj;
     }
 

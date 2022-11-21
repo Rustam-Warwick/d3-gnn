@@ -9,13 +9,13 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.HyperSAGEConv;
+import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -29,8 +29,8 @@ public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HyperSAGEConv(64, true));
-        sb.add(new HyperSAGEConv(32, true));
+        sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(32, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(41).optBias(true).build())
@@ -63,12 +63,7 @@ public class Main {
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
-                    ),
-                    new StreamingStorageProcessFunction(new FlatObjectStorage()
-                            .withPlugin(new ModelServer<>(models.get(1)))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
+                            .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                     )
             ).build();

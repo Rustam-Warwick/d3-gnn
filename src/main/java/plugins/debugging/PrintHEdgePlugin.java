@@ -23,13 +23,13 @@ public class PrintHEdgePlugin extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if (element.elementType() == ElementType.HYPEREDGE && registeredHEdges.contains(element.getId())) {
-            BaseWrapperOperator.LOG.error(String.format("[CREATE] %s at (%s, %s) -> %s \n", element, storage.layerFunction.getCurrentPart(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp()));
+        if (element.getType() == ElementType.HYPEREDGE && registeredHEdges.contains(element.getId())) {
+            BaseWrapperOperator.LOG.error(String.format("[CREATE] %s at (%s, %s) -> %s \n", element, getStorage().layerFunction.getCurrentPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp()));
         }
-        if (element.elementType() == ElementType.ATTACHED_FEATURE) {
+        if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.attachedTo.f0 == ElementType.HYPEREDGE && registeredHEdges.contains(feature.attachedTo.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp(), feature.value));
+            if (feature.ids.f0 == ElementType.HYPEREDGE && registeredHEdges.contains(feature.ids.f1)) {
+                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
             }
         }
     }
@@ -37,13 +37,13 @@ public class PrintHEdgePlugin extends Plugin {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if (newElement.elementType() == ElementType.HYPEREDGE && registeredHEdges.contains(newElement.getId())) {
-            BaseWrapperOperator.LOG.error(String.format("[UPDATE] %s at (%s, %s) -> %s \n", newElement, storage.layerFunction.getCurrentPart(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp()));
+        if (newElement.getType() == ElementType.HYPEREDGE && registeredHEdges.contains(newElement.getId())) {
+            BaseWrapperOperator.LOG.error(String.format("[UPDATE] %s at (%s, %s) -> %s \n", newElement, getStorage().layerFunction.getCurrentPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp()));
         }
-        if (newElement.elementType() == ElementType.ATTACHED_FEATURE) {
+        if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
-            if (feature.attachedTo != null && registeredHEdges.contains(feature.attachedTo.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.attachedTo.f1, getPartId(), storage.layerFunction.getPosition(), storage.layerFunction.currentTimestamp(), feature.value));
+            if (feature.ids != null && registeredHEdges.contains(feature.ids.f1)) {
+                BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
             }
         }
     }

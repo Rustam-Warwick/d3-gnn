@@ -1,6 +1,5 @@
 package elements;
 
-import elements.annotations.OmitStorage;
 import elements.enums.*;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.NotNull;
@@ -26,10 +25,8 @@ public final class HEdge extends ReplicableGraphElement {
     private static final ThreadLocal<Set<String>> HELPER_SET = ThreadLocal.withInitial(HashSet::new);
 
     @Nullable
-    @OmitStorage
     public List<Vertex> vertices;
 
-    @OmitStorage
     public List<String> vertexIds;
 
     public String id;
@@ -72,13 +69,13 @@ public final class HEdge extends ReplicableGraphElement {
      * </strong>
      */
     @Override
-    public Consumer<BaseStorage> createElement() {
+    public Consumer<BaseStorage> createInternal() {
         if (vertices != null) {
             for (Vertex vertex : vertices) {
-                if (!storage.containsVertex(vertex.getId())) vertex.create();
+                if (!getStorage().containsVertex(vertex.getId())) vertex.create();
             }
         }
-        return super.createElement();
+        return super.createInternal();
     }
 
     /**
@@ -89,10 +86,10 @@ public final class HEdge extends ReplicableGraphElement {
      * </p>
      */
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, @Nullable GraphElement memento) {
         HEdge newHEdge = (HEdge) newElement;
-        if (storage.layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC)
-            return super.updateElement(newElement, memento);
+        if (getStorage().layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC)
+            return super.updateInternal(newElement, memento);
         Set<String> t = HELPER_SET.get();
         t.clear();
         t.addAll(vertexIds);
@@ -105,7 +102,7 @@ public final class HEdge extends ReplicableGraphElement {
             }
             vertexIds.add(vertexId);
         }
-        return super.updateElement(newElement, memento);
+        return super.updateInternal(newElement, memento);
     }
 
     /**
@@ -127,14 +124,14 @@ public final class HEdge extends ReplicableGraphElement {
      */
     public List<Vertex> getVertices() {
         if (vertices == null) {
-            if (storage != null) {
-                vertices = vertexIds.stream().map(item -> storage.getVertex(item)).collect(Collectors.toList());
+            if (getStorage() != null) {
+                vertices = vertexIds.stream().map(item -> getStorage().getVertex(item)).collect(Collectors.toList());
                 return vertices;
             }
             return Collections.emptyList();
-        } else if (vertices.size() != vertexIds.size() && storage != null) {
+        } else if (vertices.size() != vertexIds.size() && getStorage() != null) {
             for (int i = vertices.size(); i < vertexIds.size(); i++) {
-                vertices.add(storage.getVertex(vertexIds.get(i)));
+                vertices.add(getStorage().getVertex(vertexIds.get(i)));
             }
         }
         return vertices;
@@ -152,16 +149,18 @@ public final class HEdge extends ReplicableGraphElement {
      * Different from normal Replication HEdge can have updates in replicas if it is not bringing a new Feature
      * </p>
      * {@inheritDoc}
+     *
+     * @return
      */
     @Override
-    public void update(GraphElement newElement) {
+    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
         assert state() == ReplicaState.MASTER || newElement.features == null;
-        Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateElement(newElement, null);
-        if (state() == ReplicaState.MASTER && tmp.f0 != null && newElement.features != null && !replicaParts().isEmpty()) {
+        Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateInternal(newElement, null);
+        if (state() == ReplicaState.MASTER && tmp.f0 != null && newElement.features != null && !getReplicaParts().isEmpty()) {
             HEdge cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
-            replicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
+            getReplicaParts().forEach(part_id -> getStorage().layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
         }
-        storage.runCallback(tmp.f0);
+        return tmp;
     }
 
     /**
@@ -190,17 +189,6 @@ public final class HEdge extends ReplicableGraphElement {
      * {@inheritDoc}
      */
     @Override
-    public void setStorage(BaseStorage storage) {
-        super.setStorage(storage);
-        if (vertices != null) {
-            vertices.forEach(item -> item.setStorage(storage));
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public String getId() {
         return id;
     }
@@ -210,7 +198,7 @@ public final class HEdge extends ReplicableGraphElement {
         return "HEdge{" +
                 "vertexIds=" + vertexIds +
                 ", id='" + getId() + '\'' +
-                ", master=" + masterPart() +
+                ", master=" + getMasterPart() +
                 '}';
     }
 
@@ -218,7 +206,7 @@ public final class HEdge extends ReplicableGraphElement {
      * {@inheritDoc}
      */
     @Override
-    public ElementType elementType() {
+    public ElementType getType() {
         return ElementType.HYPEREDGE;
     }
 }

@@ -1,38 +1,41 @@
 package elements;
 
 import ai.djl.ndarray.LifeCycleControl;
-import elements.annotations.OmitStorage;
 import elements.enums.CacheFeatureContext;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
+import typeinfo.recursivepojoinfo.DeSerializationListener;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 /**
  * Abstract class representing a GraphElement.
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
-public abstract class GraphElement implements Serializable, LifeCycleControl {
+public abstract class GraphElement implements Serializable, LifeCycleControl, DeSerializationListener {
+
     protected static final Tuple2<Consumer<BaseStorage>, GraphElement> reuse = Tuple2.of(null, null);
 
     /**
-     * Part id where this object is located
-     */
-    @OmitStorage
-    public short partId = -1;
-
-    /**
      * Features attached to this GraphElement
+     * <strong>
+     * There is not always a 1-1 relation between them.
+     * Many same Features can point to this element
+     * While this element always has the reference to the first one obtained
+     * </strong>
      */
-    @OmitStorage
     @Nullable
     public List<Feature<?, ?>> features;
 
@@ -41,42 +44,44 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
     }
 
     public GraphElement(GraphElement element, CopyContext context) {
-        partId = element.partId;
         if (context == CopyContext.SYNC) {
             // Copy all the non-halo features
-            element.storage.cacheFeatures(element, CacheFeatureContext.NON_HALO);
+            getStorage().cacheFeatures(element, CacheFeatureContext.NON_HALO);
             if (element.features != null && !element.features.isEmpty()) {
                 for (Feature<?, ?> feature : element.features) {
                     if (!feature.isHalo()) {
-                        if (features == null) features = new ArrayList<>(3);
-                        features.add(feature.copy(context));
+                        feature.copy(context).setElement(this, false);
                     }
                 }
             }
-        } else if (context == CopyContext.RMI) storage = element.storage;
+        }
     }
 
     /**
-     * Shallow copy this element
+     * Helper method for getting the storage object or null if we are not at storage operator right now
+     */
+    public static BaseStorage getStorage() {
+        return BaseStorage.STORAGES.get();
+    }
+
+    /**
+     * Copy this element
      *
      * @param context the context for copying.
      */
     abstract public GraphElement copy(CopyContext context);
 
     /**
-     * Create this element and all its features
-     *
-     * @return Callback or null if you cannot create
+     * Part of creation relating to storage
+     * <strong>Creating all features as well</strong>
      */
-    protected Consumer<BaseStorage> createElement() {
+    protected Consumer<BaseStorage> createInternal() {
         Consumer<BaseStorage> callback = null;
-        if (storage.addElement(this)) {
-            callback = storage -> {
-                storage.getPlugins().forEach(item -> item.addElementCallback(this));
-            };
+        if (getStorage().addElement(this)) {
+            callback = storage -> storage.getPlugins().forEach(plugin -> plugin.addElementCallback(this));
             if (features != null) {
                 for (Feature<?, ?> feature : features) {
-                    callback = callback.andThen(feature.createElement());
+                    callback = callback.andThen(feature.createInternal());
                 }
             }
         }
@@ -84,51 +89,48 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
     }
 
     /**
-     * Deleted this element and all its features
-     *
-     * @return Callback or null if you cannot create
+     * Part of deletion relating to storage
+     * <strong>Deleting all features as well</strong>
      */
-    protected Consumer<BaseStorage> deleteElement() {
-        storage.cacheFeatures(this, CacheFeatureContext.ALL);
+    protected Consumer<BaseStorage> deleteInternal() {
+        getStorage().cacheFeatures(this, CacheFeatureContext.ALL);
         Consumer<BaseStorage> callback = null;
         if (features != null) {
             for (Feature<?, ?> feature : features) {
-                callback = callback == null ? feature.deleteElement() : feature.deleteElement().andThen(callback);
+                callback = callback == null ? feature.deleteInternal() : feature.deleteInternal().andThen(callback);
             }
         }
-        storage.deleteElement(this);
+        getStorage().deleteElement(this);
         callback = callback == null ? storage -> storage.getPlugins().forEach(plugin -> plugin.deleteElementCallback(this)) : callback.andThen(storage -> storage.getPlugins().forEach(plugin -> plugin.deleteElementCallback(this)));
         return callback;
     }
 
     /**
-     * If memento is null, will try to update features with the features of newElement. If update is found will create a copy of this element called memento
-     * If memento is not-null it means that this element must be updated even if not updates are found in Features. Passing memento is needed if your subclass has some additional data that should be updated.
-     * Memento stores the difference between the updated value of this element vs the old value.
-     *
-     * @param newElement newElement to update with
-     * @return (is updated, previous value)
+     * Part of update relating to storage
+     * <p>
+     * Creating or updating all features as well
+     * If memento is not-null, update is successful
+     * </p>
      */
-    protected Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, @Nullable GraphElement memento) {
+    protected Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, @Nullable GraphElement memento) {
         Consumer<BaseStorage> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
-                Feature<?, ?> feature = iterator.next();
-                if (containsFeature(feature.getName())) {
+                Feature<?, ?> newFeature = iterator.next();
+                if (containsFeature(newFeature.getName())) {
                     // This is Feature update
-                    Feature<?, ?> thisFeature = getFeature(feature.getName());
-                    Tuple2<Consumer<BaseStorage>, GraphElement> tmp = thisFeature.updateElement(feature, null);
+                    Feature<?, ?> thisFeature = getFeature(newFeature.getName());
+                    Tuple2<Consumer<BaseStorage>, GraphElement> tmp = thisFeature.updateInternal(newFeature, null);
                     if (tmp.f0 != null) {
                         memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                         callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
-                        ((Feature<?, ?>) tmp.f1).setElement(memento);
+                        ((Feature<?, ?>) tmp.f1).setElement(memento, false);
                     }
                 } else {
                     memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                     iterator.remove();
-                    feature.setStorage(storage);
-                    feature.setElement(this);
-                    Consumer<BaseStorage> tmp = feature.createElement();
+                    newFeature.setElement(this, false);
+                    Consumer<BaseStorage> tmp = newFeature.createInternal();
                     if (tmp != null) {
                         callback = callback == null ? tmp : callback.andThen(tmp);
                     }
@@ -136,9 +138,9 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
             }
         }
         if (memento != null) {
-            storage.updateElement(this, memento);
+            getStorage().updateElement(this, memento);
             GraphElement finalMemento = memento;
-            Consumer<BaseStorage> tmp = item -> item.getPlugins().forEach(plugin -> plugin.updateElementCallback(this, finalMemento));
+            Consumer<BaseStorage> tmp = storage -> storage.getPlugins().forEach(plugin -> plugin.updateElementCallback(this, finalMemento));
             callback = callback == null ? tmp : callback.andThen(tmp);
             return Tuple2.of(callback, memento);
         }
@@ -146,141 +148,110 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
     }
 
     /**
-     * External Create GraphElement
+     * Part of creation relating to replication and external things
      */
-    public void create() {
-        storage.runCallback(createElement());
-
+    public Consumer<BaseStorage> create() {
+        return createInternal();
     }
 
     /**
-     * External Query to delete GraphElement
+     * Part of deletion relating to replication and external things
      */
-    public void delete() {
-        storage.runCallback(deleteElement());
+    public Consumer<BaseStorage> delete() {
+        return deleteInternal();
     }
 
     /**
-     * External Query to sync masters and replicas
-     *
-     * @param newElement element that requires syncing
+     * Part of update relating to replication and external things
+     */
+    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
+        return updateInternal(newElement, null);
+    }
+
+    /**
+     * Sync this {@link GraphElement}
      */
     public void sync(GraphElement newElement) {
-        // No action
+        throw new NotImplementedException("Replica Elements should override this method");
     }
 
     /**
-     * External Query to update GraphElement
-     *
-     * @param newElement external update element
+     * Type of this element
      */
-    public void update(GraphElement newElement) {
-        storage.runCallback(updateElement(newElement, null).f0);
-    }
-
-    /**
-     * @return Type of this element
-     */
-    public ElementType elementType() {
+    public ElementType getType() {
         return ElementType.NONE;
     }
 
     /**
-     * @return is this element replicable
+     * Is this element replicable
      */
     public boolean isReplicable() {
         return false;
     }
 
     /**
-     * @return master part of this element
+     * Master part of this element
      */
-    public short masterPart() {
-        return getPartId();
+    public short getMasterPart() {
+        return getPart();
     }
 
     /**
-     * @return if this element is HALO
+     * If this element is HALO
      */
     public boolean isHalo() {
         return false;
     }
 
     /**
-     * @return state of this element (MASTER, REPLICA, UNDEFINED)
+     * State of this element (MASTER, REPLICA, UNDEFINED)
      */
     public ReplicaState state() {
-        if (getPartId() == -1) return ReplicaState.UNDEFINED;
-        if (getPartId() == masterPart()) return ReplicaState.MASTER;
+        if (getPart() == -1) return ReplicaState.UNDEFINED;
+        if (getPart() == getMasterPart()) return ReplicaState.MASTER;
         return ReplicaState.REPLICA;
     }
 
     /**
-     * @return list of replica parts
+     * List of replica parts
      */
-    public List<Short> replicaParts() {
+    public List<Short> getReplicaParts() {
         return Collections.emptyList();
     }
 
     /**
-     * @return id of GraphElement
+     * ID of GraphElement
      */
     abstract public String getId();
 
     /**
-     * Get the part id of this element. If attached to storage default is current processing part
-     *
-     * @return Element part id
+     * Current Part of this element
+     * <strong>To be called in Storage parts only, otherwise {@link NullPointerException}</strong>
      */
-    public short getPartId() {
-        return partId;
+    public short getPart() {
+        return getStorage().layerFunction.getCurrentPart();
     }
 
     /**
-     * Attaches storage to this element, so that element can use the storage functions
-     * Setting storage also affects part id as well id ids of subFeatures
-     * In this step we also assign this as element of subFeatures
+     * Retrieves {@link Feature} from cache if exists, otherwise from storage.
      *
-     * @param storage BaseStorage to be attached to
+     * @implNote <strong> Developer should make sure to call this method knowing that the feature exists</strong>
      */
-    public void setStorage(BaseStorage storage) {
-        if (this.storage != null) return;
-        this.storage = storage;
-        this.partId = storage != null ? storage.layerFunction.getCurrentPart() : partId;
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                feature.setStorage(storage);
-                feature.setElement(this);
-            }
-        }
-    }
-
-    /**
-     * Retrieves feature from cache if exists, otherwise from storage
-     *
-     * @param name name of the feature
-     * @return Feature or NULL
-     * @implNote that a cached feature will not be queried a second time from storage
-     */
-    @Nullable
     public Feature<?, ?> getFeature(String name) {
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        if (storage != null) {
-            Feature<?, ?> feature = storage.getAttachedFeature(elementType(), getId(), name, null);
-            if (feature != null) {
-                feature.setElement(this);
-                return feature;
-            }
+        if (Objects.nonNull(getStorage())) {
+            Feature<?, ?> feature = getStorage().getAttachedFeature(getType(), getId(), name, null);
+            feature.setElement(this, false);
         }
         return null;
     }
 
     /**
-     * Returns if Feature with this name is available either here or in storage
+     * Returns if {@link Feature} with this name is available either here or in storage
      */
     public Boolean containsFeature(String name) {
         if (features != null) {
@@ -288,63 +259,68 @@ public abstract class GraphElement implements Serializable, LifeCycleControl {
                 if (feature.getName().equals(name)) return true;
             }
         }
-        if (storage != null) {
-            return storage.containsAttachedFeature(elementType(), getId(), name, null);
+        if (getStorage() != null) {
+            return getStorage().containsAttachedFeature(getType(), getId(), name, null);
         }
         return false;
     }
 
     /**
-     * If the feature already exists this will not do anything
-     * Otherwise it will try to create the feature in storage or at least append to feature list
-     *
-     * @param name    name of the feature to be added
-     * @param feature feature itself
-     * @implNote If storage is not null, exists check will also look for storage, so this method is not caching the feature if it exists in storage
+     * {@inheritDoc}
      */
-    public void setFeature(String name, Feature<?, ?> feature) {
-        if (!containsFeature(name)) {
-            feature.setName(name);
-            feature.setStorage(storage);
-            feature.setElement(this);
-            if (Objects.nonNull(storage)) {
-                feature.create();
-            }
-        }
-    }
-
-    @Nullable
-    public BaseStorage getStorage(){ return BaseStorage.STORAGES.get();}
-
     @Override
     public void delay() {
         if (features != null) features.forEach(LifeCycleControl::delay);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void resume() {
         if (features != null) features.forEach(LifeCycleControl::resume);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void onDeserialized() {
+        if (features != null) {
+            features.forEach(feature -> {
+                feature.element = this;
+                feature.onDeserialized();
+            });
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
-        return elementType() + "{" +
+        return getType() + "{" +
                 "id='" + getId() + '\'' +
                 '}';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GraphElement that = (GraphElement) o;
-        return Objects.equals(getId(), that.getId()) && Objects.equals(elementType(), that.elementType());
+        return Objects.equals(getId(), that.getId()) && Objects.equals(getType(), that.getType());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public int hashCode() {
-        return Objects.hash(getId(), elementType());
+        return Objects.hash(getId(), getType());
     }
-
 
 }

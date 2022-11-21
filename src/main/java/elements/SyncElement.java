@@ -3,29 +3,42 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
-import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
- * Simple Wrapper element used for sending SYNC_REQUEST messages
- *
- * @implNote Regular RMI is not well suited since we also need to have info about part_id where this message was sent
+ * Simple Wrapper element used for sending SYNC_REQUEST {@link GraphOp}
  */
 public final class SyncElement extends GraphElement {
 
-    public Tuple2<String, ElementType> identity;
+    /**
+     * ID of element to go to
+     */
+    public String elementId;
+
+    /**
+     * Type of element to go to
+     */
+    public ElementType elementType;
+
+    /**
+     * Part where this element is being sent from
+     */
+    public short partId;
 
     public SyncElement() {
 
     }
 
     public SyncElement(GraphElement toSync) {
-        identity = Tuple2.of(toSync.getId(), toSync.elementType());
-        partId = toSync.getPartId();
+        elementId = toSync.getId();
+        elementType = toSync.getType();
+        partId = super.getPart();
     }
 
     public SyncElement(SyncElement element, CopyContext context) {
         super(element, context);
-        identity = element.identity;
+        elementId = element.elementId;
+        elementType = element.elementType;
+        partId = element.partId;
     }
 
     @Override
@@ -35,12 +48,12 @@ public final class SyncElement extends GraphElement {
 
     @Override
     public String getId() {
-        return identity.f0;
+        return elementId;
     }
 
     @Override
-    public ElementType elementType() {
-        return identity.f1;
+    public ElementType getType() {
+        return elementType;
     }
 
     @Override
@@ -49,16 +62,7 @@ public final class SyncElement extends GraphElement {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
-        SyncElement that = (SyncElement) o;
-        return identity.equals(that.identity);
-    }
-
-    @Override
-    public int hashCode() {
-        return identity.hashCode();
+    public short getPart() {
+        return partId;
     }
 }

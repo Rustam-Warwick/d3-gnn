@@ -131,7 +131,7 @@ public final class ByteEnumSerializer<T extends Enum<T>> extends TypeSerializer<
     private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
         in.defaultReadObject();
 
-        // may be null if this serializer was deserialized from an older version
+        // may be null if this serializer was onDeserialized from an older version
         if (this.values == null) {
             this.values = enumClass.getEnumConstants();
 

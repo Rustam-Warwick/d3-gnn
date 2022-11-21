@@ -21,14 +21,6 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
     public InPlaceMeanAggregator() {
     }
 
-    public InPlaceMeanAggregator(NDArray value) {
-        super(Tuple2.of(value, 0));
-    }
-
-    public InPlaceMeanAggregator(NDArray value, boolean halo, short master) {
-        super(Tuple2.of(value, 0), halo, master);
-    }
-
     public InPlaceMeanAggregator(String id, NDArray value) {
         super(id, Tuple2.of(value, 0));
     }
@@ -51,17 +43,17 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
     }
 
     @Override
-    public Consumer<BaseStorage> createElement() {
-        Consumer<BaseStorage> tmp = super.createElement();
-        if (storage.needsTensorDelay() && tmp != null) value.f0.delay();
+    public Consumer<BaseStorage> createInternal() {
+        Consumer<BaseStorage> tmp = super.createInternal();
+        if (getStorage().needsTensorDelay() && tmp != null) value.f0.delay();
         return tmp;
     }
 
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateElement(newElement, memento);
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateInternal(newElement, memento);
         InPlaceMeanAggregator mementoAggregator = (InPlaceMeanAggregator) callback.f1;
-        if (storage.needsTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
+        if (getStorage().needsTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
             value.f0.delay();
             mementoAggregator.value.f0.resume();
         }

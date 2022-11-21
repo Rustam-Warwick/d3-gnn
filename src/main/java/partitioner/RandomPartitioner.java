@@ -1,7 +1,7 @@
 package partitioner;
 
 
-import elements.DEdge;
+import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.ElementType;
@@ -65,10 +65,10 @@ class RandomPartitioner extends Partitioner {
 
         @Override
         public GraphOp map(GraphOp value) throws Exception {
-            if (value.element.elementType() == ElementType.EDGE) {
+            if (value.element.getType() == ElementType.EDGE) {
                 value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-                DEdge dEdge = (DEdge) value.element;
-                masters.compute(dEdge.getSrc().getId(), (srcId, val) -> {
+                DirectedEdge directedEdge = (DirectedEdge) value.element;
+                masters.compute(directedEdge.getSrc().getId(), (srcId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -78,7 +78,7 @@ class RandomPartitioner extends Partitioner {
                     return val;
                 });
 
-                masters.compute(dEdge.getDest().getId(), (destId, val) -> {
+                masters.compute(directedEdge.getDest().getId(), (destId, val) -> {
                     if (val == null) val = new ArrayList<>();
                     if (!val.contains(value.partId)) {
                         if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
@@ -87,9 +87,9 @@ class RandomPartitioner extends Partitioner {
                     }
                     return val;
                 });
-                dEdge.getSrc().master = this.masters.get(dEdge.getSrc().getId()).get(0);
-                dEdge.getDest().master = this.masters.get(dEdge.getDest().getId()).get(0);
-            } else if (value.element.elementType() == ElementType.VERTEX) {
+                directedEdge.getSrc().masterPart = this.masters.get(directedEdge.getSrc().getId()).get(0);
+                directedEdge.getDest().masterPart = this.masters.get(directedEdge.getDest().getId()).get(0);
+            } else if (value.element.getType() == ElementType.VERTEX) {
                 short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 masters.compute(value.element.getId(), (srcId, val) -> {
                     if (val == null) val = new ArrayList<>();
@@ -100,7 +100,7 @@ class RandomPartitioner extends Partitioner {
                     }
                     return val;
                 });
-                ((Vertex) value.element).master = this.masters.get(value.element.getId()).get(0);
+                ((Vertex) value.element).masterPart = this.masters.get(value.element.getId()).get(0);
                 value.partId = part_tmp;
             }
             return value;

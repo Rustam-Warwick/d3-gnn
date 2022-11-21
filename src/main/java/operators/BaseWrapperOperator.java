@@ -688,12 +688,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return element;
         }
 
-        /**
-         * Cached NDManager for this operator
-         */
-        public NDManager getNDManager() {
-            return manager;
-        }
     }
 
 }

@@ -91,7 +91,7 @@ public class ModelServer<T extends Block> extends Plugin {
     @RemoteFunction
     public void collectParameters(NDArrayCollector<String> newParameters) {
         collectedParameters.putAll(newParameters);
-        if (++NUMBER_OF_COLLECTED_PARAMETERS == storage.layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
+        if (++NUMBER_OF_COLLECTED_PARAMETERS == getStorage().layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_PARAMETERS = 0;
             collectedParameters.clear();
@@ -134,8 +134,8 @@ public class ModelServer<T extends Block> extends Plugin {
 //                }
 //                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
 //            }
-//            Rmi rmi = new Rmi(getId(), "collectParameters", new Object[]{parameters}, elementType(), false, null);
-//            storage.layerFunction.broadcastMessage(new GraphOp(Op.RMI, rmi).setMessageCommunication(MessageCommunication.BROADCAST), MessageDirection.ITERATE);
+//            Rmi rmi = new Rmi(getId(), "collectParameters", new Object[]{parameters}, getType(), false, null);
+//           getStorage().layerFunction.broadcastMessage(new GraphOp(Op.RMI, rmi).setMessageCommunication(MessageCommunication.BROADCAST), MessageDirection.ITERATE);
         }
     }
 }

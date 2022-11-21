@@ -3,11 +3,13 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Consumer;
 
 
 /**
@@ -50,36 +52,30 @@ public class HGraph extends GraphElement {
     /**
      * {@inheritDoc}
      * Create all the vertices and hyperedges
+     *
+     * @return
      */
     @Override
-    public void create() {
-        // 
+    public Consumer<BaseStorage> create() {
         for (Vertex vertex : vertices) {
-            if (storage.containsVertex(vertex.getId())) storage.getVertex(vertex.getId()).update(vertex);
+            if (getStorage().containsVertex(vertex.getId())) getStorage().getVertex(vertex.getId()).update(vertex);
             else vertex.create();
         }
         for (HEdge hEdge : hEdges) {
-            if (storage.containsHyperEdge(hEdge.getId())) storage.getHyperEdge(hEdge.getId()).update(hEdge);
+            if (getStorage().containsHyperEdge(hEdge.getId())) getStorage().getHyperEdge(hEdge.getId()).update(hEdge);
             else hEdge.create();
         }
+        return null;
     }
 
     @Override
-    public void update(GraphElement newElement) {
+    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
         throw new IllegalStateException("SubGraph only support additions");
     }
 
     @Override
-    public void delete() {
+    public Consumer<BaseStorage> delete() {
         throw new IllegalStateException("SubGraph only support additions");
-    }
-
-    // Override methods
-    @Override
-    public void setStorage(BaseStorage storage) {
-        super.setStorage(storage);
-        vertices.forEach(item -> item.setStorage(storage));
-        hEdges.forEach(item -> item.setStorage(storage));
     }
 
     @Override
@@ -102,7 +98,7 @@ public class HGraph extends GraphElement {
     }
 
     @Override
-    public ElementType elementType() {
+    public ElementType getType() {
         return ElementType.GRAPH;
     }
 }

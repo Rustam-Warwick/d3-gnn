@@ -80,8 +80,8 @@ public class TagsAskUbuntu extends Dataset {
             Vertex src = new Vertex(values[0]);
             for (int i = 1; i < values.length; i++) {
                 Vertex dest = new Vertex(values[i]);
-                out.collect(new GraphOp(Op.COMMIT, new DEdge(src, dest)));
-                out.collect(new GraphOp(Op.COMMIT, new DEdge(dest, src)));
+                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(src, dest)));
+                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(dest, src)));
             }
         }
     }

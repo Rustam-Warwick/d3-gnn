@@ -1,6 +1,5 @@
 package elements;
 
-import elements.annotations.RemoteFunction;
 import elements.enums.*;
 import features.Parts;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -11,145 +10,122 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * GraphElement that are replicable. Added halo and master logic
+ * GraphElement that are replicable. Added master sync logic
  */
 abstract public class ReplicableGraphElement extends GraphElement {
 
-    public short master = -1;
+    /**
+     * Master part of this element
+     */
+    public short masterPart = -1;
 
     public ReplicableGraphElement() {
         super();
     }
 
-    public ReplicableGraphElement(short master) {
+    public ReplicableGraphElement(short masterPart) {
         super();
-        this.master = master;
+        this.masterPart = masterPart;
     }
 
     public ReplicableGraphElement(ReplicableGraphElement element, CopyContext copyContext) {
         super(element, copyContext);
-        this.master = element.master;
+        this.masterPart = element.masterPart;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     abstract public ReplicableGraphElement copy(CopyContext context);
 
     /**
      * {@inheritDoc}
-     * If REPLICA send Sync requests
+     * If replica send a sync message after creating
      */
     @Override
-    public void create() {
+    public Consumer<BaseStorage> create() {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
-        Consumer<BaseStorage> callback = createElement();
+        Consumer<BaseStorage> callback = super.create();
         if (callback != null && state() == ReplicaState.REPLICA && !isHalo()) {
             SyncElement syncElement = new SyncElement(this);
-            storage.layerFunction.message(new GraphOp(Op.SYNC_REQUEST, masterPart(), syncElement), MessageDirection.ITERATE);
+            getStorage().layerFunction.message(new GraphOp(Op.SYNC_REQUEST, getMasterPart(), syncElement), MessageDirection.ITERATE);
         }
-        storage.runCallback(callback);
+        return callback;
     }
 
     /**
-     * Master -> Add to part feature, send syncReplicas request
-     * Replica -> Accept the sync and update the element
-     *
-     * @param newElement New element to sync with
+     * {@inheritDoc}
+     * <p>
+     * Master only sends back if there are non-halo {@link Feature} or if STANDALONE {@link Feature}
+     * </p>
      */
     @Override
     public void sync(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            if (!containsFeature("p")) setFeature("p", new Parts(new ArrayList<>(), true));
+            if (!containsFeature("p")) {
+                Parts p = new Parts("p", new ArrayList<>(2), true, (short) -1);
+                p.setElement(this, false);
+                p.create();
+            }
             Rmi.execute(
                     getFeature("p"),
-                    new Rmi(null, "add", ElementType.ATTACHED_FEATURE, new Object[]{newElement.getPartId()}, true)
+                    "add",
+                    true,
+                    newElement.getPart()
             );
             GraphElement cpy = copy(CopyContext.SYNC);
-            if (cpy.features != null || cpy.elementType() == ElementType.STANDALONE_FEATURE)
-                storage.layerFunction.message(new GraphOp(Op.SYNC, newElement.getPartId(), cpy), MessageDirection.ITERATE);
+            if (cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE)
+                getStorage().layerFunction.message(new GraphOp(Op.SYNC, newElement.getPart(), cpy), MessageDirection.ITERATE);
         } else if (state() == ReplicaState.REPLICA) {
-            super.update(newElement);
+            getStorage().runCallback(super.update(newElement).f0);
         }
     }
 
     /**
+     * {@inheritDoc}
      * master -> update element, if changed sync message send
-     * replica -> Illegal, False Message
-     *
-     * @param newElement newElement to update with
+     * replica -> @throw {@link IllegalStateException}
      */
     @Override
-    public void update(GraphElement newElement) {
+    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateElement(newElement, null);
-            if (tmp.f0 != null && !isHalo() && !replicaParts().isEmpty()) {
+            Tuple2<Consumer<BaseStorage>, GraphElement> tmp = super.update(newElement);
+            if (tmp.f0 != null && !isHalo() && !getReplicaParts().isEmpty()) {
                 ReplicableGraphElement cpy = copy(CopyContext.SYNC);
-                replicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
+                getReplicaParts().forEach(part_id -> getStorage().layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
             }
-            storage.runCallback(tmp.f0);
+            return tmp;
         } else {
             throw new IllegalStateException("REPLICAS Should not received Updates");
         }
     }
 
     /**
-     * master -> Send delete message to replica, actually delete the element from master immediately
-     * replica -> Redirect this message to master, replica deletions are happening through RMI deleteReplica
+     * {@inheritDoc}
      */
     @Override
-    public void delete() {
-        if (state() == ReplicaState.MASTER) {
-            Rmi.buildAndRun(
-                    new Rmi(getId(), "deleteReplica", elementType(), new Object[]{false}, true),
-                    storage,
-                    replicaParts(),
-                    MessageDirection.ITERATE
-            );
-            super.delete();
-        } else if (state() == ReplicaState.REPLICA) {
-            storage.layerFunction.message(new GraphOp(Op.REMOVE, masterPart(), copy(CopyContext.MEMENTO)), MessageDirection.ITERATE);
-        }
-    }
-
-    /**
-     * Deletes a replica directly from storage, if notifyMaster also removes it from the parts
-     *
-     * @param notifyMaster should notify it master part after deletion?
-     */
-    @RemoteFunction
-    public void deleteReplica(boolean notifyMaster) {
-        if (this.state() == ReplicaState.REPLICA) {
-            super.delete();
-            if (notifyMaster)
-                Rmi.buildAndRun(
-                        new Rmi(Feature.encodeFeatureId(elementType(), getId(), "p"), "remove", ElementType.ATTACHED_FEATURE, new Object[]{getPartId()}, true), storage,
-                        masterPart(),
-                        MessageDirection.ITERATE
-                );
-        }
+    public short getMasterPart() {
+        return this.masterPart;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public short masterPart() {
-        return this.master;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public List<Short> replicaParts() {
-        if (!containsFeature("p")) return super.replicaParts();
+    public List<Short> getReplicaParts() {
+        if (!containsFeature("p")) return super.getReplicaParts();
         return (List<Short>) (getFeature("p")).getValue(); // @implNote Never create other Feature with the name parts
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
-        return elementType() + "{" +
+        return getType() + "{" +
                 "id='" + getId() + '\'' +
-                "master='" + masterPart() + '\'' +
+                "master='" + getMasterPart() + '\'' +
                 '}';
     }
 

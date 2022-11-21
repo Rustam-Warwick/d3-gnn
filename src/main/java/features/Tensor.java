@@ -19,14 +19,6 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public Tensor() {
     }
 
-    public Tensor(NDArray value) {
-        super(value);
-    }
-
-    public Tensor(NDArray value, boolean halo, short master) {
-        super(value, halo, master);
-    }
-
     public Tensor(String id, NDArray value) {
         super(id, value);
     }
@@ -45,17 +37,17 @@ public class Tensor extends Feature<NDArray, NDArray> {
     }
 
     @Override
-    public Consumer<BaseStorage> createElement() {
-        Consumer<BaseStorage> callback = super.createElement();
-        if (storage.needsTensorDelay() && callback != null) value.delay();
+    public Consumer<BaseStorage> createInternal() {
+        Consumer<BaseStorage> callback = super.createInternal();
+        if (getStorage().needsTensorDelay() && callback != null) value.delay();
         return callback;
     }
 
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateElement(GraphElement newElement, GraphElement memento) {
-        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateElement(newElement, memento);
+    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, GraphElement memento) {
+        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateInternal(newElement, memento);
         Tensor mementoAggregator = (Tensor) callback.f1;
-        if (storage.needsTensorDelay() && callback.f0 != null && mementoAggregator.value != value) {
+        if (getStorage().needsTensorDelay() && callback.f0 != null && mementoAggregator.value != value) {
             value.delay();
             mementoAggregator.value.resume();
         }

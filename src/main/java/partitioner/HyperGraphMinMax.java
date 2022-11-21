@@ -123,20 +123,20 @@ public class HyperGraphMinMax extends Partitioner {
 
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            if (value.element.elementType() == ElementType.GRAPH) {
+            if (value.element.getType() == ElementType.GRAPH) {
                 HGraph graph = (HGraph) value.element;
                 short part = partitionSubHyperGraph(graph); // Get the correct part
                 for (Vertex vertex : graph.getVertices()) {
                     // Update vertex part table and master part
                     vertex2p.compute(vertex.getId(), (key, val) -> {
                         if (val == null) {
-                            vertex.master = part;
+                            vertex.masterPart = part;
                             return new ArrayList<>(List.of(part));
                         } else {
                             if (!val.contains(part)) {
                                 val.add(part);
                             }
-                            vertex.master = val.get(0);
+                            vertex.masterPart = val.get(0);
                             return val;
                         }
                     });
@@ -147,7 +147,7 @@ public class HyperGraphMinMax extends Partitioner {
                         // Increment the part weights according to hyperedge additions to part
                         if (val == null) {
                             totalNumberOfVertices.incrementAndGet();
-                            hEdge.master = part;
+                            hEdge.masterPart = part;
                             parts[part]++;
                             return new ArrayList<>(List.of(part));
                         } else {
@@ -156,7 +156,7 @@ public class HyperGraphMinMax extends Partitioner {
                                 val.add(part);
                                 totalNumberOfReplicas.incrementAndGet();
                             }
-                            hEdge.master = val.get(0);
+                            hEdge.masterPart = val.get(0);
                             return val;
                         }
                     });

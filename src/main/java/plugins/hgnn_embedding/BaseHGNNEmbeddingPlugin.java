@@ -1,6 +1,6 @@
 package plugins.hgnn_embedding;
 
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
 import elements.HEdge;
@@ -45,7 +45,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     @Override
     public void open() throws Exception {
         super.open();
-        modelServer = (ModelServer<HGNNBlock>) storage.getPlugin(String.format("%s-server", modelName));
+        modelServer = (ModelServer<HGNNBlock>) getStorage().getPlugin(String.format("%s-server", modelName));
     }
 
     /**
@@ -119,17 +119,15 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
         IS_ACTIVE = true;
     }
 
-    /**
-     * Initialize the vertex aggregators and possible embeddings
-     */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new InPlaceMeanAggregator(aggStart, true, (short) -1));
-            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = storage.layerFunction.getWrapperContext().getNDManager().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-                // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("f", new Tensor(embeddingRandom));
+            InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true, (short) -1);
+            aggStart.setElement(element, false);
+            getStorage().runCallback(aggStart.create());
+            if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false, (short) -1); // Initialize to random value
+                embeddingRandom.setElement(element, false);
+                getStorage().runCallback(embeddingRandom.create());
             }
         }
     }
@@ -139,8 +137,9 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initHyperEdge(HEdge edge) {
         if (edge.state() == ReplicaState.MASTER) {
-            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
-            edge.setFeature("agg", new MeanAggregator(aggStart, false, (short) -1));
+            MeanAggregator agg = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), false, (short) -1);
+            agg.setElement(edge, false);
+            getStorage().runCallback(agg.create());
         }
     }
 }

@@ -1,6 +1,6 @@
 package datasets;
 
-import elements.DEdge;
+import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
@@ -85,8 +85,8 @@ public class RedditHyperlink extends Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split("\t");
-            DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
-            return new GraphOp(Op.COMMIT, dEdge);
+            DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
+            return new GraphOp(Op.COMMIT, directedEdge);
         }
     }
 

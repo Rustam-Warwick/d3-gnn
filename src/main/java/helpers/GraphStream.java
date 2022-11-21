@@ -6,8 +6,8 @@ import elements.*;
 import features.MeanAggregator;
 import features.Parts;
 import features.Tensor;
-import functions.storage.StorageProcessFunction;
 import functions.selectors.PartKeySelector;
+import functions.storage.StorageProcessFunction;
 import operators.BaseWrapperOperator;
 import operators.IterationTailOperator;
 import operators.WrapperOperatorFactory;
@@ -140,7 +140,7 @@ public class GraphStream {
         env.registerType(GraphElement.class);
         env.registerType(ReplicableGraphElement.class);
         env.registerType(Vertex.class);
-        env.registerType(DEdge.class);
+        env.registerType(DirectedEdge.class);
         env.registerType(Feature.class);
         env.registerType(Parts.class);
         env.registerType(Tensor.class);

@@ -3,18 +3,24 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import operators.events.BaseOperatorEvent;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import storage.BaseStorage;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Plugin is a unique Graph element that is attached to storage, so it is not in the life cycle of logical keys
  */
 public class Plugin extends ReplicableGraphElement implements CheckpointedFunction {
 
+    /**
+     * Id of this plugin, should be unique per storage
+     */
     public String id;
 
     public Plugin() {
@@ -32,12 +38,12 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     }
 
     @Override
-    public void create() {
+    public Consumer<BaseStorage> create() {
         throw new IllegalStateException("Plugins are not created");
     }
 
     @Override
-    public void update(GraphElement newElement) {
+    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not updated");
     }
 
@@ -47,45 +53,37 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     }
 
     @Override
-    public void delete() {
+    public Consumer<BaseStorage> delete() {
         throw new IllegalStateException("Plugins are not deleted");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public short getPartId() {
-        return storage.layerFunction.getCurrentPart();
     }
 
     /**
      * @return thisOperatorParts()
      */
     @Override
-    public List<Short> replicaParts() {
-        return storage.layerFunction.getWrapperContext().getThisOperatorParts();
+    public List<Short> getReplicaParts() {
+        return getStorage().layerFunction.getWrapperContext().getThisOperatorParts();
     }
 
     /**
      * @return parts that are the local master parts of each parallel sub-operators
      */
     public List<Short> othersMasterParts() {
-        return storage.layerFunction.getWrapperContext().getOtherOperatorMasterParts();
+        return getStorage().layerFunction.getWrapperContext().getOtherOperatorMasterParts();
     }
 
     /**
      * Is this key the last one in this operator
      */
     public boolean isLastReplica() {
-        return replicaParts().isEmpty() || Objects.equals(getPartId(), replicaParts().get(replicaParts().size() - 1));
+        return getReplicaParts().isEmpty() || Objects.equals(getPart(), getReplicaParts().get(getReplicaParts().size() - 1));
     }
 
     /**
      * @return Element Type
      */
     @Override
-    public ElementType elementType() {
+    public ElementType getType() {
         return ElementType.PLUGIN;
     }
 

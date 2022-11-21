@@ -1,6 +1,6 @@
 package partitioner;
 
-import elements.DEdge;
+import elements.DirectedEdge;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.enums.ElementType;
@@ -108,12 +108,12 @@ public class HDRF extends Partitioner {
             } else return 0;
         }
 
-        public float REP(DEdge dEdge, short partition) {
-            int srcDeg = partialDegTable.get(dEdge.getSrcId());
-            int destDeg = partialDegTable.get(dEdge.getDestId());
+        public float REP(DirectedEdge directedEdge, short partition) {
+            int srcDeg = partialDegTable.get(directedEdge.getSrcId());
+            int destDeg = partialDegTable.get(directedEdge.getDestId());
             float srcDegNormal = (float) srcDeg / (srcDeg + destDeg);
             float destDegNormal = 1 - srcDegNormal;
-            return this.G(dEdge.getSrcId(), srcDegNormal, partition) + this.G(dEdge.getDestId(), destDegNormal, partition);
+            return this.G(directedEdge.getSrcId(), srcDegNormal, partition) + this.G(directedEdge.getDestId(), destDegNormal, partition);
         }
 
         public float BAL(short partition) {
@@ -121,16 +121,16 @@ public class HDRF extends Partitioner {
             return lamb * res;
         }
 
-        public short computePartition(DEdge dEdge) {
+        public short computePartition(DirectedEdge directedEdge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(dEdge.getSrcId(), 1, Integer::sum);
-            partialDegTable.merge(dEdge.getDestId(), 1, Integer::sum);
+            partialDegTable.merge(directedEdge.getSrcId(), 1, Integer::sum);
+            partialDegTable.merge(directedEdge.getDestId(), 1, Integer::sum);
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
             List<Short> tmp = new ArrayList<>();
             for (short i = 0; i < this.numPartitions; i++) {
-                float score = REP(dEdge, i) + BAL(i);
+                float score = REP(directedEdge, i) + BAL(i);
                 if (score > maxScore) {
                     tmp.clear();
                     maxScore = score;
@@ -150,13 +150,13 @@ public class HDRF extends Partitioner {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             GraphElement elementToPartition = value.element;
-            if (elementToPartition.elementType() == ElementType.EDGE) {
-                DEdge dEdge = (DEdge) elementToPartition;
-                short partition = this.computePartition(dEdge);
-                partitionTable.compute(dEdge.getSrcId(), (key, val) -> {
+            if (elementToPartition.getType() == ElementType.EDGE) {
+                DirectedEdge directedEdge = (DirectedEdge) elementToPartition;
+                short partition = this.computePartition(directedEdge);
+                partitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
                     if (val == null) {
                         // This is the first part of this vertex hence the master
-                        dEdge.getSrc().master = partition;
+                        directedEdge.getSrc().masterPart = partition;
                         totalNumberOfVertices.incrementAndGet();
                         return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
                     } else {
@@ -165,15 +165,15 @@ public class HDRF extends Partitioner {
                             totalNumberOfReplicas.incrementAndGet();
                             val.add(partition);
                         }
-                        dEdge.getSrc().master = val.get(0);
+                        directedEdge.getSrc().masterPart = val.get(0);
                         return val;
                     }
                 });
 
-                partitionTable.compute(dEdge.getDestId(), (key, val) -> {
+                partitionTable.compute(directedEdge.getDestId(), (key, val) -> {
                     if (val == null) {
                         // This is the first part of this vertex hence the master
-                        dEdge.getDest().master = partition;
+                        directedEdge.getDest().masterPart = partition;
                         totalNumberOfVertices.incrementAndGet();
                         return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
                     } else {
@@ -182,7 +182,7 @@ public class HDRF extends Partitioner {
                             totalNumberOfReplicas.incrementAndGet();
                             val.add(partition);
                         }
-                        dEdge.getDest().master = val.get(0);
+                        directedEdge.getDest().masterPart = val.get(0);
                         return val;
                     }
                 });

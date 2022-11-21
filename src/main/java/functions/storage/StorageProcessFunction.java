@@ -31,11 +31,6 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
     BaseStorage getStorage();
 
     /**
-     * Set the storage engine
-     */
-    void setStorage(BaseStorage storage);
-
-    /**
      * BaseWrapper Context for doing higher-order stuff
      */
     BaseWrapperOperator<?>.Context getWrapperContext();
@@ -162,21 +157,19 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
         try {
             switch (value.op) {
                 case COMMIT:
-                    value.element.setStorage(getStorage());
                     if (!getStorage().containsElement(value.element)) {
-                        value.element.create();
+                        getStorage().runCallback(value.element.create());
                     } else {
-                        GraphElement thisElement = getStorage().getElement(value.element);
-                        thisElement.update(value.element);
+                        getStorage().runCallback(getStorage().getElement(value.element).update(value.element).f0);
                     }
                     break;
                 case SYNC_REQUEST:
-                    if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
+                    if (!getStorage().containsElement(value.element.getId(), value.element.getType())) {
                         // This can only occur if master is not here yet
-                        GraphElement el = getStorage().createLateElement(value.element.getId(), value.element.elementType());
+                        GraphElement el = getStorage().createLateElement(value.element.getId(), value.element.getType());
                         el.sync(value.element);
                     } else {
-                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
+                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.getType());
                         el.sync(value.element);
                     }
                     break;
@@ -185,8 +178,9 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     el.sync(value.element);
                     break;
                 case RMI:
-                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
-                    Rmi.execute(rpcElement, (Rmi) value.element);
+                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.getType());
+                    Rmi rmi = (Rmi) value.element;
+                    Rmi.execute(rpcElement, rmi.methodName, rmi.hasUpdate, rmi.args);
                     break;
                 case OPERATOR_EVENT:
                     getStorage().onOperatorEvent(value.getOperatorEvent());

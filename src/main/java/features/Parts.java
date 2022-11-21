@@ -13,16 +13,12 @@ public class Parts extends Feature<List<Short>, List<Short>> {
         super();
     }
 
-    public Parts(Parts st, CopyContext context) {
-        super(st, context);
-    }
-
-    public Parts(List<Short> value, boolean halo) {
-        super(value, halo, (short) -1);
-    }
-
     public Parts(String id, List<Short> val, boolean halo, short master) {
         super(id, val, halo, master);
+    }
+
+    public Parts(Parts st, CopyContext context) {
+        super(st, context);
     }
 
     @Override

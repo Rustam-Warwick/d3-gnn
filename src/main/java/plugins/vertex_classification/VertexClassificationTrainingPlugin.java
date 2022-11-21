@@ -1,9 +1,6 @@
 package plugins.vertex_classification;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDArrayCollector;
-import ai.djl.ndarray.NDArrays;
-import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.*;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
@@ -45,8 +42,8 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     public void open() throws Exception {
         super.open();
         epochThroughput = new SimpleCounter();
-        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
-        storage.layerFunction.getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
+        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
+        getStorage().layerFunction.getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
             @Override
             public Integer getValue() {
                 return (int) previousLoss * 100;
@@ -57,8 +54,8 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
 //    @Override
 //    public void addElementCallback(GraphElement element) {
 //        super.addElementCallback(element);
-//        if(element.elementType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
-//            element.setFeature("train_l", new Tensor(storage.layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
+//        if(element.getType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
+//            element.setFeature("train_l", new Tensor(getStorage().layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
 //        }
 //    }
 
@@ -74,7 +71,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList inputs = new NDList();
         NDList labels = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        for (Vertex vertex : storage.getVertices()) {
+        for (Vertex vertex : getStorage().getVertices()) {
             if (vertex.state() != ReplicaState.MASTER || !vertex.containsFeature("train_l")) continue;
             inputs.add((NDArray) vertex.getFeature("f").getValue());
             labels.add((NDArray) vertex.getFeature("train_l").getValue());
@@ -87,16 +84,21 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
         previousLoss = meanLoss.getFloat();
-        JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) storage.layerFunction.getWrapperContext().getNDManager().ones(new Shape()), false, false);
+        JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);
         NDArray gradient = batchedInputs.get(0).getGradient();
         // 2. Prepare the HashMap for Each Vertex and send to previous layer
         HashMap<String, NDArray> backwardGrads = new NDArrayCollector<>(false);
         for (int i = 0; i < vertexIds.size(); i++) {
             backwardGrads.put(vertexIds.get(i), gradient.get(i));
         }
-        Rmi.buildAndRun(new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false), storage,
-                getPartId(),
-                MessageDirection.BACKWARD
+        Rmi.buildAndRun(
+                getId(),
+                getType(),
+                "collect",
+                false,
+                getPart(),
+                MessageDirection.BACKWARD,
+                backwardGrads
         );
     }
 
@@ -111,8 +113,8 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         super.onOperatorEvent(event);
         if (event instanceof ForwardBarrier) {
             epochThroughput.inc(10000);
-            storage.layerFunction.runForAllLocalParts(this::startTraining);
-            storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+            getStorage().layerFunction.runForAllLocalParts(this::startTraining);
+            getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
             modelServer.getParameterStore().sync();
         }
     }

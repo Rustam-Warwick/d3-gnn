@@ -1,6 +1,5 @@
 package typeinfo.recursivepojoinfo;
 
-import elements.annotations.OmitStorage;
 import org.apache.flink.api.common.functions.InvalidTypesException;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -34,9 +33,6 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClas
  *     @todo Add recursive Map serializer as well
  * </p>
  * <p>
- *     Supports {@link OmitStorage} for selectively making some fields transient.
- * </p>
- * <p>
  *     Supports {@link DeSerializationListener} for returning callbacks after serialization
  * </p>
  */
@@ -54,7 +50,6 @@ public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
             List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
             List<PojoField> pojoFields = new ArrayList<>();
             for (Field field : fields) {
-                if (omitStorage && field.isAnnotationPresent(OmitStorage.class)) continue;
                 Type fieldType = field.getGenericType();
                 try {
                     if (List.class.isAssignableFrom(field.getType())) {

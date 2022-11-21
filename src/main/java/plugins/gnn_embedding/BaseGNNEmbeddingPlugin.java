@@ -1,9 +1,9 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import elements.DEdge;
+import elements.DirectedEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
@@ -49,7 +49,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     @Override
     public void open() throws Exception {
         super.open();
-        modelServer = (ModelServer<GNNBlock>) storage.getPlugin(String.format("%s-server", modelName));
+        modelServer = (ModelServer<GNNBlock>) getStorage().getPlugin(String.format("%s-server", modelName));
     }
 
     /**
@@ -78,11 +78,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     /**
      * Is Edge ready for message passing
      *
-     * @param dEdge Edge
+     * @param directedEdge Edge
      * @return edge_ready
      */
-    public final boolean messageReady(DEdge dEdge) {
-        return requiresDestForMessage ? dEdge.getSrc().containsFeature("f") && dEdge.getDest().containsFeature("f") : dEdge.getSrc().containsFeature("f");
+    public final boolean messageReady(DirectedEdge directedEdge) {
+        return requiresDestForMessage ? directedEdge.getSrc().containsFeature("f") && directedEdge.getDest().containsFeature("f") : directedEdge.getSrc().containsFeature("f");
     }
 
     /**
@@ -132,12 +132,13 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new InPlaceMeanAggregator(aggStart, true, (short) -1));
-            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = storage.layerFunction.getWrapperContext().getNDManager().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-                // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("f", new Tensor(embeddingRandom));
+            InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true, (short) -1);
+            aggStart.setElement(element, false);
+            getStorage().runCallback(aggStart.create());
+            if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false, (short) -1); // Initialize to random value
+                embeddingRandom.setElement(element, false);
+                getStorage().runCallback(embeddingRandom.create());
             }
         }
     }

@@ -20,14 +20,17 @@ public final class GraphOp implements LifeCycleControl {
      * {@link Op} represents the operation that is happening in the GraphElement
      */
     public Op op = Op.COMMIT;
+
     /**
      * The part number where this record should be sent to
      */
     public short partId = -1;
+
     /**
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element;
+
     /**
      * Operator Event for the plugins communicated through this channel
      */
@@ -38,6 +41,7 @@ public final class GraphOp implements LifeCycleControl {
      */
     public @NotNull
     MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
+
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
@@ -77,8 +81,6 @@ public final class GraphOp implements LifeCycleControl {
     public GraphOp copy() {
         return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
-
-    // --- GETTERS AND SETTERS
 
     public @NotNull Op getOp() {
         return op;
@@ -135,7 +137,6 @@ public final class GraphOp implements LifeCycleControl {
     }
 
     // OVERRIDE METHODS
-
     @Override
     public void resume() {
         if (element != null) element.resume();

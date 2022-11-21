@@ -1,9 +1,6 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDArrayCollector;
-import ai.djl.ndarray.NDArrays;
-import ai.djl.ndarray.NDList;
+import ai.djl.ndarray.*;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
@@ -43,7 +40,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     @Override
     public void open() throws Exception {
         super.open();
-        collectors = new HashMap<>(storage.layerFunction.getWrapperContext().getThisOperatorParts().size());
+        collectors = new HashMap<>(getStorage().layerFunction.getWrapperContext().getThisOperatorParts().size());
     }
 
     /**
@@ -54,8 +51,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     @RemoteFunction
     public void collect(HashMap<String, NDArray> gradients) {
         if (gradients.isEmpty()) return;
-        collectors.computeIfAbsent(getPartId(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
-        collectors.get(getPartId()).f0.putAll(gradients);
+        collectors.computeIfAbsent(getPart(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
+        collectors.get(getPart()).f0.putAll(gradients);
     }
 
     /**
@@ -64,12 +61,12 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     @RemoteFunction
     public void collectAggregators(HashMap<String, NDArray> gradients) {
         if (gradients.isEmpty()) return;
-        collectors.computeIfAbsent(getPartId(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
-        NDArrayCollector<String> collector = collectors.get(getPartId()).f1;
+        collectors.computeIfAbsent(getPart(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
+        NDArrayCollector<String> collector = collectors.get(getPart()).f1;
         for (Map.Entry<String, NDArray> stringNDArrayEntry : gradients.entrySet()) {
-            Vertex v = storage.getVertex(stringNDArrayEntry.getKey());
-            for (DEdge incidentDEdge : storage.getIncidentEdges(v, EdgeType.IN)) {
-                collector.put(incidentDEdge.getSrc().getId(), stringNDArrayEntry.getValue());
+            Vertex v = getStorage().getVertex(stringNDArrayEntry.getKey());
+            for (DirectedEdge incidentDirectedEdge : getStorage().getIncidentEdges(v, EdgeType.IN)) {
+                collector.put(incidentDirectedEdge.getSrc().getId(), stringNDArrayEntry.getValue());
             }
         }
     }
@@ -82,8 +79,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
      */
     public void trainFirstPart() {
         try {
-            if (!collectors.containsKey(getPartId())) return;
-            NDArrayCollector<String> collectedGradients = collectors.get(getPartId()).f0;
+            if (!collectors.containsKey(getPart())) return;
+            NDArrayCollector<String> collectedGradients = collectors.get(getPart()).f0;
             if (collectedGradients.isEmpty()) return;
 
             // ---------- Prepare data for update model inputs(feature, aggregator)
@@ -93,7 +90,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDList aggregatorList = new NDList(collectedGradients.size());
             NDList inputGradientsList = new NDList(collectedGradients.size());
             for (Map.Entry<String, NDArray> entry : collectedGradients.entrySet()) {
-                Vertex v = storage.getVertex(entry.getKey());
+                Vertex v = getStorage().getVertex(entry.getKey());
                 vertices.add(v);
                 featuresList.add((NDArray) v.getFeature("f").getValue());
                 aggregatorList.add((NDArray) v.getFeature("agg").getValue());
@@ -116,7 +113,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             // ------------------Collect Aggregation messages + Backward messages(If not the first layer)
 
             HashMap<Short, NDArrayCollector<String>> aggGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
-            HashMap<String, NDArray> backwardGrads = storage.layerFunction.isFirst() ? null : new NDArrayCollector<>(false);
+            HashMap<String, NDArray> backwardGrads = getStorage().layerFunction.isFirst() ? null : new NDArrayCollector<>(false);
             for (int i = 0; i < collectedGradients.size(); i++) {
                 NDArray previousFeatureGrad = gradients.get(0).get(i);
                 NDArray aggGrad = gradients.get(1).get(i);
@@ -126,13 +123,13 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                 }
                 if (aggregator.reducedCount() > 0) {
                     NDArray messagesGrad = aggregator.grad(aggGrad);
-                    for (Short replicaPart : vertices.get(i).replicaParts()) {
+                    for (Short replicaPart : vertices.get(i).getReplicaParts()) {
                         aggGradsPerPart.computeIfAbsent(replicaPart, (key) -> new NDArrayCollector<>(false));
                         aggGradsPerPart.get(replicaPart).put(vertices.get(i).getId(), messagesGrad);
                     }
 
-                    aggGradsPerPart.computeIfAbsent(getPartId(), (key) -> new NDArrayCollector<>(false));
-                    aggGradsPerPart.get(getPartId()).put(vertices.get(i).getId(), messagesGrad);
+                    aggGradsPerPart.computeIfAbsent(getPart(), (key) -> new NDArrayCollector<>(false));
+                    aggGradsPerPart.get(getPart()).put(vertices.get(i).getId(), messagesGrad);
                 }
             }
 
@@ -140,9 +137,13 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
 
             for (Map.Entry<Short, NDArrayCollector<String>> entry : aggGradsPerPart.entrySet()) {
                 Rmi.buildAndRun(
-                        new Rmi(getId(), "collectAggregators", elementType(), new Object[]{entry.getValue()}, false), storage,
+                        getId(),
+                        getType(),
+                        "collectAggregators",
+                        false,
                         entry.getKey(),
-                        MessageDirection.ITERATE
+                        MessageDirection.ITERATE,
+                        entry.getValue()
                 );
             }
 
@@ -151,9 +152,13 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             if (Objects.nonNull(backwardGrads)) {
 
                 Rmi.buildAndRun(
-                        new Rmi(getId(), "collect", elementType(), new Object[]{backwardGrads}, false), storage,
-                        getPartId(),
-                        MessageDirection.BACKWARD
+                        getId(),
+                        getType(),
+                        "collect",
+                        false,
+                        getPart(),
+                        MessageDirection.BACKWARD,
+                        backwardGrads
                 );
             }
 
@@ -172,15 +177,15 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
      */
     public void trainSecondPart() {
         try {
-            if (!collectors.containsKey(getPartId())) return;
-            NDArrayCollector<String> collectedAggregators = collectors.get(getPartId()).f1;
+            if (!collectors.containsKey(getPart())) return;
+            NDArrayCollector<String> collectedAggregators = collectors.get(getPart()).f1;
             if (collectedAggregators.isEmpty()) return;
 
             NDList features = new NDList(collectedAggregators.size());
             NDList gradients = new NDList(collectedAggregators.size());
             List<Vertex> vertices = new ArrayList<>(collectedAggregators.size());
             for (Map.Entry<String, NDArray> stringNDArrayEntry : collectedAggregators.entrySet()) {
-                Vertex v = storage.getVertex(stringNDArrayEntry.getKey());
+                Vertex v = getStorage().getVertex(stringNDArrayEntry.getKey());
                 vertices.add(v);
                 features.add((NDArray) v.getFeature("f").getValue());
                 gradients.add(stringNDArrayEntry.getValue());
@@ -191,17 +196,21 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDList messages = MESSAGE(batchedFeatures, true);
             JniUtils.backward((PtNDArray) messages.get(0), (PtNDArray) batchedMessageGradients.get(0), false, false);
             NDArray batchedFeatureGradients = batchedFeatures.get(0).getGradient();
-            if (!storage.layerFunction.isFirst()) {
+            if (!getStorage().layerFunction.isFirst()) {
                 HashMap<Short, NDArrayCollector<String>> backwardGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
                 for (int i = 0; i < vertices.size(); i++) {
-                    backwardGradsPerPart.computeIfAbsent(vertices.get(i).masterPart(), (key) -> new NDArrayCollector<>(false));
-                    backwardGradsPerPart.get(vertices.get(i).masterPart()).put(vertices.get(i).getId(), batchedFeatureGradients.get(i));
+                    backwardGradsPerPart.computeIfAbsent(vertices.get(i).getMasterPart(), (key) -> new NDArrayCollector<>(false));
+                    backwardGradsPerPart.get(vertices.get(i).getMasterPart()).put(vertices.get(i).getId(), batchedFeatureGradients.get(i));
                 }
                 for (Map.Entry<Short, NDArrayCollector<String>> entry : backwardGradsPerPart.entrySet()) {
                     Rmi.buildAndRun(
-                            new Rmi(getId(), "collect", elementType(), new Object[]{entry.getValue()}, false), storage,
+                            getId(),
+                            getType(),
+                            "collect",
+                            false,
                             entry.getKey(),
-                            MessageDirection.BACKWARD
+                            MessageDirection.BACKWARD,
+                            entry.getValue()
                     );
                 }
             }
@@ -221,19 +230,19 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         HashMap<Vertex, Integer> srcVertices = new HashMap<>();
         HashMap<Vertex, List<Integer>> destVertices = new HashMap<>();
         NDList srcFeatures = new NDList();
-        for (Vertex vertex : storage.getVertices()) {
+        for (Vertex vertex : getStorage().getVertices()) {
             if (vertex.state() == ReplicaState.MASTER) ((Aggregator) vertex.getFeature("agg")).reset();
-            Iterable<DEdge> localInEdges = storage.getIncidentEdges(vertex, EdgeType.IN);
-            for (DEdge localInDEdge : localInEdges) {
-                if (!srcVertices.containsKey(localInDEdge.getSrc())) {
-                    srcVertices.put(localInDEdge.getSrc(), srcFeatures.size());
-                    srcFeatures.add((NDArray) localInDEdge.getSrc().getFeature("f").getValue());
+            Iterable<DirectedEdge> localInEdges = getStorage().getIncidentEdges(vertex, EdgeType.IN);
+            for (DirectedEdge localInDirectedEdge : localInEdges) {
+                if (!srcVertices.containsKey(localInDirectedEdge.getSrc())) {
+                    srcVertices.put(localInDirectedEdge.getSrc(), srcFeatures.size());
+                    srcFeatures.add((NDArray) localInDirectedEdge.getSrc().getFeature("f").getValue());
                 }
                 destVertices.compute(vertex, (v, l) -> {
                     if (l == null) {
-                        return new ArrayList<>(List.of(srcVertices.get(localInDEdge.getSrc())));
+                        return new ArrayList<>(List.of(srcVertices.get(localInDirectedEdge.getSrc())));
                     }
-                    l.add(srcVertices.get(localInDEdge.getSrc()));
+                    l.add(srcVertices.get(localInDirectedEdge.getSrc()));
                     return l;
                 });
             }
@@ -242,11 +251,15 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList srcFeaturesBatched = new NDList(NDArrays.stack(srcFeatures));
         NDArray messages = MESSAGE(srcFeaturesBatched, false).get(0);
         destVertices.forEach((v, list) -> {
-            NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", storage.layerFunction.getWrapperContext().getNDManager().create(Longs.toArray(list))));
+            NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", BaseNDManager.getManager().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                    new Rmi(Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"), "reduce", ElementType.ATTACHED_FEATURE, new Object[]{new NDList(message), list.size()}, true), storage,
-                    v.masterPart(),
-                    MessageDirection.ITERATE
+                    Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
+                    ElementType.ATTACHED_FEATURE,
+                    "reduce",
+                    true,
+                    v.getMasterPart(),
+                    MessageDirection.ITERATE,
+                    new NDList(message)
             );
         });
     }
@@ -258,7 +271,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        for (Vertex v : storage.getVertices()) {
+        for (Vertex v : getStorage().getVertices()) {
             if (v.state() == ReplicaState.MASTER) {
                 features.add((NDArray) v.getFeature("f").getValue());
                 aggregators.add((NDArray) v.getFeature("agg").getValue());
@@ -269,8 +282,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDArray updatesBatched = UPDATE(inputsBatched, false).get(0);
         for (int i = 0; i < vertexIds.size(); i++) {
             Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
-            updateTensor.attachedTo = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
-            storage.layerFunction.message(new GraphOp(Op.COMMIT, storage.layerFunction.getCurrentPart(), updateTensor), MessageDirection.FORWARD);
+            updateTensor.ids = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
+            getStorage().layerFunction.message(new GraphOp(Op.COMMIT, getStorage().layerFunction.getCurrentPart(), updateTensor), MessageDirection.FORWARD);
         }
     }
 
@@ -286,29 +299,29 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         super.onOperatorEvent(event);
         if (event instanceof BackwardBarrier) {
             if (++numTrainingSyncMessages == 1) {
-                storage.layerFunction.runForAllLocalParts(this::trainFirstPart);
-                storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getStorage().layerFunction.runForAllLocalParts(this::trainFirstPart);
+                getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
             } else {
-                storage.layerFunction.runForAllLocalParts(this::trainSecondPart);
-                if (storage.layerFunction.isFirst())
-                    storage.layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getStorage().layerFunction.runForAllLocalParts(this::trainSecondPart);
+                if (getStorage().layerFunction.isFirst())
+                    getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
                 else
-                    storage.layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+                    getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
                 numTrainingSyncMessages = 0;
                 modelServer.getParameterStore().sync();
             }
         } else if (event instanceof ForwardBarrier) {
             // first 2 for updating the model, then reset agg and send new messages
             if (++numForwardSyncMessages == 2) {
-                storage.layerFunction.runForAllLocalParts(this::inferenceFirstPartStart);
+                getStorage().layerFunction.runForAllLocalParts(this::inferenceFirstPartStart);
             } else if (numForwardSyncMessages == 3) {
                 // Ready to forward
-                storage.layerFunction.runForAllLocalParts(this::inferenceSecondPartStart);
+                getStorage().layerFunction.runForAllLocalParts(this::inferenceSecondPartStart);
             }
             if (numForwardSyncMessages < 3) {
-                storage.layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
             } else {
-                storage.layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)), MessageDirection.FORWARD);
+                getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)), MessageDirection.FORWARD);
                 numForwardSyncMessages = 0;
                 // @todo add embedding plugin start
             }

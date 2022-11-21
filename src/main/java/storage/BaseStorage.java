@@ -29,9 +29,9 @@ import java.util.function.Consumer;
  */
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
 
-    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+    public static final ThreadLocal<BaseStorage> STORAGES = new ThreadLocal<>();
 
-    public static final  ThreadLocal<BaseStorage> STORAGES = new ThreadLocal<>();
+    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
      * List of plugins attached to this storage engine
@@ -57,7 +57,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean addVertex(Vertex vertex);
 
-    public abstract boolean addEdge(DEdge dEdge);
+    public abstract boolean addEdge(DirectedEdge directedEdge);
 
     public abstract boolean addHyperEdge(HEdge hEdge);
 
@@ -67,7 +67,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean updateVertex(Vertex vertex, Vertex memento);
 
-    public abstract boolean updateEdge(DEdge dEdge, DEdge memento);
+    public abstract boolean updateEdge(DirectedEdge directedEdge, DirectedEdge memento);
 
     public abstract boolean updateHyperEdge(HEdge hEdge, HEdge memento);
 
@@ -77,7 +77,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean deleteVertex(Vertex vertex);
 
-    public abstract boolean deleteEdge(DEdge dEdge);
+    public abstract boolean deleteEdge(DirectedEdge directedEdge);
 
     public abstract boolean deleteHyperEdge(HEdge hEdge);
 
@@ -87,11 +87,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract Iterable<Vertex> getVertices();
 
     @Nullable
-    public abstract DEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
+    public abstract DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
 
-    public abstract Iterable<DEdge> getEdges(String src, String dest);
+    public abstract Iterable<DirectedEdge> getEdges(String src, String dest);
 
-    public abstract Iterable<DEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+    public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
     public abstract HEdge getHyperEdge(String id);
 
@@ -156,13 +156,12 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * Operator opened
      */
     public void open() throws Exception {
+        STORAGES.set(this);
         removeCachedFeatures = new RemoveCachedFeatures();
         layerFunction.registerKeyChangeListener(removeCachedFeatures);
-        plugins.values().forEach(plugin -> plugin.setStorage(this));
         for (Plugin value : plugins.values()) {
             value.open();
         }
-        STORAGES.set(this);
     }
 
     /**
@@ -215,11 +214,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     // --------------------------- MAPPER & HELPER METHODS -------------------------
 
     public boolean addElement(GraphElement element) {
-        switch (element.elementType()) {
+        switch (element.getType()) {
             case VERTEX:
                 return this.addVertex((Vertex) element);
             case EDGE:
-                return this.addEdge((DEdge) element);
+                return this.addEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
                 return addAttachedFeature((Feature<?, ?>) element);
             case STANDALONE_FEATURE:
@@ -232,11 +231,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public boolean deleteElement(GraphElement element) {
-        switch (element.elementType()) {
+        switch (element.getType()) {
             case VERTEX:
                 return this.deleteVertex((Vertex) element);
             case EDGE:
-                return this.deleteEdge((DEdge) element);
+                return this.deleteEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
                 return this.deleteAttachedFeature((Feature<?, ?>) element);
             case STANDALONE_FEATURE:
@@ -249,11 +248,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public boolean updateElement(GraphElement element, GraphElement memento) {
-        switch (element.elementType()) {
+        switch (element.getType()) {
             case VERTEX:
                 return this.updateVertex((Vertex) element, (Vertex) memento);
             case EDGE:
-                return this.updateEdge((DEdge) element, (DEdge) element);
+                return this.updateEdge((DirectedEdge) element, (DirectedEdge) element);
             case ATTACHED_FEATURE:
                 return this.updateAttachedFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case STANDALONE_FEATURE:
@@ -270,7 +269,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case VERTEX:
                 return containsVertex(id);
             case EDGE:
-                Tuple3<String, String, String> ids = DEdge.decodeVertexIdsAndAttribute(id);
+                Tuple3<String, String, String> ids = DirectedEdge.decodeVertexIdsAndAttribute(id);
                 return containsEdge(ids.f0, ids.f1, ids.f2, id);
             case ATTACHED_FEATURE:
                 Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
@@ -296,7 +295,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case STANDALONE_FEATURE:
                 return getStandaloneFeature(id);
             case EDGE:
-                Tuple3<String, String, String> ids = DEdge.decodeVertexIdsAndAttribute(id);
+                Tuple3<String, String, String> ids = DirectedEdge.decodeVertexIdsAndAttribute(id);
                 return getEdge(ids.f0, ids.f1, ids.f2, id);
             case PLUGIN:
                 return getPlugin(id);
@@ -308,16 +307,16 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public boolean containsElement(GraphElement element) {
-        switch (element.elementType()) {
+        switch (element.getType()) {
             case VERTEX:
                 return containsVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return containsAttachedFeature(tmp.attachedTo.f0, tmp.attachedTo.f1, tmp.attachedTo.f2, null);
+                return containsAttachedFeature(tmp.ids.f0, tmp.ids.f1, tmp.ids.f2, null);
             case STANDALONE_FEATURE:
                 return containsStandaloneFeature(element.getId());
             case EDGE:
-                DEdge edge = (DEdge) element;
+                DirectedEdge edge = (DirectedEdge) element;
                 return containsEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
             case PLUGIN:
                 return plugins.containsKey(element.getId());
@@ -329,16 +328,16 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     public GraphElement getElement(GraphElement element) {
-        switch (element.elementType()) {
+        switch (element.getType()) {
             case VERTEX:
                 return getVertex(element.getId());
             case ATTACHED_FEATURE:
                 Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return getAttachedFeature(tmp.attachedTo.f0, tmp.attachedTo.f1, tmp.attachedTo.f2, null);
+                return getAttachedFeature(tmp.ids.f0, tmp.ids.f1, tmp.ids.f2, null);
             case STANDALONE_FEATURE:
                 return getStandaloneFeature(element.getId());
             case EDGE:
-                DEdge edge = (DEdge) element;
+                DirectedEdge edge = (DirectedEdge) element;
                 return getEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
             case PLUGIN:
                 return getPlugin(element.getId());
@@ -353,13 +352,11 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         switch (elementType) {
             case VERTEX:
                 Vertex v = new Vertex(id, layerFunction.getCurrentPart());
-                v.setStorage(this);
-                v.create();
+                runCallback(v.create());
                 return v;
             case HYPEREDGE:
                 HEdge e = new HEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
-                e.setStorage(this);
-                e.create();
+                runCallback(e.create());
                 return e;
         }
         return null;
