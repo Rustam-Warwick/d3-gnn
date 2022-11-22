@@ -95,7 +95,6 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
                 getId(),
                 getType(),
                 "collect",
-                false,
                 getPart(),
                 MessageDirection.BACKWARD,
                 backwardGrads

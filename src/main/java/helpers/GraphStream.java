@@ -63,7 +63,7 @@ public class GraphStream {
     /**
      * {@link Partitioner} to be used
      */
-    protected final Partitioner partitionerInstance;
+    protected final Partitioner partitioner;
 
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
@@ -79,7 +79,7 @@ public class GraphStream {
     /**
      * {@link Dataset} to be used
      */
-    protected Dataset datasetInstance;
+    protected Dataset dataset;
 
     /**
      * Should the resources be fineGrained, adding slotSharingGroups and etc.
@@ -92,14 +92,14 @@ public class GraphStream {
      * <strong> You can leave it blank and populate {@code this.partitionerInstance} manually </strong>
      */
     @CommandLine.Option(names = {"-p", "--partitioner"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Partitioner to be used")
-    protected String partitioner;
+    protected String partitionerName;
 
     /**
      * Name of the dataset to be resolved to {@code this.datasetInstance}
      * <strong> You can leave it blank and populate {@code this.datasetInstance} manually </strong>
      */
     @CommandLine.Option(names = {"-d", "--dataset"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Dataset to be used")
-    protected String dataset;
+    protected String datasetName;
 
     /**
      * Internal variable for creating Storage layers
@@ -127,8 +127,8 @@ public class GraphStream {
         this.hasLastLayerTopology = hasLastLayerTopology;
         this.processFunctions = processFunctions;
         this.layers = (short) processFunctions.length;
-        this.datasetInstance = Dataset.getDataset(dataset, cmdArgs);
-        this.partitionerInstance = Partitioner.getPartitioner(partitioner, cmdArgs);
+        this.dataset = Dataset.getDataset(datasetName, cmdArgs);
+        this.partitioner = Partitioner.getPartitioner(partitionerName, cmdArgs);
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
     }
 
@@ -204,13 +204,13 @@ public class GraphStream {
      * @return [dataset stream, partitioner output, splitter output, ...storage layers]
      */
     protected DataStream<GraphOp>[] build() {
-        Preconditions.checkNotNull(datasetInstance);
-        Preconditions.checkNotNull(partitionerInstance);
+        Preconditions.checkNotNull(dataset);
+        Preconditions.checkNotNull(partitioner);
         Preconditions.checkState(internalPositionIndex == 0);
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
-        layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) datasetInstance.build(env);
-        layerOutputs[1] = partitionerInstance.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
-        layerOutputs[2] = streamingStorageLayer(layerOutputs[1], datasetInstance.getSplitter());
+        layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
+        layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
+        layerOutputs[2] = streamingStorageLayer(layerOutputs[1], dataset.getSplitter());
 
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);

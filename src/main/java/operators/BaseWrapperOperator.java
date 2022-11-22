@@ -343,7 +343,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
-            System.out.println("Watermark received " + Thread.currentThread());
             operatorEventGateway.sendEventToCoordinator(new FinalWatermarkArrived());
         }
         wrappedOperator.processWatermark(mark);

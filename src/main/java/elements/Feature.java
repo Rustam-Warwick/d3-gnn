@@ -63,6 +63,13 @@ public class Feature<T, V> extends ReplicableGraphElement {
         ids = Tuple3.of(ElementType.NONE, null, name);
     }
 
+    public Feature(String name, T value, boolean halo){
+        super();
+        this.value = value;
+        ids = Tuple3.of(ElementType.NONE, null, name);
+        this.halo = halo;
+    }
+
     public Feature(String name, T value, boolean halo, short master) {
         super(master);
         this.halo = halo;
@@ -112,7 +119,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (getType() == ElementType.STANDALONE_FEATURE) return super.create();
         else {
             if (!getStorage().containsElement(ids.f1, ids.f0)) {
-                getStorage().createLateElement(ids.f1, ids.f0);
+                setElement(getStorage().createLateElement(ids.f1, ids.f0),false);
             }
             Consumer<BaseStorage> callback = createInternal();
             if (callback != null && !isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
@@ -125,7 +132,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * {@inheritDoc}
-     * If values are not-equal update the value and continue with {@link GraphElement} updateInternal
+     * If values are not-equal triggerUpdate the value and continue with {@link GraphElement} updateInternal
      */
     @Override
     public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, GraphElement memento) {
@@ -245,8 +252,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     }
 
     /**
-     * Caches the given element, adds current feature to feature of the element if that does not exist there.
-     * If Feature is already attached to an element @throw {@link AssertionError}
+     * Caches the given element, also adds this {@link Feature} to {@link GraphElement}
+     * @param testIfExistsInElement If we should check for existance of duplicated {@link Feature} in {@link GraphElement}
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;

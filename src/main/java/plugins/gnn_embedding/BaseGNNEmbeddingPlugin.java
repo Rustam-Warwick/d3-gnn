@@ -53,7 +53,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
+     * Calling the triggerUpdate function, note that everything except the input feature and agg value is transfered to TempManager
      *
      * @param feature  Source Feature list
      * @param training training enabled
@@ -86,7 +86,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Is vertex ready for update
+     * Is vertex ready for triggerUpdate
      *
      * @param vertex Vertex
      * @return vertex_ready
@@ -132,11 +132,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true, (short) -1);
+            InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
             aggStart.setElement(element, false);
             getStorage().runCallback(aggStart.create());
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
-                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false, (short) -1); // Initialize to random value
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
                 getStorage().runCallback(embeddingRandom.create());
             }

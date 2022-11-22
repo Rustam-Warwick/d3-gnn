@@ -88,7 +88,7 @@ public class ModelServer<T extends Block> extends Plugin {
      * Upon receiving all gradients updates the models and syncs with the replicas
      * </p>
      */
-    @RemoteFunction
+    @RemoteFunction(triggerUpdate = false)
     public void collectParameters(NDArrayCollector<String> newParameters) {
         collectedParameters.putAll(newParameters);
         if (++NUMBER_OF_COLLECTED_PARAMETERS == getStorage().layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
@@ -130,7 +130,7 @@ public class ModelServer<T extends Block> extends Plugin {
 //            HashMap<String, NDArray> parameters = new NDArrayCollector<>(false);
 //            for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
 //                if (parameter.getValue().getArray().hasGradient()) {
-//                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
+//                    optimizer.triggerUpdate(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
 //                }
 //                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
 //            }

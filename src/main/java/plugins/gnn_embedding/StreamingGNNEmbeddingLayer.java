@@ -17,7 +17,7 @@ import java.util.Objects;
 
 /**
  * {@inheritDoc}
- * Each update produces a new cascading effect and no optimizations are happening
+ * Each triggerUpdate produces a new cascading effect and no optimizations are happening
  */
 public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
@@ -65,7 +65,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
-                        true,
                         directedEdge.getDest().getMasterPart(),
                         MessageDirection.ITERATE,
                         msg,
@@ -110,12 +109,12 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         NDArray ft = (NDArray) (v.getFeature("f")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
-        Tensor tmp = new Tensor("f", update, false, v.getMasterPart());
+        Tensor tmp = new Tensor("f", update, false);
         tmp.ids.f0 = ElementType.VERTEX;
         tmp.ids.f1 = v.getId();
         throughput.inc();
         latency.inc(getStorage().layerFunction.getTimerService().currentProcessingTime() - getStorage().layerFunction.currentTimestamp());
-        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, tmp.getMasterPart(), tmp), MessageDirection.FORWARD);
+        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp), MessageDirection.FORWARD);
     }
 
     /**
@@ -135,17 +134,17 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
-                        true,
                         v.getMasterPart(),
                         MessageDirection.ITERATE,
-                        msg
+                        msg[0],
+                        msg[1]
                 );
             }
         }
     }
 
     /**
-     * Given oldFeature value and new Feature value update the Out Edged aggregators
+     * Given oldFeature value and new Feature value triggerUpdate the Out Edged aggregators
      *
      * @param newFeature Updaated new Feature
      * @param oldFeature Updated old Feature
@@ -163,10 +162,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         Feature.encodeFeatureId(ElementType.VERTEX, newFeature.ids.f1, "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "replace",
-                        true,
                         newFeature.getMasterPart(),
                         MessageDirection.ITERATE,
-                        msgs
+                        msgs[0],
+                        msgs[1]
                 );
             }
         }

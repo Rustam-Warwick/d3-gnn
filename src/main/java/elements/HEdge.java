@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
  * Vertices might be null though
  * </p>
  */
-
 public final class HEdge extends ReplicableGraphElement {
 
     private static final ThreadLocal<Set<String>> HELPER_SET = ThreadLocal.withInitial(HashSet::new);

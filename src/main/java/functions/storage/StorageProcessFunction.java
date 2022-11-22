@@ -180,7 +180,7 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                 case RMI:
                     GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.getType());
                     Rmi rmi = (Rmi) value.element;
-                    Rmi.execute(rpcElement, rmi.methodName, rmi.hasUpdate, rmi.args);
+                    Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                     break;
                 case OPERATOR_EVENT:
                     getStorage().onOperatorEvent(value.getOperatorEvent());

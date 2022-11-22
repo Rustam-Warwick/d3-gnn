@@ -29,8 +29,14 @@ import java.util.function.Consumer;
  */
 abstract public class BaseStorage implements CheckpointedFunction, Serializable {
 
+    /**
+     * Storages are accessed by this static field from the {@link GraphElement}
+     */
     public static final ThreadLocal<BaseStorage> STORAGES = new ThreadLocal<>();
 
+    /**
+     * Logger
+     */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
@@ -48,6 +54,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * KeySelector change listener
      */
     private transient RemoveCachedFeatures removeCachedFeatures;
+
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -146,6 +153,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         if (a != null) a.accept(this);
     }
 
+    /**
+     * Add plugin to this Storage
+     */
     public final BaseStorage withPlugin(Plugin plugin) {
         assert plugin.getId() != null;
         plugins.put(plugin.getId(), plugin);
@@ -178,7 +188,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      * OnTimer callback
      */
     public void onTimer(long timestamp) {
-        plugins.values().forEach(plugin -> plugin.onTimer(timestamp));
+        for (Plugin value : plugins.values()) {
+            value.onTimer(timestamp);
+        }
     }
 
     /**

@@ -66,12 +66,11 @@ abstract public class ReplicableGraphElement extends GraphElement {
             if (!containsFeature("p")) {
                 Parts p = new Parts("p", new ArrayList<>(2), true, (short) -1);
                 p.setElement(this, false);
-                p.create();
+                p.createInternal(); // Don't bother with callbacks
             }
             Rmi.execute(
                     getFeature("p"),
                     "add",
-                    true,
                     newElement.getPart()
             );
             GraphElement cpy = copy(CopyContext.SYNC);
@@ -84,7 +83,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     /**
      * {@inheritDoc}
-     * master -> update element, if changed sync message send
+     * master -> triggerUpdate element, if changed sync message send
      * replica -> @throw {@link IllegalStateException}
      */
     @Override
@@ -125,7 +124,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public String toString() {
         return getType() + "{" +
                 "id='" + getId() + '\'' +
-                "master='" + getMasterPart() + '\'' +
                 '}';
     }
 

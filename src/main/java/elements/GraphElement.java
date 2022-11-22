@@ -14,10 +14,7 @@ import typeinfo.recursivepojoinfo.DeSerializationListener;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -50,7 +47,11 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             if (element.features != null && !element.features.isEmpty()) {
                 for (Feature<?, ?> feature : element.features) {
                     if (!feature.isHalo()) {
-                        feature.copy(context).setElement(this, false);
+                        // Don't use setElement here since this.getId() might be null at this point
+                        if(features == null) features = new ArrayList<>(4);
+                        Feature<?,?> cpyFeature = feature.copy(context);
+                        cpyFeature.element = this;
+                        features.add(feature.copy(context));
                     }
                 }
             }
@@ -106,10 +107,10 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * Part of update relating to storage
+     * Part of triggerUpdate relating to storage
      * <p>
      * Creating or updating all features as well
-     * If memento is not-null, update is successful
+     * If memento is not-null, triggerUpdate is successful
      * </p>
      */
     protected Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, @Nullable GraphElement memento) {
@@ -118,7 +119,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> newFeature = iterator.next();
                 if (containsFeature(newFeature.getName())) {
-                    // This is Feature update
+                    // This is Feature triggerUpdate
                     Feature<?, ?> thisFeature = getFeature(newFeature.getName());
                     Tuple2<Consumer<BaseStorage>, GraphElement> tmp = thisFeature.updateInternal(newFeature, null);
                     if (tmp.f0 != null) {
@@ -162,7 +163,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * Part of update relating to replication and external things
+     * Part of triggerUpdate relating to replication and external things
      */
     public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
         return updateInternal(newElement, null);

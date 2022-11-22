@@ -65,14 +65,17 @@ public class Main {
                             .withPlugin(new ModelServer<>(models.get(0)))
                             .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                    ),
+                   new StreamingStorageProcessFunction(new FlatObjectStorage()
+                            .withPlugin(new ModelServer<>(models.get(1)))
+                            .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
+//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                     )
             ).build();
 
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
             String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
             env.execute(jobName);
-        } catch (Exception e) {
-            throw e;
         } finally {
             BaseNDManager.getManager().resume();
         }

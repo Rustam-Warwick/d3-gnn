@@ -48,7 +48,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
      *
      * @param gradients Gradients for VJP backward iteration
      */
-    @RemoteFunction
+    @RemoteFunction(triggerUpdate = false)
     public void collect(HashMap<String, NDArray> gradients) {
         if (gradients.isEmpty()) return;
         collectors.computeIfAbsent(getPart(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
@@ -58,7 +58,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     /**
      * Collect aggregator messages where Aggregator -> dLoss/dAgg
      */
-    @RemoteFunction
+    @RemoteFunction(triggerUpdate = false)
     public void collectAggregators(HashMap<String, NDArray> gradients) {
         if (gradients.isEmpty()) return;
         collectors.computeIfAbsent(getPart(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
@@ -72,7 +72,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     }
 
     /**
-     * First part of training resposible for getting update gradients and message gradients
+     * First part of training resposible for getting triggerUpdate gradients and message gradients
      * <p>
      * Assumes to contain only gradients for master vertices with aggregators allocated already
      * </p>
@@ -83,7 +83,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDArrayCollector<String> collectedGradients = collectors.get(getPart()).f0;
             if (collectedGradients.isEmpty()) return;
 
-            // ---------- Prepare data for update model inputs(feature, aggregator)
+            // ---------- Prepare data for triggerUpdate model inputs(feature, aggregator)
 
             ArrayList<Vertex> vertices = new ArrayList<>(collectedGradients.size());
             NDList featuresList = new NDList(collectedGradients.size());
@@ -140,7 +140,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                         getId(),
                         getType(),
                         "collectAggregators",
-                        false,
                         entry.getKey(),
                         MessageDirection.ITERATE,
                         entry.getValue()
@@ -155,7 +154,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                         getId(),
                         getType(),
                         "collect",
-                        false,
                         getPart(),
                         MessageDirection.BACKWARD,
                         backwardGrads
@@ -207,7 +205,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                             getId(),
                             getType(),
                             "collect",
-                            false,
                             entry.getKey(),
                             MessageDirection.BACKWARD,
                             entry.getValue()
@@ -256,7 +253,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                     Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
-                    true,
                     v.getMasterPart(),
                     MessageDirection.ITERATE,
                     new NDList(message)

@@ -8,14 +8,16 @@ import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.util.ExceptionUtils;
+import org.cliffc.high_scale_lib.NonBlockingIdentityHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 /**
  * A special element for executing methods in other {@link GraphElement}
@@ -26,10 +28,15 @@ public class Rmi extends GraphElement {
      * Log
      */
     private static final Logger LOG = LoggerFactory.getLogger(Rmi.class);
+
     /**
      * Cached remote methods of a specific class
+     * <strong>
+     *     Class -> (Method Access, MethodName -> (Method Index, HasUpdate, hasCallback))
+     * </strong>
      */
-    public static ConcurrentHashMap<Class<?>, Tuple2<MethodAccess, HashMap<String, Integer>>> classRemoteMethods = new ConcurrentHashMap<>(1 << 4);
+    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple3<Integer,Boolean, Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
+
     /**
      * Method Arguments list
      */
@@ -46,11 +53,6 @@ public class Rmi extends GraphElement {
     public String id;
 
     /**
-     * Should RMI be followed with an update query
-     */
-    public boolean hasUpdate = true;
-
-    /**
      * Name of the remote method to be called
      */
     public String methodName;
@@ -59,12 +61,11 @@ public class Rmi extends GraphElement {
         super();
     }
 
-    public Rmi(String id, String methodName, ElementType elemType, Object[] args, boolean hasUpdate) {
+    public Rmi(String id, String methodName, ElementType elemType, Object[] args) {
         this.id = id;
         this.args = args;
         this.methodName = methodName;
         this.elemType = elemType;
-        this.hasUpdate = hasUpdate;
     }
 
     public Rmi(Rmi element, CopyContext context) {
@@ -72,7 +73,6 @@ public class Rmi extends GraphElement {
         args = element.args;
         elemType = element.elemType;
         id = element.id;
-        hasUpdate = element.hasUpdate;
         methodName = element.methodName;
     }
 
@@ -82,46 +82,48 @@ public class Rmi extends GraphElement {
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
             MethodAccess tmp = MethodAccess.get(clazz);
-            HashMap<String, Integer> classMethodIds = new HashMap<>(1 << 3);
+            HashMap<String, Tuple3<Integer, Boolean, Boolean>> classMethodIds = new HashMap<>(1 << 3);
             Method[] methods = clazz.getMethods();
             for (Method method : methods) {
                 if (method.isAnnotationPresent(RemoteFunction.class)) {
-                    classMethodIds.put(method.getName(), tmp.getIndex(method.getName()));
+                    boolean isUpdateMethod = method.getAnnotation(RemoteFunction.class).triggerUpdate();
+                    boolean triggerCallback = method.getAnnotation(RemoteFunction.class).triggerCallbacks();
+                    classMethodIds.put(method.getName(), Tuple3.of(tmp.getIndex(method.getName()), isUpdateMethod, triggerCallback));
                 }
             }
-            classRemoteMethods.put(clazz, Tuple2.of(tmp, classMethodIds));
+            classRemoteMethods.putIfAbsent(clazz, Tuple2.of(tmp, classMethodIds));
         }
     }
 
     /**
      * Execute the RMI on {@link GraphElement}
      */
-    public static void execute(GraphElement element, String methodName, boolean hasUpdate, Object... args) {
+    public static void execute(GraphElement element, String methodName, Object... args) {
         try {
             cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
-            if (hasUpdate) {
+            Tuple2<MethodAccess, HashMap<String, Tuple3<Integer, Boolean, Boolean>>> classMethods = classRemoteMethods.get(element.getClass());
+            Tuple3<Integer, Boolean, Boolean> method = classMethods.f1.get(methodName);
+            if (method.f1) {
                 GraphElement deepCopyElement = element.copy(CopyContext.RMI); // Creates an RMI copy of the element
-                Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());
-                tmp.f0.invoke(deepCopyElement, tmp.f1.get(methodName), args);
-                getStorage().runCallback(element.update(deepCopyElement).f0);
+                classMethods.f0.invoke(deepCopyElement, method.f0, args);
+                if(method.f2) getStorage().runCallback(element.update(deepCopyElement).f0);
+                else element.update(deepCopyElement);
             } else {
-                Tuple2<MethodAccess, HashMap<String, Integer>> tmp = classRemoteMethods.get(element.getClass());
-                tmp.f0.invoke(element, tmp.f1.get(methodName), args);
+                classMethods.f0.invoke(element, method.f0, args);
             }
         } catch (Throwable e) {
             LOG.error(ExceptionUtils.stringifyException(e));
         }
     }
 
-
     /**
      * Executes if intended for this part or sends a {@link GraphOp}
      */
-    public static void buildAndRun(String id, ElementType elemType, String methodName, boolean hasUpdate, short destination, MessageDirection messageDirection, Object... args) {
+    public static void buildAndRun(String id, ElementType elemType, String methodName, short destination, MessageDirection messageDirection, Object... args) {
         if (destination == getStorage().layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
-            Rmi.execute(getStorage().getElement(id, elemType), methodName, hasUpdate, args);
+            Rmi.execute(getStorage().getElement(id, elemType), methodName, args);
         } else {
-            getStorage().layerFunction.message(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args, hasUpdate)), messageDirection);
+            getStorage().layerFunction.message(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
         }
     }
 
@@ -179,7 +181,6 @@ public class Rmi extends GraphElement {
         return "Rmi{" +
                 ", args=" + Arrays.toString(args) +
                 ", elemType=" + elemType +
-                ", hasUpdate=" + hasUpdate +
                 ", methodName='" + methodName + '\'' +
                 '}';
     }

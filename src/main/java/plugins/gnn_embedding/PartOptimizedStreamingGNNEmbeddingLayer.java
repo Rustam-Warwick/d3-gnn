@@ -50,7 +50,6 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
                     getId(),
                     getType(),
                     "receiveReduceOutEdges",
-                    false,
                     shortTuple2Entry.getKey(),
                     MessageDirection.ITERATE,
                     shortTuple2Entry.getValue(),
@@ -59,10 +58,10 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
         }
     }
 
-    @RemoteFunction
+    @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         for (String vertex : vertices) {
-            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce", true, message, 1);
+            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce",  message, 1);
         }
     }
 
@@ -92,7 +91,6 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
                     getId(),
                     getType(),
                     "receiveReplaceOutEdges",
-                    false,
                     shortTuple2Entry.getKey(),
                     MessageDirection.ITERATE,
                     shortTuple2Entry.getValue(),
@@ -102,10 +100,10 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
         }
     }
 
-    @RemoteFunction
+    @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
         for (String vertex : vertices) {
-            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "replace", true, messageNew, messageOld);
+            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "replace", messageNew, messageOld);
         }
     }
 

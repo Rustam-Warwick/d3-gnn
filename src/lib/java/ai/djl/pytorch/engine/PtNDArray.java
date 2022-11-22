@@ -380,9 +380,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void detach() {
+        if(cleanable != null) return;
         getManager().detachInternal(null, this);
-        if (cleanable == null)
-            cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
+        cleanable = cleaner.register(this, new PtNDArray.PtNDArrayFinalizeTask(this)); // Attach to cleaner instead otherwise handled by the LifeCycleManager
     }
 
     /**
@@ -401,7 +401,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void resume() {
-        if (cleanable != null || delayed == 0) return;
+        if (cleanable != null) return;
         if (--delayed == 0) {
             getManager().attachInternal(null, this);
         }

@@ -71,10 +71,8 @@ public final class DirectedEdge extends GraphElement {
     public DirectedEdge(DirectedEdge e, CopyContext context) {
         super(e, context);
         ids = e.ids;
-        if (context != CopyContext.SYNC) {
-            src = e.src;
-            dest = e.dest;
-        }
+        src = e.src;
+        dest = e.dest;
     }
 
     /**
@@ -147,14 +145,13 @@ public final class DirectedEdge extends GraphElement {
      */
     @Override
     public Consumer<BaseStorage> create() {
-        Consumer<BaseStorage> callback = null;
         if (src != null && !getStorage().containsVertex(getSrcId())) {
-            callback = src.create();
+            getStorage().runCallback(src.create());
         }
         if (dest != null && !getStorage().containsVertex(getDestId())) {
-            callback = callback == null ? dest.create() : callback.andThen(dest.create());
+            getStorage().runCallback(dest.create());
         }
-        return callback == null ? super.create() : callback.andThen(super.create());
+        return super.create();
     }
 
     /**

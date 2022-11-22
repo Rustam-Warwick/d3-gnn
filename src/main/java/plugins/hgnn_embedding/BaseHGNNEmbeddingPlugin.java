@@ -15,7 +15,7 @@ import plugins.ModelServer;
 /**
  * Base class for all HGNN Embedding Plugins
  * message is ready when source f is ready
- * update is ready when source f and agg are ready
+ * triggerUpdate is ready when source f and agg are ready
  */
 abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
 
@@ -49,7 +49,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
+     * Calling the triggerUpdate function, note that everything except the input feature and agg value is transfered to TempManager
      *
      * @param feature  Source Feature list
      * @param training training enabled
@@ -78,7 +78,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Is vertex ready for update
+     * Is vertex ready for triggerUpdate
      *
      * @param vertex Vertex
      * @return vertex_ready
@@ -137,7 +137,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initHyperEdge(HEdge edge) {
         if (edge.state() == ReplicaState.MASTER) {
-            MeanAggregator agg = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), false, (short) -1);
+            MeanAggregator agg = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), false);
             agg.setElement(edge, false);
             getStorage().runCallback(agg.create());
         }

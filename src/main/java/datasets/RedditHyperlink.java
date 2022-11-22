@@ -4,6 +4,7 @@ import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
@@ -51,6 +52,13 @@ public class RedditHyperlink extends Dataset {
         }
         String opName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
+        fileReader = fileReader.filter(new FilterFunction<String>() {
+            int count;
+            @Override
+            public boolean filter(String value) throws Exception {
+                return ++count <= 10000;
+            }
+        }).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).name(String.format("Map %s", opName)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             fileReader.slotSharingGroup("file-input");
