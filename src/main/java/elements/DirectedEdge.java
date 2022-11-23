@@ -140,18 +140,20 @@ public final class DirectedEdge extends GraphElement {
     /**
      * {@inheritDoc}
      * <p>
-     * Creating src and dest vertices if they do not exist as well
+     *      Creating src and dest vertices if they do not exist as well.
+     *      But never attempting to update it
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> create() {
+    public Consumer<BaseStorage> createInternal() {
+        Consumer<BaseStorage> callback = null;
         if (src != null && !getStorage().containsVertex(getSrcId())) {
-            getStorage().runCallback(src.create());
+            callback = src.create();
         }
         if (dest != null && !getStorage().containsVertex(getDestId())) {
-            getStorage().runCallback(dest.create());
+            callback = callback == null? dest.create():callback.andThen(dest.create());
         }
-        return super.create();
+        return callback == null? super.createInternal():callback.andThen(super.createInternal());
     }
 
     /**

@@ -160,17 +160,18 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     if (!getStorage().containsElement(value.element)) {
                         getStorage().runCallback(value.element.create());
                     } else {
-                        getStorage().runCallback(getStorage().getElement(value.element).update(value.element).f0);
+                        getStorage().runCallback(getStorage().getElement(value.element).update(value.element));
                     }
                     break;
                 case SYNC_REQUEST:
                     if (!getStorage().containsElement(value.element.getId(), value.element.getType())) {
                         // This can only occur if master is not here yet
-                        GraphElement el = getStorage().createLateElement(value.element.getId(), value.element.getType());
-                        el.sync(value.element);
+                        GraphElement el = getStorage().getDummyElement(value.element.getId(), value.element.getType());
+                        getStorage().runCallback(el.create());
+                        el.syncRequest(value.element);
                     } else {
                         GraphElement el = getStorage().getElement(value.element.getId(), value.element.getType());
-                        el.sync(value.element);
+                        el.syncRequest(value.element);
                     }
                     break;
                 case SYNC:

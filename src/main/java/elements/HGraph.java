@@ -3,7 +3,6 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.commons.lang3.NotImplementedException;
-import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import java.util.ArrayList;
@@ -69,7 +68,7 @@ public class HGraph extends GraphElement {
     }
 
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
+    public Consumer<BaseStorage> update(GraphElement newElement) {
         throw new IllegalStateException("SubGraph only support additions");
     }
 

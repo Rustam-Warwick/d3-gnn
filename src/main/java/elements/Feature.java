@@ -3,7 +3,6 @@ package elements;
 import elements.enums.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
@@ -119,29 +118,34 @@ public class Feature<T, V> extends ReplicableGraphElement {
         if (getType() == ElementType.STANDALONE_FEATURE) return super.create();
         else {
             if (!getStorage().containsElement(ids.f1, ids.f0)) {
-                setElement(getStorage().createLateElement(ids.f1, ids.f0),false);
+                GraphElement el = getStorage().getDummyElement(ids.f1, ids.f0);
+                setElement(el, false);
+                return el.create();
             }
-            Consumer<BaseStorage> callback = createInternal();
-            if (callback != null && !isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
+            if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
                 GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
-                getReplicaParts().forEach(part_id -> getStorage().layerFunction.message(new GraphOp(Op.COMMIT, part_id, cpy), MessageDirection.ITERATE));
+                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part_id, cpy), MessageDirection.ITERATE))).andThen(createInternal());
             }
-            return callback;
+            return createInternal();
         }
     }
 
     /**
      * {@inheritDoc}
      * If values are not-equal triggerUpdate the value and continue with {@link GraphElement} updateInternal
+     * @return
      */
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, GraphElement memento) {
+    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
-            memento = copy(CopyContext.MEMENTO);
-            value = newFeature.value;
+            return ((Consumer<BaseStorage>) ignored -> {
+                T tmp = newFeature.value;
+                newFeature.value = value;
+                value = tmp;
+            }).andThen(super.updateInternal(newElement));
         }
-        return super.updateInternal(newElement, memento);
+        return super.updateInternal(newElement);
     }
 
     /**

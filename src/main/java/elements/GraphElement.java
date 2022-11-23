@@ -23,8 +23,6 @@ import java.util.function.Consumer;
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, LifeCycleControl, DeSerializationListener {
 
-    protected static final Tuple2<Consumer<BaseStorage>, GraphElement> reuse = Tuple2.of(null, null);
-
     /**
      * Features attached to this GraphElement
      * <strong>
@@ -66,6 +64,14 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
+     * Helper function to chain multiple callbacks
+     */
+    public static <T> Consumer<T> chain(@Nullable Consumer<T> previousChain, Consumer<T> addCallback){
+        if(previousChain == null) return addCallback;
+        return previousChain.andThen(addCallback);
+    }
+
+    /**
      * Copy this element
      *
      * @param context the context for copying.
@@ -73,20 +79,28 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     abstract public GraphElement copy(CopyContext context);
 
     /**
-     * Part of creation relating to storage
-     * <strong>Creating all features as well</strong>
+     * Part of creation relating to storage and plugin callbacks
+     * @implNote features will be cleared after exiting this method
+     * <ol>
+     *     <li>Create in Storage</li>
+     *     <ol>
+     *         <li>Attach Feature</li>
+     *         <li>feature.createInternal()</li>
+     *     </ol>
+     *     <li>Plugin Callback</li>
+     * </ol>
      */
     protected Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> callback = null;
-        if (getStorage().addElement(this)) {
-            callback = storage -> storage.getPlugins().forEach(plugin -> plugin.addElementCallback(this));
-            if (features != null) {
-                for (Feature<?, ?> feature : features) {
-                    callback = callback.andThen(feature.createInternal());
-                }
+        Consumer<BaseStorage> callback = storage -> storage.addElement(this);
+        if (features != null) {
+            for (Feature<?, ?> feature : features) {
+                callback = callback
+                        .andThen(ignored -> feature.setElement(this, false))
+                        .andThen(feature.createInternal());
             }
+            features.clear(); // Will be added incrementally in the callback chain to not have information leakage
         }
-        return callback;
+        return callback.andThen(storage -> storage.plugins.values().forEach(plugin -> plugin.addElementCallback(this)));
     }
 
     /**
@@ -94,62 +108,48 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * <strong>Deleting all features as well</strong>
      */
     protected Consumer<BaseStorage> deleteInternal() {
-        getStorage().cacheFeatures(this, CacheFeatureContext.ALL);
-        Consumer<BaseStorage> callback = null;
-        if (features != null) {
-            for (Feature<?, ?> feature : features) {
-                callback = callback == null ? feature.deleteInternal() : feature.deleteInternal().andThen(callback);
-            }
-        }
-        getStorage().deleteElement(this);
-        callback = callback == null ? storage -> storage.getPlugins().forEach(plugin -> plugin.deleteElementCallback(this)) : callback.andThen(storage -> storage.getPlugins().forEach(plugin -> plugin.deleteElementCallback(this)));
-        return callback;
+        throw new NotImplementedException("Delte events are not implemented yet");
     }
 
     /**
-     * Part of triggerUpdate relating to storage
-     * <p>
-     * Creating or updating all features as well
-     * If memento is not-null, triggerUpdate is successful
-     * </p>
+     * Part of update relating to storage and plugin interactions
+     * @implNote As the callbacks are called the newElement will gradually transform into a <strong>>memento</strong> holding the old state
+     *  <ol>
+     *      <ol>
+     *          <code>if feature exists </code>
+     *          <li>feature.updateInternal(newFeature)</li>
+     *          <code>else</code>
+     *          <li>newFeature attach here</li>
+     *          <li>newFeature.createInternal()</li>
+     *      </ol>
+     *      <li>update storage & call plugin callbacks</li>
+     *  </ol>
      */
-    protected Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, @Nullable GraphElement memento) {
+    protected Consumer<BaseStorage> updateInternal(GraphElement newElement) {
         Consumer<BaseStorage> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Iterator<Feature<?, ?>> iterator = newElement.features.iterator(); iterator.hasNext(); ) {
                 Feature<?, ?> newFeature = iterator.next();
                 if (containsFeature(newFeature.getName())) {
-                    // This is Feature triggerUpdate
-                    Feature<?, ?> thisFeature = getFeature(newFeature.getName());
-                    Tuple2<Consumer<BaseStorage>, GraphElement> tmp = thisFeature.updateInternal(newFeature, null);
-                    if (tmp.f0 != null) {
-                        memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
-                        callback = callback == null ? tmp.f0 : callback.andThen(tmp.f0);
-                        ((Feature<?, ?>) tmp.f1).setElement(memento, false);
-                    }
+                    Feature<?, ?> oldFeature = getFeature(newFeature.getName());
+                    callback = chain(callback, oldFeature.updateInternal(newFeature));
                 } else {
-                    memento = memento == null ? copy(CopyContext.MEMENTO) : memento;
                     iterator.remove();
-                    newFeature.setElement(this, false);
-                    Consumer<BaseStorage> tmp = newFeature.createInternal();
-                    if (tmp != null) {
-                        callback = callback == null ? tmp : callback.andThen(tmp);
-                    }
+                    callback = chain(callback,
+                            ((Consumer<BaseStorage>) (ignored -> newFeature.setElement(this, false))).andThen(newFeature.createInternal())
+                    );
                 }
             }
         }
-        if (memento != null) {
-            getStorage().updateElement(this, memento);
-            GraphElement finalMemento = memento;
-            Consumer<BaseStorage> tmp = storage -> storage.getPlugins().forEach(plugin -> plugin.updateElementCallback(this, finalMemento));
-            callback = callback == null ? tmp : callback.andThen(tmp);
-            return Tuple2.of(callback, memento);
-        }
-        return reuse;
+        return chain(callback, storage -> {
+                storage.updateElement(this, newElement); // Already a memento object (newElement)
+                storage.plugins.values().forEach(plugin -> plugin.updateElementCallback(this, newElement));
+            });
     }
 
     /**
-     * Part of creation relating to replication and external things
+     * Part of creation relating to replication and external communication
+     * Delegate to createInternal()
      */
     public Consumer<BaseStorage> create() {
         return createInternal();
@@ -163,16 +163,24 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * Part of triggerUpdate relating to replication and external things
+     * Part of triggerUpdate relating to replication and external communication
+     * Delegate to updateInternal()
      */
-    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
-        return updateInternal(newElement, null);
+    public Consumer<BaseStorage> update(GraphElement newElement) {
+        return updateInternal(newElement);
     }
 
     /**
-     * Sync this {@link GraphElement}
+     * Master -> Replica sync for {@link GraphElement}
      */
     public void sync(GraphElement newElement) {
+        throw new NotImplementedException("Replica Elements should override this method");
+    }
+
+    /**
+     * Replica -> Master sync request {@link GraphElement}
+     */
+    public void syncRequest(GraphElement newElement){
         throw new NotImplementedException("Replica Elements should override this method");
     }
 
@@ -235,7 +243,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Retrieves {@link Feature} from cache if exists, otherwise from storage.
-     *
      * @implNote <strong> Developer should make sure to call this method knowing that the feature exists</strong>
      */
     public Feature<?, ?> getFeature(String name) {
@@ -284,6 +291,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * {@inheritDoc}
+     * Attach all feature back to this element. Needed since they are <code>transient</code>
      */
     @Override
     public void onDeserialized() {

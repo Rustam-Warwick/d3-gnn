@@ -83,25 +83,26 @@ public final class HEdge extends ReplicableGraphElement {
      * <p>
      * Memento element will contain [current_ids, ...newIds]
      * </p>
+     * @return
      */
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, @Nullable GraphElement memento) {
+    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
         HEdge newHEdge = (HEdge) newElement;
         if (getStorage().layerFunction.getWrapperContext().getElement().getValue().getOp() == Op.SYNC)
-            return super.updateInternal(newElement, memento);
+            return super.updateInternal(newElement);
         Set<String> t = HELPER_SET.get();
         t.clear();
         t.addAll(vertexIds);
         for (String vertexId : newHEdge.vertexIds) {
             if (t.contains(vertexId)) continue;
-            if (memento == null) {
-                HEdge tmp = copy(CopyContext.MEMENTO); // Create new array to compute the difference
-                tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
-                memento = tmp;
-            }
+//            if (memento == null) {
+//                HEdge tmp = copy(CopyContext.MEMENTO); // Create new array to compute the difference
+//                tmp.vertexIds = new ArrayList<>(tmp.vertexIds);
+//                memento = tmp;
+//            }
             vertexIds.add(vertexId);
         }
-        return super.updateInternal(newElement, memento);
+        return super.updateInternal(newElement);
     }
 
     /**
@@ -152,14 +153,15 @@ public final class HEdge extends ReplicableGraphElement {
      * @return
      */
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
+    public Consumer<BaseStorage> update(GraphElement newElement) {
         assert state() == ReplicaState.MASTER || newElement.features == null;
-        Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateInternal(newElement, null);
-        if (state() == ReplicaState.MASTER && tmp.f0 != null && newElement.features != null && !getReplicaParts().isEmpty()) {
-            HEdge cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
-            getReplicaParts().forEach(part_id -> getStorage().layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
-        }
-        return tmp;
+//        Tuple2<Consumer<BaseStorage>, GraphElement> tmp = updateInternal(newElement);
+//        if (state() == ReplicaState.MASTER && tmp.f0 != null && newElement.features != null && !getReplicaParts().isEmpty()) {
+//            HEdge cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+//            getReplicaParts().forEach(part_id -> getStorage().layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
+//        }
+//        return tmp;
+        return null;
     }
 
     /**

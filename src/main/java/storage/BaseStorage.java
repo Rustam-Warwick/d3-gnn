@@ -360,6 +360,16 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
+    public final GraphElement getDummyElement(String id, ElementType elementType){
+        switch (elementType) {
+            case VERTEX:
+                return new Vertex(id, layerFunction.getCurrentPart());
+            case HYPEREDGE:
+                return new HEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
+        }
+        return null;
+    }
+
     public final GraphElement createLateElement(String id, ElementType elementType) {
         switch (elementType) {
             case VERTEX:

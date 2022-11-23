@@ -55,23 +55,24 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> tmp = super.createInternal();
-        if (getStorage().needsTensorDelay() && tmp != null) value.f0.delay();
-        return tmp;
+        Consumer<BaseStorage> callback = super.createInternal();
+        return ((Consumer<BaseStorage>) storage -> {if(storage.needsTensorDelay()) value.f0.delay();}).andThen(callback);
     }
 
     /**
      * {@inheritDoc}
+     * @return
      */
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> updateInternal(GraphElement newElement, GraphElement memento) {
-        Tuple2<Consumer<BaseStorage>, GraphElement> callback = super.updateInternal(newElement, memento);
-        InPlaceMeanAggregator mementoAggregator = (InPlaceMeanAggregator) callback.f1;
-        if (getStorage().needsTensorDelay() && callback.f0 != null && mementoAggregator.value.f0 != value.f0) {
-            value.f0.delay();
-            mementoAggregator.value.f0.resume();
-        }
-        return callback;
+    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
+        Consumer<BaseStorage> callback = super.updateInternal(newElement);
+        InPlaceMeanAggregator newAggregator = (InPlaceMeanAggregator) newElement;
+        return callback.andThen(storage -> {
+            if(storage.needsTensorDelay() && newAggregator.value.f0 != value.f0){
+                value.f0.delay();
+                newAggregator.value.f0.resume();
+            }
+        });
     }
 
     /**

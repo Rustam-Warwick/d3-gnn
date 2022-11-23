@@ -3,7 +3,6 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import operators.events.BaseOperatorEvent;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
@@ -43,7 +42,7 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     }
 
     @Override
-    public Tuple2<Consumer<BaseStorage>, GraphElement> update(GraphElement newElement) {
+    public Consumer<BaseStorage> update(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not updated");
     }
 

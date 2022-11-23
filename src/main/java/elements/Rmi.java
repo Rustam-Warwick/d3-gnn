@@ -35,7 +35,7 @@ public class Rmi extends GraphElement {
      *     Class -> (Method Access, MethodName -> (Method Index, HasUpdate, hasCallback))
      * </strong>
      */
-    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple3<Integer,Boolean, Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
+    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer,Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
 
     /**
      * Method Arguments list
@@ -82,13 +82,12 @@ public class Rmi extends GraphElement {
     public static void cacheClassIfNotExists(Class<?> clazz) {
         if (!classRemoteMethods.containsKey(clazz)) {
             MethodAccess tmp = MethodAccess.get(clazz);
-            HashMap<String, Tuple3<Integer, Boolean, Boolean>> classMethodIds = new HashMap<>(1 << 3);
+            HashMap<String, Tuple2<Integer, Boolean>> classMethodIds = new HashMap<>(1 << 3);
             Method[] methods = clazz.getMethods();
             for (Method method : methods) {
                 if (method.isAnnotationPresent(RemoteFunction.class)) {
                     boolean isUpdateMethod = method.getAnnotation(RemoteFunction.class).triggerUpdate();
-                    boolean triggerCallback = method.getAnnotation(RemoteFunction.class).triggerCallbacks();
-                    classMethodIds.put(method.getName(), Tuple3.of(tmp.getIndex(method.getName()), isUpdateMethod, triggerCallback));
+                    classMethodIds.put(method.getName(), Tuple2.of(tmp.getIndex(method.getName()), isUpdateMethod));
                 }
             }
             classRemoteMethods.putIfAbsent(clazz, Tuple2.of(tmp, classMethodIds));
@@ -101,13 +100,12 @@ public class Rmi extends GraphElement {
     public static void execute(GraphElement element, String methodName, Object... args) {
         try {
             cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
-            Tuple2<MethodAccess, HashMap<String, Tuple3<Integer, Boolean, Boolean>>> classMethods = classRemoteMethods.get(element.getClass());
-            Tuple3<Integer, Boolean, Boolean> method = classMethods.f1.get(methodName);
+            Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>> classMethods = classRemoteMethods.get(element.getClass());
+            Tuple2<Integer, Boolean> method = classMethods.f1.get(methodName);
             if (method.f1) {
                 GraphElement deepCopyElement = element.copy(CopyContext.RMI); // Creates an RMI copy of the element
                 classMethods.f0.invoke(deepCopyElement, method.f0, args);
-                if(method.f2) getStorage().runCallback(element.update(deepCopyElement).f0);
-                else element.update(deepCopyElement);
+                getStorage().runCallback(element.update(deepCopyElement));
             } else {
                 classMethods.f0.invoke(element, method.f0, args);
             }

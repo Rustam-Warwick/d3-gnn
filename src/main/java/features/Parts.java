@@ -43,7 +43,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
     /**
      * {@link RemoteFunction} to add a new part to the collection
      */
-    @RemoteFunction(triggerCallbacks = false)
+    @RemoteFunction
     public void add(Short element) {
         if (this.value.contains(element)) return;
         this.value.add(element);
@@ -52,7 +52,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
     /**
      * {@link RemoteFunction} to remove a new part to the collection
      */
-    @RemoteFunction(triggerCallbacks = false)
+    @RemoteFunction
     public void remove(Short element) {
         if (!this.value.contains(element)) return;
         this.value.remove(element);
@@ -61,7 +61,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
     /**
      * {@link RemoteFunction} to remove all parts from a collection
      */
-    @RemoteFunction(triggerCallbacks = false)
+    @RemoteFunction
     public void flush() {
         this.value.clear();
     }

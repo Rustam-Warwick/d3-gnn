@@ -27,6 +27,9 @@ public class RedditHyperlink extends Dataset {
     @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
     protected String type;
 
+    @CommandLine.Option(names = {"--redditHyperlink:delimiter"}, defaultValue = "\t", fallbackValue = "\t", arity = "1", description = {"Delimiter to be used in the stream"})
+    protected String delimiter;
+
     public RedditHyperlink(String[] cmdArgs) {
         super(cmdArgs);
     }
@@ -52,14 +55,7 @@ public class RedditHyperlink extends Dataset {
         }
         String opName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        fileReader = fileReader.filter(new FilterFunction<String>() {
-            int count;
-            @Override
-            public boolean filter(String value) throws Exception {
-                return ++count <= 10000;
-            }
-        }).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).name(String.format("Map %s", opName)).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser(delimiter)).name(String.format("Map %s", opName)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             fileReader.slotSharingGroup("file-input");
             parsed.slotSharingGroup("file-input");
@@ -90,9 +86,15 @@ public class RedditHyperlink extends Dataset {
      * String -> {@link GraphOp} mapper
      */
     static class Parser implements MapFunction<String, GraphOp> {
+        private final String delimiter;
+
+        public Parser(String delimiter) {
+            this.delimiter = delimiter;
+        }
+
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split("\t");
+            String[] values = value.split(delimiter);
             DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
             return new GraphOp(Op.COMMIT, directedEdge);
         }

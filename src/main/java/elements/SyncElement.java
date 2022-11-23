@@ -31,7 +31,7 @@ public final class SyncElement extends GraphElement {
     public SyncElement(GraphElement toSync) {
         elementId = toSync.getId();
         elementType = toSync.getType();
-        partId = super.getPart();
+        partId = toSync.getPart();
     }
 
     public SyncElement(SyncElement element, CopyContext context) {
