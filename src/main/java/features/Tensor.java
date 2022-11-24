@@ -5,7 +5,6 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import java.util.function.Consumer;
@@ -44,27 +43,34 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     /**
      * {@inheritDoc}
+     * <p>
+     *      Delaying tensors if storage needs delay
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> callback = super.createInternal();
-        return ((Consumer<BaseStorage>) storage -> {if(storage.needsTensorDelay()) value.delay();}).andThen(callback);
+        return super.createInternal()
+                .andThen(storage -> {
+                    if(storage.needsTensorDelay()) value.delay();
+                });
     }
 
     /**
      * {@inheritDoc}
-     * @return
+     * <p>
+     *     Delaying tensors if storage need delay
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
-        Consumer<BaseStorage> callback = super.updateInternal(newElement);
-        Tensor newTensor = (Tensor) newElement;
-        return callback.andThen(storage -> {
-            if(storage.needsTensorDelay() && newTensor.value != value){
-                value.delay();
-                newTensor.value.resume();
-            }
-        });
+        return super.updateInternal(newElement)
+                .andThen(storage -> {
+                    Tensor newTensor = (Tensor) newElement;
+                    if(storage.needsTensorDelay() && newTensor.value != value){
+                        value.delay();
+                        newTensor.value.resume();
+                    }
+                });
     }
 
     /**

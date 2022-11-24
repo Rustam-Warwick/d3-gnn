@@ -15,7 +15,7 @@ import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -63,12 +63,12 @@ public class Main {
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
-                            .withPlugin(new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                            .withPlugin(new PartOptimizedStreamingGNNEmbeddingLayer(models.get(0).getName(), true))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                     ),
                    new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
-                            .withPlugin(new StreamingGNNEmbeddingLayer(models.get(1).getName(), false))
+                            .withPlugin(new PartOptimizedStreamingGNNEmbeddingLayer(models.get(1).getName(), false))
 //                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                     )
             ).build();

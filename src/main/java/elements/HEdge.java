@@ -1,7 +1,6 @@
 package elements;
 
 import elements.enums.*;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
@@ -50,7 +49,7 @@ public final class HEdge extends ReplicableGraphElement {
     public HEdge(HEdge element, CopyContext context) {
         super(element, context);
         id = element.id;
-        if (context != CopyContext.SYNC) {
+        if (context != CopyContext.SYNC_CACHE_FEATURES) {
             vertexIds = element.vertexIds;
             vertices = element.vertices;
         }

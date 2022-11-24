@@ -2,7 +2,6 @@ package elements;
 
 import elements.enums.*;
 import features.Parts;
-import org.apache.flink.api.java.tuple.Tuple2;
 import storage.BaseStorage;
 
 import java.util.ArrayList;
@@ -42,20 +41,19 @@ abstract public class ReplicableGraphElement extends GraphElement {
     /**
      * {@inheritDoc}
      * <p>
-     *     If this is REPLICA clearFeatures & if not halo; send {@link SyncElement} to Master before running callbacks
-     *     Since we cannot always assume that Master exists (because of possible lateness), the {@link SyncElement} should arrive before any other message in triggered in {@link Plugin}
+     *     If this is REPLICA clearFeatures & if not halo; send {@link SyncRequest} to Master before running callbacks
+     *     Since we cannot always assume that Master exists (because of possible lateness), the {@link SyncRequest} should arrive before any other message is triggered in {@link Plugin}
      * </p>
      */
     @Override
     public Consumer<BaseStorage> create() {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
-        Consumer<BaseStorage> callback = super.create();
         if (state() == ReplicaState.REPLICA && !isHalo()) {
-            SyncElement syncElement = new SyncElement(this);
-            return ((Consumer<BaseStorage>) storage -> storage.layerFunction.message(new GraphOp(Op.SYNC_REQUEST, getMasterPart(), syncElement), MessageDirection.ITERATE))
-                    .andThen(callback);
+            SyncRequest syncRequest = new SyncRequest(this);
+            return ((Consumer<BaseStorage>) storage -> storage.layerFunction.message(new GraphOp(Op.SYNC_REQUEST, getMasterPart(), syncRequest), MessageDirection.ITERATE))
+                    .andThen(super.create());
         }
-        return callback;
+        return super.create();
     }
 
     /**
@@ -87,8 +85,8 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     newElement.getPart()
             );
         }
-        GraphElement cpy = copy(CopyContext.SYNC);
-        if (cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE)
+        GraphElement cpy = copy(CopyContext.SYNC_CACHE_FEATURES);
+        if (cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE) // Attached features do not receive SYNC_REQUESTS
             getStorage().layerFunction.message(new GraphOp(Op.SYNC, newElement.getPart(), cpy), MessageDirection.ITERATE);
     }
 
@@ -97,20 +95,20 @@ abstract public class ReplicableGraphElement extends GraphElement {
      * @implNote REPLICA element receiving updates will trigger {@link IllegalStateException}
      * <p>
      *      After all the update took place will trigger SYNC with all its Replica parts.
-     *      Here the {@link Plugin} callbacks will come before the SYNC requests, which is usually okay
+     *      Here the {@link Plugin} callbacks will come before the SYNC requests, so plugins should not send messages assuming that replicas are synchronized beforehand
      * </p>
      */
     @Override
     public Consumer<BaseStorage> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            Consumer<BaseStorage> callback = super.update(newElement);
             if (!isHalo() && !getReplicaParts().isEmpty()) {
-                return callback.andThen(storage -> {
-                    ReplicableGraphElement cpy = copy(CopyContext.SYNC);
-                    getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
-                });
+                return ((Consumer<BaseStorage>) storage -> {
+                    ReplicableGraphElement cpy = copy(CopyContext.SYNC_NOT_CACHE_FEATURES);
+                    if(cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE || cpy.getType() == ElementType.ATTACHED_FEATURE)
+                        getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
+                }).andThen(super.update(newElement));
             }
-            return callback;
+            return super.update(newElement);
         } else {
             throw new IllegalStateException("REPLICAS Should not received Updates");
         }

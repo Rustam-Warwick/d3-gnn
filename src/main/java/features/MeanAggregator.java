@@ -53,30 +53,35 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
 
     /**
      * {@inheritDoc}
+     * <p>
+     *      Delaying tensors if storage needs delay
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> callback = super.createInternal();
-        return ((Consumer<BaseStorage>) storage -> {if(storage.needsTensorDelay()) value.f0.delay();}).andThen(callback);
+        return super.createInternal()
+                .andThen(storage -> {
+                    if(storage.needsTensorDelay()) value.f0.delay();
+                });
     }
 
     /**
      * {@inheritDoc}
-     * @return
+     * <p>
+     *     Delaying tensors if storage need delay
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
-        Consumer<BaseStorage> callback = super.updateInternal(newElement);
-        MeanAggregator newAggregator = (MeanAggregator) newElement;
-        return callback.andThen(storage -> {
-            if(storage.needsTensorDelay() && newAggregator.value.f0 != value.f0){
-                value.f0.delay();
-                newAggregator.value.f0.resume();
-            }
-        });
-
+        return super.updateInternal(newElement)
+                .andThen(storage -> {
+                    MeanAggregator newAggregator = (MeanAggregator) newElement;
+                    if(storage.needsTensorDelay() && newAggregator.value.f0 != value.f0){
+                        value.f0.delay();
+                        newAggregator.value.f0.resume();
+                    }
+                });
     }
-
     /**
      * {@inheritDoc}
      */

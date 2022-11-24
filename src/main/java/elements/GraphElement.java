@@ -7,7 +7,6 @@ import elements.enums.ElementType;
 import elements.enums.ReplicaState;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
 import typeinfo.recursivepojoinfo.DeSerializationListener;
@@ -19,6 +18,21 @@ import java.util.function.Consumer;
 
 /**
  * Abstract class representing a GraphElement.
+ * <h2>
+ *     3 Issues need to be taken into account
+ *     <ol>
+ *         <li>
+ *             Ideally all the sync logic should precede the plugin callback logic
+ *             Similar problem exists in {@link Feature} create. What if createInternal fails or changes the Feature
+ *         </li>
+ *         <li>
+ *             No way of {@link Feature} update callback failing, how to deal with such cases?
+ *         </li>
+ *         <li>
+ *             What if element accessed a sub-Feature during RMI copy process
+ *         </li>
+ *     </ol>
+ * </h2>
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, LifeCycleControl, DeSerializationListener {
@@ -39,9 +53,9 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     public GraphElement(GraphElement element, CopyContext context) {
-        if (context == CopyContext.SYNC) {
+        if (context == CopyContext.SYNC_CACHE_FEATURES || context == CopyContext.SYNC_NOT_CACHE_FEATURES) {
             // Copy all the non-halo features
-            getStorage().cacheFeatures(element, CacheFeatureContext.NON_HALO);
+            if(context == CopyContext.SYNC_CACHE_FEATURES) getStorage().cacheFeatures(element, CacheFeatureContext.NON_HALO);
             if (element.features != null && !element.features.isEmpty()) {
                 for (Feature<?, ?> feature : element.features) {
                     if (!feature.isHalo()) {
@@ -178,7 +192,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * Replica -> Master sync request {@link GraphElement}
+     * Replica -> Master sync request {@link SyncRequest}
      */
     public void syncRequest(GraphElement newElement){
         throw new NotImplementedException("Replica Elements should override this method");

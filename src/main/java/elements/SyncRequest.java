@@ -7,7 +7,7 @@ import elements.enums.ReplicaState;
 /**
  * Simple Wrapper element used for sending SYNC_REQUEST {@link GraphOp}
  */
-public final class SyncElement extends GraphElement {
+public final class SyncRequest extends GraphElement {
 
     /**
      * ID of element to go to
@@ -24,17 +24,17 @@ public final class SyncElement extends GraphElement {
      */
     public short partId;
 
-    public SyncElement() {
+    public SyncRequest() {
 
     }
 
-    public SyncElement(GraphElement toSync) {
+    public SyncRequest(GraphElement toSync) {
         elementId = toSync.getId();
         elementType = toSync.getType();
         partId = toSync.getPart();
     }
 
-    public SyncElement(SyncElement element, CopyContext context) {
+    public SyncRequest(SyncRequest element, CopyContext context) {
         super(element, context);
         elementId = element.elementId;
         elementType = element.elementType;
@@ -42,8 +42,8 @@ public final class SyncElement extends GraphElement {
     }
 
     @Override
-    public SyncElement copy(CopyContext context) {
-        return new SyncElement(this, context);
+    public SyncRequest copy(CopyContext context) {
+        return new SyncRequest(this, context);
     }
 
     @Override

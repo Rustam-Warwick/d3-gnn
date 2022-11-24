@@ -110,8 +110,21 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * {@inheritDoc}
-     * STANDALONE -> Regular {@link ReplicableGraphElement}
-     * ATTACHED -> COMMIT in parent {@link GraphElement} replicas after creation
+     * <p>
+     *      Standalone Features behave just like {@link ReplicableGraphElement}
+     *      For Attached Features 3 cases are possible:
+     *      <ol>
+     *          <li>
+     *              If attached element contains replicas send commit message to them
+     *          </li>
+     *          <li>
+     *              If attached element has only 1 master simply create
+     *          </li>
+     *          <li>
+     *              If attached element doest not exist yet, attempt to create it by first attaching this feature
+     *          </li>
+     *      </ol>
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> create() {
@@ -123,7 +136,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
                 return el.create();
             }
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
-                GraphElement cpy = copy(CopyContext.SYNC); // Make a copy do not actually send this element
+                GraphElement cpy = copy(CopyContext.SYNC_CACHE_FEATURES); // Make a copy do not actually send this element
                 return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part_id, cpy), MessageDirection.ITERATE))).andThen(createInternal());
             }
             return createInternal();
@@ -132,8 +145,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * {@inheritDoc}
-     * If values are not-equal triggerUpdate the value and continue with {@link GraphElement} updateInternal
-     * @return
+     *  <p>
+     *      If there is an actual update on the values swap the values of newElement and this
+     *      So <code>this</code> will hold the updated value
+     *  </p>
      */
     @Override
     public Consumer<BaseStorage> updateInternal(GraphElement newElement) {

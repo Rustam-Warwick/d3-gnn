@@ -4,7 +4,6 @@ import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
-import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
 import org.apache.flink.runtime.state.PartNumber;
