@@ -13,6 +13,10 @@ abstract public class Partitioner {
      */
     protected short partitions = -1;
 
+    public Partitioner() {
+
+    }
+
     public Partitioner(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }

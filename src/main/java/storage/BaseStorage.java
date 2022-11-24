@@ -66,7 +66,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean addEdge(DirectedEdge directedEdge);
 
-    public abstract boolean addHyperEdge(HEdge hEdge);
+    public abstract boolean addHyperEdge(HyperEdge hyperEdge);
 
     public abstract boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento);
 
@@ -76,7 +76,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean updateEdge(DirectedEdge directedEdge, DirectedEdge memento);
 
-    public abstract boolean updateHyperEdge(HEdge hEdge, HEdge memento);
+    public abstract boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento);
 
     public abstract boolean deleteAttachedFeature(Feature<?, ?> feature);
 
@@ -86,7 +86,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract boolean deleteEdge(DirectedEdge directedEdge);
 
-    public abstract boolean deleteHyperEdge(HEdge hEdge);
+    public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
 
     @Nullable
     public abstract Vertex getVertex(String id);
@@ -100,9 +100,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
-    public abstract HEdge getHyperEdge(String id);
+    public abstract HyperEdge getHyperEdge(String id);
 
-    public abstract Iterable<HEdge> getIncidentHyperEdges(Vertex id);
+    public abstract Iterable<HyperEdge> getIncidentHyperEdges(Vertex id);
 
     @Nullable
     public abstract Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id);
@@ -236,7 +236,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case STANDALONE_FEATURE:
                 return addStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
-                return this.addHyperEdge((HEdge) element);
+                return this.addHyperEdge((HyperEdge) element);
             default:
                 return false;
         }
@@ -253,7 +253,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case STANDALONE_FEATURE:
                 return this.deleteStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
-                return this.deleteHyperEdge((HEdge) element);
+                return this.deleteHyperEdge((HyperEdge) element);
             default:
                 return false;
         }
@@ -270,7 +270,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case STANDALONE_FEATURE:
                 return this.updateStandaloneFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case HYPEREDGE:
-                return this.updateHyperEdge((HEdge) element, (HEdge) memento);
+                return this.updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
             default:
                 return false;
         }
@@ -360,14 +360,14 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
         }
     }
 
-    public final GraphElement getDummyElement(String id, ElementType elementType){
+    public final GraphElement getDummyElement(String id, ElementType elementType) {
         switch (elementType) {
             case VERTEX:
                 return new Vertex(id, layerFunction.getCurrentPart());
             case HYPEREDGE:
-                return new HEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
+                return new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
         }
-        return null;
+        throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }
 
     public final GraphElement createLateElement(String id, ElementType elementType) {
@@ -377,7 +377,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 runCallback(v.create());
                 return v;
             case HYPEREDGE:
-                HEdge e = new HEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
+                HyperEdge e = new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
                 runCallback(e.create());
                 return e;
         }

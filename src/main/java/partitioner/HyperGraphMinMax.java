@@ -1,9 +1,8 @@
 package partitioner;
 
+import elements.EgoHyperGraph;
 import elements.GraphOp;
-import elements.HEdge;
-import elements.HGraph;
-import elements.Vertex;
+import elements.HyperEdge;
 import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
@@ -27,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class HyperGraphMinMax extends Partitioner {
 
     public HyperGraphMinMax(String[] cmdArgs) {
-        super(cmdArgs);
+        super();
     }
 
     /**
@@ -88,11 +87,11 @@ public class HyperGraphMinMax extends Partitioner {
             });
         }
 
-        public short partitionSubHyperGraph(HGraph graph) {
+        public short partitionSubHyperGraph(EgoHyperGraph graph) {
             int active = 0;
-            String vertexId = graph.getVertices().get(0).getId();
-            for (HEdge hEdge : graph.gethEdges()) {
-                List<Short> netParts = n2p.getOrDefault(hEdge.getId(), Collections.emptyList());
+            String vertexId = graph.getCentralVertex().getId();
+            for (HyperEdge hyperEdge : graph.getHyperEdges()) {
+                List<Short> netParts = n2p.getOrDefault(hyperEdge.getId(), Collections.emptyList());
                 for (Short i : netParts) {
                     if (mark[i] != null && !mark[i].equals(vertexId)) {
                         mark[i] = vertexId;
@@ -124,30 +123,28 @@ public class HyperGraphMinMax extends Partitioner {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             if (value.element.getType() == ElementType.GRAPH) {
-                HGraph graph = (HGraph) value.element;
+                EgoHyperGraph graph = (EgoHyperGraph) value.element;
                 short part = partitionSubHyperGraph(graph); // Get the correct part
-                for (Vertex vertex : graph.getVertices()) {
-                    // Update vertex part table and master part
-                    vertex2p.compute(vertex.getId(), (key, val) -> {
-                        if (val == null) {
-                            vertex.masterPart = part;
-                            return new ArrayList<>(List.of(part));
-                        } else {
-                            if (!val.contains(part)) {
-                                val.add(part);
-                            }
-                            vertex.masterPart = val.get(0);
-                            return val;
+                // Update vertex part table and master part
+                vertex2p.compute(graph.getCentralVertex().getId(), (key, val) -> {
+                    if (val == null) {
+                        graph.getCentralVertex().masterPart = part;
+                        return new ArrayList<>(List.of(part));
+                    } else {
+                        if (!val.contains(part)) {
+                            val.add(part);
                         }
-                    });
-                }
-                for (HEdge hEdge : graph.gethEdges()) {
-                    n2p.compute(hEdge.getId(), (key, val) -> {
+                        graph.getCentralVertex().masterPart = val.get(0);
+                        return val;
+                    }
+                });
+                for (HyperEdge hyperEdge : graph.getHyperEdges()) {
+                    n2p.compute(hyperEdge.getId(), (key, val) -> {
                         // Update hyperedge part table and master part
                         // Increment the part weights according to hyperedge additions to part
                         if (val == null) {
                             totalNumberOfVertices.incrementAndGet();
-                            hEdge.masterPart = part;
+                            hyperEdge.masterPart = part;
                             parts[part]++;
                             return new ArrayList<>(List.of(part));
                         } else {
@@ -156,7 +153,7 @@ public class HyperGraphMinMax extends Partitioner {
                                 val.add(part);
                                 totalNumberOfReplicas.incrementAndGet();
                             }
-                            hEdge.masterPart = val.get(0);
+                            hyperEdge.masterPart = val.get(0);
                             return val;
                         }
                     });

@@ -61,7 +61,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         for (String vertex : vertices) {
-            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce",  message, 1);
+            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce", message, 1);
         }
     }
 

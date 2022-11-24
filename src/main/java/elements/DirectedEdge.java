@@ -13,7 +13,10 @@ import java.util.function.Consumer;
  * Represents a Directed-Edge in the Graph
  *
  * @implNote In order to make edge ids unique we encode src and destination vertex ids in it along with optional attribute to represent timestamp or other things. Latter is needed in case of multi-modal or multi-graphs
- * @implNote Vertex updates should not happen within edges they will be ignored
+ * @implNote A {@link DirectedEdge} will attempt to create {@link Vertex} but not update it, since latter can only happen in MASTER parts
+ * <p>
+ * src and dest {@link Vertex} should be populated during creation. If either of the vertices do not exist the entire creation pipeline will fail <br/>
+ * </p>
  */
 public final class DirectedEdge extends GraphElement {
 
@@ -140,20 +143,22 @@ public final class DirectedEdge extends GraphElement {
     /**
      * {@inheritDoc}
      * <p>
-     *      Creating src and dest vertices if they do not exist as well.
-     *      But never attempting to update it
+     * Creating src and dest vertices if they do not exist as well.
+     * But never attempting to update it
      * </p>
+     *
+     * @implNote If either vertices do not exist, and they are not in this element {@link NullPointerException} is thrown
      */
     @Override
-    public Consumer<BaseStorage> createInternal() {
+    public Consumer<BaseStorage> create() {
         Consumer<BaseStorage> callback = null;
-        if (src != null && !getStorage().containsVertex(getSrcId())) {
+        if (!getStorage().containsVertex(getSrcId())) {
             callback = src.create();
         }
-        if (dest != null && !getStorage().containsVertex(getDestId())) {
-            callback = callback == null? dest.create():callback.andThen(dest.create());
+        if (!getStorage().containsVertex(getDestId())) {
+            callback = chain(callback, dest.create());
         }
-        return callback == null? super.createInternal():callback.andThen(super.createInternal());
+        return chain(callback, super.create());
     }
 
     /**

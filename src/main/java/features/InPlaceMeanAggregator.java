@@ -15,18 +15,20 @@ import java.util.function.Consumer;
 
 /**
  * Mean aggregator that does inplace operation hence the updated oldValue is never updated
+ *
  * @implNote <strong>Use this if the updated oldValue is never used by the plugins</strong>
  */
 public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDArray> implements Aggregator {
 
     public InPlaceMeanAggregator() {
+        super();
     }
 
     public InPlaceMeanAggregator(String id, NDArray value) {
         super(id, Tuple2.of(value, 0));
     }
 
-    public InPlaceMeanAggregator(String id, NDArray value, boolean halo){
+    public InPlaceMeanAggregator(String id, NDArray value, boolean halo) {
         super(id, Tuple2.of(value, 0), halo);
     }
 
@@ -53,21 +55,21 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
     /**
      * {@inheritDoc}
      * <p>
-     *      Delaying tensors if storage needs delay
+     * Delaying tensors if storage needs delay
      * </p>
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
         return super.createInternal()
                 .andThen(storage -> {
-                    if(storage.needsTensorDelay()) value.f0.delay();
+                    if (storage.needsTensorDelay()) value.f0.delay();
                 });
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     *     Delaying tensors if storage need delay
+     * Delaying tensors if storage need delay
      * </p>
      */
     @Override
@@ -75,7 +77,7 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
         return super.updateInternal(newElement)
                 .andThen(storage -> {
                     InPlaceMeanAggregator newAggregator = (InPlaceMeanAggregator) newElement;
-                    if(storage.needsTensorDelay() && newAggregator.value.f0 != value.f0){
+                    if (storage.needsTensorDelay() && newAggregator.value.f0 != value.f0) {
                         value.f0.delay();
                         newAggregator.value.f0.resume();
                     }

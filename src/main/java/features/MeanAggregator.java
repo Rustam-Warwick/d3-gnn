@@ -19,13 +19,14 @@ import java.util.function.Consumer;
 public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDArray> implements Aggregator {
 
     public MeanAggregator() {
+        super();
     }
 
     public MeanAggregator(String id, NDArray value) {
         super(id, Tuple2.of(value, 0));
     }
 
-    public MeanAggregator(String id, NDArray value, boolean halo){
+    public MeanAggregator(String id, NDArray value, boolean halo) {
         super(id, Tuple2.of(value, 0), halo);
     }
 
@@ -54,21 +55,21 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
     /**
      * {@inheritDoc}
      * <p>
-     *      Delaying tensors if storage needs delay
+     * Delaying tensors if storage needs delay
      * </p>
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
         return super.createInternal()
                 .andThen(storage -> {
-                    if(storage.needsTensorDelay()) value.f0.delay();
+                    if (storage.needsTensorDelay()) value.f0.delay();
                 });
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     *     Delaying tensors if storage need delay
+     * Delaying tensors if storage need delay
      * </p>
      */
     @Override
@@ -76,12 +77,13 @@ public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDAr
         return super.updateInternal(newElement)
                 .andThen(storage -> {
                     MeanAggregator newAggregator = (MeanAggregator) newElement;
-                    if(storage.needsTensorDelay() && newAggregator.value.f0 != value.f0){
+                    if (storage.needsTensorDelay() && newAggregator.value.f0 != value.f0) {
                         value.f0.delay();
                         newAggregator.value.f0.resume();
                     }
                 });
     }
+
     /**
      * {@inheritDoc}
      */

@@ -46,9 +46,9 @@ public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
 
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters, boolean omitStorage) {
         try {
-            Class clazz = TypeExtractionUtils.typeToClass(t);
+            Class<T> clazz = TypeExtractionUtils.typeToClass(t);
             List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
-            List<PojoField> pojoFields = new ArrayList<>();
+            List<PojoField> pojoFields = new ArrayList<>(fields.size());
             for (Field field : fields) {
                 Type fieldType = field.getGenericType();
                 try {
@@ -59,7 +59,7 @@ public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
                             pojoFields.add(new PojoField(field, new RecursiveListTypeInfo<>(null))); // Will be populated in RecursiveTypeInfoFactory
                         } else {
                             // Non-Recursive List Field
-                            final TypeInformation<?> typeInfo = TypeExtractor.createTypeInfo(TypeExtractionUtils.extractTypeArgument(fieldType, 0));
+                            TypeInformation<?> typeInfo = TypeExtractor.createTypeInfo(TypeExtractionUtils.extractTypeArgument(fieldType, 0));
                             pojoFields.add(new PojoField(field, new ListTypeInfo<>(typeInfo)));
                         }
                     } else if (Set.class.isAssignableFrom(field.getType())) {

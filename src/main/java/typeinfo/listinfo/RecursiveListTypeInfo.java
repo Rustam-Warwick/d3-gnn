@@ -102,7 +102,7 @@ public final class RecursiveListTypeInfo<T> extends TypeInformation<List<T>> {
 
     @Override
     public TypeSerializer<List<T>> createSerializer(ExecutionConfig config) {
-        return new ListSerializer<>(new DummySerializer<>());
+        return new ListSerializer<>(new DummySerializer<>()); // This function is called first by Flink pojo Type info later populated by my TypeInfo factory
     }
 
     // ------------------------------------------------------------------------

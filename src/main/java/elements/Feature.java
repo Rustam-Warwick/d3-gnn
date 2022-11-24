@@ -18,6 +18,7 @@ import java.util.function.Consumer;
  * @param <T> Type that is actually stored in the Feature Object
  * @param <V> Type that is exposed through getValue method
  */
+@SuppressWarnings({"unused", "unchecked"})
 public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
@@ -47,7 +48,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public transient GraphElement element;
 
     /**
-     * Ids of this Feature [Attach Element Type, Attached Element Id, Feature Name]
+     * Ids of this Feature [Attach Element Type, Attached Element ID, Feature Name]
      */
     public Tuple3<ElementType, String, String> ids;
 
@@ -62,7 +63,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         ids = Tuple3.of(ElementType.NONE, null, name);
     }
 
-    public Feature(String name, T value, boolean halo){
+    public Feature(String name, T value, boolean halo) {
         super();
         this.value = value;
         ids = Tuple3.of(ElementType.NONE, null, name);
@@ -111,8 +112,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * {@inheritDoc}
      * <p>
-     *      Standalone Features behave just like {@link ReplicableGraphElement}
-     *      For Attached Features 3 cases are possible:
+     * Standalone Features behave just like {@link ReplicableGraphElement}
+     * For Attached Features 3 cases are possible:
      *      <ol>
      *          <li>
      *              If attached element contains replicas send commit message to them
@@ -136,8 +137,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
                 return el.create();
             }
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
-                GraphElement cpy = copy(CopyContext.SYNC_CACHE_FEATURES); // Make a copy do not actually send this element
-                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.COMMIT, part_id, cpy), MessageDirection.ITERATE))).andThen(createInternal());
+                GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
+                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part -> storage.layerFunction.message(message.setPartId(part), MessageDirection.ITERATE))).andThen(createInternal());
             }
             return createInternal();
         }
@@ -145,10 +146,10 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * {@inheritDoc}
-     *  <p>
-     *      If there is an actual update on the values swap the values of newElement and this
-     *      So <code>this</code> will hold the updated value
-     *  </p>
+     * <p>
+     * If there is an actual update on the values swap the values of newElement and this
+     * So <code>this</code> will hold the updated value
+     * </p>
      */
     @Override
     public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
@@ -272,7 +273,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Caches the given element, also adds this {@link Feature} to {@link GraphElement}
-     * @param testIfExistsInElement If we should check for existance of duplicated {@link Feature} in {@link GraphElement}
+     *
+     * @param testIfExistsInElement If we should check for existence of duplicated {@link Feature} in {@link GraphElement}
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;

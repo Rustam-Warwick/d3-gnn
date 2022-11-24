@@ -15,13 +15,14 @@ import java.util.function.Consumer;
 public class Tensor extends Feature<NDArray, NDArray> {
 
     public Tensor() {
+        super();
     }
 
     public Tensor(String id, NDArray value) {
         super(id, value);
     }
 
-    public Tensor(String id, NDArray value, boolean halo){
+    public Tensor(String id, NDArray value, boolean halo) {
         super(id, value, halo);
     }
 
@@ -44,21 +45,21 @@ public class Tensor extends Feature<NDArray, NDArray> {
     /**
      * {@inheritDoc}
      * <p>
-     *      Delaying tensors if storage needs delay
+     * Delaying tensors if storage needs delay
      * </p>
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
         return super.createInternal()
                 .andThen(storage -> {
-                    if(storage.needsTensorDelay()) value.delay();
+                    if (storage.needsTensorDelay()) value.delay();
                 });
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     *     Delaying tensors if storage need delay
+     * Delaying tensors if storage need delay
      * </p>
      */
     @Override
@@ -66,7 +67,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
         return super.updateInternal(newElement)
                 .andThen(storage -> {
                     Tensor newTensor = (Tensor) newElement;
-                    if(storage.needsTensorDelay() && newTensor.value != value){
+                    if (storage.needsTensorDelay() && newTensor.value != value) {
                         value.delay();
                         newTensor.value.resume();
                     }

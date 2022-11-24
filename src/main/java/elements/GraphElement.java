@@ -1,7 +1,6 @@
 package elements;
 
 import ai.djl.ndarray.LifeCycleControl;
-import elements.enums.CacheFeatureContext;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
@@ -17,19 +16,29 @@ import java.util.*;
 import java.util.function.Consumer;
 
 /**
- * Abstract class representing a GraphElement.
+ * Abstract class representing all the GraphElements.
+ *
+ * @todo Check on this issue, it works for now because we don't have nested-features & Feature.valueEquals() is not properly used
  * <h2>
- *     3 Issues need to be taken into account
+ * 3 Issues need to be taken into account
  *     <ol>
- *         <li>
- *             Ideally all the sync logic should precede the plugin callback logic
- *             Similar problem exists in {@link Feature} create. What if createInternal fails or changes the Feature
- *         </li>
  *         <li>
  *             No way of {@link Feature} update callback failing, how to deal with such cases?
  *         </li>
  *         <li>
- *             What if element accessed a sub-Feature during RMI copy process
+ *             What if element accessed a sub-Feature during RMI process? Now the update() function will have a structure like:
+ *             (this) el --> subFeature <-- el2 (rmiCopy)
+ *             <strong>
+ *                      This will not break the code, however the sub-feature will also be treated as an update.
+ *                      This also means that if the element is replicated the sub-feature is also going to be sent to the replicas.
+ *             </strong>
+ *             <strong>
+ *                 This issue is closely coupled with the first point if sub-Features can also identify that they are actually not being updated we can overcome
+ *                 this problem of sending redundant messages
+ *             </strong>
+ *             <strong>
+ *                 One solution is to create a custom Callback object like a double linked list. It will be more flexible to add consumers to random positions in the callback chain
+ *             </strong>
  *         </li>
  *     </ol>
  * </h2>
@@ -53,15 +62,14 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     public GraphElement(GraphElement element, CopyContext context) {
-        if (context == CopyContext.SYNC_CACHE_FEATURES || context == CopyContext.SYNC_NOT_CACHE_FEATURES) {
+        if (context == CopyContext.SYNC) {
             // Copy all the non-halo features
-            if(context == CopyContext.SYNC_CACHE_FEATURES) getStorage().cacheFeatures(element, CacheFeatureContext.NON_HALO);
             if (element.features != null && !element.features.isEmpty()) {
                 for (Feature<?, ?> feature : element.features) {
                     if (!feature.isHalo()) {
                         // Don't use setElement here since this.getId() might be null at this point
-                        if(features == null) features = new ArrayList<>(4);
-                        Feature<?,?> cpyFeature = feature.copy(context);
+                        if (features == null) features = new ArrayList<>(4);
+                        Feature<?, ?> cpyFeature = feature.copy(context);
                         cpyFeature.element = this;
                         features.add(feature.copy(context));
                     }
@@ -80,8 +88,8 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     /**
      * Helper function to chain multiple callbacks
      */
-    public static <T> Consumer<T> chain(@Nullable Consumer<T> previousChain, Consumer<T> addCallback){
-        if(previousChain == null) return addCallback;
+    public static <T> Consumer<T> chain(@Nullable Consumer<T> previousChain, Consumer<T> addCallback) {
+        if (previousChain == null) return addCallback;
         return previousChain.andThen(addCallback);
     }
 
@@ -94,6 +102,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Part of creation relating to storage and plugin callbacks
+     *
      * @implNote features will be cleared after exiting this method
      * <ol>
      *     <li>Create in Storage</li>
@@ -122,22 +131,23 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * <strong>Deleting all features as well</strong>
      */
     protected Consumer<BaseStorage> deleteInternal() {
-        throw new NotImplementedException("Delte events are not implemented yet");
+        throw new NotImplementedException("Delete events are not implemented yet");
     }
 
     /**
      * Part of update relating to storage and plugin interactions
+     *
      * @implNote As the callbacks are called the newElement will gradually transform into a <strong>>memento</strong> holding the old state
-     *  <ol>
-     *      <ol>
-     *          <code>if feature exists </code>
-     *          <li>feature.updateInternal(newFeature)</li>
-     *          <code>else</code>
-     *          <li>newFeature attach here</li>
-     *          <li>newFeature.createInternal()</li>
-     *      </ol>
-     *      <li>update storage & call plugin callbacks</li>
-     *  </ol>
+     * <ol>
+     *     <ol>
+     *         <code>if feature exists </code>
+     *         <li>feature.updateInternal(newFeature)</li>
+     *         <code>else</code>
+     *         <li>newFeature attach here</li>
+     *         <li>newFeature.createInternal()</li>
+     *     </ol>
+     *     <li>update storage & call plugin callbacks</li>
+     * </ol>
      */
     protected Consumer<BaseStorage> updateInternal(GraphElement newElement) {
         Consumer<BaseStorage> callback = null;
@@ -156,9 +166,9 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             }
         }
         return chain(callback, storage -> {
-                storage.updateElement(this, newElement); // Already a memento object (newElement)
-                storage.plugins.values().forEach(plugin -> plugin.updateElementCallback(this, newElement));
-            });
+            storage.updateElement(this, newElement); // Already a memento object (newElement)
+            storage.plugins.values().forEach(plugin -> plugin.updateElementCallback(this, newElement));
+        });
     }
 
     /**
@@ -172,6 +182,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     /**
      * Part of deletion relating to replication and external things
      */
+    @SuppressWarnings("unused")
     public Consumer<BaseStorage> delete() {
         return deleteInternal();
     }
@@ -194,7 +205,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     /**
      * Replica -> Master sync request {@link SyncRequest}
      */
-    public void syncRequest(GraphElement newElement){
+    public void syncRequest(GraphElement newElement) {
         throw new NotImplementedException("Replica Elements should override this method");
     }
 
@@ -220,7 +231,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * If this element is HALO
+     * If this element is of halo type, meaning never replicated
      */
     public boolean isHalo() {
         return false;
@@ -257,19 +268,19 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Retrieves {@link Feature} from cache if exists, otherwise from storage.
+     *
      * @implNote <strong> Developer should make sure to call this method knowing that the feature exists</strong>
      */
+    @SuppressWarnings("ConstantConditions")
     public Feature<?, ?> getFeature(String name) {
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        if (Objects.nonNull(getStorage())) {
-            Feature<?, ?> feature = getStorage().getAttachedFeature(getType(), getId(), name, null);
-            feature.setElement(this, false);
-        }
-        return null;
+        Feature<?, ?> feature = getStorage().getAttachedFeature(getType(), getId(), name, null);
+        feature.setElement(this, false);
+        throw new NullPointerException("Feature does not exist, make sure to check first with containsFeature()");
     }
 
     /**

@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * GraphElement that are replicable. Added master sync logic
+ * {@link GraphElement} that are replicable. Added master sync logic
+ *
+ * @implNote {@link Feature} is a {@link ReplicableGraphElement}
+ * but if it is attached to non-replicable {@link GraphElement} it will behave so as well
  */
 abstract public class ReplicableGraphElement extends GraphElement {
 
@@ -41,16 +44,17 @@ abstract public class ReplicableGraphElement extends GraphElement {
     /**
      * {@inheritDoc}
      * <p>
-     *     If this is REPLICA clearFeatures & if not halo; send {@link SyncRequest} to Master before running callbacks
-     *     Since we cannot always assume that Master exists (because of possible lateness), the {@link SyncRequest} should arrive before any other message is triggered in {@link Plugin}
+     * If this is REPLICA clearFeatures & if not halo --> send {@link SyncRequest} to Master before running callbacks
+     * Since we cannot always assume that Master exists (because of possible lateness),
+     * the {@link SyncRequest} should arrive before any other message is triggered in {@link Plugin} to perform dummy element creation
      * </p>
      */
     @Override
     public Consumer<BaseStorage> create() {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
-        if (state() == ReplicaState.REPLICA && !isHalo()) {
-            SyncRequest syncRequest = new SyncRequest(this);
-            return ((Consumer<BaseStorage>) storage -> storage.layerFunction.message(new GraphOp(Op.SYNC_REQUEST, getMasterPart(), syncRequest), MessageDirection.ITERATE))
+        if (!isHalo() && isReplicable() && state() == ReplicaState.REPLICA) {
+            GraphOp syncRequestMessage = new GraphOp(Op.SYNC_REQUEST, getMasterPart(), new SyncRequest(this));
+            return ((Consumer<BaseStorage>) storage -> storage.layerFunction.message(syncRequestMessage, MessageDirection.ITERATE))
                     .andThen(super.create());
         }
         return super.create();
@@ -58,18 +62,18 @@ abstract public class ReplicableGraphElement extends GraphElement {
 
     /**
      * {@inheritDoc}
-     * Just updateInternal without replicating again.
+     * Update without replication
      */
     @Override
     public void sync(GraphElement newElement) {
-       getStorage().runCallback(super.updateInternal(newElement));
+        getStorage().runCallback(updateInternal(newElement));
     }
 
     /**
      * {@inheritDoc}
      * <p>
-     *     Add newly arrived part number to the <strong>parts</strong> list
-     *     Only sends back a SYNC if there are non-halo {@link Feature} or if this is a STANDALONE {@link Feature}
+     * Add newly arrived part number to the <strong>parts</strong> list
+     * Only sends back a SYNC if there are non-halo {@link Feature} or if this is a STANDALONE {@link Feature} itself
      * </p>
      */
     @Override
@@ -78,35 +82,34 @@ abstract public class ReplicableGraphElement extends GraphElement {
             Parts p = new Parts("p", new ArrayList<>(List.of(newElement.getPart())), true, (short) -1);
             p.setElement(this, false);
             getStorage().runCallback(p.createInternal());
-        }else{
+        } else {
             Rmi.execute(
                     getFeature("p"),
                     "add",
                     newElement.getPart()
             );
         }
-        GraphElement cpy = copy(CopyContext.SYNC_CACHE_FEATURES);
-        if (cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE) // Attached features do not receive SYNC_REQUESTS
+        getStorage().cacheFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
+        if ((features != null && features.stream().anyMatch(feature -> !feature.isHalo())) || getType() == ElementType.STANDALONE_FEATURE) {
+            GraphElement cpy = copy(CopyContext.SYNC);
             getStorage().layerFunction.message(new GraphOp(Op.SYNC, newElement.getPart(), cpy), MessageDirection.ITERATE);
+        }
     }
 
     /**
      * {@inheritDoc}
-     * @implNote REPLICA element receiving updates will trigger {@link IllegalStateException}
+     *
+     * @implNote REPLICA element receiving updates will trigger {@link IllegalStateException} since not allowed
      * <p>
-     *      After all the update took place will trigger SYNC with all its Replica parts.
-     *      Here the {@link Plugin} callbacks will come before the SYNC requests, so plugins should not send messages assuming that replicas are synchronized beforehand
+     * If this newElement is a Feature or brings some non-halo features with it, before executing update will send SYNC to all replicas
      * </p>
      */
     @Override
     public Consumer<BaseStorage> update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
-            if (!isHalo() && !getReplicaParts().isEmpty()) {
-                return ((Consumer<BaseStorage>) storage -> {
-                    ReplicableGraphElement cpy = copy(CopyContext.SYNC_NOT_CACHE_FEATURES);
-                    if(cpy.features != null || cpy.getType() == ElementType.STANDALONE_FEATURE || cpy.getType() == ElementType.ATTACHED_FEATURE)
-                        getReplicaParts().forEach(part_id -> storage.layerFunction.message(new GraphOp(Op.SYNC, part_id, cpy), MessageDirection.ITERATE));
-                }).andThen(super.update(newElement));
+            if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (getType() == ElementType.ATTACHED_FEATURE || getType() == ElementType.STANDALONE_FEATURE || (newElement.features != null && newElement.features.stream().anyMatch(feature -> !feature.isHalo())))) {
+                GraphOp message = new GraphOp(Op.SYNC, newElement.copy(CopyContext.SYNC));
+                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part -> storage.layerFunction.message(message.setPartId(part), MessageDirection.ITERATE))).andThen(super.update(newElement));
             }
             return super.update(newElement);
         } else {
@@ -125,6 +128,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("unchecked")
     @Override
     public List<Short> getReplicaParts() {
         if (!containsFeature("p")) return super.getReplicaParts();

@@ -1,6 +1,9 @@
 package datasets;
 
-import elements.*;
+import elements.DirectedEdge;
+import elements.EgoHyperGraph;
+import elements.GraphOp;
+import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
@@ -15,6 +18,7 @@ import picocli.CommandLine;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class TagsAskUbuntu extends Dataset {
@@ -93,15 +97,11 @@ public class TagsAskUbuntu extends Dataset {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) {
             String[] values = value.split(",");
-            List<Vertex> src = List.of(new Vertex(values[0]));
-            List<String> srcId = List.of(src.get(0).getId());
-            List<HEdge> hEdges = new ArrayList<>(values.length - 1);
-            for (int i = 1; i < values.length; i++) {
-                String netId = values[i];
-                hEdges.add(new HEdge(netId, srcId, (short) -1));
-            }
-            HGraph hGraph = new HGraph(src, hEdges);
-            out.collect(new GraphOp(Op.COMMIT, hGraph));
+            Vertex src = new Vertex(values[0]);
+            List<String> hyperEdgeIds = new ArrayList<>(values.length - 1);
+            hyperEdgeIds.addAll(Arrays.asList(values).subList(1, values.length));
+            EgoHyperGraph egoHyperGraph = new EgoHyperGraph(src, hyperEdgeIds);
+            out.collect(new GraphOp(Op.COMMIT, egoHyperGraph));
         }
     }
 }

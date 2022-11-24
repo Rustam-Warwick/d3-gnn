@@ -10,7 +10,7 @@ import org.apache.flink.streaming.api.operators.*;
 
 public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp>, CoordinatedOperatorFactory<GraphOp> {
     protected StreamOperator<GraphOp> innerOperator;
-    protected IterationID iterationId; // @todo{Might not be needed, now that we have iterationHead and iterationTail separately}
+    protected IterationID iterationId;
     protected short position;
     protected short totalLayers;
 

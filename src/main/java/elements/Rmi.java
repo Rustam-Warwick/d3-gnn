@@ -8,7 +8,6 @@ import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.util.ExceptionUtils;
 import org.cliffc.high_scale_lib.NonBlockingIdentityHashMap;
 import org.slf4j.Logger;
@@ -25,18 +24,16 @@ import java.util.Map;
 public class Rmi extends GraphElement {
 
     /**
+     * Cached remote methods of a specific class
+     * <strong>
+     * Class -> (Method Access, MethodName -> (Method Index, HasUpdate, hasCallback))
+     * </strong>
+     */
+    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
+    /**
      * Log
      */
     private static final Logger LOG = LoggerFactory.getLogger(Rmi.class);
-
-    /**
-     * Cached remote methods of a specific class
-     * <strong>
-     *     Class -> (Method Access, MethodName -> (Method Index, HasUpdate, hasCallback))
-     * </strong>
-     */
-    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer,Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
-
     /**
      * Method Arguments list
      */
@@ -48,7 +45,7 @@ public class Rmi extends GraphElement {
     public ElementType elemType;
 
     /**
-     * Id of element where this message is directed to
+     * ID of element where this message is directed to
      */
     public String id;
 

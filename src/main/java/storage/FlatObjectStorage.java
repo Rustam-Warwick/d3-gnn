@@ -24,7 +24,7 @@ public class FlatObjectStorage extends BaseStorage {
     protected MapState<String, Map<String, List<String>>> outEdgeTable;
     protected MapState<String, Map<String, List<String>>> inEdgeTable;
     protected MapState<String, DirectedEdge> edgeTable;
-    protected MapState<String, HEdge> hyperEdgeTable;
+    protected MapState<String, HyperEdge> hyperEdgeTable;
     protected MapState<String, List<String>> vertex2HyperEdge;
 
     public FlatObjectStorage() {
@@ -37,7 +37,7 @@ public class FlatObjectStorage extends BaseStorage {
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
         MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
         MapStateDescriptor<String, DirectedEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null, true));
-        MapStateDescriptor<String, HEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<HEdge>().createTypeInfo(HEdge.class, null, true));
+        MapStateDescriptor<String, HyperEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<HyperEdge>().createTypeInfo(HyperEdge.class, null, true));
         MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
         MapStateDescriptor<String, List<String>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(Types.STRING));
@@ -99,10 +99,10 @@ public class FlatObjectStorage extends BaseStorage {
             directedEdge.src = getVertex(directedEdge.getSrcId());
             directedEdge.dest = getVertex(directedEdge.getDestId());
             edgeTable.put(directedEdge.getId(), directedEdge);
-            Map<String, List<String>> outEdges = outEdgeTable.contains(directedEdge.getSrcId())?outEdgeTable.get(directedEdge.getSrcId()):new HashMap<>();
-            Map<String, List<String>> inEdges = inEdgeTable.contains(directedEdge.getDestId())?inEdgeTable.get(directedEdge.getDestId()):new HashMap<>();
-            outEdges.computeIfAbsent(directedEdge.getDestId(), (key)->new ArrayList<>());
-            inEdges.computeIfAbsent(directedEdge.getSrcId(), (key)->new ArrayList<>());
+            Map<String, List<String>> outEdges = outEdgeTable.contains(directedEdge.getSrcId()) ? outEdgeTable.get(directedEdge.getSrcId()) : new HashMap<>();
+            Map<String, List<String>> inEdges = inEdgeTable.contains(directedEdge.getDestId()) ? inEdgeTable.get(directedEdge.getDestId()) : new HashMap<>();
+            outEdges.computeIfAbsent(directedEdge.getDestId(), (key) -> new ArrayList<>());
+            inEdges.computeIfAbsent(directedEdge.getSrcId(), (key) -> new ArrayList<>());
             outEdges.get(directedEdge.getDestId()).add(directedEdge.getId());
             inEdges.get(directedEdge.getSrcId()).add(directedEdge.getId());
             outEdgeTable.put(directedEdge.getSrcId(), outEdges);
@@ -115,14 +115,14 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addHyperEdge(HEdge hEdge) {
+    public boolean addHyperEdge(HyperEdge hyperEdge) {
         try {
-            hyperEdgeTable.put(hEdge.getId(), hEdge);
-            for (String vertexId : hEdge.vertexIds) {
+            hyperEdgeTable.put(hyperEdge.getId(), hyperEdge);
+            for (String vertexId : hyperEdge.vertexIds) {
                 if (!vertex2HyperEdge.contains(vertexId)) vertex2HyperEdge.put(vertexId, new ArrayList<>());
                 List<String> tmp = vertex2HyperEdge.get(vertexId);
-                if (!tmp.contains(hEdge.getId())) {
-                    tmp.add(hEdge.getId());
+                if (!tmp.contains(hyperEdge.getId())) {
+                    tmp.add(hyperEdge.getId());
                     vertex2HyperEdge.put(vertexId, tmp);
                 }
             }
@@ -166,7 +166,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
+    public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
         return true;
     }
 
@@ -191,7 +191,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteHyperEdge(HEdge hEdge) {
+    public boolean deleteHyperEdge(HyperEdge hyperEdge) {
         return false;
     }
 
@@ -210,7 +210,7 @@ public class FlatObjectStorage extends BaseStorage {
     public Iterable<Vertex> getVertices() {
         try {
             Iterator<Vertex> iterator = vertexTable.values().iterator();
-            return () ->  iterator;
+            return () -> iterator;
         } catch (Exception e) {
             e.printStackTrace();
             return Collections.emptyList();
@@ -275,7 +275,7 @@ public class FlatObjectStorage extends BaseStorage {
 
 
     @Override
-    public Iterable<HEdge> getIncidentHyperEdges(Vertex id) {
+    public Iterable<HyperEdge> getIncidentHyperEdges(Vertex id) {
         try {
             if (vertex2HyperEdge.contains(id.getId())) {
                 List<String> vEdges = vertex2HyperEdge.get(id.getId());
@@ -288,7 +288,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public HEdge getHyperEdge(String id) {
+    public HyperEdge getHyperEdge(String id) {
         try {
             return hyperEdgeTable.get(id);
         } catch (Exception e) {

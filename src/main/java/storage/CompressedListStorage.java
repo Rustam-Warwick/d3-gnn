@@ -119,13 +119,13 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addHyperEdge(HEdge hEdge) {
+    public boolean addHyperEdge(HyperEdge hyperEdge) {
         try {
-            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.getMasterPart(), hEdge.getVertexIds()));
-            for (String vertexId : hEdge.getVertexIds()) {
+            hyperEdges.put(hyperEdge.getId(), Tuple2.of(hyperEdge.getMasterPart(), hyperEdge.getVertexIds()));
+            for (String vertexId : hyperEdge.getVertexIds()) {
                 List<String> tmp = v2HEdge.get(vertexId);
                 if (tmp == null) tmp = new ArrayList<>(10);
-                tmp.add(hEdge.getId());
+                tmp.add(hyperEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
             return true;
@@ -164,14 +164,14 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
+    public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
         try {
-            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.getMasterPart(), hEdge.getVertexIds()));
-            for (int i = memento.getVertexIds().size(); i < hEdge.getVertexIds().size(); i++) {
-                String vertexId = hEdge.getVertexIds().get(i);
+            hyperEdges.put(hyperEdge.getId(), Tuple2.of(hyperEdge.getMasterPart(), hyperEdge.getVertexIds()));
+            for (int i = memento.getVertexIds().size(); i < hyperEdge.getVertexIds().size(); i++) {
+                String vertexId = hyperEdge.getVertexIds().get(i);
                 List<String> tmp = v2HEdge.get(vertexId);
                 if (tmp == null) tmp = new ArrayList<>(10);
-                tmp.add(hEdge.getId());
+                tmp.add(hyperEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
             return true;
@@ -202,7 +202,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteHyperEdge(HEdge hEdge) {
+    public boolean deleteHyperEdge(HyperEdge hyperEdge) {
         throw new NotImplementedException("Not implemented");
     }
 
@@ -287,11 +287,10 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public HEdge getHyperEdge(String id) {
+    public HyperEdge getHyperEdge(String id) {
         try {
             Tuple2<Short, List<String>> tmp = hyperEdges.get(id);
-            HEdge hEdge = new HEdge(id, tmp.f1, tmp.f0);
-            return hEdge;
+            return new HyperEdge(id, tmp.f1, tmp.f0);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -299,7 +298,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<HEdge> getIncidentHyperEdges(Vertex vertex) {
+    public Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex) {
         try {
             List<String> vertices = v2HEdge.get(vertex.getId());
             if (vertices == null) return Collections.emptyList();

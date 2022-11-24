@@ -15,6 +15,7 @@ public interface Aggregator {
 
     /**
      * When a new connection arrives reduce it to the given aggregator
+     *
      * @implNote Multiple reduce messages can be batched and then sent over which is represented in @param count
      */
     void reduce(NDList newElement, int count);

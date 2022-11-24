@@ -3,7 +3,7 @@ package plugins.hgnn_embedding;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
-import elements.HEdge;
+import elements.HyperEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
@@ -84,7 +84,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @return vertex_ready
      */
     public final boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f");
+        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") && vertex.containsFeature("agg");
     }
 
     /**
@@ -123,11 +123,11 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
         if (element.state() == ReplicaState.MASTER) {
             InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true, (short) -1);
             aggStart.setElement(element, false);
-            getStorage().runCallback(aggStart.create());
+            getStorage().runCallback(aggStart.createInternal());
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false, (short) -1); // Initialize to random value
                 embeddingRandom.setElement(element, false);
-                getStorage().runCallback(embeddingRandom.create());
+                getStorage().runCallback(embeddingRandom.createInternal());
             }
         }
     }
@@ -135,11 +135,11 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     /**
      * Initialize the hyper-edge aggregators
      */
-    public void initHyperEdge(HEdge edge) {
+    public void initHyperEdge(HyperEdge edge) {
         if (edge.state() == ReplicaState.MASTER) {
             MeanAggregator agg = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), false);
             agg.setElement(edge, false);
-            getStorage().runCallback(agg.create());
+            getStorage().runCallback(agg.createInternal());
         }
     }
 }

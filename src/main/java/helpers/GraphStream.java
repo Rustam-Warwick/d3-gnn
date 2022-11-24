@@ -121,6 +121,7 @@ public class GraphStream {
         Arrays.sort(cmdArgs);
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
         this.env = env;
+        this.env.getConfig().enableObjectReuse();
         this.configureSerializers();
         this.hasFullLoopIteration = hasFullLoopIteration;
         this.hasBackwardIteration = hasBackwardIteration;

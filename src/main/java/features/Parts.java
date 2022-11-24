@@ -14,6 +14,7 @@ import java.util.List;
  */
 public class Parts extends Feature<List<Short>, List<Short>> {
     public Parts() {
+        super();
     }
 
     public Parts(String name, List<Short> value) {

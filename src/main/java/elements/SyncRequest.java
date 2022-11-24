@@ -20,7 +20,7 @@ public final class SyncRequest extends GraphElement {
     public ElementType elementType;
 
     /**
-     * Part where this element is being sent from
+     * Part where this element is being sent from to then return SYNC messages
      */
     public short partId;
 

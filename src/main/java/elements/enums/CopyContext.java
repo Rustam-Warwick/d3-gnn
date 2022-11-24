@@ -6,7 +6,13 @@ package elements.enums;
  * <strong>SYNC</strong> Only copy non-halo features, and depending on the element some fields can be nullified
  */
 public enum CopyContext {
-    RMI, // Copy needed for RMI, deep copy values if necessary
-    SYNC_CACHE_FEATURES, // Copy needed for Sync, draw nested Features from cache
-    SYNC_NOT_CACHE_FEATURES // Copy needed for Sync, do not draw nested Features from cache
+
+    /**
+     * Copy needed for {@link elements.Rmi} execution. Deep copy elements if necessary
+     */
+    RMI,
+    /**
+     * Copy needed for SYNC {@link elements.GraphOp} messages. Usually keeping only non-halo features and some custom stuff depending on element
+     */
+    SYNC,
 }

@@ -11,8 +11,9 @@ import typeinfo.graphopinfo.GraphOpTypeInfoFactory;
 import java.util.Objects;
 
 /**
- * Main message object that gets passed around the system
+ * Main message object that gets sent around the system
  */
+@SuppressWarnings("UnusedReturnValue")
 @TypeInfo(GraphOpTypeInfoFactory.class)
 public final class GraphOp implements LifeCycleControl {
 

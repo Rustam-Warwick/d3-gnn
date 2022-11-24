@@ -58,7 +58,7 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
 
     private final Set<Integer> recursiveListFieldIndices; // Indices of recursive List Fields
 
-    private final boolean deSerializationCallback;
+    private final boolean hasDeserializationCallback;
 
     public RecursivePojoSerializer(PojoSerializer<T> pojoSerializer) {
         actualSerializer = pojoSerializer;
@@ -74,7 +74,7 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
                     recursiveListFieldIndices.add(i);
                 }
             }
-            deSerializationCallback = DeSerializationListener.class.isAssignableFrom(clazz);
+            hasDeserializationCallback = DeSerializationListener.class.isAssignableFrom(clazz);
         } catch (Exception e) {
             throw new RuntimeException("Error occured");
         }
@@ -150,14 +150,14 @@ public class RecursivePojoSerializer<T> extends TypeSerializer<T> {
     @Override
     public T deserialize(DataInputView source) throws IOException {
         T obj = actualSerializer.deserialize(source);
-        if (deSerializationCallback) ((DeSerializationListener) obj).onDeserialized();
+        if (hasDeserializationCallback) ((DeSerializationListener) obj).onDeserialized();
         return obj;
     }
 
     @Override
     public T deserialize(T reuse, DataInputView source) throws IOException {
         T obj = actualSerializer.deserialize(reuse, source);
-        if (deSerializationCallback) ((DeSerializationListener) obj).onDeserialized();
+        if (hasDeserializationCallback) ((DeSerializationListener) obj).onDeserialized();
         return obj;
     }
 

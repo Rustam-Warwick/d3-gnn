@@ -39,6 +39,10 @@ public abstract class Dataset implements Serializable {
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
     protected boolean fineGrainedResourceManagementEnabled; // Add custom slotSharingGroupsForOperators
 
+    public Dataset() {
+
+    }
+
     public Dataset(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
