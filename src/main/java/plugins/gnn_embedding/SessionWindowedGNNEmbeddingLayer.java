@@ -42,6 +42,11 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
         this.sessionInterval = sessionInterval;
     }
 
+    public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE, int sessionInterval) {
+        super(modelName, trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
+        this.sessionInterval = sessionInterval;
+    }
+
     @Override
     public void open() throws Exception {
         super.open();

@@ -119,11 +119,11 @@ public class FlatObjectStorage extends BaseStorage {
         try {
             hyperEdgeTable.put(hyperEdge.getId(), hyperEdge);
             for (String vertexId : hyperEdge.getVertexIds()) {
-                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId)?vertex2HyperEdge.get(vertexId):new ArrayList<>(50);
+                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId) ? vertex2HyperEdge.get(vertexId) : new ArrayList<>(50);
                 backwardList.add(hyperEdge);
                 vertex2HyperEdge.put(vertexId, backwardList);
             }
-            if(hyperEdge.vertices != null){
+            if (hyperEdge.vertices != null) {
                 for (int i = 0; i < hyperEdge.vertices.size(); i++) {
                     hyperEdge.vertices.set(i, getVertex(hyperEdge.vertexIds.get(i)));
                 }
@@ -169,14 +169,14 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
-        try{
+        try {
             for (String vertexId : memento.getVertexIds()) {
-                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId)?vertex2HyperEdge.get(vertexId):new ArrayList<>(50);
+                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId) ? vertex2HyperEdge.get(vertexId) : new ArrayList<>(50);
                 backwardList.add(hyperEdge);
                 vertex2HyperEdge.put(vertexId, backwardList);
             }
             return true;
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
             return false;
         }
@@ -290,7 +290,7 @@ public class FlatObjectStorage extends BaseStorage {
         try {
             if (vertex2HyperEdge.contains(vertex.getId())) {
                 final Iterator<HyperEdge> tmpIterator = vertex2HyperEdge.get(vertex.getId()).iterator();
-                return ()-> tmpIterator;
+                return () -> tmpIterator;
             } else return Collections.emptyList();
         } catch (Exception e) {
             e.printStackTrace();

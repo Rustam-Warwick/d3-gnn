@@ -3,10 +3,8 @@ package elements;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.commons.lang3.NotImplementedException;
-import storage.BaseStorage;
 
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 
@@ -60,21 +58,20 @@ public final class HyperEgoGraph extends GraphElement {
      * Create all the vertices and hyperedges
      */
     @Override
-    public Consumer<BaseStorage> create() {
-        if (!getStorage().containsVertex(centralVertex.getId())) getStorage().runCallback(centralVertex.create());
+    public void create() {
+        if (!getStorage().containsVertex(centralVertex.getId())) centralVertex.create();
         for (HyperEdge hyperEdge : hyperEdges) {
             if (getStorage().containsHyperEdge(hyperEdge.getId()))
-                getStorage().runCallback(getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge));
-            else getStorage().runCallback(hyperEdge.create());
+                getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge);
+            else hyperEdge.create();
         }
-        return null;
     }
 
     /**
      * throw {@link NotImplementedException}
      */
     @Override
-    public Consumer<BaseStorage> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         throw new NotImplementedException("SubGraph only support additions");
     }
 
@@ -82,7 +79,7 @@ public final class HyperEgoGraph extends GraphElement {
      * throw {@link NotImplementedException}
      */
     @Override
-    public Consumer<BaseStorage> delete() {
+    public void delete() {
         throw new NotImplementedException("SubGraph only support additions");
     }
 

@@ -86,16 +86,6 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Is vertex ready for triggerUpdate
-     *
-     * @param vertex Vertex
-     * @return vertex_ready
-     */
-    public final boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f") & vertex.containsFeature("agg");
-    }
-
-    /**
      * Are vertex features(embeddings) trainable
      *
      * @return are_trainable
@@ -134,11 +124,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
         if (element.state() == ReplicaState.MASTER) {
             InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
             aggStart.setElement(element, false);
-            getStorage().runCallback(aggStart.createInternal());
+            aggStart.createInternal();
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue()), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
-                getStorage().runCallback(embeddingRandom.createInternal());
+                embeddingRandom.createInternal();
             }
         }
     }

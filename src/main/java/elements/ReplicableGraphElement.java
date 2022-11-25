@@ -2,11 +2,9 @@ package elements;
 
 import elements.enums.*;
 import features.Parts;
-import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * {@link GraphElement} that are replicable. Added master sync logic
@@ -50,14 +48,13 @@ abstract public class ReplicableGraphElement extends GraphElement {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> create() {
+    public void create() {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
         if (!isHalo() && isReplicable() && state() == ReplicaState.REPLICA) {
             GraphOp syncRequestMessage = new GraphOp(Op.SYNC_REQUEST, getMasterPart(), new SyncRequest(this));
-            return ((Consumer<BaseStorage>) storage -> storage.layerFunction.message(syncRequestMessage, MessageDirection.ITERATE))
-                    .andThen(super.create());
+            getStorage().layerFunction.message(syncRequestMessage, MessageDirection.ITERATE);
         }
-        return super.create();
+        super.create();
     }
 
     /**
@@ -66,7 +63,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
      */
     @Override
     public void sync(GraphElement newElement) {
-        getStorage().runCallback(updateInternal(newElement));
+        updateInternal(newElement);
     }
 
     /**
@@ -81,7 +78,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (!containsFeature("p")) {
             Parts p = new Parts("p", new ArrayList<>(List.of(newElement.getPart())), true, (short) -1);
             p.setElement(this, false);
-            getStorage().runCallback(p.createInternal());
+            p.createInternal();
         } else {
             Rmi.execute(
                     getFeature("p"),
@@ -105,13 +102,13 @@ abstract public class ReplicableGraphElement extends GraphElement {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         if (state() == ReplicaState.MASTER) {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (getType() == ElementType.ATTACHED_FEATURE || getType() == ElementType.STANDALONE_FEATURE || (newElement.features != null && newElement.features.stream().anyMatch(feature -> !feature.isHalo())))) {
                 GraphOp message = new GraphOp(Op.SYNC, newElement.copy(CopyContext.SYNC));
-                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part -> storage.layerFunction.message(message.setPartId(part), MessageDirection.ITERATE))).andThen(super.update(newElement));
+                getReplicaParts().forEach(part -> getStorage().layerFunction.message(message.setPartId(part), MessageDirection.ITERATE));
             }
-            return super.update(newElement);
+            super.update(newElement);
         } else {
             throw new IllegalStateException("REPLICAS Should not received Updates");
         }

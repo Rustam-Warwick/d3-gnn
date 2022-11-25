@@ -102,7 +102,7 @@ public class Rmi extends GraphElement {
             if (method.f1) {
                 GraphElement deepCopyElement = element.copy(CopyContext.RMI); // Creates an RMI copy of the element
                 classMethods.f0.invoke(deepCopyElement, method.f0, args);
-                getStorage().runCallback(element.update(deepCopyElement));
+                element.update(deepCopyElement);
             } else {
                 classMethods.f0.invoke(element, method.f0, args);
             }
@@ -135,7 +135,6 @@ public class Rmi extends GraphElement {
      */
     @Override
     public void delay() {
-        super.delay();
         for (Object arg : args) {
             if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).delay();
         }
@@ -146,7 +145,6 @@ public class Rmi extends GraphElement {
      */
     @Override
     public void resume() {
-        super.resume();
         for (Object arg : args) {
             if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).resume();
         }

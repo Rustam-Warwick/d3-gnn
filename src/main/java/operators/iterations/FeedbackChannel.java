@@ -165,7 +165,9 @@ public final class FeedbackChannel<T> implements Closeable {
         private final Executor executor;
 
         private final LockFreeBatchFeedbackQueue<T> queue;
+
         private final AtomicInteger scheduleCount = new AtomicInteger();
+
         private FeedbackConsumer<T> consumer;
 
         ConsumerTask(Executor executor, FeedbackConsumer<T> consumer, LockFreeBatchFeedbackQueue<T> queue) {

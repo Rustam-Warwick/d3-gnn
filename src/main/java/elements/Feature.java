@@ -5,12 +5,10 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
-import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Represents a Feature either attached to another element or not
@@ -128,19 +126,18 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> create() {
-        if (getType() == ElementType.STANDALONE_FEATURE) return super.create();
-        else {
-            if (!getStorage().containsElement(ids.f1, ids.f0)) {
-                GraphElement el = getStorage().getDummyElement(ids.f1, ids.f0);
-                setElement(el, false);
-                return el.create();
-            }
+    public void create() {
+        if (getType() == ElementType.STANDALONE_FEATURE) super.create();
+        else if (!getStorage().containsElement(ids.f1, ids.f0)) {
+            GraphElement el = getStorage().getDummyElement(ids.f1, ids.f0);
+            setElement(el, false);
+            el.create();
+        } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
                 GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
-                return ((Consumer<BaseStorage>) storage -> getReplicaParts().forEach(part -> storage.layerFunction.message(message.setPartId(part), MessageDirection.ITERATE))).andThen(createInternal());
+                getReplicaParts().forEach(part -> getStorage().layerFunction.message(message.setPartId(part), MessageDirection.ITERATE));
             }
-            return createInternal();
+            createInternal();
         }
     }
 
@@ -152,16 +149,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
+    public void updateInternal(GraphElement newElement) {
         Feature<T, V> newFeature = (Feature<T, V>) newElement;
         if (!valuesEqual(newFeature.value, this.value)) {
-            return ((Consumer<BaseStorage>) ignored -> {
-                T tmp = newFeature.value;
-                newFeature.value = value;
-                value = tmp;
-            }).andThen(super.updateInternal(newElement));
+            T tmp = newFeature.value;
+            newFeature.value = value;
+            value = tmp;
         }
-        return super.updateInternal(newElement);
+        super.updateInternal(newElement);
     }
 
     /**

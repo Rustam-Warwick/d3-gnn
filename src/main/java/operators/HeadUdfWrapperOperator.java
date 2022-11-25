@@ -91,11 +91,11 @@ public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp,
 
     @Override
     public void processActualElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
-            if (element.getValue().getOperatorEvent() instanceof StartTraining) {
+        if (element.getValue().op == Op.OPERATOR_EVENT) {
+            if (element.getValue().operatorEvent instanceof StartTraining) {
                 TRAINING = true;
 //                context.broadcastOutput(new GraphOp(element.getValue().getOperatorEvent()));
-            } else if (element.getValue().getOperatorEvent() instanceof StopTraining) {
+            } else if (element.getValue().operatorEvent instanceof StopTraining) {
                 try {
                     TRAINING = false;
                     dataCacheWriter.finishCurrentSegment();

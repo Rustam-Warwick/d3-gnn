@@ -5,9 +5,6 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
-import storage.BaseStorage;
-
-import java.util.function.Consumer;
 
 /**
  * Feature of {@link NDArray} Used to represent embeddings of specific model versions
@@ -49,11 +46,9 @@ public class Tensor extends Feature<NDArray, NDArray> {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> createInternal() {
-        return super.createInternal()
-                .andThen(storage -> {
-                    if (storage.needsTensorDelay()) value.delay();
-                });
+    public void createInternal() {
+        super.createInternal();
+        if (getStorage().needsTensorDelay()) value.delay();
     }
 
     /**
@@ -63,15 +58,13 @@ public class Tensor extends Feature<NDArray, NDArray> {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
-        return super.updateInternal(newElement)
-                .andThen(storage -> {
-                    Tensor newTensor = (Tensor) newElement;
-                    if (storage.needsTensorDelay() && newTensor.value != value) {
-                        value.delay();
-                        newTensor.value.resume();
-                    }
-                });
+    public void updateInternal(GraphElement newElement) {
+        super.updateInternal(newElement);
+        Tensor newTensor = (Tensor) newElement;
+        if (getStorage().needsTensorDelay() && newTensor.value != value) {
+            value.delay();
+            newTensor.value.resume();
+        }
     }
 
     /**

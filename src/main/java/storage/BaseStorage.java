@@ -18,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.function.Consumer;
 
 /**
  * Base Class for all storage Engines
@@ -123,6 +122,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     /**
      * Given a {@link GraphElement} add all its available {@link Feature}
+     *
      * @implNote This method is only called in <code>sync()</code> {@link GraphElement}
      */
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
@@ -149,13 +149,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      */
     public final Iterable<Plugin> getPlugins() {
         return this.plugins.values();
-    }
-
-    /**
-     * Run a callback on this storage if @param is not null
-     */
-    public final void runCallback(@Nullable Consumer<BaseStorage> a) {
-        if (a != null) a.accept(this);
     }
 
     /**

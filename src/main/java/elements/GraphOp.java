@@ -12,6 +12,9 @@ import java.util.Objects;
 
 /**
  * Main message object that gets sent around the system
+ * <p>
+ *     There are not getters for this element since all the fields are populated and there is no internal logic to its fields
+ * </p>
  */
 @SuppressWarnings("UnusedReturnValue")
 @TypeInfo(GraphOpTypeInfoFactory.class)
@@ -83,17 +86,9 @@ public final class GraphOp implements LifeCycleControl {
         return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
 
-    public @NotNull Op getOp() {
-        return op;
-    }
-
     public GraphOp setOp(@NotNull Op op) {
         this.op = op;
         return this;
-    }
-
-    public short getPartId() {
-        return partId;
     }
 
     public GraphOp setPartId(short partId) {
@@ -101,17 +96,9 @@ public final class GraphOp implements LifeCycleControl {
         return this;
     }
 
-    public GraphElement getElement() {
-        return element;
-    }
-
     public GraphOp setElement(GraphElement element) {
         this.element = element;
         return this;
-    }
-
-    public Long getTimestamp() {
-        return ts;
     }
 
     public GraphOp setTimestamp(Long ts) {
@@ -119,17 +106,9 @@ public final class GraphOp implements LifeCycleControl {
         return this;
     }
 
-    public @NotNull MessageCommunication getMessageCommunication() {
-        return messageCommunication;
-    }
-
     public GraphOp setMessageCommunication(@NotNull MessageCommunication messageCommunication) {
         this.messageCommunication = messageCommunication;
         return this;
-    }
-
-    public BaseOperatorEvent getOperatorEvent() {
-        return operatorEvent;
     }
 
     public GraphOp setOperatorEvent(BaseOperatorEvent operatorEvent) {
@@ -138,6 +117,7 @@ public final class GraphOp implements LifeCycleControl {
     }
 
     // OVERRIDE METHODS
+
     @Override
     public void resume() {
         if (element != null) element.resume();

@@ -10,12 +10,14 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.HyperSAGEConv;
+import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
+import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
+import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -63,11 +65,13 @@ public class Main {
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
-                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
+//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
+                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
                     ),
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
-                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
+//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
+                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(1).getName(), true, 50))
                     )
 
 

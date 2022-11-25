@@ -36,6 +36,11 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
+    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE, int BATCH_SIZE) {
+        super(modelName, trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
+        this.BATCH_SIZE = BATCH_SIZE;
+    }
+
     @Override
     public void open() throws Exception {
         super.open();

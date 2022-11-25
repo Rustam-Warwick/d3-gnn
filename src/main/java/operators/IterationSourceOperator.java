@@ -49,6 +49,7 @@ import java.util.concurrent.Executor;
  *
  * @implNote <strong>Termination Detection</strong> is carried by looking at the operator input and output rate, periodically
  */
+@Deprecated
 public class IterationSourceOperator extends StreamSource<GraphOp, IterationSourceOperator.MySourceFunction>
         implements FeedbackConsumer<StreamRecord<GraphOp>> {
 
@@ -114,8 +115,8 @@ public class IterationSourceOperator extends StreamSource<GraphOp, IterationSour
             BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e));
             BaseWrapperOperator.LOG.error(element.getValue().toString());
         } finally {
-            if (element.getValue().getElement() != null) {
-                element.getValue().getElement().resume();
+            if (element.getValue().element != null) {
+                element.getValue().element.resume();
             }
         }
     }

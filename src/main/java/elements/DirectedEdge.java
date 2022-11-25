@@ -4,9 +4,6 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
-import storage.BaseStorage;
-
-import java.util.function.Consumer;
 
 
 /**
@@ -146,17 +143,18 @@ public final class DirectedEdge extends GraphElement {
      * Creating src and dest vertices if they do not exist as well.
      * But never attempting to update it
      * </p>
+     *
      * @implNote If either vertices do not exist, and they are not in this element {@link NullPointerException} is thrown
      */
     @Override
-    public Consumer<BaseStorage> createInternal() {
+    public void createInternal() {
         if (!getStorage().containsVertex(getSrcId())) {
-            getStorage().runCallback(src.create());
+            src.create();
         }
         if (!getStorage().containsVertex(getDestId())) {
-             getStorage().runCallback(dest.create());
+            dest.create();
         }
-        return super.createInternal();
+        super.createInternal();
     }
 
     /**

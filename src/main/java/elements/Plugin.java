@@ -6,11 +6,12 @@ import operators.events.BaseOperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import storage.BaseStorage;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Plugin is a unique {@link GraphElement} that is attached to storage;
@@ -26,6 +27,11 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      * ID of this plugin, should be unique per storage
      */
     final public String id;
+
+    /**
+     * Plugin Logger
+     */
+    protected final static Logger LOG = LoggerFactory.getLogger(Plugin.class);
 
     public Plugin() {
         super((short) 0);
@@ -49,7 +55,7 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      * {@link IllegalStateException}
      */
     @Override
-    public Consumer<BaseStorage> create() {
+    public void create() {
         throw new IllegalStateException("Plugins are not created");
     }
 
@@ -57,7 +63,7 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      * {@link IllegalStateException}
      */
     @Override
-    public Consumer<BaseStorage> update(GraphElement newElement) {
+    public void update(GraphElement newElement) {
         throw new IllegalStateException("Plugins are not updated");
     }
 
@@ -73,7 +79,7 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      * {@link IllegalStateException}
      */
     @Override
-    public Consumer<BaseStorage> delete() {
+    public void delete() {
         throw new IllegalStateException("Plugins are not deleted");
     }
 

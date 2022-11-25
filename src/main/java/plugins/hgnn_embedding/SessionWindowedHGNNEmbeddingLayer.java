@@ -13,6 +13,8 @@ import features.Tensor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.util.ExceptionUtils;
+import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -96,7 +98,7 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
                 throughput.inc();
             }
         } catch (Exception e) {
-            System.out.println();
+            LOG.error(ExceptionUtils.stringifyException(e));
         } finally {
             BaseNDManager.getManager().resume();
         }

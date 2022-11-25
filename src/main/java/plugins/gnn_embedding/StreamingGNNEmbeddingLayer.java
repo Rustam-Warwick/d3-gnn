@@ -3,10 +3,7 @@ package plugins.gnn_embedding;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
-import elements.enums.EdgeType;
-import elements.enums.ElementType;
-import elements.enums.MessageDirection;
-import elements.enums.Op;
+import elements.enums.*;
 import features.Tensor;
 import functions.metrics.MovingAverageCounter;
 import org.apache.flink.metrics.Counter;
@@ -35,6 +32,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
+    }
+
+    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE) {
+        super(modelName, "inferencer", trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
     }
 
     /**
@@ -74,10 +75,9 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if ("f".equals(feature.getName()) && feature.ids.f0 == ElementType.VERTEX) {
+                // Feature is always second in creation because aggregators get created immediately after VERTEX
                 reduceOutEdges((Vertex) feature.getElement());
-                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
-            } else if(feature.getName().equals("agg") && feature.ids.f0 == ElementType.VERTEX){
-                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
+                if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
         }
     }
@@ -93,10 +93,11 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.ids.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
-                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
+                if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.ids.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
-                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
+                if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
+                    forward((Vertex) feature.getElement());
             }
         }
 

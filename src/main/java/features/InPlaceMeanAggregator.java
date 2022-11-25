@@ -9,9 +9,6 @@ import elements.enums.CopyContext;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
-import storage.BaseStorage;
-
-import java.util.function.Consumer;
 
 /**
  * Mean aggregator that does inplace operation hence the updated oldValue is never updated
@@ -59,11 +56,9 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> createInternal() {
-        return super.createInternal()
-                .andThen(storage -> {
-                    if (storage.needsTensorDelay()) value.f0.delay();
-                });
+    public void createInternal() {
+        super.createInternal();
+        if (getStorage().needsTensorDelay()) value.f0.delay();
     }
 
     /**
@@ -73,15 +68,13 @@ public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
-        return super.updateInternal(newElement)
-                .andThen(storage -> {
-                    InPlaceMeanAggregator newAggregator = (InPlaceMeanAggregator) newElement;
-                    if (storage.needsTensorDelay() && newAggregator.value.f0 != value.f0) {
-                        value.f0.delay();
-                        newAggregator.value.f0.resume();
-                    }
-                });
+    public void updateInternal(GraphElement newElement) {
+        super.updateInternal(newElement);
+        InPlaceMeanAggregator newAggregator = (InPlaceMeanAggregator) newElement;
+        if (getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
+            value.f0.delay();
+            newAggregator.value.f0.resume();
+        }
     }
 
     /**

@@ -1,8 +1,8 @@
 package datasets;
 
 import elements.DirectedEdge;
-import elements.HyperEgoGraph;
 import elements.GraphOp;
+import elements.HyperEgoGraph;
 import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.FlatMapFunction;
@@ -26,8 +26,8 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * Type of dataset to be used
      * <p>
-     *     v2n -> Vertex-to-Net: Meaning 1 Vertex(tag) with a list of Nets(questions)
-     *     n2v -> Net-to-Vertex: Meaning 1 Net(question) with a list of Vertices(tag)
+     * v2n -> Vertex-to-Net: Meaning 1 Vertex(tag) with a list of Nets(questions)
+     * n2v -> Net-to-Vertex: Meaning 1 Net(question) with a list of Vertices(tag)
      * </p>
      */
     @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "v2n", fallbackValue = "v2n", arity = "1", description = {"Type of tags dataset: v2n or n2v"})
@@ -36,8 +36,8 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * Type of the stream:
      * <p>
-     *     hypergraph -> Producing {@link HyperEgoGraph}s
-     *     edge-stream -> Producing a stream of {@link DirectedEdge}s
+     * hypergraph -> Producing {@link HyperEgoGraph}s
+     * edge-stream -> Producing a stream of {@link DirectedEdge}s
      * </p>
      */
     @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
@@ -52,7 +52,7 @@ public class TagsAskUbuntu extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("v2n")?"tags-ask-ubuntu-node-simplex.txt":"tags-ask-ubuntu-simplex-node.txt").toString();
+        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("v2n") ? "tags-ask-ubuntu-node-simplex.txt" : "tags-ask-ubuntu-simplex-node.txt").toString();
         String opName = String.format("TagsAskUbuntu[dataset=%s, stream=%s]", datasetType, streamType);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
         SingleOutputStreamOperator<GraphOp> parsed = (streamType.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseEdges())).setParallelism(1).name(String.format("Map %s", opName));

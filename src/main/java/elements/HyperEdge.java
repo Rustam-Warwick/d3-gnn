@@ -4,24 +4,23 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
 import org.jetbrains.annotations.Nullable;
-import storage.BaseStorage;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
  * Represents a Hyper-Edge in the Graph
  * A hyperEdge should have a unique ID similar to vertices
+ *
  * @implNote A {@link HyperEdge} will attempt to create {@link Vertex} but not update it, since latter can only happen in MASTER parts
  * <p>
  * {@link HyperEdge} can be distributed where each part is going to store a partial subset of its vertices.
  * {@link HyperEdge} supports partial vertex additions by merging the current vertex set with the incoming set, hence it can also perform updates on REPLICAS
  * <strong>All {@link Vertex} IDs of incoming {@link HyperEdge} will be added together without duplication checks. Make sure you send them once </strong>
  * <strong>
- *     In updates memento of {@link HyperEdge} will store the delta of vertex ids, in other words the new vertex ids that have been added
- *     While, <code>this</code> will store previous vertex ids merged with the incoming changes in vertex ids
+ * In updates memento of {@link HyperEdge} will store the delta of vertex ids, in other words the new vertex ids that have been added
+ * While, <code>this</code> will store previous vertex ids merged with the incoming changes in vertex ids
  * </strong>
  * </p>
  */
@@ -67,9 +66,9 @@ public final class HyperEdge extends ReplicableGraphElement {
     public HyperEdge(HyperEdge element, CopyContext context) {
         super(element, context);
         id = element.id;
-        if(context == CopyContext.SYNC){
+        if (context == CopyContext.SYNC) {
             vertexIds = Collections.emptyList();
-        }else{
+        } else {
             vertexIds = element.vertexIds;
             vertices = element.vertices;
         }
@@ -90,11 +89,11 @@ public final class HyperEdge extends ReplicableGraphElement {
      * </strong>
      */
     @Override
-    public Consumer<BaseStorage> createInternal() {
+    public void createInternal() {
         for (int i = 0; i < vertexIds.size(); i++) {
-            if (!getStorage().containsVertex(vertexIds.get(i))) getStorage().runCallback(vertices.get(i).create());
+            if (!getStorage().containsVertex(vertexIds.get(i))) vertices.get(i).create();
         }
-        return super.createInternal();
+        super.createInternal();
     }
 
     /**
@@ -104,11 +103,11 @@ public final class HyperEdge extends ReplicableGraphElement {
      * </p>
      */
     @Override
-    public Consumer<BaseStorage> update(GraphElement newElement) {
-        if (state() == ReplicaState.MASTER) return super.update(newElement);
+    public void update(GraphElement newElement) {
+        if (state() == ReplicaState.MASTER) super.update(newElement);
         else if (state() == ReplicaState.REPLICA) {
             assert newElement.features == null;
-            return updateInternal(newElement);
+            updateInternal(newElement);
         } else {
             throw new IllegalStateException("Not defined if this HyperEdge is Replica or Master");
         }
@@ -118,16 +117,17 @@ public final class HyperEdge extends ReplicableGraphElement {
     /**
      * {@inheritDoc}
      * <strong> Added partial vertex addition logic </strong>
+     *
      * @implNote Memento of {@link HyperEdge} stores the newly added {@link Vertex} ids!!!
      */
     @Override
-    public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
+    public void updateInternal(GraphElement newElement) {
         HyperEdge newHyperEdge = (HyperEdge) newElement;
         for (int i = 0; i < newHyperEdge.vertexIds.size(); i++) {
-            if (!getStorage().containsVertex(newHyperEdge.vertexIds.get(i)))
-                getStorage().runCallback(newHyperEdge.vertices.get(i).create());
+            if (!getStorage().containsVertex(newHyperEdge.vertexIds.get(i))) newHyperEdge.vertices.get(i).create();
         }
-        return ((Consumer<BaseStorage>) storage -> {vertexIds.addAll(newHyperEdge.vertexIds);}).andThen(super.updateInternal(newElement));
+        vertexIds.addAll(newHyperEdge.vertexIds);
+        super.updateInternal(newElement);
     }
 
     /**

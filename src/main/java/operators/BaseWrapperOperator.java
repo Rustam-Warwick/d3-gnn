@@ -372,8 +372,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
-            BaseOperatorEvent event = element.getValue().getOperatorEvent();
+        if (element.getValue().op == Op.OPERATOR_EVENT) {
+            BaseOperatorEvent event = element.getValue().operatorEvent;
             boolean processNow;
             if (event.direction == null) processNow = true;
             else {
@@ -387,7 +387,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 processActualElement(element);
             }
         } else {
-            if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+            if (element.getValue().messageCommunication == MessageCommunication.BROADCAST) {
                 element.getValue().setPartId(thisParts.get(0));
                 setKeyContextElement(element);
             }
@@ -652,7 +652,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public void runForAllKeys(Runnable o) throws IllegalStateException {
             try {
-                short tmp = element.getValue().getPartId();
+                short tmp = element.getValue().partId;
                 for (Short thisPart : thisParts) {
                     element.getValue().setPartId(thisPart);
                     setKeyContextElement(element);

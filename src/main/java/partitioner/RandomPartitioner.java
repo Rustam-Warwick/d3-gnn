@@ -3,7 +3,8 @@ package partitioner;
 
 import elements.DirectedEdge;
 import elements.GraphOp;
-import elements.Vertex;
+import elements.HyperEdge;
+import elements.HyperEgoGraph;
 import elements.enums.ElementType;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -12,6 +13,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,11 +21,13 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Implementation of Random graph partitioning algorithm
+ * Implementation of Random graph partitioning algorithm.
+ * Works for {@link DirectedEdge} and {@link elements.HyperEgoGraph} Streams
  */
 class RandomPartitioner extends Partitioner {
+
     public RandomPartitioner(String[] cmdArgs) {
-        super(cmdArgs);
+        super();
     }
 
     /**
@@ -38,9 +42,15 @@ class RandomPartitioner extends Partitioner {
      * Actual Random graph partitioning process function
      */
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
+
         public final short partitions;
-        public Map<String, List<Short>> masters = new ConcurrentHashMap<>(5000);
+
+        public Map<String, List<Short>> vertexPartitionTable = new ConcurrentHashMap<>();
+
+        public Map<String, List<Short>> hyperEdgePartitionTable = new ConcurrentHashMap<>();
+
         public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
+
         public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
 
         public RandomMapFunction(short partitions) {
@@ -65,45 +75,75 @@ class RandomPartitioner extends Partitioner {
 
         @Override
         public GraphOp map(GraphOp value) throws Exception {
+            short part = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
             if (value.element.getType() == ElementType.EDGE) {
-                value.partId = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
                 DirectedEdge directedEdge = (DirectedEdge) value.element;
-                masters.compute(directedEdge.getSrc().getId(), (srcId, val) -> {
-                    if (val == null) val = new ArrayList<>();
-                    if (!val.contains(value.partId)) {
-                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
-                        else totalNumberOfReplicas.incrementAndGet();
-                        val.add(value.partId);
+                vertexPartitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
+                    if (val == null) {
+                        // This is the first part of this vertex hence the master
+                        directedEdge.getSrc().masterPart = part;
+                        totalNumberOfVertices.incrementAndGet();
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                    } else {
+                        if (!val.contains(part)) {
+                            // Seocond or more part hence the replica
+                            totalNumberOfReplicas.incrementAndGet();
+                            val.add(part);
+                        }
+                        directedEdge.getSrc().masterPart = val.get(0);
+                        return val;
                     }
-                    return val;
                 });
-
-                masters.compute(directedEdge.getDest().getId(), (destId, val) -> {
-                    if (val == null) val = new ArrayList<>();
-                    if (!val.contains(value.partId)) {
-                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
-                        else totalNumberOfReplicas.incrementAndGet();
-                        val.add(value.partId);
+                vertexPartitionTable.compute(directedEdge.getDestId(), (key, val) -> {
+                    if (val == null) {
+                        // This is the first part of this vertex hence the master
+                        directedEdge.getDest().masterPart = part;
+                        totalNumberOfVertices.incrementAndGet();
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                    } else {
+                        if (!val.contains(part)) {
+                            // Seocond or more part hence the replica
+                            totalNumberOfReplicas.incrementAndGet();
+                            val.add(part);
+                        }
+                        directedEdge.getDest().masterPart = val.get(0);
+                        return val;
                     }
-                    return val;
                 });
-                directedEdge.getSrc().masterPart = this.masters.get(directedEdge.getSrc().getId()).get(0);
-                directedEdge.getDest().masterPart = this.masters.get(directedEdge.getDest().getId()).get(0);
-            } else if (value.element.getType() == ElementType.VERTEX) {
-                short part_tmp = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-                masters.compute(value.element.getId(), (srcId, val) -> {
-                    if (val == null) val = new ArrayList<>();
-                    if (!val.contains(value.partId)) {
-                        if (val.isEmpty()) totalNumberOfVertices.incrementAndGet();
-                        else totalNumberOfReplicas.incrementAndGet();
-                        val.add(value.partId);
+            }else if(value.element.getType() == ElementType.GRAPH){
+                HyperEgoGraph hyperEgoGraph = (HyperEgoGraph) value.element;
+                vertexPartitionTable.compute(hyperEgoGraph.getCentralVertex().getId(), (key, val) -> {
+                    if (val == null) {
+                        hyperEgoGraph.getCentralVertex().masterPart = part;
+                        return new ArrayList<>(List.of(part));
+                    } else {
+                        if (!val.contains(part)) {
+                            val.add(part);
+                        }
+                        hyperEgoGraph.getCentralVertex().masterPart = val.get(0);
+                        return val;
                     }
-                    return val;
                 });
-                ((Vertex) value.element).masterPart = this.masters.get(value.element.getId()).get(0);
-                value.partId = part_tmp;
+                for (HyperEdge hyperEdge : hyperEgoGraph.getHyperEdges()) {
+                    hyperEdgePartitionTable.compute(hyperEdge.getId(), (key, val) -> {
+                        if (val == null) {
+                            // This is the first part of this vertex hence the master
+                            hyperEdge.masterPart = part;
+                            totalNumberOfVertices.incrementAndGet();
+                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                        } else {
+                            if (!val.contains(part)) {
+                                // Seocond or more part hence the replica
+                                totalNumberOfReplicas.incrementAndGet();
+                                val.add(part);
+                            }
+                            hyperEdge.masterPart = val.get(0);
+                            return val;
+                        }
+                    });
+                }
             }
-            return value;
+            return value.setPartId(part);
         }
     }
 }

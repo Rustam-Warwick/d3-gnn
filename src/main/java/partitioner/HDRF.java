@@ -23,7 +23,8 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Implementation of HDRF <strong>vertex-cut</strong> partitioning algorithm
+ * Implementation of HDRF <strong>vertex-cut</strong> partitioning algorithm.
+ * Only works for {@link DirectedEdge} Streams
  */
 public class HDRF extends Partitioner {
 
@@ -72,10 +73,8 @@ public class HDRF extends Partitioner {
         public ConcurrentHashMap<String, Integer> partialDegTable = new ConcurrentHashMap<>();
         public ConcurrentHashMap<String, List<Short>> partitionTable = new ConcurrentHashMap<>();
         public ConcurrentHashMap<Short, Integer> partitionsSize = new ConcurrentHashMap<>();
-
         public AtomicInteger maxSize = new AtomicInteger(0);
         public AtomicInteger minSize = new AtomicInteger(0);
-        // Metrics proprs
         public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
         public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
 
@@ -83,7 +82,6 @@ public class HDRF extends Partitioner {
             this.numPartitions = numPartitions;
             this.lamb = lambda;
             this.eps = eps;
-
         }
 
         @Override
@@ -121,7 +119,7 @@ public class HDRF extends Partitioner {
             return lamb * res;
         }
 
-        public short computePartition(DirectedEdge directedEdge) {
+        public short partitionEdge(DirectedEdge directedEdge) {
             // 1. Increment the node degrees seen so far
             partialDegTable.merge(directedEdge.getSrcId(), 1, Integer::sum);
             partialDegTable.merge(directedEdge.getDestId(), 1, Integer::sum);
@@ -152,44 +150,43 @@ public class HDRF extends Partitioner {
             GraphElement elementToPartition = value.element;
             if (elementToPartition.getType() == ElementType.EDGE) {
                 DirectedEdge directedEdge = (DirectedEdge) elementToPartition;
-                short partition = this.computePartition(directedEdge);
+                short part = partitionEdge(directedEdge);
                 partitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
                     if (val == null) {
                         // This is the first part of this vertex hence the master
-                        directedEdge.getSrc().masterPart = partition;
+                        directedEdge.getSrc().masterPart = part;
                         totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
                     } else {
-                        if (!val.contains(partition)) {
+                        if (!val.contains(part)) {
                             // Seocond or more part hence the replica
                             totalNumberOfReplicas.incrementAndGet();
-                            val.add(partition);
+                            val.add(part);
                         }
                         directedEdge.getSrc().masterPart = val.get(0);
                         return val;
                     }
                 });
-
                 partitionTable.compute(directedEdge.getDestId(), (key, val) -> {
                     if (val == null) {
                         // This is the first part of this vertex hence the master
-                        directedEdge.getDest().masterPart = partition;
+                        directedEdge.getDest().masterPart = part;
                         totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(partition)));
+                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
                     } else {
-                        if (!val.contains(partition)) {
+                        if (!val.contains(part)) {
                             // Seocond or more part hence the replica
                             totalNumberOfReplicas.incrementAndGet();
-                            val.add(partition);
+                            val.add(part);
                         }
                         directedEdge.getDest().masterPart = val.get(0);
                         return val;
                     }
                 });
-
-                value.partId = partition;
+                out.collect(value.setPartId(part));
+            }else{
+                throw new IllegalStateException("HDRF Accepts DirectedEdges as input stream");
             }
-            out.collect(value);
         }
     }
 }

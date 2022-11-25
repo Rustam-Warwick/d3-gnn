@@ -158,16 +158,16 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
             switch (value.op) {
                 case COMMIT:
                     if (!getStorage().containsElement(value.element)) {
-                        getStorage().runCallback(value.element.create());
+                        value.element.create();
                     } else {
-                        getStorage().runCallback(getStorage().getElement(value.element).update(value.element));
+                        getStorage().getElement(value.element).update(value.element);
                     }
                     break;
                 case SYNC_REQUEST:
                     if (!getStorage().containsElement(value.element.getId(), value.element.getType())) {
                         // This can only occur if master is not here yet
                         GraphElement el = getStorage().getDummyElement(value.element.getId(), value.element.getType());
-                        getStorage().runCallback(el.create());
+                        el.create();
                         el.syncRequest(value.element);
                     } else {
                         GraphElement el = getStorage().getElement(value.element.getId(), value.element.getType());
@@ -184,7 +184,7 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                     break;
                 case OPERATOR_EVENT:
-                    getStorage().onOperatorEvent(value.getOperatorEvent());
+                    getStorage().onOperatorEvent(value.operatorEvent);
                     break;
             }
         } catch (Exception | Error e) {
