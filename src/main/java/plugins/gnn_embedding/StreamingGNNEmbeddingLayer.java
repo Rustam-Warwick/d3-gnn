@@ -73,9 +73,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             }
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.ids.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                // No need to check for agg since it is always the second thing that comes
+            if ("f".equals(feature.getName()) && feature.ids.f0 == ElementType.VERTEX) {
                 reduceOutEdges((Vertex) feature.getElement());
+                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
+            } else if(feature.getName().equals("agg") && feature.ids.f0 == ElementType.VERTEX){
                 if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             }
         }

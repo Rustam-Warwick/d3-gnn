@@ -14,11 +14,15 @@ import java.util.stream.Collectors;
 /**
  * Represents a Hyper-Edge in the Graph
  * A hyperEdge should have a unique ID similar to vertices
- *
  * @implNote A {@link HyperEdge} will attempt to create {@link Vertex} but not update it, since latter can only happen in MASTER parts
  * <p>
  * {@link HyperEdge} can be distributed where each part is going to store a partial subset of its vertices.
  * {@link HyperEdge} supports partial vertex additions by merging the current vertex set with the incoming set, hence it can also perform updates on REPLICAS
+ * <strong>All {@link Vertex} IDs of incoming {@link HyperEdge} will be added together without duplication checks. Make sure you send them once </strong>
+ * <strong>
+ *     In updates memento of {@link HyperEdge} will store the delta of vertex ids, in other words the new vertex ids that have been added
+ *     While, <code>this</code> will store previous vertex ids merged with the incoming changes in vertex ids
+ * </strong>
  * </p>
  */
 public final class HyperEdge extends ReplicableGraphElement {
@@ -63,7 +67,9 @@ public final class HyperEdge extends ReplicableGraphElement {
     public HyperEdge(HyperEdge element, CopyContext context) {
         super(element, context);
         id = element.id;
-        if (context != CopyContext.SYNC) {
+        if(context == CopyContext.SYNC){
+            vertexIds = Collections.emptyList();
+        }else{
             vertexIds = element.vertexIds;
             vertices = element.vertices;
         }
@@ -85,11 +91,10 @@ public final class HyperEdge extends ReplicableGraphElement {
      */
     @Override
     public Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> callback = null;
         for (int i = 0; i < vertexIds.size(); i++) {
-            if (!getStorage().containsVertex(vertexIds.get(i))) callback = chain(callback, vertices.get(i).create());
+            if (!getStorage().containsVertex(vertexIds.get(i))) getStorage().runCallback(vertices.get(i).create());
         }
-        return chain(callback, super.createInternal());
+        return super.createInternal();
     }
 
     /**
@@ -109,34 +114,20 @@ public final class HyperEdge extends ReplicableGraphElement {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * super.updateInternal skips the partial vertex update logic, since hyperedges should not replicated their partial vertex set
-     * </p>
-     */
-    @Override
-    public void sync(GraphElement newElement) {
-        getStorage().runCallback(super.updateInternal(newElement));
-    }
 
     /**
      * {@inheritDoc}
-     * <strong> Added partial vertex addition </strong>
+     * <strong> Added partial vertex addition logic </strong>
+     * @implNote Memento of {@link HyperEdge} stores the newly added {@link Vertex} ids!!!
      */
     @Override
     public Consumer<BaseStorage> updateInternal(GraphElement newElement) {
         HyperEdge newHyperEdge = (HyperEdge) newElement;
-        Consumer<BaseStorage> callback = null;
         for (int i = 0; i < newHyperEdge.vertexIds.size(); i++) {
             if (!getStorage().containsVertex(newHyperEdge.vertexIds.get(i)))
-                callback = chain(callback, newHyperEdge.vertices.get(i).create());
+                getStorage().runCallback(newHyperEdge.vertices.get(i).create());
         }
-        return chain(callback, storage -> {
-            List<String> currentVIdList = List.copyOf(vertexIds);
-            vertexIds.addAll(newHyperEdge.vertexIds);
-            newHyperEdge.vertexIds = currentVIdList;
-        }).andThen(super.updateInternal(newElement));
+        return ((Consumer<BaseStorage>) storage -> {vertexIds.addAll(newHyperEdge.vertexIds);}).andThen(super.updateInternal(newElement));
     }
 
     /**

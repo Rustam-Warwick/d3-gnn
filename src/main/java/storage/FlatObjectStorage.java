@@ -15,17 +15,17 @@ import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 import java.util.*;
 
 /**
- * @implNote Only use if using InMemoryState backend
+ * @implNote Only use if using InMemoryStateBackend backend
  */
 public class FlatObjectStorage extends BaseStorage {
     protected MapState<String, Vertex> vertexTable;
     protected MapState<String, Feature<?, ?>> attachedFeatureTable;
     protected MapState<String, Feature<?, ?>> independentFeatureTable;
-    protected MapState<String, Map<String, List<String>>> outEdgeTable;
-    protected MapState<String, Map<String, List<String>>> inEdgeTable;
+    protected MapState<String, Map<String, List<DirectedEdge>>> outEdgeTable;
+    protected MapState<String, Map<String, List<DirectedEdge>>> inEdgeTable;
     protected MapState<String, DirectedEdge> edgeTable;
     protected MapState<String, HyperEdge> hyperEdgeTable;
-    protected MapState<String, List<String>> vertex2HyperEdge;
+    protected MapState<String, List<HyperEdge>> vertex2HyperEdge;
 
     public FlatObjectStorage() {
 
@@ -33,14 +33,14 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public void open() throws Exception {
-        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursivePojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null, true));
-        MapStateDescriptor<String, DirectedEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null, true));
-        MapStateDescriptor<String, HyperEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<HyperEdge>().createTypeInfo(HyperEdge.class, null, true));
-        MapStateDescriptor<String, Map<String, List<String>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
-        MapStateDescriptor<String, Map<String, List<String>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(Types.STRING)));
-        MapStateDescriptor<String, List<String>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(Types.STRING));
+        MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursivePojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null));
+        MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
+        MapStateDescriptor<String, DirectedEdge> edgeTableDesc = new MapStateDescriptor<>("edgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null));
+        MapStateDescriptor<String, HyperEdge> hyperEdgeTableDesc = new MapStateDescriptor<>("hyperEdgeTable", Types.STRING, new RecursivePojoTypeInfoFactory<HyperEdge>().createTypeInfo(HyperEdge.class, null));
+        MapStateDescriptor<String, Map<String, List<DirectedEdge>>> outEdgeTableDesc = new MapStateDescriptor<>("outEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null))));
+        MapStateDescriptor<String, Map<String, List<DirectedEdge>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null))));
+        MapStateDescriptor<String, List<HyperEdge>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(new RecursivePojoTypeInfoFactory<HyperEdge>().createTypeInfo(HyperEdge.class, null)));
 
         edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
         hyperEdgeTable = layerFunction.getRuntimeContext().getMapState(hyperEdgeTableDesc);
@@ -99,12 +99,12 @@ public class FlatObjectStorage extends BaseStorage {
             directedEdge.src = getVertex(directedEdge.getSrcId());
             directedEdge.dest = getVertex(directedEdge.getDestId());
             edgeTable.put(directedEdge.getId(), directedEdge);
-            Map<String, List<String>> outEdges = outEdgeTable.contains(directedEdge.getSrcId()) ? outEdgeTable.get(directedEdge.getSrcId()) : new HashMap<>();
-            Map<String, List<String>> inEdges = inEdgeTable.contains(directedEdge.getDestId()) ? inEdgeTable.get(directedEdge.getDestId()) : new HashMap<>();
+            Map<String, List<DirectedEdge>> outEdges = outEdgeTable.contains(directedEdge.getSrcId()) ? outEdgeTable.get(directedEdge.getSrcId()) : new HashMap<>();
+            Map<String, List<DirectedEdge>> inEdges = inEdgeTable.contains(directedEdge.getDestId()) ? inEdgeTable.get(directedEdge.getDestId()) : new HashMap<>();
             outEdges.computeIfAbsent(directedEdge.getDestId(), (key) -> new ArrayList<>());
             inEdges.computeIfAbsent(directedEdge.getSrcId(), (key) -> new ArrayList<>());
-            outEdges.get(directedEdge.getDestId()).add(directedEdge.getId());
-            inEdges.get(directedEdge.getSrcId()).add(directedEdge.getId());
+            outEdges.get(directedEdge.getDestId()).add(directedEdge);
+            inEdges.get(directedEdge.getSrcId()).add(directedEdge);
             outEdgeTable.put(directedEdge.getSrcId(), outEdges);
             inEdgeTable.put(directedEdge.getDestId(), inEdges);
             return true;
@@ -118,12 +118,14 @@ public class FlatObjectStorage extends BaseStorage {
     public boolean addHyperEdge(HyperEdge hyperEdge) {
         try {
             hyperEdgeTable.put(hyperEdge.getId(), hyperEdge);
-            for (String vertexId : hyperEdge.vertexIds) {
-                if (!vertex2HyperEdge.contains(vertexId)) vertex2HyperEdge.put(vertexId, new ArrayList<>());
-                List<String> tmp = vertex2HyperEdge.get(vertexId);
-                if (!tmp.contains(hyperEdge.getId())) {
-                    tmp.add(hyperEdge.getId());
-                    vertex2HyperEdge.put(vertexId, tmp);
+            for (String vertexId : hyperEdge.getVertexIds()) {
+                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId)?vertex2HyperEdge.get(vertexId):new ArrayList<>(50);
+                backwardList.add(hyperEdge);
+                vertex2HyperEdge.put(vertexId, backwardList);
+            }
+            if(hyperEdge.vertices != null){
+                for (int i = 0; i < hyperEdge.vertices.size(); i++) {
+                    hyperEdge.vertices.set(i, getVertex(hyperEdge.vertexIds.get(i)));
                 }
             }
             return true;
@@ -167,7 +169,17 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Override
     public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
-        return true;
+        try{
+            for (String vertexId : memento.getVertexIds()) {
+                List<HyperEdge> backwardList = vertex2HyperEdge.contains(vertexId)?vertex2HyperEdge.get(vertexId):new ArrayList<>(50);
+                backwardList.add(hyperEdge);
+                vertex2HyperEdge.put(vertexId, backwardList);
+            }
+            return true;
+        }catch (Exception e){
+            e.printStackTrace();
+            return false;
+        }
     }
 
     @Override
@@ -197,9 +209,9 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Vertex getVertex(String id) {
+    public Vertex getVertex(String vertexId) {
         try {
-            return vertexTable.get(id);
+            return vertexTable.get(vertexId);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -219,24 +231,24 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
+    public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId) {
         try {
-            if (id == null)
-                id = DirectedEdge.encodeEdgeId(srcId, destId, attributeId);
-            return edgeTable.get(id);
+            if (edgeId == null)
+                edgeId = DirectedEdge.encodeEdgeId(srcId, destId, attributeId);
+            return edgeTable.get(edgeId);
         } catch (Exception e) {
             return null;
         }
     }
 
     @Override
-    public Iterable<DirectedEdge> getEdges(String src, String dest) {
+    public Iterable<DirectedEdge> getEdges(String srcId, String destId) {
         try {
-            if (outEdgeTable.contains(src)) {
-                Map<String, List<String>> outEdges = outEdgeTable.get(src);
-                if (outEdges.containsKey(dest)) {
+            if (outEdgeTable.contains(srcId)) {
+                Map<String, List<DirectedEdge>> outEdges = outEdgeTable.get(srcId);
+                if (outEdges.containsKey(destId)) {
                     return () -> IteratorUtils.transformedIterator(
-                            outEdges.get(dest).iterator(), str -> getEdge(src, dest, null, (String) str)
+                            outEdges.get(destId).iterator(), edge -> edge
                     );
                 }
             }
@@ -253,17 +265,16 @@ public class FlatObjectStorage extends BaseStorage {
             Iterator<DirectedEdge> inEdgesIterator = IteratorUtils.emptyIterator();
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (outEdgeTable.contains(vertex.getId())) {
-                    Map<String, List<String>> outEdges = outEdgeTable.get(vertex.getId());
-                    outEdgesIterator = IteratorUtils.transformedIterator(outEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge(null, null, null, (String) str));
+                    Map<String, List<DirectedEdge>> outEdges = outEdgeTable.get(vertex.getId());
+                    outEdgesIterator = outEdges.values().stream().flatMap(Collection::stream).iterator();
                 }
 
             } else if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
                 if (inEdgeTable.contains(vertex.getId())) {
-                    Map<String, List<String>> inEdges = inEdgeTable.get(vertex.getId());
-                    inEdgesIterator = IteratorUtils.transformedIterator(inEdges.values().stream().flatMap(edgesList -> edgesList.stream()).iterator(), str -> getEdge(null, null, null, (String) str));
+                    Map<String, List<DirectedEdge>> inEdges = inEdgeTable.get(vertex.getId());
+                    inEdgesIterator = inEdges.values().stream().flatMap(Collection::stream).iterator();
                 }
             }
-
             Iterator<DirectedEdge> finalOutEdgesIterator = outEdgesIterator;
             Iterator<DirectedEdge> finalInEdgesIterator = inEdgesIterator;
             return () -> IteratorUtils.chainedIterator(finalOutEdgesIterator, finalInEdgesIterator);
@@ -275,11 +286,11 @@ public class FlatObjectStorage extends BaseStorage {
 
 
     @Override
-    public Iterable<HyperEdge> getIncidentHyperEdges(Vertex id) {
+    public Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex) {
         try {
-            if (vertex2HyperEdge.contains(id.getId())) {
-                List<String> vEdges = vertex2HyperEdge.get(id.getId());
-                return () -> IteratorUtils.transformedIterator(vEdges.iterator(), hEdgeId -> getHyperEdge((String) hEdgeId));
+            if (vertex2HyperEdge.contains(vertex.getId())) {
+                final Iterator<HyperEdge> tmpIterator = vertex2HyperEdge.get(vertex.getId()).iterator();
+                return ()-> tmpIterator;
             } else return Collections.emptyList();
         } catch (Exception e) {
             e.printStackTrace();
@@ -288,9 +299,9 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public HyperEdge getHyperEdge(String id) {
+    public HyperEdge getHyperEdge(String hyperEdgeId) {
         try {
-            return hyperEdgeTable.get(id);
+            return hyperEdgeTable.get(hyperEdgeId);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -299,9 +310,9 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getStandaloneFeature(String id) {
+    public Feature<?, ?> getStandaloneFeature(String featureName) {
         try {
-            return independentFeatureTable.get(id);
+            return independentFeatureTable.get(featureName);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -310,10 +321,10 @@ public class FlatObjectStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
+    public Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
-            if (id == null) id = Feature.encodeFeatureId(elementType, elementId, featureName);
-            return attachedFeatureTable.get(id);
+            if (featureId == null) featureId = Feature.encodeFeatureId(attachedType, attachedId, featureName);
+            return attachedFeatureTable.get(featureId);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -321,9 +332,9 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsVertex(String id) {
+    public boolean containsVertex(String vertexId) {
         try {
-            return vertexTable.contains(id);
+            return vertexTable.contains(vertexId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -331,10 +342,10 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
+    public boolean containsAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
-            if (id == null) id = Feature.encodeFeatureId(elementType, elementId, featureName);
-            return attachedFeatureTable.contains(id);
+            if (featureId == null) featureId = Feature.encodeFeatureId(attachedType, attachedId, featureName);
+            return attachedFeatureTable.contains(featureId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -342,9 +353,9 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsStandaloneFeature(String id) {
+    public boolean containsStandaloneFeature(String featureName) {
         try {
-            return independentFeatureTable.contains(id);
+            return independentFeatureTable.contains(featureName);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -352,11 +363,11 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
+    public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId) {
         try {
-            if (id == null)
-                id = DirectedEdge.encodeEdgeId(srcId, destId, attributeId);
-            return edgeTable.contains(id);
+            if (edgeId == null)
+                edgeId = DirectedEdge.encodeEdgeId(srcId, destId, attributeId);
+            return edgeTable.contains(edgeId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -364,9 +375,9 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsHyperEdge(String id) {
+    public boolean containsHyperEdge(String hyperEdgeId) {
         try {
-            return hyperEdgeTable.contains(id);
+            return hyperEdgeTable.contains(hyperEdgeId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;

@@ -58,6 +58,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
+
     public abstract boolean addAttachedFeature(Feature<?, ?> feature);
 
     public abstract boolean addStandaloneFeature(Feature<?, ?> feature);
@@ -89,51 +90,55 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
 
     @Nullable
-    public abstract Vertex getVertex(String id);
+    public abstract Vertex getVertex(String vertexId);
 
     public abstract Iterable<Vertex> getVertices();
 
     @Nullable
-    public abstract DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
+    public abstract DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId);
 
-    public abstract Iterable<DirectedEdge> getEdges(String src, String dest);
+    public abstract Iterable<DirectedEdge> getEdges(String srcId, String destId);
 
     public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
-    public abstract HyperEdge getHyperEdge(String id);
+    public abstract HyperEdge getHyperEdge(String hyperEdgeId);
 
-    public abstract Iterable<HyperEdge> getIncidentHyperEdges(Vertex id);
-
-    @Nullable
-    public abstract Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id);
+    public abstract Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex);
 
     @Nullable
-    public abstract Feature<?, ?> getStandaloneFeature(String id);
+    public abstract Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId);
 
-    public abstract boolean containsVertex(String id);
+    @Nullable
+    public abstract Feature<?, ?> getStandaloneFeature(String featureName);
 
-    public abstract boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id);
+    public abstract boolean containsVertex(String vertexId);
 
-    public abstract boolean containsStandaloneFeature(String id);
+    public abstract boolean containsAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId);
 
-    public abstract boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id);
+    public abstract boolean containsStandaloneFeature(String featureName);
 
-    public abstract boolean containsHyperEdge(String id);
+    public abstract boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId);
 
+    public abstract boolean containsHyperEdge(String hyperEdgeId);
+
+    /**
+     * Given a {@link GraphElement} add all its available {@link Feature}
+     * @implNote This method is only called in <code>sync()</code> {@link GraphElement}
+     */
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
 
 
-    // -------------------------- BASESTORAGE METHODS ------------------------------
+    // -------------------------- BASE STORAGE HELPER METHODS ------------------------------
 
     /**
-     * Do elements need to delay Tensors on serialization
+     * Do elements need to delay Tensors on serialization, {@link Feature} having an {@link ai.djl.ndarray.NDArray} in them should consider delaying if storage requires so.
      */
     public boolean needsTensorDelay() {
         return true;
     }
 
     /**
-     * Retrive plugin
+     * Get a specific plugin by its name
      */
     public final Plugin getPlugin(String id) {
         return this.plugins.get(id);
@@ -147,17 +152,17 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     /**
-     * Register a callback to be fired in the future
+     * Run a callback on this storage if @param is not null
      */
     public final void runCallback(@Nullable Consumer<BaseStorage> a) {
         if (a != null) a.accept(this);
     }
 
     /**
-     * Add plugin to this Storage
+     * Add plugin to this Storage on job startup time
      */
     public final BaseStorage withPlugin(Plugin plugin) {
-        assert plugin.getId() != null;
+        assert plugin.getId() != null && !plugin.containsFeature(plugin.getId());
         plugins.put(plugin.getId(), plugin);
         return this;
     }
@@ -368,20 +373,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
         }
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
-    }
-
-    public final GraphElement createLateElement(String id, ElementType elementType) {
-        switch (elementType) {
-            case VERTEX:
-                Vertex v = new Vertex(id, layerFunction.getCurrentPart());
-                runCallback(v.create());
-                return v;
-            case HYPEREDGE:
-                HyperEdge e = new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
-                runCallback(e.create());
-                return e;
-        }
-        return null;
     }
 
     // Remove Cached Plugin Features on Key Change. Important since plugins are always in memory

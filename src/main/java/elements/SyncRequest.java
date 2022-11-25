@@ -41,26 +41,59 @@ public final class SyncRequest extends GraphElement {
         partId = element.partId;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public SyncRequest copy(CopyContext context) {
         return new SyncRequest(this, context);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getId() {
         return elementId;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ElementType getType() {
         return elementType;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ReplicaState state() {
         return ReplicaState.REPLICA;
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void onDeserialized() {}
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume() {}
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void delay() {}
+
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public short getPart() {
         return partId;

@@ -1,6 +1,6 @@
 package partitioner;
 
-import elements.EgoHyperGraph;
+import elements.HyperEgoGraph;
 import elements.GraphOp;
 import elements.HyperEdge;
 import elements.enums.ElementType;
@@ -87,7 +87,7 @@ public class HyperGraphMinMax extends Partitioner {
             });
         }
 
-        public short partitionSubHyperGraph(EgoHyperGraph graph) {
+        public short partitionSubHyperGraph(HyperEgoGraph graph) {
             int active = 0;
             String vertexId = graph.getCentralVertex().getId();
             for (HyperEdge hyperEdge : graph.getHyperEdges()) {
@@ -123,7 +123,7 @@ public class HyperGraphMinMax extends Partitioner {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             if (value.element.getType() == ElementType.GRAPH) {
-                EgoHyperGraph graph = (EgoHyperGraph) value.element;
+                HyperEgoGraph graph = (HyperEgoGraph) value.element;
                 short part = partitionSubHyperGraph(graph); // Get the correct part
                 // Update vertex part table and master part
                 vertex2p.compute(graph.getCentralVertex().getId(), (key, val) -> {

@@ -1,7 +1,7 @@
 package datasets;
 
 import elements.DirectedEdge;
-import elements.EgoHyperGraph;
+import elements.HyperEgoGraph;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
@@ -24,10 +24,24 @@ import java.util.List;
 public class TagsAskUbuntu extends Dataset {
 
     /**
-     * Type of TagAskUbuntu stream: hypergraph, star-graph stream
+     * Type of dataset to be used
+     * <p>
+     *     v2n -> Vertex-to-Net: Meaning 1 Vertex(tag) with a list of Nets(questions)
+     *     n2v -> Net-to-Vertex: Meaning 1 Net(question) with a list of Vertices(tag)
+     * </p>
      */
-    @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of tags stream: hypergraph or star-graph"})
-    protected String type;
+    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "v2n", fallbackValue = "v2n", arity = "1", description = {"Type of tags dataset: v2n or n2v"})
+    protected String datasetType;
+
+    /**
+     * Type of the stream:
+     * <p>
+     *     hypergraph -> Producing {@link HyperEgoGraph}s
+     *     edge-stream -> Producing a stream of {@link DirectedEdge}s
+     * </p>
+     */
+    @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
+    protected String streamType;
 
     public TagsAskUbuntu(String[] cmdArgs) {
         super(cmdArgs);
@@ -38,20 +52,10 @@ public class TagsAskUbuntu extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String fileName;
-        switch (type) {
-            case "hypergraph":
-                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-node-simplex.txt").toString();
-                break;
-            case "star-graph":
-                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-simplex-node.txt").toString();
-                break;
-            default:
-                throw new IllegalStateException("TagsAskUbuntu operates in 2 modes: hypergraph or star-graph");
-        }
-        String opName = String.format("TagsAskUbuntu[%s]", type);
+        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("v2n")?"tags-ask-ubuntu-node-simplex.txt":"tags-ask-ubuntu-simplex-node.txt").toString();
+        String opName = String.format("TagsAskUbuntu[dataset=%s, stream=%s]", datasetType, streamType);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = (type.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseGraph())).setParallelism(1).name(String.format("Map %s", opName));
+        SingleOutputStreamOperator<GraphOp> parsed = (streamType.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseEdges())).setParallelism(1).name(String.format("Map %s", opName));
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             fileReader.slotSharingGroup("file-input");
@@ -77,7 +81,7 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * String -> {@link GraphOp} for star-graph stream
      */
-    public static class ParseGraph implements FlatMapFunction<String, GraphOp> {
+    public static class ParseEdges implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
             String[] values = value.split(",");
@@ -100,8 +104,8 @@ public class TagsAskUbuntu extends Dataset {
             Vertex src = new Vertex(values[0]);
             List<String> hyperEdgeIds = new ArrayList<>(values.length - 1);
             hyperEdgeIds.addAll(Arrays.asList(values).subList(1, values.length));
-            EgoHyperGraph egoHyperGraph = new EgoHyperGraph(src, hyperEdgeIds);
-            out.collect(new GraphOp(Op.COMMIT, egoHyperGraph));
+            HyperEgoGraph hyperEgoGraph = new HyperEgoGraph(src, hyperEdgeIds);
+            out.collect(new GraphOp(Op.COMMIT, hyperEgoGraph));
         }
     }
 }

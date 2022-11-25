@@ -146,19 +146,17 @@ public final class DirectedEdge extends GraphElement {
      * Creating src and dest vertices if they do not exist as well.
      * But never attempting to update it
      * </p>
-     *
      * @implNote If either vertices do not exist, and they are not in this element {@link NullPointerException} is thrown
      */
     @Override
-    public Consumer<BaseStorage> create() {
-        Consumer<BaseStorage> callback = null;
+    public Consumer<BaseStorage> createInternal() {
         if (!getStorage().containsVertex(getSrcId())) {
-            callback = src.create();
+            getStorage().runCallback(src.create());
         }
         if (!getStorage().containsVertex(getDestId())) {
-            callback = chain(callback, dest.create());
+             getStorage().runCallback(dest.create());
         }
-        return chain(callback, super.create());
+        return super.createInternal();
     }
 
     /**

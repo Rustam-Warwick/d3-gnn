@@ -38,13 +38,10 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClas
  */
 public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
 
+
+
     @Override
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
-        return this.createTypeInfo(t, genericParameters, false);
-    }
-
-
-    public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters, boolean omitStorage) {
         try {
             Class<T> clazz = TypeExtractionUtils.typeToClass(t);
             List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);

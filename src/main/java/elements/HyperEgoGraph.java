@@ -13,20 +13,20 @@ import java.util.stream.Collectors;
 /**
  * HyperGraph Represents a subgraph which comprises list of {@link HyperEdge} and a central {@link Vertex}
  *
- * @implNote A {@link EgoHyperGraph} will attempt to create {@link Vertex} but not update it, since latter can only happen in MASTER parts
+ * @implNote A {@link HyperEgoGraph} will attempt to create {@link Vertex} but not update it, since latter can only happen in MASTER parts
  * @implNote GRAPH {@link ElementType}s are not meant for storage only used as a wrapper around a set of {@link GraphElement}
  */
-public class EgoHyperGraph extends GraphElement {
+public final class HyperEgoGraph extends GraphElement {
 
     public Vertex centralVertex;
 
     public List<HyperEdge> hyperEdges;
 
-    public EgoHyperGraph() {
+    public HyperEgoGraph() {
         super();
     }
 
-    public EgoHyperGraph(Vertex centralVertex, List<String> hyperEdgeIds) {
+    public HyperEgoGraph(Vertex centralVertex, List<String> hyperEdgeIds) {
         super();
         this.centralVertex = centralVertex;
         List<String> vertexIdList = List.of(centralVertex.getId());
@@ -41,10 +41,16 @@ public class EgoHyperGraph extends GraphElement {
         throw new NotImplementedException("Copy not implemented for HGraph");
     }
 
+    /**
+     * Get the {@link HyperEdge}s stored
+     */
     public List<HyperEdge> getHyperEdges() {
         return hyperEdges;
     }
 
+    /**
+     * Get the central {@link Vertex} stored
+     */
     public Vertex getCentralVertex() {
         return centralVertex;
     }
@@ -55,14 +61,13 @@ public class EgoHyperGraph extends GraphElement {
      */
     @Override
     public Consumer<BaseStorage> create() {
-        Consumer<BaseStorage> callback = null;
-        if (!getStorage().containsVertex(centralVertex.getId())) callback = chain(callback, centralVertex.create());
+        if (!getStorage().containsVertex(centralVertex.getId())) getStorage().runCallback(centralVertex.create());
         for (HyperEdge hyperEdge : hyperEdges) {
             if (getStorage().containsHyperEdge(hyperEdge.getId()))
-                callback = chain(callback, getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge));
-            else callback = chain(callback, hyperEdge.create());
+                getStorage().runCallback(getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge));
+            else getStorage().runCallback(hyperEdge.create());
         }
-        return callback;
+        return null;
     }
 
     /**

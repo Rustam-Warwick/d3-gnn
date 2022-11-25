@@ -17,6 +17,7 @@ public class PrintHEdgePlugin extends Plugin {
     public List<String> registeredHEdges = new ArrayList<String>();
 
     public PrintHEdgePlugin(String... hEdgeIds) {
+        super("print-hyperedge");
         Collections.addAll(registeredHEdges, hEdgeIds);
     }
 
@@ -29,7 +30,7 @@ public class PrintHEdgePlugin extends Plugin {
         if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if (feature.ids.f0 == ElementType.HYPEREDGE && registeredHEdges.contains(feature.ids.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
+                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of HyperEdge (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
             }
         }
     }
@@ -43,7 +44,7 @@ public class PrintHEdgePlugin extends Plugin {
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             if (feature.ids != null && registeredHEdges.contains(feature.ids.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
+                BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of HyperEdge (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
             }
         }
     }

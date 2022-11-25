@@ -15,6 +15,7 @@ import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.hgnn_embedding.StreamingHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -62,9 +63,14 @@ public class Main {
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
-//                            .withPlugin(new HGNNS(models.get(0).getName(), true))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
+                    ),
+                    new StreamingStorageProcessFunction(new FlatObjectStorage()
+                            .withPlugin(new ModelServer<>(models.get(1)))
+                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
                     )
+
+
             ).build();
 
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

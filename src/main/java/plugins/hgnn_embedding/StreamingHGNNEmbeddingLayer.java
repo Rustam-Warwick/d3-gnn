@@ -50,8 +50,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         if (element.getType() == ElementType.VERTEX) {
-            Vertex vertex = (Vertex) element;
-            initVertex(vertex); // Initialize the feature and aggregators
+            initVertex((Vertex) element); // Initialize the feature and aggregators
         } else if (element.getType() == ElementType.HYPEREDGE) {
             HyperEdge edge = (HyperEdge) element;
             initHyperEdge(edge); // Initialize the aggregator for the hyper-edges
@@ -61,6 +60,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             if (feature.getName().equals("f") && feature.ids.f0 == ElementType.VERTEX) {
                 reduceF1((Tensor) feature); // Reduce to hyper-edges for the given vertex feature (F1)
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
+            } else if(feature.getName().equals("agg") && feature.ids.f0 == ElementType.VERTEX){
+                if (updateReady((Vertex) feature.getElement())) forward((Vertex) feature.getElement());
             } else if (feature.getName().equals("agg") && feature.ids.f0 == ElementType.HYPEREDGE) {
                 reduceF2((MeanAggregator) feature); // Reduce all vertex messages
             }
@@ -73,8 +74,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         if (newElement.getType() == ElementType.HYPEREDGE) {
             HyperEdge newEdge = (HyperEdge) newElement;
             HyperEdge oldEdge = (HyperEdge) oldElement;
-            if (newEdge.getVertexIds().size() != oldEdge.getVertexIds().size())
-                reduceF1(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
+            if (oldEdge.getVertexIds().size() > 0)
+                partialReduceF1andF2(newEdge, oldEdge); // Reduce from newly arrived vertices (F1)
         } else if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> newFeature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -84,8 +85,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             } else if (newFeature.getName().equals("agg") && newFeature.ids.f0 == ElementType.HYPEREDGE) {
                 replaceF2((MeanAggregator) newFeature, (MeanAggregator) oldFeature); // Replace previously reduced vertices (F2)
             } else if (newFeature.getName().equals("agg") && newFeature.ids.f0 == ElementType.VERTEX) {
-                Vertex v = (Vertex) newFeature.getElement();
-                if (v.containsFeature("f")) forward((Vertex) newFeature.getElement());
+                if (updateReady((Vertex) newFeature.getElement())) forward((Vertex) newFeature.getElement());
             }
         }
     }
@@ -103,7 +103,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         tmp.ids.f1 = v.getId();
         throughput.inc();
         latency.inc(getStorage().layerFunction.getTimerService().currentProcessingTime() - getStorage().layerFunction.currentTimestamp());
-        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, tmp.getMasterPart(), tmp), MessageDirection.FORWARD);
+        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp), MessageDirection.FORWARD);
     }
 
     /**
@@ -129,18 +129,30 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     /**
      * Reduce from new vertices added to hyper-edge (F1)
      */
-    public void reduceF1(HyperEdge newEdge, HyperEdge oldEdge) {
-        for (int i = oldEdge.getVertexIds().size(); i < newEdge.vertexIds.size(); i++) {
+    public void partialReduceF1andF2(HyperEdge newEdge, HyperEdge oldEdge) {
+        NDList f2Message = newEdge.containsFeature("agg")?new NDList((NDArray) newEdge.getFeature("agg").getValue()):null;
+        for (int i = newEdge.getVertexIds().size() - oldEdge.getVertexIds().size(); i < newEdge.getVertexIds().size(); i++) {
             Vertex vertex = newEdge.getVertex(i);
             if (messageReady(vertex)) {
-                NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
+                NDList f1Message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
                         Feature.encodeFeatureId(ElementType.HYPEREDGE, newEdge.getId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         newEdge.getMasterPart(),
                         MessageDirection.ITERATE,
-                        message,
+                        f1Message,
+                        1
+                );
+            }
+            if(f2Message != null){
+                Rmi.buildAndRun(
+                        Feature.encodeFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
+                        ElementType.ATTACHED_FEATURE,
+                        "reduce",
+                        vertex.getMasterPart(),
+                        MessageDirection.ITERATE,
+                        f2Message,
                         1
                 );
             }
@@ -224,6 +236,5 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             );
         }
     }
-
 
 }

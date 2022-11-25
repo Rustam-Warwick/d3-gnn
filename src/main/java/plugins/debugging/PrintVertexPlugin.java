@@ -18,7 +18,7 @@ public class PrintVertexPlugin extends Plugin {
     public Set<String> registeredVertices = new HashSet<>();
 
     public PrintVertexPlugin(String... vertices) {
-        super("print_vertex");
+        super("print-vertex");
         Collections.addAll(registeredVertices, vertices);
     }
 

@@ -114,7 +114,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * </ol>
      */
     protected Consumer<BaseStorage> createInternal() {
-        Consumer<BaseStorage> callback = storage -> storage.addElement(this);
+        Consumer<BaseStorage> callback = storage -> {storage.addElement(this); storage.plugins.values().forEach(plugin -> plugin.addElementCallback(this));};
         if (features != null) {
             for (Feature<?, ?> feature : features) {
                 callback = callback
@@ -123,7 +123,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             }
             features.clear(); // Will be added incrementally in the callback chain to not have information leakage
         }
-        return callback.andThen(storage -> storage.plugins.values().forEach(plugin -> plugin.addElementCallback(this)));
+        return callback;
     }
 
     /**
