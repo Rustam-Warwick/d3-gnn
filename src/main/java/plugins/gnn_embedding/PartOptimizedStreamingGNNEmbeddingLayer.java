@@ -27,9 +27,6 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
     }
 
-    public PartOptimizedStreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE) {
-        super(modelName, trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
-    }
 
     /**
      * {@inheritDoc}

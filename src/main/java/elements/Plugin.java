@@ -28,6 +28,8 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      */
     final public String id;
 
+    public boolean IS_ACTIVE = true;
+
     /**
      * Plugin Logger
      */
@@ -41,6 +43,11 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
     public Plugin(String id) {
         super((short) 0);
         this.id = id;
+    }
+
+    public Plugin(String id, boolean IS_ACTIVE) {
+        this.id = id;
+        this.IS_ACTIVE = IS_ACTIVE;
     }
 
     /**
@@ -121,9 +128,21 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         return id;
     }
 
+    /**
+     * Stop this plugin
+     */
+    public void stop() {
+        IS_ACTIVE = false;
+    }
+
+    /**
+     * Start this plugin
+     */
+    public void start() {
+        IS_ACTIVE = true;
+    }
 
     // ----------------------- CALLBACKS --------------------
-
 
     /**
      * Callback when a graph element is created

@@ -288,6 +288,18 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * {@inheritDoc}
      */
     @Override
+    public String toString() {
+        return getType() + "{" +
+                "id='" + getId() + '\'' +
+                "master='" + getMasterPart() + '\'' +
+                "value='" + value + '\'' +
+                '}';
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public ElementType getType() {
         return ids.f0 == ElementType.NONE ? ElementType.STANDALONE_FEATURE : ElementType.ATTACHED_FEATURE;
     }

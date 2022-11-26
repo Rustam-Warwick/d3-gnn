@@ -13,9 +13,7 @@
 
 package plugins;
 
-import ai.djl.Device;
 import ai.djl.Model;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
@@ -27,8 +25,6 @@ import ai.djl.util.Pair;
 import ai.djl.util.PairList;
 import elements.Plugin;
 import elements.annotations.RemoteFunction;
-
-import java.util.Objects;
 
 /**
  * Plugin that stores a single model withing the GNN Pipieline
@@ -110,32 +106,5 @@ public class ModelServer<T extends Block> extends Plugin {
             }
         }
 
-        @Override
-        public NDArray getValue(Parameter parameter, Device device, boolean training) {
-            if (Objects.nonNull(parameter)) {
-                if (parameter.getArray().hasGradient() != training) {
-                    parameter.getArray().setRequiresGradient(training);
-                }
-                return parameter.getArray();
-            } else {
-                return null;
-            }
-        }
-
-        /**
-         * Send local gradients to master part for synchrnization
-         */
-        @Override
-        public void sync() {
-//            HashMap<String, NDArray> parameters = new NDArrayCollector<>(false);
-//            for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
-//                if (parameter.getValue().getArray().hasGradient()) {
-//                    optimizer.triggerUpdate(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
-//                }
-//                parameters.put(parameter.getValue().getId(), parameter.getValue().getArray());
-//            }
-//            Rmi rmi = new Rmi(getId(), "collectParameters", new Object[]{parameters}, getType(), false, null);
-//           getStorage().layerFunction.broadcastMessage(new GraphOp(Op.RMI, rmi).setMessageCommunication(MessageCommunication.BROADCAST), MessageDirection.ITERATE);
-        }
     }
 }

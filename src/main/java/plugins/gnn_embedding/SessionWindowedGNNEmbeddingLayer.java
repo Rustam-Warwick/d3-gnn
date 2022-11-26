@@ -13,6 +13,7 @@ import elements.features.Tensor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.util.ExceptionUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,10 +43,6 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
         this.sessionInterval = sessionInterval;
     }
 
-    public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE, int sessionInterval) {
-        super(modelName, trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
-        this.sessionInterval = sessionInterval;
-    }
 
     @Override
     public void open() throws Exception {
@@ -101,7 +98,7 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
                 throughput.inc();
             }
         } catch (Exception e) {
-            System.out.println();
+            LOG.error(ExceptionUtils.stringifyException(e));
         } finally {
             BaseNDManager.getManager().resume();
         }

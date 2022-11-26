@@ -88,7 +88,7 @@ public final class DirectedEdge extends GraphElement {
      */
     public static String encodeEdgeId(String srcId, String destId, @Nullable String attributedId) {
         if (attributedId != null) return srcId + DELIMITER + destId + DELIMITER + attributedId;
-        return srcId + DELIMITER + destId + DELIMITER;
+        return srcId + DELIMITER + destId;
     }
 
     /**

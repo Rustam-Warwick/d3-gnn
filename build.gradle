@@ -22,7 +22,7 @@ ext {
 sourceCompatibility = "11"
 targetCompatibility = "11"
 
-applicationDefaultJvmArgs = ["-ea","-Dlog4j.configurationFile=log4j2.properties", "-Dfile.encoding=ASCII"]
+applicationDefaultJvmArgs = ["-ea", "-Dlog4j.configurationFile=log4j.properties"]
 
 // declare where to find the dependencies of your project
 repositories {
@@ -83,15 +83,16 @@ dependencies{
     libApi 'info.picocli:picocli:4.7.0'
     libApi("org.apache.flink:statefun-flink-core:3.2.0"){transitive(false)}
     libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){transitive(false)}
-    libApi 'ai.djl:api:0.19.0'
-    libApi 'ai.djl.pytorch:pytorch-engine:0.19.0'
+    libApi('ai.djl:api:0.19.0'){exclude group: 'org.slf4j'}
+    libApi('ai.djl.pytorch:pytorch-engine:0.19.0') {exclude group: 'org.slf4j'}
     libApi 'com.boundary:high-scale-lib:1.0.6'
     libApi 'com.github.ben-manes.caffeine:caffeine:3.1.1'
     libApi 'com.esotericsoftware:reflectasm:1.11.9'
 
-    testImplementation platform('org.junit:junit-bom:5.9.1')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"
+
+//    testImplementation 'org.junit.jupiter:junit-jupiter'
+
 }
 
 compileJava {
@@ -122,5 +123,6 @@ task bothJars{
 }
 
 test{
+    jvmArgs applicationDefaultJvmArgs
     useJUnitPlatform()
 }

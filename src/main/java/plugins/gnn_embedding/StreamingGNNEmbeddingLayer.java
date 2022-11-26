@@ -34,9 +34,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE) {
-        super(modelName, "inferencer", trainableVertexEmbeddings, requiresDestForMessage, IS_ACTIVE);
-    }
 
     /**
      * {@inheritDoc}
@@ -133,10 +130,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
+                        Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
-                        v.getMasterPart(),
+                        directedEdge.getDest().getMasterPart(),
                         MessageDirection.ITERATE,
                         msg[0],
                         msg[1]
@@ -161,10 +158,10 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeFeatureId(ElementType.VERTEX, newFeature.ids.f1, "agg"),
+                        Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "replace",
-                        newFeature.getMasterPart(),
+                        directedEdge.getDest().getMasterPart(),
                         MessageDirection.ITERATE,
                         msgs[0],
                         msgs[1]

@@ -5,7 +5,6 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
 import elements.enums.ElementType;
-import operators.BaseWrapperOperator;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -25,19 +24,19 @@ public class PrintVertexPlugin extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if (element.getType() == ElementType.VERTEX && registeredVertices.contains(element.getId())) {
-            BaseWrapperOperator.LOG.error(String.format("[CREATE] %s Vertex (%s), at (%s,%s) -> %s \n", element.state(), element.getId(), getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp()));
+        if (element.getType() == ElementType.VERTEX && (registeredVertices.contains(element.getId()) || registeredVertices.isEmpty())) {
+            LOG.error(String.format("[CREATE] %s: {%s | %s}", element, getStorage().layerFunction.getPosition(), getPart()));
         }
         if (element.getType() == ElementType.EDGE) {
             DirectedEdge e = (DirectedEdge) element;
-            if (registeredVertices.contains(e.getSrc().getId()) || registeredVertices.contains(e.getDest().getId())) {
-                BaseWrapperOperator.LOG.error(String.format("[CREATE] Edge (%s %s)->(%s %s), at (%s,%s) -> %s \n", e.getSrc().getId(), e.getSrc().state(), e.getDest().getId(), e.getDest().state(), getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp()));
+            if (registeredVertices.contains(e.getSrcId()) || (registeredVertices.contains(e.getDestId()) || registeredVertices.isEmpty())) {
+                LOG.error(String.format("[CREATE] %s: {%s | %s}", element, getStorage().layerFunction.getPosition(), getPart()));
             }
         }
         if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if (feature.ids.f0 == ElementType.VERTEX && registeredVertices.contains(feature.ids.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[CREATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
+            if (feature.ids.f0 == ElementType.VERTEX && (registeredVertices.contains(feature.ids.f1) || registeredVertices.isEmpty())) {
+                LOG.error(String.format("[CREATE] %s: {%s | %s}", element, getStorage().layerFunction.getPosition(), getPart()));
             }
         }
     }
@@ -47,8 +46,8 @@ public class PrintVertexPlugin extends Plugin {
         super.updateElementCallback(newElement, oldElement);
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
-            if (feature.ids.f0 == ElementType.VERTEX && registeredVertices.contains(feature.ids.f1)) {
-                BaseWrapperOperator.LOG.error(String.format("[UPDATE] Feature (%s) of Vertex (%s), at (%s,%s) -> %s \n Value is: %s \n\n", feature.getName(), feature.ids.f1, getPart(), getStorage().layerFunction.getPosition(), getStorage().layerFunction.currentTimestamp(), feature.value));
+            if (feature.ids.f0 == ElementType.VERTEX && (registeredVertices.contains(feature.ids.f1) || registeredVertices.isEmpty())) {
+                LOG.error(String.format("[UPDATE] %s: {%s | %s}", newElement, getStorage().layerFunction.getPosition(), getPart()));
             }
         }
     }

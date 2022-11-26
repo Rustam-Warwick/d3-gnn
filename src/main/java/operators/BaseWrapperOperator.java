@@ -72,7 +72,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * STATIC PROPS
      */
 
-    public static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
 
     private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
 

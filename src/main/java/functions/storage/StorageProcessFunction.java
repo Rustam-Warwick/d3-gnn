@@ -16,6 +16,8 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import storage.BaseStorage;
 
 
@@ -24,6 +26,8 @@ import storage.BaseStorage;
  * Real implementation should be tightly coupled with their respective operators
  */
 public interface StorageProcessFunction extends RichFunction, CheckpointedFunction {
+
+    static final Logger LOG = LoggerFactory.getLogger(StorageProcessFunction.class);
 
     /**
      * @return Attached storage engine
@@ -188,7 +192,7 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     break;
             }
         } catch (Exception | Error e) {
-            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e), value);
+            LOG.error(ExceptionUtils.stringifyException(e), value);
         }
     }
 

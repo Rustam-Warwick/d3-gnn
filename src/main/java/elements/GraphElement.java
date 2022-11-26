@@ -107,7 +107,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      *     <li>Plugin Callback</li>
      * </ol>
      */
-    protected void createInternal() {
+    public void createInternal() {
         List<Feature<?, ?>> copyFeatures = null;
         if (features != null && !features.isEmpty()) {
             copyFeatures = features;
@@ -127,7 +127,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * Part of deletion relating to storage
      * <strong>Deleting all features as well</strong>
      */
-    protected void deleteInternal() {
+    public void deleteInternal() {
         throw new NotImplementedException("Delete events are not implemented yet");
     }
 
@@ -146,7 +146,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      *     <li>update storage & call plugin callbacks</li>
      * </ol>
      */
-    protected void updateInternal(GraphElement newElement) {
+    public void updateInternal(GraphElement newElement) {
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Feature<?, ?> newFeature : newElement.features) {
                 if (containsFeature(newFeature.getName())) {

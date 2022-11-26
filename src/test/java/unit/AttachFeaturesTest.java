@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * Tracking the references when attaching {@link Vertex} and {@link Feature}
  */
-public class AttachFeaturesToVerticesTest {
+public class AttachFeaturesTest {
     final List<Vertex> vertices = new ArrayList<>(100);
 
     final List<Feature<?,?>> features = new ArrayList<>(100);

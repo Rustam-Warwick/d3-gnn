@@ -5,6 +5,9 @@ import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDManager;
 import ai.djl.nn.Parameter;
+import org.apache.commons.lang3.NotImplementedException;
+
+import java.util.Objects;
 
 public class ParameterStore {
     public ParameterStore() {
@@ -16,10 +19,18 @@ public class ParameterStore {
     }
 
     public void updateAllParameters() {
+        throw new NotImplementedException("Not supported by default");
     }
 
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
-        return null;
+        if (Objects.nonNull(parameter)) {
+            if (parameter.getArray().hasGradient() != training) {
+                parameter.getArray().setRequiresGradient(training);
+            }
+            return parameter.getArray();
+        } else {
+            return null;
+        }
     }
 
     public NDManager getManager() {
@@ -27,9 +38,7 @@ public class ParameterStore {
     }
 
     public void sync() {
-    }
-
-    public void setParameterServer() {
+        throw new NotImplementedException("Not supported by default");
     }
 
 }

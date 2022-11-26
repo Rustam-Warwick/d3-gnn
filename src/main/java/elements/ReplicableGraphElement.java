@@ -139,6 +139,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     public String toString() {
         return getType() + "{" +
                 "id='" + getId() + '\'' +
+                "master='" + getMasterPart() + '\'' +
                 '}';
     }
 
