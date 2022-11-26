@@ -155,8 +155,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
             T tmp = newFeature.value;
             newFeature.value = value;
             value = tmp;
+            super.updateInternal(newElement);
         }
-        super.updateInternal(newElement);
     }
 
     /**

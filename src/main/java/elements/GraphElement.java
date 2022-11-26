@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 /**
  * Abstract class representing all the GraphElements.
@@ -148,7 +147,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * </ol>
      */
     protected void updateInternal(GraphElement newElement) {
-        Consumer<BaseStorage> callback = null;
         if (newElement.features != null && !newElement.features.isEmpty()) {
             for (Feature<?, ?> newFeature : newElement.features) {
                 if (containsFeature(newFeature.getName())) {
