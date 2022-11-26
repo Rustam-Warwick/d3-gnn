@@ -9,12 +9,11 @@ import elements.Vertex;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
-import features.Tensor;
+import elements.features.Tensor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.util.ExceptionUtils;
-import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;

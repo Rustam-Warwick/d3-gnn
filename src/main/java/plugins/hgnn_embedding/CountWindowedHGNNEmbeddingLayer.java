@@ -8,7 +8,7 @@ import elements.Vertex;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
-import features.Tensor;
+import elements.features.Tensor;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 import java.util.*;

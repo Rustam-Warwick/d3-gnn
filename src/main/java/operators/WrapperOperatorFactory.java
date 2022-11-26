@@ -32,7 +32,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
         StreamOperatorFactory<GraphOp> factory = SimpleOperatorFactory.of(innerOperator);
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
             if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof StorageProcessFunction) {
-                return (T) new GNNLayerWrapperOperator(parameters, factory, iterationId, position, totalLayers);
+                return (T) new StorageLayerWrapperOperator(parameters, factory, iterationId, position, totalLayers);
             }
             return (T) new HeadUdfWrapperOperator(parameters, factory, iterationId, position, totalLayers);
         }
@@ -44,7 +44,7 @@ public class WrapperOperatorFactory extends AbstractStreamOperatorFactory<GraphO
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
         if (innerOperator instanceof AbstractUdfStreamOperator && innerOperator instanceof OneInputStreamOperator) {
             if (((AbstractUdfStreamOperator<?, ?>) innerOperator).getUserFunction() instanceof StorageProcessFunction) {
-                return GNNLayerWrapperOperator.class;
+                return StorageLayerWrapperOperator.class;
             }
             return HeadUdfWrapperOperator.class;
         }

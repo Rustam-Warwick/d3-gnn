@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Multi producer, single consumer channel.
+ * Producers -> {@link operators.IterationTailOperator}
+ * Consumer -> {@link operators.BaseWrapperOperator}
  */
 public final class FeedbackChannel<T> implements Closeable {
 
@@ -186,8 +188,8 @@ public final class FeedbackChannel<T> implements Closeable {
         @Override
         public void run() {
             scheduleCount.decrementAndGet();
-            if (queue.hasPendingSnapshots() || consumer == null) return;
             final Deque<T> buffer = queue.drainAll();
+            if (queue.hasPendingSnapshots() || consumer == null) return;
             try {
                 T element;
                 while ((element = buffer.pollFirst()) != null) {

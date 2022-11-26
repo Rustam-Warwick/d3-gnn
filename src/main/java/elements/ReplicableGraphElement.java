@@ -1,7 +1,7 @@
 package elements;
 
 import elements.enums.*;
-import features.Parts;
+import elements.features.Parts;
 
 import java.util.ArrayList;
 import java.util.List;

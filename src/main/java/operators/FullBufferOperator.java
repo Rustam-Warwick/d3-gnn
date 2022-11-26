@@ -8,7 +8,7 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 
 /**
- * Operator that buffers the values untill the operator is closed when it finally emits everything in bulk
+ * Operator that buffers the values until the operator is closed when it finally emits everything in bulk
  *
  * @param <IN> Type of element both to input and output
  */

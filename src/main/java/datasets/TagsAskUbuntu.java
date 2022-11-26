@@ -26,11 +26,11 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * Type of dataset to be used
      * <p>
-     * v2n -> Vertex-to-Net: Meaning 1 Vertex(tag) with a list of Nets(questions)
-     * n2v -> Net-to-Vertex: Meaning 1 Net(question) with a list of Vertices(tag)
+     * t2q -> Tag to question: Meaning 1 Tag with a list of Question
+     * t2q -> Tag to question: Meaning 1 Question with a list of Tags
      * </p>
      */
-    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "v2n", fallbackValue = "v2n", arity = "1", description = {"Type of tags dataset: v2n or n2v"})
+    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "t2q", fallbackValue = "t2q", arity = "1", description = {"Type of tags dataset: q2t (Question to tag) or t2q (Tag to question)"})
     protected String datasetType;
 
     /**
@@ -52,10 +52,10 @@ public class TagsAskUbuntu extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("v2n") ? "tags-ask-ubuntu-node-simplex.txt" : "tags-ask-ubuntu-simplex-node.txt").toString();
+        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("t2q") ? "tags-ask-ubuntu[tag-question].txt" : "tags-ask-ubuntu[question-tab].txt").toString();
         String opName = String.format("TagsAskUbuntu[dataset=%s, stream=%s]", datasetType, streamType);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = (streamType.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseEdges())).setParallelism(1).name(String.format("Map %s", opName));
+        SingleOutputStreamOperator<GraphOp> parsed = (streamType.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseEdges())).setParallelism(1).name(String.format("Parser %s", opName));
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             fileReader.slotSharingGroup("file-input");
@@ -81,7 +81,7 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * String -> {@link GraphOp} for star-graph stream
      */
-    public static class ParseEdges implements FlatMapFunction<String, GraphOp> {
+    protected static class ParseEdges implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
             String[] values = value.split(",");
@@ -97,7 +97,7 @@ public class TagsAskUbuntu extends Dataset {
     /**
      * String -> {@link GraphOp} hypergraph
      */
-    public static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
+    protected static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) {
             String[] values = value.split(",");

@@ -4,7 +4,7 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
 import elements.enums.*;
-import features.Tensor;
+import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;

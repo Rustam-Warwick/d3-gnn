@@ -1,4 +1,4 @@
-package features;
+package elements.features;
 
 import elements.Feature;
 import elements.annotations.RemoteFunction;

@@ -10,13 +10,11 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.HyperSAGEConv;
-import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
@@ -76,7 +74,6 @@ public class Main {
 
 
             ).build();
-
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
             String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
             env.execute(jobName);

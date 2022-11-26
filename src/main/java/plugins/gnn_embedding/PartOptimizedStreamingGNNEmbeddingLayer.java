@@ -9,7 +9,7 @@ import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
-import features.Tensor;
+import elements.features.Tensor;
 
 import java.util.*;
 

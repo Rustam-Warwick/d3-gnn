@@ -7,9 +7,9 @@ import elements.HyperEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
-import features.InPlaceMeanAggregator;
-import features.MeanAggregator;
-import features.Tensor;
+import elements.features.InPlaceMeanAggregator;
+import elements.features.MeanAggregator;
+import elements.features.Tensor;
 import plugins.ModelServer;
 
 /**

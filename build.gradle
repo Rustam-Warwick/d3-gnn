@@ -52,27 +52,33 @@ sourceSets{
             runtimeClasspath = sourceSets.lib.output + runtimeClasspath
         }
     }
+    test{
+        java{
+            compileClasspath = sourceSets.lib.output + compileClasspath
+            runtimeClasspath = sourceSets.lib.output + runtimeClasspath
+        }
+    }
 }
 
 configurations{
     libImplementation.extendsFrom(libApi)
     implementation.extendsFrom(libImplementation)
     runtimeOnly.extendsFrom(libRuntimeOnly)
+    annotationProcessor.extendsFrom(libAnnotationProcessor)
 }
 
 dependencies{
 
     libImplementation 'org.jetbrains:annotations:23.0.0'
     libImplementation "org.apache.flink:flink-clients:${flinkVersion}"
+    libImplementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
+    libImplementation "org.apache.flink:flink-connector-files:${flinkVersion}"
 
-    implementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
-    implementation "org.apache.flink:flink-connector-files:${flinkVersion}"
+    libRuntimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
+    libRuntimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+    libRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 
-    runtimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
-    runtimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
-    runtimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
-
-    annotationProcessor 'info.picocli:picocli-codegen:4.7.0'
+    libAnnotationProcessor 'info.picocli:picocli-codegen:4.7.0'
 
     libApi 'info.picocli:picocli:4.7.0'
     libApi("org.apache.flink:statefun-flink-core:3.2.0"){transitive(false)}
@@ -82,6 +88,10 @@ dependencies{
     libApi 'com.boundary:high-scale-lib:1.0.6'
     libApi 'com.github.ben-manes.caffeine:caffeine:3.1.1'
     libApi 'com.esotericsoftware:reflectasm:1.11.9'
+
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation "org.apache.flink:flink-test-utils:1.16.0"
 }
 
 compileJava {
@@ -109,4 +119,8 @@ shadowJar{
 
 task bothJars{
     dependsOn(libShadowJar, shadowJar)
+}
+
+test{
+    useJUnitPlatform()
 }

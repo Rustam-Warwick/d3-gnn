@@ -3,9 +3,10 @@ package helpers;
 import ai.djl.ndarray.NDHelper;
 import datasets.Dataset;
 import elements.*;
-import features.MeanAggregator;
-import features.Parts;
-import features.Tensor;
+import elements.features.MeanAggregator;
+import elements.features.Parts;
+import elements.features.Tensor;
+import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import functions.storage.StorageProcessFunction;
 import operators.BaseWrapperOperator;
@@ -63,7 +64,7 @@ public class GraphStream {
     /**
      * {@link Partitioner} to be used
      */
-    protected final Partitioner partitioner;
+    protected Partitioner partitioner;
 
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
@@ -74,7 +75,7 @@ public class GraphStream {
      * Explosion coefficient across the Storage layers
      */
     @CommandLine.Option(names = {"-l", "--lambda"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = "explosion coefficient")
-    public double lambda; // GNN operator explosion coefficient. 1 means no explosion
+    protected double lambda; // GNN operator explosion coefficient. 1 means no explosion
 
     /**
      * {@link Dataset} to be used
@@ -93,6 +94,12 @@ public class GraphStream {
      */
     @CommandLine.Option(names = {"-p", "--partitioner"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Partitioner to be used")
     protected String partitionerName;
+
+    /**
+     * Limit the number of elements streaming through the {@link Dataset}
+     */
+    @CommandLine.Option(names = {"--datasetLimit"}, defaultValue = "0", fallbackValue = "0", arity = "1", description = "Should the dataset be capped at some number of streamed elements")
+    protected long datasetLimit;
 
     /**
      * Name of the dataset to be resolved to {@code this.datasetInstance}
@@ -118,6 +125,7 @@ public class GraphStream {
 
     @SafeVarargs
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>... processFunctions) {
+        Preconditions.checkNotNull(env);
         Arrays.sort(cmdArgs);
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
         this.env = env;
@@ -148,6 +156,18 @@ public class GraphStream {
         env.registerType(Rmi.class);
         env.registerType(MeanAggregator.class);
         env.registerType(PartNumber.class);
+    }
+
+    public GraphStream setDataset(Dataset dataset) {
+        Preconditions.checkState(internalPositionIndex == 0);
+        this.dataset = dataset;
+        return this;
+    }
+
+    public GraphStream setPartitioner(Partitioner partitioner) {
+        Preconditions.checkState(internalPositionIndex == 0);
+        this.partitioner = partitioner;
+        return this;
     }
 
     /**
@@ -204,12 +224,12 @@ public class GraphStream {
      *
      * @return [dataset stream, partitioner output, splitter output, ...storage layers]
      */
-    protected DataStream<GraphOp>[] build() {
+    public DataStream<GraphOp>[] build() {
         Preconditions.checkNotNull(dataset);
         Preconditions.checkNotNull(partitioner);
         Preconditions.checkState(internalPositionIndex == 0);
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
-        layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
+        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)): (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
         layerOutputs[2] = streamingStorageLayer(layerOutputs[1], dataset.getSplitter());
 

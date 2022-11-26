@@ -54,7 +54,7 @@ public class RedditHyperlink extends Dataset {
         }
         String opName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser(delimiter)).name(String.format("Map %s", opName)).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser(delimiter)).name(String.format("Parser %s", opName)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             fileReader.slotSharingGroup("file-input");
             parsed.slotSharingGroup("file-input");
@@ -73,7 +73,7 @@ public class RedditHyperlink extends Dataset {
     /**
      * Actual Splitter function
      */
-    static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
+    protected static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
@@ -84,7 +84,7 @@ public class RedditHyperlink extends Dataset {
     /**
      * String -> {@link GraphOp} mapper
      */
-    static class Parser implements MapFunction<String, GraphOp> {
+    protected static class Parser implements MapFunction<String, GraphOp> {
         private final String delimiter;
 
         public Parser(String delimiter) {

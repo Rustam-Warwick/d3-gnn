@@ -1,4 +1,4 @@
-package features;
+package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;

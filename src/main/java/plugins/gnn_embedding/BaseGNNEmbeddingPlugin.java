@@ -7,8 +7,8 @@ import elements.DirectedEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
-import features.InPlaceMeanAggregator;
-import features.Tensor;
+import elements.features.InPlaceMeanAggregator;
+import elements.features.Tensor;
 import plugins.ModelServer;
 
 /**
