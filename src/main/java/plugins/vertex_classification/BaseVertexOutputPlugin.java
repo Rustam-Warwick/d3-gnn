@@ -28,7 +28,7 @@ abstract public class BaseVertexOutputPlugin extends Plugin {
     @Override
     public void open() throws Exception {
         super.open();
-        this.modelServer = (ModelServer) storage.getPlugin(String.format("%s-server", modelName));
+        this.modelServer = (ModelServer) getStorage().getPlugin(String.format("%s-server", modelName));
     }
 
     public NDList output(NDList feature, boolean training) {

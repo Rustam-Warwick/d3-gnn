@@ -16,6 +16,8 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import storage.BaseStorage;
 
 
@@ -25,15 +27,12 @@ import storage.BaseStorage;
  */
 public interface StorageProcessFunction extends RichFunction, CheckpointedFunction {
 
+    static final Logger LOG = LoggerFactory.getLogger(StorageProcessFunction.class);
+
     /**
      * @return Attached storage engine
      */
     BaseStorage getStorage();
-
-    /**
-     * Set the storage engine
-     */
-    void setStorage(BaseStorage storage);
 
     /**
      * BaseWrapper Context for doing higher-order stuff
@@ -162,22 +161,21 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
         try {
             switch (value.op) {
                 case COMMIT:
-                    value.element.setStorage(getStorage());
                     if (!getStorage().containsElement(value.element)) {
                         value.element.create();
                     } else {
-                        GraphElement thisElement = getStorage().getElement(value.element);
-                        thisElement.update(value.element);
+                        getStorage().getElement(value.element).update(value.element);
                     }
                     break;
                 case SYNC_REQUEST:
-                    if (!getStorage().containsElement(value.element.getId(), value.element.elementType())) {
+                    if (!getStorage().containsElement(value.element.getId(), value.element.getType())) {
                         // This can only occur if master is not here yet
-                        GraphElement el = getStorage().createLateElement(value.element.getId(), value.element.elementType());
-                        el.sync(value.element);
+                        GraphElement el = getStorage().getDummyElement(value.element.getId(), value.element.getType());
+                        el.create();
+                        el.syncRequest(value.element);
                     } else {
-                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.elementType());
-                        el.sync(value.element);
+                        GraphElement el = getStorage().getElement(value.element.getId(), value.element.getType());
+                        el.syncRequest(value.element);
                     }
                     break;
                 case SYNC:
@@ -185,15 +183,16 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     el.sync(value.element);
                     break;
                 case RMI:
-                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.elementType());
-                    Rmi.execute(rpcElement, (Rmi) value.element);
+                    GraphElement rpcElement = getStorage().getElement(value.element.getId(), value.element.getType());
+                    Rmi rmi = (Rmi) value.element;
+                    Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                     break;
                 case OPERATOR_EVENT:
-                    getStorage().onOperatorEvent(value.getOperatorEvent());
+                    getStorage().onOperatorEvent(value.operatorEvent);
                     break;
             }
         } catch (Exception | Error e) {
-            BaseWrapperOperator.LOG.error(ExceptionUtils.stringifyException(e), value);
+            LOG.error(ExceptionUtils.stringifyException(e), value);
         }
     }
 

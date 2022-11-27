@@ -32,7 +32,7 @@ public class StreamingStorageProcessFunction extends KeyedProcessFunction<PartNu
 
     public StreamingStorageProcessFunction(BaseStorage storage) {
         this.storage = storage;
-        storage.layerFunction = this;
+        getStorage().layerFunction = this;
     }
 
     @Override
@@ -102,11 +102,6 @@ public class StreamingStorageProcessFunction extends KeyedProcessFunction<PartNu
     @Override
     public BaseStorage getStorage() {
         return storage;
-    }
-
-    @Override
-    public void setStorage(BaseStorage storage) {
-        this.storage = storage;
     }
 
     @Override

@@ -1,6 +1,5 @@
 package typeinfo.recursivepojoinfo;
 
-import elements.annotations.OmitStorage;
 import org.apache.flink.api.common.functions.InvalidTypesException;
 import org.apache.flink.api.common.typeinfo.TypeInfoFactory;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
@@ -34,27 +33,19 @@ import static org.apache.flink.api.java.typeutils.TypeExtractionUtils.typeToClas
  *     @todo Add recursive Map serializer as well
  * </p>
  * <p>
- *     Supports {@link OmitStorage} for selectively making some fields transient.
- * </p>
- * <p>
  *     Supports {@link DeSerializationListener} for returning callbacks after serialization
  * </p>
  */
 public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
 
+
     @Override
     public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters) {
-        return this.createTypeInfo(t, genericParameters, false);
-    }
-
-
-    public TypeInformation<T> createTypeInfo(Type t, Map<String, TypeInformation<?>> genericParameters, boolean omitStorage) {
         try {
-            Class clazz = TypeExtractionUtils.typeToClass(t);
+            Class<T> clazz = TypeExtractionUtils.typeToClass(t);
             List<Field> fields = TypeExtractor.getAllDeclaredFields(clazz, false);
-            List<PojoField> pojoFields = new ArrayList<>();
+            List<PojoField> pojoFields = new ArrayList<>(fields.size());
             for (Field field : fields) {
-                if (omitStorage && field.isAnnotationPresent(OmitStorage.class)) continue;
                 Type fieldType = field.getGenericType();
                 try {
                     if (List.class.isAssignableFrom(field.getType())) {
@@ -64,7 +55,7 @@ public class RecursivePojoTypeInfoFactory<T> extends TypeInfoFactory<T> {
                             pojoFields.add(new PojoField(field, new RecursiveListTypeInfo<>(null))); // Will be populated in RecursiveTypeInfoFactory
                         } else {
                             // Non-Recursive List Field
-                            final TypeInformation<?> typeInfo = TypeExtractor.createTypeInfo(TypeExtractionUtils.extractTypeArgument(fieldType, 0));
+                            TypeInformation<?> typeInfo = TypeExtractor.createTypeInfo(TypeExtractionUtils.extractTypeArgument(fieldType, 0));
                             pojoFields.add(new PojoField(field, new ListTypeInfo<>(typeInfo)));
                         }
                     } else if (Set.class.isAssignableFrom(field.getType())) {

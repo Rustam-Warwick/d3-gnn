@@ -83,6 +83,6 @@ else
 
 		export WORLD_SIZE=$SLURM_NNODES
 
-		python3.8 -u start_client.py
+		python3.8 -u streaming_dgl_dist.py
 	fi
 fi

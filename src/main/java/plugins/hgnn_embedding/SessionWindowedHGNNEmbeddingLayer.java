@@ -1,5 +1,6 @@
 package plugins.hgnn_embedding;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
@@ -8,10 +9,11 @@ import elements.Vertex;
 import elements.enums.ElementType;
 import elements.enums.MessageDirection;
 import elements.enums.Op;
-import features.Tensor;
+import elements.features.Tensor;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.util.ExceptionUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,11 +27,6 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
     public transient Map<Short, HashMap<String, Long>> BATCH; // Map for storing processingTimes
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
-
-    public SessionWindowedHGNNEmbeddingLayer(String modelName, int sessionInterval) {
-        super(modelName);
-        this.sessionInterval = sessionInterval;
-    }
 
     public SessionWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
@@ -46,17 +43,18 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
         super.open();
         windowThroughput = new SimpleCounter();
         BATCH = new HashMap<>();
-        storage.layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
+        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
     }
 
+    @Override
     public void forward(Vertex v) {
-        long currentProcessingTime = storage.layerFunction.getTimerService().currentProcessingTime();
+        long currentProcessingTime = getStorage().layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        BATCH.computeIfAbsent(storage.layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
-        HashMap<String, Long> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
+        BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
+        HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);
-        storage.layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
+        getStorage().layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }
 
@@ -69,14 +67,14 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
     public void onTimer(long timestamp) {
         super.onTimer(timestamp);
         try {
-            storage.layerFunction.getWrapperContext().getNDManager().delay();
-            HashMap<String, Long> PART_BATCH = BATCH.get(storage.layerFunction.getCurrentPart());
+            BaseNDManager.getManager().delay();
+            HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
             NDList features = new NDList();
             NDList aggregators = new NDList();
             List<Vertex> vertices = new ArrayList<>();
             PART_BATCH.forEach((key, val) -> {
                 if (val <= timestamp) {
-                    Vertex v = storage.getVertex(key);
+                    Vertex v = getStorage().getVertex(key);
                     features.add((NDArray) (v.getFeature("f")).getValue());
                     aggregators.add((NDArray) (v.getFeature("agg")).getValue());
                     vertices.add(v);
@@ -88,16 +86,16 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
             for (int i = 0; i < vertices.size(); i++) {
                 PART_BATCH.remove(vertices.get(i).getId());
                 Vertex messageVertex = vertices.get(i);
-                Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.masterPart());
-                updateTensor.attachedTo.f0 = ElementType.VERTEX;
-                updateTensor.attachedTo.f1 = messageVertex.getId();
-                storage.layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.masterPart(), updateTensor), MessageDirection.FORWARD);
+                Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
+                updateTensor.ids.f0 = ElementType.VERTEX;
+                updateTensor.ids.f1 = messageVertex.getId();
+                getStorage().layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.getMasterPart(), updateTensor), MessageDirection.FORWARD);
                 throughput.inc();
             }
         } catch (Exception e) {
-            System.out.println();
+            LOG.error(ExceptionUtils.stringifyException(e));
         } finally {
-            storage.layerFunction.getWrapperContext().getNDManager().resume();
+            BaseNDManager.getManager().resume();
         }
     }
 

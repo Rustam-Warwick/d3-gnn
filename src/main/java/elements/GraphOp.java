@@ -11,8 +11,12 @@ import typeinfo.graphopinfo.GraphOpTypeInfoFactory;
 import java.util.Objects;
 
 /**
- * Main message object that gets passed around the system
+ * Main message object that gets sent around the system
+ * <p>
+ *     There are not getters for this element since all the fields are populated and there is no internal logic to its fields
+ * </p>
  */
+@SuppressWarnings("UnusedReturnValue")
 @TypeInfo(GraphOpTypeInfoFactory.class)
 public final class GraphOp implements LifeCycleControl {
 
@@ -20,14 +24,17 @@ public final class GraphOp implements LifeCycleControl {
      * {@link Op} represents the operation that is happening in the GraphElement
      */
     public Op op = Op.COMMIT;
+
     /**
      * The part number where this record should be sent to
      */
     public short partId = -1;
+
     /**
      * The GraphElement on which the Op is being acted upon
      */
     public GraphElement element;
+
     /**
      * Operator Event for the plugins communicated through this channel
      */
@@ -38,6 +45,7 @@ public final class GraphOp implements LifeCycleControl {
      */
     public @NotNull
     MessageCommunication messageCommunication = MessageCommunication.P2P; // Point-to-Point messages
+
     /**
      * Timestamp associated with this GraphOp
      * Mainly used for Watermarks
@@ -78,19 +86,9 @@ public final class GraphOp implements LifeCycleControl {
         return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
     }
 
-    // --- GETTERS AND SETTERS
-
-    public @NotNull Op getOp() {
-        return op;
-    }
-
     public GraphOp setOp(@NotNull Op op) {
         this.op = op;
         return this;
-    }
-
-    public short getPartId() {
-        return partId;
     }
 
     public GraphOp setPartId(short partId) {
@@ -98,17 +96,9 @@ public final class GraphOp implements LifeCycleControl {
         return this;
     }
 
-    public GraphElement getElement() {
-        return element;
-    }
-
     public GraphOp setElement(GraphElement element) {
         this.element = element;
         return this;
-    }
-
-    public Long getTimestamp() {
-        return ts;
     }
 
     public GraphOp setTimestamp(Long ts) {
@@ -116,17 +106,9 @@ public final class GraphOp implements LifeCycleControl {
         return this;
     }
 
-    public @NotNull MessageCommunication getMessageCommunication() {
-        return messageCommunication;
-    }
-
     public GraphOp setMessageCommunication(@NotNull MessageCommunication messageCommunication) {
         this.messageCommunication = messageCommunication;
         return this;
-    }
-
-    public BaseOperatorEvent getOperatorEvent() {
-        return operatorEvent;
     }
 
     public GraphOp setOperatorEvent(BaseOperatorEvent operatorEvent) {

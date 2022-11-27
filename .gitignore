@@ -1,7 +1,8 @@
 /.gradle/
 /build/
 .idea/
-/jupyter/
+/datasets/
+/metrics/
 /gradle/
 /python/
 /gradlew

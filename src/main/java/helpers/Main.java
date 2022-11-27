@@ -57,28 +57,26 @@ public class Main {
     public static void main(String[] args) throws Throwable {
         try {
             BaseNDManager.getManager().delay();
-
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
+//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
                             .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
                     ),
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 50))
-//                       .withPlugin(new GNNEmbeddingTrainingPlugin(models.get(0).getName(), false))
+//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
+                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(1).getName(), true, 50))
                     )
-            ).build();
 
+
+            ).build();
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
             String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
             env.execute(jobName);
-        } catch (Exception e) {
-            throw e;
         } finally {
             BaseNDManager.getManager().resume();
         }

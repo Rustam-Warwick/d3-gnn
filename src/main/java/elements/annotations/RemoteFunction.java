@@ -8,5 +8,8 @@ import java.lang.annotation.RetentionPolicy;
  */
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RemoteFunction {
-
+    /**
+     * Should we trigger a new {@link elements.GraphElement} update after this RMI
+     */
+    boolean triggerUpdate() default true;
 }

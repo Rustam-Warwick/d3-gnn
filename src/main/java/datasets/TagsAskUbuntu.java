@@ -1,6 +1,9 @@
 package datasets;
 
-import elements.*;
+import elements.DirectedEdge;
+import elements.GraphOp;
+import elements.HyperEgoGraph;
+import elements.Vertex;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
@@ -15,33 +18,44 @@ import picocli.CommandLine;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class TagsAskUbuntu extends Dataset {
 
-    @CommandLine.Option(names = {"--tagsAskUbuntu:type"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of tags stream: hypergraph or star-graph"})
-    protected String type;
+    /**
+     * Type of dataset to be used
+     * <p>
+     * t2q -> Tag to question: Meaning 1 Tag with a list of Question
+     * t2q -> Tag to question: Meaning 1 Question with a list of Tags
+     * </p>
+     */
+    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "t2q", fallbackValue = "t2q", arity = "1", description = {"Type of tags dataset: q2t (Question to tag) or t2q (Tag to question)"})
+    protected String datasetType;
+
+    /**
+     * Type of the stream:
+     * <p>
+     * hypergraph -> Producing {@link HyperEgoGraph}s
+     * edge-stream -> Producing a stream of {@link DirectedEdge}s
+     * </p>
+     */
+    @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
+    protected String streamType;
 
     public TagsAskUbuntu(String[] cmdArgs) {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String fileName;
-        switch (type) {
-            case "hypergraph":
-                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-node-simplex.txt").toString();
-                break;
-            case "star-graph":
-                fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", "tags-ask-ubuntu-simplex-node.txt").toString();
-                break;
-            default:
-                throw new IllegalStateException("TagsAskUbuntu operates in 2 modes: hypergraph or star-graph");
-        }
-        String opName = String.format("TagsAskUbuntu[%s]", type);
+        String fileName = Path.of(System.getenv("DATASET_DIR"), "tags-ask-ubuntu", datasetType.equals("t2q") ? "tags-ask-ubuntu[tag-question].txt" : "tags-ask-ubuntu[question-tab].txt").toString();
+        String opName = String.format("TagsAskUbuntu[dataset=%s, stream=%s]", datasetType, streamType);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = (type.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseGraph())).setParallelism(1).name(String.format("Map %s", opName));
+        SingleOutputStreamOperator<GraphOp> parsed = (streamType.equals("hypergraph") ? fileReader.flatMap(new ParseHyperGraph()) : fileReader.flatMap(new ParseEdges())).setParallelism(1).name(String.format("Parser %s", opName));
         if (fineGrainedResourceManagementEnabled) {
             // All belong to the same slot sharing group
             fileReader.slotSharingGroup("file-input");
@@ -50,6 +64,9 @@ public class TagsAskUbuntu extends Dataset {
         return parsed;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
@@ -61,32 +78,34 @@ public class TagsAskUbuntu extends Dataset {
         };
     }
 
-    public static class ParseGraph implements FlatMapFunction<String, GraphOp> {
+    /**
+     * String -> {@link GraphOp} for star-graph stream
+     */
+    protected static class ParseEdges implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
             String[] values = value.split(",");
             Vertex src = new Vertex(values[0]);
             for (int i = 1; i < values.length; i++) {
                 Vertex dest = new Vertex(values[i]);
-                out.collect(new GraphOp(Op.COMMIT, new DEdge(src, dest)));
-                out.collect(new GraphOp(Op.COMMIT, new DEdge(dest, src)));
+                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(src, dest)));
+                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(dest, src)));
             }
         }
     }
 
-    public static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
+    /**
+     * String -> {@link GraphOp} hypergraph
+     */
+    protected static class ParseHyperGraph implements FlatMapFunction<String, GraphOp> {
         @Override
         public void flatMap(String value, Collector<GraphOp> out) {
             String[] values = value.split(",");
-            List<Vertex> src = List.of(new Vertex(values[0]));
-            List<String> srcId = List.of(src.get(0).getId());
-            List<HEdge> hEdges = new ArrayList<>(values.length - 1);
-            for (int i = 1; i < values.length; i++) {
-                String netId = values[i];
-                hEdges.add(new HEdge(netId, srcId, (short) -1));
-            }
-            HGraph hGraph = new HGraph(src, hEdges);
-            out.collect(new GraphOp(Op.COMMIT, hGraph));
+            Vertex src = new Vertex(values[0]);
+            List<String> hyperEdgeIds = new ArrayList<>(values.length - 1);
+            hyperEdgeIds.addAll(Arrays.asList(values).subList(1, values.length));
+            HyperEgoGraph hyperEgoGraph = new HyperEgoGraph(src, hyperEdgeIds);
+            out.collect(new GraphOp(Op.COMMIT, hyperEgoGraph));
         }
     }
 }

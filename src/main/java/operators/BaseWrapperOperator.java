@@ -63,7 +63,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @implNote Assumes that the input is GraphOp
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
- * @see GNNLayerWrapperOperator manages wrapping around single operators
+ * @see StorageLayerWrapperOperator manages wrapping around single operators
  */
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator, FeedbackConsumer<StreamRecord<GraphOp>> {
@@ -72,7 +72,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      * STATIC PROPS
      */
 
-    public static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
 
     private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
 
@@ -199,10 +199,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void finish() throws Exception {
         if (feedbackChannel.hasProducer()) {
-            long finish = System.currentTimeMillis() + 10000;
+            long finish = System.currentTimeMillis() + 30000;
             do {
-                if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 10000;
-                Thread.onSpinWait();
+                if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 30000;
             } while (System.currentTimeMillis() < finish);
         }
         IOUtils.closeQuietly(feedbackChannel);
@@ -343,7 +342,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public final void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE) {
-            System.out.println("Watermark received " + Thread.currentThread());
             operatorEventGateway.sendEventToCoordinator(new FinalWatermarkArrived());
         }
         wrappedOperator.processWatermark(mark);
@@ -373,8 +371,8 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
     @Override
     public final void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.getValue().getOp() == Op.OPERATOR_EVENT) {
-            BaseOperatorEvent event = element.getValue().getOperatorEvent();
+        if (element.getValue().op == Op.OPERATOR_EVENT) {
+            BaseOperatorEvent event = element.getValue().operatorEvent;
             boolean processNow;
             if (event.direction == null) processNow = true;
             else {
@@ -388,7 +386,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                 processActualElement(element);
             }
         } else {
-            if (element.getValue().getMessageCommunication() == MessageCommunication.BROADCAST) {
+            if (element.getValue().messageCommunication == MessageCommunication.BROADCAST) {
                 element.getValue().setPartId(thisParts.get(0));
                 setKeyContextElement(element);
             }
@@ -653,7 +651,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public void runForAllKeys(Runnable o) throws IllegalStateException {
             try {
-                short tmp = element.getValue().getPartId();
+                short tmp = element.getValue().partId;
                 for (Short thisPart : thisParts) {
                     element.getValue().setPartId(thisPart);
                     setKeyContextElement(element);
@@ -688,12 +686,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             return element;
         }
 
-        /**
-         * Cached NDManager for this operator
-         */
-        public NDManager getNDManager() {
-            return manager;
-        }
     }
 
 }

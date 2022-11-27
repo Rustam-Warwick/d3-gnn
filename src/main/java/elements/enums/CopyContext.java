@@ -3,11 +3,16 @@ package elements.enums;
 /**
  * Context for copy constructor to nullify or deepCopy some fields
  * <strong>RMI</strong> used during updatable method calls. Copy all the fields except {@link elements.GraphElement::features}
- * <strong>MEMENTO</strong> used as a memento element for the plugins. Copy everything except for storage and features
  * <strong>SYNC</strong> Only copy non-halo features, and depending on the element some fields can be nullified
  */
 public enum CopyContext {
-    RMI, // Copy needed for RMI
-    MEMENTO, // Copy needed for Memento
-    SYNC // Copy needed for Sync
+
+    /**
+     * Copy needed for {@link elements.Rmi} execution. Deep copy elements if necessary
+     */
+    RMI,
+    /**
+     * Copy needed for SYNC {@link elements.GraphOp} messages. Usually keeping only non-halo features and some custom stuff depending on element
+     */
+    SYNC,
 }

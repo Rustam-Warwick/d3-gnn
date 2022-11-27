@@ -21,6 +21,7 @@ import java.util.*;
 /**
  * Storage for a more compressed representation of data, however fetching data has to create new classes which can have some overheads.
  */
+@Deprecated
 public class CompressedListStorage extends BaseStorage {
 
     public transient MapState<String, Short> vertexTable;
@@ -70,13 +71,13 @@ public class CompressedListStorage extends BaseStorage {
     public boolean addAttachedFeature(Feature<?, ?> feature) {
         try {
             reuse.f0 = feature.getName();
-            reuse.f1 = feature.attachedTo.f0;
+            reuse.f1 = feature.ids.f0;
             if (!attFeatureTable.containsKey(reuse)) {
                 ConstructorAccess<? extends Feature> tmpConstructor = ConstructorAccess.get(feature.getClass());
                 MapState<String, Object> tmpFt = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Object>(reuse.f0 + "att" + reuse.f1.ordinal(), Types.STRING, (TypeInformation<Object>) feature.getValueTypeInfo()));
                 attFeatureTable.put(reuse.copy(), new Tuple3<>(tmpFt, feature.isHalo(), tmpConstructor));
             }
-            attFeatureTable.get(reuse).f0.put(feature.attachedTo.f1, feature.value);
+            attFeatureTable.get(reuse).f0.put(feature.ids.f1, feature.value);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -92,7 +93,7 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public boolean addVertex(Vertex vertex) {
         try {
-            vertexTable.put(vertex.getId(), vertex.masterPart());
+            vertexTable.put(vertex.getId(), vertex.getMasterPart());
             return true;
         } catch (Exception e) {
             LOG.error(e.getMessage());
@@ -101,16 +102,16 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addEdge(DEdge dEdge) {
+    public boolean addEdge(DirectedEdge directedEdge) {
         try {
-            Set<Tuple2<String, String>> eOut = eOutTable.get(dEdge.getSrcId());
+            Set<Tuple2<String, String>> eOut = eOutTable.get(directedEdge.getSrcId());
             if (eOut == null) eOut = new HashSet<>(10);
-            Set<Tuple2<String, String>> eIn = eInTable.get(dEdge.getDestId());
+            Set<Tuple2<String, String>> eIn = eInTable.get(directedEdge.getDestId());
             if (eIn == null) eIn = new HashSet<>(10);
-            eOut.add(Tuple2.of(dEdge.getDestId(), dEdge.getAttribute()));
-            eIn.add(Tuple2.of(dEdge.getSrcId(), dEdge.getAttribute()));
-            eOutTable.put(dEdge.getSrcId(), eOut);
-            eInTable.put(dEdge.getDestId(), eIn);
+            eOut.add(Tuple2.of(directedEdge.getDestId(), directedEdge.getAttribute()));
+            eIn.add(Tuple2.of(directedEdge.getSrcId(), directedEdge.getAttribute()));
+            eOutTable.put(directedEdge.getSrcId(), eOut);
+            eInTable.put(directedEdge.getDestId(), eIn);
             return true;
         } catch (Exception e) {
             LOG.error(e.getMessage());
@@ -119,13 +120,13 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean addHyperEdge(HEdge hEdge) {
+    public boolean addHyperEdge(HyperEdge hyperEdge) {
         try {
-            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
-            for (String vertexId : hEdge.getVertexIds()) {
+            hyperEdges.put(hyperEdge.getId(), Tuple2.of(hyperEdge.getMasterPart(), hyperEdge.getVertexIds()));
+            for (String vertexId : hyperEdge.getVertexIds()) {
                 List<String> tmp = v2HEdge.get(vertexId);
                 if (tmp == null) tmp = new ArrayList<>(10);
-                tmp.add(hEdge.getId());
+                tmp.add(hyperEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
             return true;
@@ -139,8 +140,8 @@ public class CompressedListStorage extends BaseStorage {
     public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         try {
             reuse.f0 = feature.getName();
-            reuse.f1 = feature.attachedTo.f0;
-            attFeatureTable.get(reuse).f0.put(feature.attachedTo.f1, feature.value);
+            reuse.f1 = feature.ids.f0;
+            attFeatureTable.get(reuse).f0.put(feature.ids.f1, feature.value);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -159,19 +160,19 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean updateEdge(DEdge dEdge, DEdge memento) {
+    public boolean updateEdge(DirectedEdge directedEdge, DirectedEdge memento) {
         return true;
     }
 
     @Override
-    public boolean updateHyperEdge(HEdge hEdge, HEdge memento) {
+    public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
         try {
-            hyperEdges.put(hEdge.getId(), Tuple2.of(hEdge.masterPart(), hEdge.getVertexIds()));
-            for (int i = memento.getVertexIds().size(); i < hEdge.getVertexIds().size(); i++) {
-                String vertexId = hEdge.getVertexIds().get(i);
+            hyperEdges.put(hyperEdge.getId(), Tuple2.of(hyperEdge.getMasterPart(), hyperEdge.getVertexIds()));
+            for (int i = memento.getVertexIds().size(); i < hyperEdge.getVertexIds().size(); i++) {
+                String vertexId = hyperEdge.getVertexIds().get(i);
                 List<String> tmp = v2HEdge.get(vertexId);
                 if (tmp == null) tmp = new ArrayList<>(10);
-                tmp.add(hEdge.getId());
+                tmp.add(hyperEdge.getId());
                 v2HEdge.put(vertexId, tmp);
             }
             return true;
@@ -197,22 +198,21 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean deleteEdge(DEdge dEdge) {
+    public boolean deleteEdge(DirectedEdge directedEdge) {
         throw new NotImplementedException("Not implemented");
     }
 
     @Override
-    public boolean deleteHyperEdge(HEdge hEdge) {
+    public boolean deleteHyperEdge(HyperEdge hyperEdge) {
         throw new NotImplementedException("Not implemented");
     }
 
     @Nullable
     @Override
-    public Vertex getVertex(String id) {
+    public Vertex getVertex(String vertexId) {
         try {
-            short masterPart = vertexTable.get(id);
-            Vertex v = new Vertex(id, masterPart);
-            v.setStorage(this);
+            short masterPart = vertexTable.get(vertexId);
+            Vertex v = new Vertex(vertexId, masterPart);
             return v;
         } catch (Exception e) {
             e.printStackTrace();
@@ -227,7 +227,6 @@ public class CompressedListStorage extends BaseStorage {
             return () -> IteratorUtils.transformedIterator(entries, (entry) -> {
                 Map.Entry<String, Short> tmp = (Map.Entry<String, Short>) entry;
                 Vertex v = new Vertex(tmp.getKey(), tmp.getValue());
-                v.setStorage(this);
                 return v;
             });
         } catch (Exception e) {
@@ -237,10 +236,9 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public DEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
+    public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId) {
         try {
-            DEdge edge = new DEdge(srcId, destId, attributeId);
-            edge.setStorage(this);
+            DirectedEdge edge = new DirectedEdge(srcId, destId, attributeId);
             return edge;
         } catch (Exception e) {
             e.printStackTrace();
@@ -249,22 +247,21 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<DEdge> getEdges(String src, String dest) {
+    public Iterable<DirectedEdge> getEdges(String srcId, String destId) {
         throw new NotImplementedException("Not Implemments");
     }
 
     @Override
-    public Iterable<DEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
-            Iterator<DEdge> outEdgesIter = Collections.emptyIterator();
-            Iterator<DEdge> inEdgesIter = Collections.emptyIterator();
+            Iterator<DirectedEdge> outEdgesIter = Collections.emptyIterator();
+            Iterator<DirectedEdge> inEdgesIter = Collections.emptyIterator();
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (eOutTable.contains(vertex.getId())) {
                     outEdgesIter = IteratorUtils.transformedIterator(eOutTable.get(vertex.getId()).iterator(), (v) -> {
                         Tuple2<String, String> destIdAndAttribute = (Tuple2<String, String>) v;
-                        DEdge edge = new DEdge(vertex.getId(), destIdAndAttribute.f0, destIdAndAttribute.f1);
+                        DirectedEdge edge = new DirectedEdge(vertex.getId(), destIdAndAttribute.f0, destIdAndAttribute.f1);
                         edge.src = vertex;
-                        edge.setStorage(this);
                         return edge;
                     });
                 }
@@ -273,16 +270,15 @@ public class CompressedListStorage extends BaseStorage {
                 if (eInTable.contains(vertex.getId())) {
                     inEdgesIter = IteratorUtils.transformedIterator(eInTable.get(vertex.getId()).iterator(), (v) -> {
                         Tuple2<String, String> srcIdAndAttribute = (Tuple2<String, String>) v;
-                        DEdge edge = new DEdge(srcIdAndAttribute.f0, vertex.getId(), srcIdAndAttribute.f1);
+                        DirectedEdge edge = new DirectedEdge(srcIdAndAttribute.f0, vertex.getId(), srcIdAndAttribute.f1);
                         edge.dest = vertex;
-                        edge.setStorage(this);
                         return edge;
                     });
                 }
             }
 
-            Iterator<DEdge> finalOutEdgesIter = outEdgesIter;
-            Iterator<DEdge> finalInEdgesIter = inEdgesIter;
+            Iterator<DirectedEdge> finalOutEdgesIter = outEdgesIter;
+            Iterator<DirectedEdge> finalInEdgesIter = inEdgesIter;
             return () -> IteratorUtils.chainedIterator(finalOutEdgesIter, finalInEdgesIter);
 
         } catch (Exception e) {
@@ -292,12 +288,10 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public HEdge getHyperEdge(String id) {
+    public HyperEdge getHyperEdge(String hyperEdgeId) {
         try {
-            Tuple2<Short, List<String>> tmp = hyperEdges.get(id);
-            HEdge hEdge = new HEdge(id, tmp.f1, tmp.f0);
-            hEdge.setStorage(this);
-            return hEdge;
+            Tuple2<Short, List<String>> tmp = hyperEdges.get(hyperEdgeId);
+            return new HyperEdge(hyperEdgeId, tmp.f1, tmp.f0);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -305,7 +299,7 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public Iterable<HEdge> getIncidentHyperEdges(Vertex vertex) {
+    public Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex) {
         try {
             List<String> vertices = v2HEdge.get(vertex.getId());
             if (vertices == null) return Collections.emptyList();
@@ -318,18 +312,17 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
+    public Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
             reuse.f0 = featureName;
-            reuse.f1 = elementType;
+            reuse.f1 = attachedType;
             Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>> tmp = attFeatureTable.get(reuse);
             Feature feature = tmp.f2.newInstance();
-            feature.attachedTo.f0 = elementType;
-            feature.attachedTo.f1 = elementId;
-            feature.attachedTo.f2 = featureName;
+            feature.ids.f0 = attachedType;
+            feature.ids.f1 = attachedId;
+            feature.ids.f2 = featureName;
             feature.halo = tmp.f1;
-            feature.value = tmp.f0.get(elementId);
-            feature.setStorage(this);
+            feature.value = tmp.f0.get(attachedId);
             return feature;
         } catch (Exception e) {
             e.printStackTrace();
@@ -339,14 +332,14 @@ public class CompressedListStorage extends BaseStorage {
 
     @Nullable
     @Override
-    public Feature<?, ?> getStandaloneFeature(String id) {
+    public Feature<?, ?> getStandaloneFeature(String featureName) {
         throw new NotImplementedException("Not Implemented");
     }
 
     @Override
-    public boolean containsVertex(String id) {
+    public boolean containsVertex(String vertexId) {
         try {
-            return vertexTable.contains(id);
+            return vertexTable.contains(vertexId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -354,12 +347,12 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsAttachedFeature(ElementType elementType, String elementId, String featureName, @Nullable String id) {
+    public boolean containsAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
             reuse.f0 = featureName;
-            reuse.f1 = elementType;
+            reuse.f1 = attachedType;
             if (!attFeatureTable.containsKey(reuse)) return false;
-            return attFeatureTable.get(reuse).f0.contains(elementId);
+            return attFeatureTable.get(reuse).f0.contains(attachedId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -367,12 +360,12 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsStandaloneFeature(String id) {
+    public boolean containsStandaloneFeature(String featureName) {
         throw new NotImplementedException("Not Implemented");
     }
 
     @Override
-    public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String id) {
+    public boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId) {
         try {
             reuse2.f0 = destId;
             reuse2.f1 = attributeId;
@@ -384,9 +377,9 @@ public class CompressedListStorage extends BaseStorage {
     }
 
     @Override
-    public boolean containsHyperEdge(String id) {
+    public boolean containsHyperEdge(String hyperEdgeId) {
         try {
-            return hyperEdges.contains(id);
+            return hyperEdges.contains(hyperEdgeId);
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -398,12 +391,12 @@ public class CompressedListStorage extends BaseStorage {
         try {
             String elId = element.getId();
             for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
-                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.elementType() || !tuple2Tuple3Entry.getValue().f0.contains(elId))
+                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.getType() || !tuple2Tuple3Entry.getValue().f0.contains(elId))
                     continue;
                 if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(tuple2Tuple3Entry.getKey().f0)))
                     return;
-                Feature<?, ?> feature = getAttachedFeature(element.elementType(), elId, tuple2Tuple3Entry.getKey().f0, null);
-                feature.setElement(element);
+                Feature<?, ?> feature = getAttachedFeature(element.getType(), elId, tuple2Tuple3Entry.getKey().f0, null);
+                feature.setElement(element, false);
             }
         } catch (Exception e) {
             e.printStackTrace();

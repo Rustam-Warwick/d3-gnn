@@ -1,14 +1,16 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import elements.DEdge;
+import elements.DirectedEdge;
+import elements.Feature;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
-import features.InPlaceMeanAggregator;
-import features.Tensor;
+import elements.features.InPlaceMeanAggregator;
+import elements.features.InPlaceSumAggregator;
+import elements.features.Tensor;
 import plugins.ModelServer;
 
 /**
@@ -16,44 +18,45 @@ import plugins.ModelServer;
  */
 abstract public class BaseGNNEmbeddingPlugin extends Plugin {
 
+    /**
+     * Name of the {@link ai.djl.Model} name to fetch the {@link ModelServer}
+     */
     public final String modelName;
 
+    /**
+     * Are vertex embeddings trainable or should it be expected for outside
+     */
     public final boolean trainableVertexEmbeddings;
 
-    public final boolean requiresDestForMessage;
-
-    public boolean IS_ACTIVE;
-
+    /**
+     * Fast reference to the {@link ModelServer} Plugin
+     */
     public transient ModelServer<GNNBlock> modelServer;
 
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix) {
-        this(modelName, suffix, false);
-    }
-
     public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings) {
-        this(modelName, suffix, trainableVertexEmbeddings, true);
-    }
-
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        this(modelName, suffix, trainableVertexEmbeddings, false, IS_ACTIVE);
-    }
-
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean requiresDestForMessage, boolean IS_ACTIVE) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
-        this.IS_ACTIVE = IS_ACTIVE;
-        this.requiresDestForMessage = requiresDestForMessage;
     }
 
-    @Override
-    public void open() throws Exception {
-        super.open();
-        modelServer = (ModelServer<GNNBlock>) storage.getPlugin(String.format("%s-server", modelName));
+    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
+        this.modelName = modelName;
+        this.trainableVertexEmbeddings = trainableVertexEmbeddings;
     }
 
     /**
-     * Calling the update function, note that everything except the input feature and agg value is transfered to TempManager
+     * {@inheritDoc}
+     * Add modelServer Attachment
+     */
+    @Override
+    public void open() throws Exception {
+        super.open();
+        modelServer = (ModelServer<GNNBlock>) getStorage().getPlugin(String.format("%s-server", modelName));
+    }
+
+    /**
+     * Calling the triggerUpdate function, note that everything except the input feature and agg value is transfered to TempManager
      *
      * @param feature  Source Feature list
      * @param training training enabled
@@ -78,21 +81,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     /**
      * Is Edge ready for message passing
      *
-     * @param dEdge Edge
+     * @param directedEdge Edge
      * @return edge_ready
      */
-    public final boolean messageReady(DEdge dEdge) {
-        return requiresDestForMessage ? dEdge.getSrc().containsFeature("f") && dEdge.getDest().containsFeature("f") : dEdge.getSrc().containsFeature("f");
-    }
-
-    /**
-     * Is vertex ready for update
-     *
-     * @param vertex Vertex
-     * @return vertex_ready
-     */
-    public final boolean updateReady(Vertex vertex) {
-        return vertex.state() == ReplicaState.MASTER && vertex.containsFeature("f");
+    public final boolean messageReady(DirectedEdge directedEdge) {
+        return directedEdge.getSrc().containsFeature("f");
     }
 
     /**
@@ -114,30 +107,27 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Stop this plugin
-     */
-    public void stop() {
-        IS_ACTIVE = false;
-    }
-
-    /**
-     * Start this plugin
-     */
-    public void start() {
-        IS_ACTIVE = true;
-    }
-
-    /**
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            NDArray aggStart = storage.layerFunction.getWrapperContext().getNDManager().zeros(modelServer.getInputShape().get(0).getValue());
-            element.setFeature("agg", new InPlaceMeanAggregator(aggStart, true, (short) -1));
-            if (usingTrainableVertexEmbeddings() && storage.layerFunction.isFirst()) {
-                NDArray embeddingRandom = storage.layerFunction.getWrapperContext().getNDManager().randomNormal(modelServer.getInputShape().get(0).getValue()); // Initialize to random value
-                // @todo Can make it as mean of some existing features to tackle the cold-start problem
-                element.setFeature("f", new Tensor(embeddingRandom));
+            Feature<?,?> aggStart;
+            switch (modelServer.getBlock().getAgg()){
+                case MEAN:
+                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    break;
+                case SUM:
+                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    break;
+                default:
+                    throw new IllegalStateException("Aggregator is not recognized");
+            }
+            aggStart.setElement(element, false);
+            aggStart.createInternal();
+            if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShape().get(0).getValue()), false); // Initialize to random value
+                embeddingRandom.setElement(element, false);
+                embeddingRandom.createInternal();
             }
         }
     }

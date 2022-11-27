@@ -1,6 +1,6 @@
 package datasets;
 
-import elements.DEdge;
+import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
@@ -20,13 +20,22 @@ import java.nio.file.Path;
 
 public class RedditHyperlink extends Dataset {
 
+    /**
+     * Type of reddit hyperlink stream: full, body, title
+     */
     @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
     protected String type;
+
+    @CommandLine.Option(names = {"--redditHyperlink:delimiter"}, defaultValue = "\t", fallbackValue = "\t", arity = "1", description = {"Delimiter to be used in the stream"})
+    protected String delimiter;
 
     public RedditHyperlink(String[] cmdArgs) {
         super(cmdArgs);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String fileName;
@@ -45,7 +54,7 @@ public class RedditHyperlink extends Dataset {
         }
         String opName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> fileReader = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(fileName)), fileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(opName).setParallelism(1);
-        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser()).name(String.format("Map %s", opName)).setParallelism(1);
+        SingleOutputStreamOperator<GraphOp> parsed = fileReader.map(new Parser(delimiter)).name(String.format("Parser %s", opName)).setParallelism(1);
         if (fineGrainedResourceManagementEnabled) {
             fileReader.slotSharingGroup("file-input");
             parsed.slotSharingGroup("file-input");
@@ -53,12 +62,18 @@ public class RedditHyperlink extends Dataset {
         return parsed;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new TrainTestSplitter();
     }
 
-    static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
+    /**
+     * Actual Splitter function
+     */
+    protected static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
@@ -66,12 +81,21 @@ public class RedditHyperlink extends Dataset {
         }
     }
 
-    static class Parser implements MapFunction<String, GraphOp> {
+    /**
+     * String -> {@link GraphOp} mapper
+     */
+    protected static class Parser implements MapFunction<String, GraphOp> {
+        private final String delimiter;
+
+        public Parser(String delimiter) {
+            this.delimiter = delimiter;
+        }
+
         @Override
         public GraphOp map(String value) throws Exception {
-            String[] values = value.split("\t");
-            DEdge dEdge = new DEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
-            return new GraphOp(Op.COMMIT, dEdge);
+            String[] values = value.split(delimiter);
+            DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
+            return new GraphOp(Op.COMMIT, directedEdge);
         }
     }
 

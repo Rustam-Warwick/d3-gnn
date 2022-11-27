@@ -12,9 +12,9 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
  *
  * @param <T>
  */
-public class GNNLayerWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, StorageProcessFunction> & Triggerable<Object, VoidNamespace> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
+public class StorageLayerWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, StorageProcessFunction> & Triggerable<Object, VoidNamespace> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
-    public GNNLayerWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
+    public StorageLayerWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {
         super(parameters, operatorFactory, iterationID, position, totalLayers);
         getWrappedOperator().getUserFunction().setWrapperContext(context);
     }

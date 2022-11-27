@@ -1,12 +1,16 @@
 package elements;
 
-import elements.annotations.OmitStorage;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 
+/**
+ * Vertex --> {@link ReplicableGraphElement}
+ */
 public final class Vertex extends ReplicableGraphElement {
 
-    @OmitStorage
+    /**
+     * Vertex id
+     */
     public String id;
 
     public Vertex() {
@@ -28,18 +32,27 @@ public final class Vertex extends ReplicableGraphElement {
         this.id = element.id;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Vertex copy(CopyContext context) {
         return new Vertex(this, context);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String getId() {
         return id;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public ElementType elementType() {
+    public ElementType getType() {
         return ElementType.VERTEX;
     }
 }
