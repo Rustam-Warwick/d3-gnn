@@ -28,6 +28,9 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      */
     final public String id;
 
+    /**
+     * Is this Plugin Active
+     */
     public boolean IS_ACTIVE = true;
 
     /**

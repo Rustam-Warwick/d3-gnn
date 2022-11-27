@@ -76,19 +76,17 @@ public class Rmi extends GraphElement {
     /**
      * Helper for caching all {@link RemoteFunction} of the given class with the {@link MethodAccess}
      */
-    public static void cacheClassIfNotExists(Class<?> clazz) {
-        if (!classRemoteMethods.containsKey(clazz)) {
-            MethodAccess tmp = MethodAccess.get(clazz);
-            HashMap<String, Tuple2<Integer, Boolean>> classMethodIds = new HashMap<>(1 << 3);
-            Method[] methods = clazz.getMethods();
-            for (Method method : methods) {
-                if (method.isAnnotationPresent(RemoteFunction.class)) {
-                    boolean isUpdateMethod = method.getAnnotation(RemoteFunction.class).triggerUpdate();
-                    classMethodIds.put(method.getName(), Tuple2.of(tmp.getIndex(method.getName()), isUpdateMethod));
-                }
+    private static Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>> getClassRemoteMethods(Class<?> clazz) {
+        MethodAccess tmp = MethodAccess.get(clazz);
+        HashMap<String, Tuple2<Integer, Boolean>> classMethodIds = new HashMap<>(1 << 3);
+        Method[] methods = clazz.getMethods();
+        for (Method method : methods) {
+            if (method.isAnnotationPresent(RemoteFunction.class)) {
+                boolean isUpdateMethod = method.getAnnotation(RemoteFunction.class).triggerUpdate();
+                classMethodIds.put(method.getName(), Tuple2.of(tmp.getIndex(method.getName()), isUpdateMethod));
             }
-            classRemoteMethods.putIfAbsent(clazz, Tuple2.of(tmp, classMethodIds));
         }
+        return Tuple2.of(tmp, classMethodIds);
     }
 
     /**
@@ -96,7 +94,7 @@ public class Rmi extends GraphElement {
      */
     public static void execute(GraphElement element, String methodName, Object... args) {
         try {
-            cacheClassIfNotExists(element.getClass()); // Cache MethodHandles of all elements of the given class
+            classRemoteMethods.computeIfAbsent(element.getClass(), Rmi::getClassRemoteMethods); // Cache MethodHandles of all elements of the given class
             Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>> classMethods = classRemoteMethods.get(element.getClass());
             Tuple2<Integer, Boolean> method = classMethods.f1.get(methodName);
             if (method.f1) {
