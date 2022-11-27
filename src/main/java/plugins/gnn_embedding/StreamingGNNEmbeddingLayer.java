@@ -22,10 +22,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
     protected transient Counter latency; // Throughput counter, only used for last layer
 
-    public StreamingGNNEmbeddingLayer(String modelName) {
-        super(modelName, "inferencer");
-    }
-
     public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "inferencer", trainableVertexEmbeddings);
     }
@@ -60,7 +56,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             if (messageReady(directedEdge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) directedEdge.getSrc().getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -130,7 +126,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -158,7 +154,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "replace",
                         directedEdge.getDest().getMasterPart(),

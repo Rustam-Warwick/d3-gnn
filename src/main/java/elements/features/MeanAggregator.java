@@ -2,7 +2,6 @@ package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import elements.Feature;
 import elements.GraphElement;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
@@ -13,7 +12,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 /**
  * MEAN {@link ai.djl.nn.gnn.AggregatorVariant} aggregator for GNNs
  */
-public final class MeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDArray> implements Aggregator {
+public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>>{
 
     public MeanAggregator() {
         super();

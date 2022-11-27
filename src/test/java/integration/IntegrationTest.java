@@ -55,11 +55,14 @@ abstract public class IntegrationTest {
     public static ArrayList<Model> getHGNNModel(int layers) {
         SequentialBlock sb = new SequentialBlock();
         for (int i = 0; i < layers; i++) {
-            sb.add(new HyperSAGEConv(32, true));
+            HyperSAGEConv layer = new HyperSAGEConv(6, true);
+            layer.setAgg(AggregatorVariant.SUM);
+            layer.setHyperGraphAgg(AggregatorVariant.SUM);
+            sb.add(layer);
         }
         BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(128));
+        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(6));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             BaseModel tmp = (BaseModel) Model.newInstance("GNN"); // Should all have the same name

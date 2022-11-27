@@ -3,13 +3,12 @@ package plugins.hgnn_embedding;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.HGNNBlock;
+import elements.Feature;
 import elements.HyperEdge;
 import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
-import elements.features.InPlaceMeanAggregator;
-import elements.features.MeanAggregator;
-import elements.features.Tensor;
+import elements.features.*;
 import plugins.ModelServer;
 
 /**
@@ -23,23 +22,18 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
 
     public final boolean trainableVertexEmbeddings;
 
-    public boolean IS_ACTIVE;
-
     public transient ModelServer<HGNNBlock> modelServer;
 
-    public BaseHGNNEmbeddingPlugin(String modelName, String suffix) {
-        this(modelName, suffix, false);
-    }
-
     public BaseHGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings) {
-        this(modelName, suffix, trainableVertexEmbeddings, true);
-    }
-
-    public BaseHGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
-        this.IS_ACTIVE = IS_ACTIVE;
+    }
+
+    public BaseHGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
+        this.modelName = modelName;
+        this.trainableVertexEmbeddings = trainableVertexEmbeddings;
     }
 
     @Override
@@ -96,26 +90,25 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Stop this plugin
+     * Initialize Vertex Aggregator and possible embeeddings
      */
-    public void stop() {
-        IS_ACTIVE = false;
-    }
-
-    /**
-     * Start this plugin
-     */
-    public void start() {
-        IS_ACTIVE = true;
-    }
-
     public void initVertex(Vertex vertex) {
         if (vertex.state() == ReplicaState.MASTER) {
-            InPlaceMeanAggregator aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+            Feature<?,?> aggStart;
+            switch (modelServer.getBlock().getAgg()){
+                case MEAN:
+                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    break;
+                case SUM:
+                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    break;
+                default:
+                    throw new IllegalStateException("Aggregator is not recognized");
+            }
             aggStart.setElement(vertex, false);
             aggStart.createInternal();
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
-                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().randomNormal(modelServer.getInputShape().get(0).getValue())); // Initialize to random value
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShape().get(0).getValue())); // Initialize to random value
                 embeddingRandom.setElement(vertex, false);
                 embeddingRandom.createInternal();
             }
@@ -127,9 +120,19 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initHyperEdge(HyperEdge hyperEdge) {
         if (hyperEdge.state() == ReplicaState.MASTER) {
-            MeanAggregator agg = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
-            agg.setElement(hyperEdge, false);
-            agg.createInternal();
+            Feature<?,?> aggStart;
+            switch (modelServer.getBlock().getAgg()){
+                case MEAN:
+                    aggStart = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
+                    break;
+                case SUM:
+                    aggStart = new SumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
+                    break;
+                default:
+                    throw new IllegalStateException("Aggregator is not recognized");
+            }
+            aggStart.setElement(hyperEdge, false);
+            aggStart.createInternal();
         }
     }
 }

@@ -2,7 +2,6 @@ package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import elements.Feature;
 import elements.GraphElement;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
@@ -15,7 +14,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
  *
  * @implNote <strong>Use this if the updated oldValue is never used by the plugins</strong>
  */
-public final class InPlaceMeanAggregator extends Feature<Tuple2<NDArray, Integer>, NDArray> implements Aggregator {
+public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
 
     public InPlaceMeanAggregator() {
         super();

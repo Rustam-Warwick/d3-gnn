@@ -323,7 +323,7 @@ public class FlatObjectStorage extends BaseStorage {
     @Override
     public Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
-            if (featureId == null) featureId = Feature.encodeFeatureId(attachedType, attachedId, featureName);
+            if (featureId == null) featureId = Feature.encodeAttachedFeatureId(attachedType, attachedId, featureName);
             return attachedFeatureTable.get(featureId);
         } catch (Exception e) {
             e.printStackTrace();
@@ -344,7 +344,7 @@ public class FlatObjectStorage extends BaseStorage {
     @Override
     public boolean containsAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
         try {
-            if (featureId == null) featureId = Feature.encodeFeatureId(attachedType, attachedId, featureName);
+            if (featureId == null) featureId = Feature.encodeAttachedFeatureId(attachedType, attachedId, featureName);
             return attachedFeatureTable.contains(featureId);
         } catch (Exception e) {
             e.printStackTrace();

@@ -86,8 +86,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Given featureName and attached Element id return the unique id for this feature
      */
-    public static String encodeFeatureId(ElementType type, @Nullable String attachedElementId, String featureName) {
-        if (type == ElementType.NONE) return featureName;
+    public static String encodeAttachedFeatureId(ElementType type, @Nullable String attachedElementId, String featureName) {
         return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
     }
 
@@ -229,7 +228,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        return encodeFeatureId(ids.f0, ids.f1, ids.f2);
+        if(ids.f0 == ElementType.NONE) return ids.f2;
+        return encodeAttachedFeatureId(ids.f0, ids.f1, ids.f2);
     }
 
     /**

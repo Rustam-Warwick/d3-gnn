@@ -29,10 +29,6 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
 
     public transient Map<Short, Tuple2<NDArrayCollector<String>, NDArrayCollector<String>>> collectors;
 
-    public GNNEmbeddingTrainingPlugin(String modelName) {
-        super(modelName, "trainer");
-    }
-
     public GNNEmbeddingTrainingPlugin(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "trainer", trainableVertexEmbeddings);
     }
@@ -250,7 +246,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", BaseNDManager.getManager().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                    Feature.encodeFeatureId(ElementType.VERTEX, v.getId(), "agg"),
+                    Feature.encodeAttachedFeatureId(ElementType.VERTEX, v.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     v.getMasterPart(),

@@ -187,9 +187,10 @@ public final class FeedbackChannel<T> implements Closeable {
 
         @Override
         public void run() {
+            if(queue.hasPendingSnapshots()) return;
             scheduleCount.decrementAndGet();
             final Deque<T> buffer = queue.drainAll();
-            if (queue.hasPendingSnapshots() || consumer == null) return;
+            if (consumer == null) return; // Operator finished
             try {
                 T element;
                 while ((element = buffer.pollFirst()) != null) {

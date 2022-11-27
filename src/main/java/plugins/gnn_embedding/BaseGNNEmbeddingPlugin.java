@@ -33,10 +33,6 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      */
     public transient ModelServer<GNNBlock> modelServer;
 
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix) {
-        this(modelName, suffix, false);
-    }
-
     public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;

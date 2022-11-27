@@ -15,10 +15,6 @@ import java.util.*;
 
 public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
-    public PartOptimizedStreamingGNNEmbeddingLayer(String modelName) {
-        super(modelName);
-    }
-
     public PartOptimizedStreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, trainableVertexEmbeddings);
     }
@@ -36,7 +32,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
         final NDList[] msg = new NDList[1];
         HashMap<Short, List<String>> reduceMessages = null;
         for (DirectedEdge directedEdge : outEdges) {
-            if (this.messageReady(directedEdge)) {
+            if (messageReady(directedEdge)) {
                 if (Objects.isNull(msg[0])) {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                     reduceMessages = new HashMap<>();

@@ -10,30 +10,30 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
- * Mean aggregator that does inplace operation hence the updated oldValue is never updated
- *
- * @implNote <strong>Use this if the updated oldValue is never used by the plugins</strong>
+ * MEAN {@link ai.djl.nn.gnn.AggregatorVariant} aggregator for GNNs
  */
-public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
+public final class SumAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
 
-    public InPlaceSumAggregator() {
+    public SumAggregator() {
         super();
     }
 
-    public InPlaceSumAggregator(String id, NDArray value) {
+    public SumAggregator(String id, NDArray value) {
         super(id, Tuple2.of(value, 0));
     }
 
-    public InPlaceSumAggregator(String id, NDArray value, boolean halo) {
+    public SumAggregator(String id, NDArray value, boolean halo) {
         super(id, Tuple2.of(value, 0), halo);
     }
 
-    public InPlaceSumAggregator(String id, NDArray value, boolean halo, short master) {
+    public SumAggregator(String id, NDArray value, boolean halo, short master) {
         super(id, Tuple2.of(value, 0), halo, master);
     }
 
-    public InPlaceSumAggregator(InPlaceSumAggregator f, CopyContext context) {
+    public SumAggregator(SumAggregator f, CopyContext context) {
         super(f, context);
+        if (context == CopyContext.RMI) value = Tuple2.of(value.f0, value.f1);
+
     }
 
     public static NDArray bulkReduce(NDArray newMessages) {
@@ -44,8 +44,8 @@ public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integ
      * {@inheritDoc}
      */
     @Override
-    public InPlaceSumAggregator copy(CopyContext context) {
-        return new InPlaceSumAggregator(this, context);
+    public SumAggregator copy(CopyContext context) {
+        return new SumAggregator(this, context);
     }
 
     /**
@@ -69,7 +69,7 @@ public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integ
     @Override
     public void updateInternal(GraphElement newElement) {
         super.updateInternal(newElement);
-        InPlaceSumAggregator newAggregator = (InPlaceSumAggregator) newElement;
+        SumAggregator newAggregator = (SumAggregator) newElement;
         if (getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
             value.f0.delay();
             newAggregator.value.f0.resume();
@@ -79,20 +79,20 @@ public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integ
     /**
      * {@inheritDoc}
      */
-    @RemoteFunction
+    @RemoteFunction()
     @Override
     public void reduce(NDList newElement, int count) {
-        value.f0.addi(newElement.get(0));
+        value.f0 = value.f0.add(newElement.get(0));
         value.f1 += count;
     }
 
     /**
      * {@inheritDoc}
      */
-    @RemoteFunction
+    @RemoteFunction()
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        value.f0.addi((newElement.get(0).sub(oldElement.get(0))));
+        value.f0 = value.f0.add((newElement.get(0).sub(oldElement.get(0))));
     }
 
     /**

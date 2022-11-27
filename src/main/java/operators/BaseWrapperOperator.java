@@ -199,10 +199,9 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
     @Override
     public void finish() throws Exception {
         if (feedbackChannel.hasProducer()) {
-            long finish = System.currentTimeMillis() + 10000;
+            long finish = System.currentTimeMillis() + 30000;
             do {
-                if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 10000;
-                Thread.onSpinWait();
+                if (mailboxExecutor.tryYield()) finish = System.currentTimeMillis() + 30000;
             } while (System.currentTimeMillis() < finish);
         }
         IOUtils.closeQuietly(feedbackChannel);

@@ -21,11 +21,6 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     public transient Map<Short, Tuple2<Integer, Set<String>>> BATCH;
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, int BATCH_SIZE) {
-        super(modelName);
-        this.BATCH_SIZE = BATCH_SIZE;
-    }
-
     public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
         super(modelName, trainableVertexEmbeddings);
         this.BATCH_SIZE = BATCH_SIZE;

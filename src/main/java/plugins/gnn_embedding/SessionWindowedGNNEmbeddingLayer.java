@@ -28,11 +28,6 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public SessionWindowedGNNEmbeddingLayer(String modelName, int sessionInterval) {
-        super(modelName);
-        this.sessionInterval = sessionInterval;
-    }
-
     public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
         this.sessionInterval = sessionInterval;
@@ -42,7 +37,6 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.sessionInterval = sessionInterval;
     }
-
 
     @Override
     public void open() throws Exception {
@@ -55,7 +49,7 @@ public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer
     public void forward(Vertex v) {
         long currentProcessingTime = getStorage().layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
         BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
         HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);

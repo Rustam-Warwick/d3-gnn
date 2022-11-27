@@ -28,11 +28,6 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public SessionWindowedHGNNEmbeddingLayer(String modelName, int sessionInterval) {
-        super(modelName);
-        this.sessionInterval = sessionInterval;
-    }
-
     public SessionWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
         this.sessionInterval = sessionInterval;
@@ -51,10 +46,11 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
         getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
     }
 
+    @Override
     public void forward(Vertex v) {
         long currentProcessingTime = getStorage().layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
         BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
         HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);
@@ -93,7 +89,7 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
                 Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
                 updateTensor.ids.f0 = ElementType.VERTEX;
                 updateTensor.ids.f1 = messageVertex.getId();
-                getStorage().layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor), MessageDirection.FORWARD);
+                getStorage().layerFunction.message(new GraphOp(Op.COMMIT, messageVertex.getMasterPart(), updateTensor), MessageDirection.FORWARD);
                 throughput.inc();
             }
         } catch (Exception e) {

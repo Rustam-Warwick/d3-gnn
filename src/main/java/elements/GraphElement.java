@@ -18,32 +18,12 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Abstract class representing all the GraphElements.
- *
+ * Abstract class representing all the elements in the graph.
+ * <p>
+ *     All RUD operation on GraphElement should be performed by first fetching the element from storage
+ *     Since some {@link BaseStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
+ * </p>
  * @todo Check on this issue, it works for now because we don't have nested-features & Feature.valueEquals() is not properly used
- * <h2>
- * 3 Issues need to be taken into account
- *     <ol>
- *         <li>
- *             No way of {@link Feature} update callback failing, how to deal with such cases?
- *         </li>
- *         <li>
- *             What if element accessed a sub-Feature during RMI process? Now the update() function will have a structure like:
- *             (this) el --> subFeature <-- el2 (rmiCopy)
- *             <strong>
- *                      This will not break the code, however the sub-feature will also be treated as an update.
- *                      This also means that if the element is replicated the sub-feature is also going to be sent to the replicas.
- *             </strong>
- *             <strong>
- *                 This issue is closely coupled with the first point if sub-Features can also identify that they are actually not being updated we can overcome
- *                 this problem of sending redundant messages
- *             </strong>
- *             <strong>
- *                 One solution is to create a custom Callback object like a double linked list. It will be more flexible to add consumers to random positions in the callback chain
- *             </strong>
- *         </li>
- *     </ol>
- * </h2>
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
 public abstract class GraphElement implements Serializable, LifeCycleControl, DeSerializationListener {
