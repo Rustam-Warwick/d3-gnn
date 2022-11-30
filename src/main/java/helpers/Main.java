@@ -47,6 +47,13 @@ public class Main {
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
+                                return Activation.relu(ndArrays);
+                            }
+                        })
+                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(new Function<NDList, NDList>() {
+                            @Override
+                            public NDList apply(NDList ndArrays) {
                                 return Activation.softmax(ndArrays);
                             }
                         })
@@ -74,12 +81,12 @@ public class Main {
                     new StreamingStorageProcessFunction(new CompressedListStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 5000))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
                     ),
                     new StreamingStorageProcessFunction(new CompressedListStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 5000))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 10000))
                     ),
                     new StreamingStorageProcessFunction(new CompressedListStorage()
                             .withPlugin(new ModelServer<>(models.get(2)))

@@ -7,6 +7,7 @@ import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.serializers.NDArrayLZ4Serializer;
 import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
+import ai.djl.util.Pair;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 
@@ -78,20 +79,18 @@ public class NDHelper {
     public static void loadModel(Path modelPath, Model model) {
         File folder = new File(String.valueOf(modelPath));
         FilenameFilter onlyNumpy = (dir, name) -> name.toLowerCase().endsWith(".npy");
-        List<File> numpyParameterFiles = new ArrayList<>();
-        Collections.addAll(numpyParameterFiles, folder.listFiles(onlyNumpy));
-        numpyParameterFiles.sort(Comparator.comparing(File::toString));
-        model.getBlock().getParameters().forEach(param -> {
+        int count = 0;
+        for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
             try {
-                InputStream in = new FileInputStream(numpyParameterFiles.remove(0));
+                InputStream in = new FileInputStream(String.format("%s/%s.npy",modelPath, count++));
                 NDArray tmp = NDHelper.decodeNumpy(model.getNDManager(), in);
-                param.getValue().setArray(tmp);
+                parameter.getValue().setArray(tmp);
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
-        });
+        }
     }
 
 }

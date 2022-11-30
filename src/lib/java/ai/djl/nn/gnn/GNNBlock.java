@@ -12,7 +12,7 @@ import ai.djl.util.PairList;
 /**
  * Represents a Single GNN Block
  */
-public class GNNBlock extends AbstractBlock {
+public abstract class GNNBlock extends AbstractBlock {
     AggregatorVariant agg = AggregatorVariant.MEAN;
     Block messageBlock = null;
     Block updateBlock = null;

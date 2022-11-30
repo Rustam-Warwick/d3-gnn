@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class SessionWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
+public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNEmbeddingLayer {
 
     public final int sessionInterval; // Window Interval for graph element updates in milliseconds
 

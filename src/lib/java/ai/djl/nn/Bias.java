@@ -11,9 +11,9 @@ import ai.djl.util.Preconditions;
 import java.util.Collections;
 
 public class Bias extends AbstractBlock {
-    private final Parameter bias;
+    public final Parameter bias;
 
-    private Shape inputShape;
+    Shape inputShape;
 
     public Bias() {
         bias =

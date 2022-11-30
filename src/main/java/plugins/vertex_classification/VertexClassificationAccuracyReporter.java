@@ -31,7 +31,7 @@ public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin
             public Integer getValue() {
                 int sum = correctVsIncorrect.f1 + correctVsIncorrect.f0;
                 if (sum == 0) return 0;
-                return (int) ((float) correctVsIncorrect.f0 / correctVsIncorrect.f1 * 1000);
+                return (int) ((float) correctVsIncorrect.f0 / sum * 1000);
             }
         });
     }
