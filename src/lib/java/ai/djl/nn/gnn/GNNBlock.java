@@ -49,14 +49,15 @@ public class GNNBlock extends AbstractBlock {
 
     @Override
     protected NDList forwardInternal(ParameterStore parameterStore, NDList inputs, boolean training, PairList<String, Object> params) {
-        throw new IllegalStateException("GNN Blocks are not used  yet instead use the message and update blocks separately");
+        NDList message = getMessageBlock().forward(parameterStore, inputs, training, params);
+        return getUpdateBlock().forward(parameterStore, new NDList(inputs.get(0), message.get(0)), training, params);
     }
 
     @Override
     protected void initializeChildBlocks(NDManager manager, DataType dataType, Shape... inputShapes) {
-        messageBlock.initialize(manager, dataType, inputShapes);
+        messageBlock.initialize(manager, dataType, inputShapes[0]);
         Shape[] messageShapes = messageBlock.getOutputShapes(inputShapes);
-        updateBlock.initialize(manager, dataType, messageShapes[0], messageShapes[0]); // One is aggregator one is message shape
+        updateBlock.initialize(manager, dataType, inputShapes[0], messageShapes[0]); // One is aggregator one is message shape
     }
 
     @Override

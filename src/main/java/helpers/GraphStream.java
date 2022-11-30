@@ -60,17 +60,14 @@ public class GraphStream {
      * If last Storage layer and splitter should have a connection
      */
     protected final boolean hasFullLoopIteration;
-
-    /**
-     * {@link Partitioner} to be used
-     */
-    protected Partitioner partitioner;
-
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
      */
     protected final short layers;
-
+    /**
+     * {@link Partitioner} to be used
+     */
+    protected Partitioner partitioner;
     /**
      * Explosion coefficient across the Storage layers
      */
@@ -229,7 +226,7 @@ public class GraphStream {
         Preconditions.checkNotNull(partitioner);
         Preconditions.checkState(internalPositionIndex == 0);
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
-        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)): (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
+        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
         layerOutputs[2] = streamingStorageLayer(layerOutputs[1], dataset.getSplitter());
 

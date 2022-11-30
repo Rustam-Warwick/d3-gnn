@@ -94,8 +94,8 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initVertex(Vertex vertex) {
         if (vertex.state() == ReplicaState.MASTER) {
-            Feature<?,?> aggStart;
-            switch (modelServer.getBlock().getAgg()){
+            Feature<?, ?> aggStart;
+            switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
                     aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
                     break;
@@ -120,8 +120,8 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      */
     public void initHyperEdge(HyperEdge hyperEdge) {
         if (hyperEdge.state() == ReplicaState.MASTER) {
-            Feature<?,?> aggStart;
-            switch (modelServer.getBlock().getAgg()){
+            Feature<?, ?> aggStart;
+            switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
                     aggStart = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
                     break;

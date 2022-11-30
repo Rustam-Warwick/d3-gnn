@@ -111,13 +111,13 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      */
     public void initVertex(Vertex element) {
         if (element.state() == ReplicaState.MASTER) {
-            Feature<?,?> aggStart;
-            switch (modelServer.getBlock().getAgg()){
+            Feature<?, ?> aggStart;
+            switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
-                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShape().get(0).getValue()), true);
                     break;
                 case SUM:
-                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShape().get(0).getValue()), true);
                     break;
                 default:
                     throw new IllegalStateException("Aggregator is not recognized");

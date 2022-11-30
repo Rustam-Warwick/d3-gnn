@@ -110,7 +110,7 @@ class RandomPartitioner extends Partitioner {
                         return val;
                     }
                 });
-            }else if(value.element.getType() == ElementType.GRAPH){
+            } else if (value.element.getType() == ElementType.GRAPH) {
                 HyperEgoGraph hyperEgoGraph = (HyperEgoGraph) value.element;
                 vertexPartitionTable.compute(hyperEgoGraph.getCentralVertex().getId(), (key, val) -> {
                     if (val == null) {

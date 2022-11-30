@@ -12,7 +12,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 /**
  * MEAN {@link ai.djl.nn.gnn.AggregatorVariant} aggregator for GNNs
  */
-public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>>{
+public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
 
     public MeanAggregator() {
         super();
@@ -82,8 +82,7 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>>{
     @RemoteFunction()
     @Override
     public void reduce(NDList newElement, int count) {
-        value.f0 = value.f0.add(newElement.get(0));
-        value.f1 += count;
+        value.f0 = value.f0.mul(value.f1).add(newElement.get(0)).div(++value.f1);
     }
 
     /**
@@ -92,7 +91,8 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>>{
     @RemoteFunction()
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        value.f0 = value.f0.add((newElement.get(0).sub(oldElement.get(0))));
+        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.f1);
+        value.f0 = value.f0.add(increment);
     }
 
     /**

@@ -16,7 +16,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Metric Reporter that ouputs to a file all the task metrics
  */
 public class FileOutputMetricReporter implements Scheduled, MetricReporter {
-    public static List<String> names = List.of("windowThroughput", "latency", "epochThroughput", "lossValue", "throughput", "numRecordsOut", "numRecordsIn", "numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
+    public static List<String> names = List.of("windowThroughput", "accuracy", "latency", "epochThroughput", "lossValue", "throughput", "numRecordsOut", "numRecordsIn", "numRecordsInPerSecond", "numRecordsOutPerSecond", "idleTimeMsPerSecond", "busyTimeMsPerSecond", "backPressuredTimeMsPerSecond", "Replication Factor");
+
     public ConcurrentHashMap<Metric, Tuple2<File, StringBuilder>> fileHashMap = new ConcurrentHashMap<>(100);
 
     @Override

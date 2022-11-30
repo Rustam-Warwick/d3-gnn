@@ -24,19 +24,17 @@ import java.util.Objects;
 public class Plugin extends ReplicableGraphElement implements CheckpointedFunction {
 
     /**
+     * Plugin Logger
+     */
+    protected final static Logger LOG = LoggerFactory.getLogger(Plugin.class);
+    /**
      * ID of this plugin, should be unique per storage
      */
     final public String id;
-
     /**
      * Is this Plugin Active
      */
     public boolean IS_ACTIVE = true;
-
-    /**
-     * Plugin Logger
-     */
-    protected final static Logger LOG = LoggerFactory.getLogger(Plugin.class);
 
     public Plugin() {
         super((short) 0);

@@ -13,7 +13,7 @@ import java.util.Objects;
 /**
  * Main message object that gets sent around the system
  * <p>
- *     There are not getters for this element since all the fields are populated and there is no internal logic to its fields
+ * There are not getters for this element since all the fields are populated and there is no internal logic to its fields
  * </p>
  */
 @SuppressWarnings("UnusedReturnValue")

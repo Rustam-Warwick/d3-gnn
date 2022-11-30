@@ -212,8 +212,7 @@ public class CompressedListStorage extends BaseStorage {
     public Vertex getVertex(String vertexId) {
         try {
             short masterPart = vertexTable.get(vertexId);
-            Vertex v = new Vertex(vertexId, masterPart);
-            return v;
+            return new Vertex(vertexId, masterPart);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -226,8 +225,7 @@ public class CompressedListStorage extends BaseStorage {
             Iterator<Map.Entry<String, Short>> entries = vertexTable.entries().iterator();
             return () -> IteratorUtils.transformedIterator(entries, (entry) -> {
                 Map.Entry<String, Short> tmp = (Map.Entry<String, Short>) entry;
-                Vertex v = new Vertex(tmp.getKey(), tmp.getValue());
-                return v;
+                return new Vertex(tmp.getKey(), tmp.getValue());
             });
         } catch (Exception e) {
             return Collections.emptyList();
@@ -238,8 +236,7 @@ public class CompressedListStorage extends BaseStorage {
     @Override
     public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId) {
         try {
-            DirectedEdge edge = new DirectedEdge(srcId, destId, attributeId);
-            return edge;
+            return new DirectedEdge(srcId, destId, attributeId);
         } catch (Exception e) {
             e.printStackTrace();
             return null;

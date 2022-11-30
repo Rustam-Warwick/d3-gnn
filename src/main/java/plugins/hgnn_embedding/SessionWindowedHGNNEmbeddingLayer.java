@@ -50,7 +50,7 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
     public void forward(Vertex v) {
         long currentProcessingTime = getStorage().layerFunction.getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 500.0) * 500);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 200.0) * 200);
         BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
         HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);

@@ -32,21 +32,21 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class HGNNEmbeddingsTest extends IntegrationTest{
+public class HGNNEmbeddingsTest extends IntegrationTest {
     private static final Map<String, NDArray> vertexEmbeddings = new HashMap<>();
 
     private static Stream<Arguments> jobArguments() {
         return Stream.of(
-                Arguments.arguments(new String[]{"-p=hypergraph-minmax","-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=hypergraph-minmax","-l=2"}, 2, 10),
-                Arguments.arguments(new String[]{"-p=random","-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=random","-l=2"}, 2, 10)
+                Arguments.arguments(new String[]{"-p=hypergraph-minmax", "-l=2"}, 1, 10),
+                Arguments.arguments(new String[]{"-p=hypergraph-minmax", "-l=2"}, 2, 10),
+                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 1, 10),
+                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 2, 10)
         );
     }
 
     @ParameterizedTest
     @MethodSource("jobArguments")
-    void testStreamingPlugin(String[] args, int layers, int meshSize) throws Exception{
+    void testStreamingPlugin(String[] args, int layers, int meshSize) throws Exception {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -54,10 +54,10 @@ public class HGNNEmbeddingsTest extends IntegrationTest{
             KeyedProcessFunction<PartNumber, GraphOp, GraphOp>[] processFunctions = new KeyedProcessFunction[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = new StreamingStorageProcessFunction(new FlatObjectStorage()
-                                        .withPlugin(new ModelServer<>(models.get(i)))
-                                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(i).getName(), true))
-                                        .withPlugin(new LogCallbacksPlugin())
-                                    );
+                        .withPlugin(new ModelServer<>(models.get(i)))
+                        .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(i).getName(), true))
+                        .withPlugin(new LogCallbacksPlugin())
+                );
             }
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshHyperGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
@@ -69,9 +69,10 @@ public class HGNNEmbeddingsTest extends IntegrationTest{
             BaseNDManager.getManager().resume();
         }
     }
+
     @ParameterizedTest
     @MethodSource("jobArguments")
-    void testSessionWindowlugin(String[] args, int layers, int meshSize) throws Exception{
+    void testSessionWindowlugin(String[] args, int layers, int meshSize) throws Exception {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
@@ -95,7 +96,7 @@ public class HGNNEmbeddingsTest extends IntegrationTest{
         }
     }
 
-    private void verifyEmbeddings(int meshSize, ArrayList<Model> models){
+    private void verifyEmbeddings(int meshSize, ArrayList<Model> models) {
         ParameterStore store = new ParameterStore();
         NDArray previousLayerEmbedding = BaseNDManager.getManager().ones(models.get(0).describeInput().get(0).getValue());
         for (Model model : models) {
@@ -105,17 +106,17 @@ public class HGNNEmbeddingsTest extends IntegrationTest{
             previousLayerEmbedding = block.getUpdateBlock().forward(store, new NDList(message, aggregator), false).get(0);
         }
         for (Map.Entry<String, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
-            Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding,1e-4, 1e-06, false));
+            Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-4, 1e-06, false));
         }
     }
 
 
-    private static class CollectEmbeddingsProcess extends ProcessFunction<GraphOp, Void>{
+    private static class CollectEmbeddingsProcess extends ProcessFunction<GraphOp, Void> {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
             Tensor tensor = (Tensor) value.element;
-            vertexEmbeddings.compute(tensor.ids.f1, (vertexId, oldTensor)->{
-                if(oldTensor != null) oldTensor.resume();
+            vertexEmbeddings.compute(tensor.ids.f1, (vertexId, oldTensor) -> {
+                if (oldTensor != null) oldTensor.resume();
                 tensor.delay();
                 return tensor.getValue();
             });

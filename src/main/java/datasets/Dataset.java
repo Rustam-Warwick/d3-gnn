@@ -58,6 +58,8 @@ public abstract class Dataset implements Serializable {
                 return new RedditHyperlink(cmdArgs);
             case "tags-ask-ubuntu":
                 return new TagsAskUbuntu(cmdArgs);
+            case "ogb-products":
+                return new OGBProducts(cmdArgs);
             default:
                 return null;
         }

@@ -17,11 +17,9 @@ import ai.djl.Model;
 import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
-import ai.djl.nn.Parameter;
 import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
-import ai.djl.util.Pair;
 import ai.djl.util.PairList;
 import elements.Plugin;
 import elements.annotations.RemoteFunction;
@@ -44,6 +42,8 @@ public class ModelServer<T extends Block> extends Plugin {
 
     private transient PairList<String, Shape> inputShape; // Input Shape of the model
 
+    private transient PairList<String, Shape> outputShape; // Output Shape of the model
+
     private transient ParameterStore parameterStore;
 
     private transient NDArrayCollector<String> collectedParameters;
@@ -56,8 +56,9 @@ public class ModelServer<T extends Block> extends Plugin {
     public void open() throws Exception {
         super.open();
         inputShape = model.describeInput();
+        outputShape = model.describeOutput();
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
-        parameterStore = new ParameterStoreWrapper();
+        parameterStore = new ParameterStore();
         collectedParameters = new NDArrayCollector<>(true);
         block = (T) model.getBlock();
     }
@@ -72,6 +73,10 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public PairList<String, Shape> getInputShape() {
         return inputShape;
+    }
+
+    public PairList<String, Shape> getOutputShape() {
+        return outputShape;
     }
 
     public ParameterStore getParameterStore() {
@@ -94,17 +99,5 @@ public class ModelServer<T extends Block> extends Plugin {
         }
     }
 
-    public class ParameterStoreWrapper extends ParameterStore {
 
-        /**
-         * Method to be called from master part of modelServer to sync all parameters of out model
-         */
-        @Override
-        public void updateAllParameters() {
-            for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
-                parameter.getValue().getArray().set(collectedParameters.get(parameter.getValue().getId()).divi(NUMBER_OF_COLLECTED_PARAMETERS).toByteBuffer());
-            }
-        }
-
-    }
 }

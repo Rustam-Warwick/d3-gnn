@@ -15,10 +15,10 @@ import java.util.List;
 public class AttachedFeatureTest {
     final List<Vertex> vertices = new ArrayList<>(100);
 
-    final List<Feature<?,?>> features = new ArrayList<>(100);
+    final List<Feature<?, ?>> features = new ArrayList<>(100);
 
     @BeforeEach
-    void populateVertices(){
+    void populateVertices() {
         for (int i = 0; i < 100; i++) {
             vertices.add(new Vertex("testVertex"));
             features.add(new Feature<>("f", new Object()));
@@ -26,7 +26,7 @@ public class AttachedFeatureTest {
         mingle();
     }
 
-    void mingle(){
+    void mingle() {
         for (Vertex vertex : vertices) {
             for (Feature<?, ?> feature : features) {
                 feature.setElement(vertex, true);
@@ -35,8 +35,8 @@ public class AttachedFeatureTest {
     }
 
     @Test
-    public void checkReferences(){
-         for (Vertex vertex : vertices) {
+    public void checkReferences() {
+        for (Vertex vertex : vertices) {
             Assertions.assertNotNull(vertex.features);
             Assertions.assertEquals(vertex.features.size(), 1);
             Assertions.assertEquals(vertex.features.get(0), features.get(0));

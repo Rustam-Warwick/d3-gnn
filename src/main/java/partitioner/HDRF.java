@@ -1,10 +1,12 @@
 package partitioner;
 
 import elements.DirectedEdge;
+import elements.Feature;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.enums.ElementType;
 import operators.MultiThreadedProcessOperator;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
@@ -148,44 +150,57 @@ public class HDRF extends Partitioner {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             GraphElement elementToPartition = value.element;
-            if (elementToPartition.getType() == ElementType.EDGE) {
-                DirectedEdge directedEdge = (DirectedEdge) elementToPartition;
-                short part = partitionEdge(directedEdge);
-                partitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
-                    if (val == null) {
-                        // This is the first part of this vertex hence the master
-                        directedEdge.getSrc().masterPart = part;
-                        totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                    } else {
-                        if (!val.contains(part)) {
-                            // Seocond or more part hence the replica
-                            totalNumberOfReplicas.incrementAndGet();
-                            val.add(part);
+            switch (elementToPartition.getType()) {
+                case EDGE: {
+                    DirectedEdge directedEdge = (DirectedEdge) elementToPartition;
+                    short part = partitionEdge(directedEdge);
+                    partitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
+                        if (val == null) {
+                            // This is the first part of this vertex hence the master
+                            directedEdge.getSrc().masterPart = part;
+                            totalNumberOfVertices.incrementAndGet();
+                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                        } else {
+                            if (!val.contains(part)) {
+                                // Seocond or more part hence the replica
+                                totalNumberOfReplicas.incrementAndGet();
+                                val.add(part);
+                            }
+                            directedEdge.getSrc().masterPart = val.get(0);
+                            return val;
                         }
-                        directedEdge.getSrc().masterPart = val.get(0);
-                        return val;
-                    }
-                });
-                partitionTable.compute(directedEdge.getDestId(), (key, val) -> {
-                    if (val == null) {
-                        // This is the first part of this vertex hence the master
-                        directedEdge.getDest().masterPart = part;
-                        totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                    } else {
-                        if (!val.contains(part)) {
-                            // Seocond or more part hence the replica
-                            totalNumberOfReplicas.incrementAndGet();
-                            val.add(part);
+                    });
+                    partitionTable.compute(directedEdge.getDestId(), (key, val) -> {
+                        if (val == null) {
+                            // This is the first part of this vertex hence the master
+                            directedEdge.getDest().masterPart = part;
+                            totalNumberOfVertices.incrementAndGet();
+                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                        } else {
+                            if (!val.contains(part)) {
+                                // Seocond or more part hence the replica
+                                totalNumberOfReplicas.incrementAndGet();
+                                val.add(part);
+                            }
+                            directedEdge.getDest().masterPart = val.get(0);
+                            return val;
                         }
-                        directedEdge.getDest().masterPart = val.get(0);
-                        return val;
-                    }
-                });
-                out.collect(value.setPartId(part));
-            }else{
-                throw new IllegalStateException("HDRF Accepts DirectedEdges as input stream");
+                    });
+                    out.collect(value.setPartId(part));
+                    break;
+                }
+                case VERTEX: {
+                    out.collect(value.setPartId(partitionTable.get(value.element.getId()).get(0)));
+                    break;
+                }
+                case ATTACHED_FEATURE: {
+                    Feature<?, ?> feature = (Feature<?, ?>) elementToPartition;
+                    if (feature.getAttachedElementType() == ElementType.VERTEX)
+                        out.collect(value.setPartId(partitionTable.get(feature.getAttachedElementId()).get(0)));
+                    break;
+                }
+                default:
+                    throw new NotImplementedException("Other Element Types are not allowed: Received" + elementToPartition.getType());
             }
         }
     }

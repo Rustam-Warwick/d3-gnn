@@ -4,7 +4,7 @@ import java.util.Random;
 
 public class RandomStringGenerator {
 
-    public static String getRandomString(int targetStringLength){
+    public static String getRandomString(int targetStringLength) {
         int leftLimit = 97; // letter 'a'
         int rightLimit = 122; // letter 'z'
         Random random = new Random();

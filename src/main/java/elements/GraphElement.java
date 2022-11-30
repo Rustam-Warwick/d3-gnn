@@ -20,9 +20,10 @@ import java.util.Objects;
 /**
  * Abstract class representing all the elements in the graph.
  * <p>
- *     All RUD operation on GraphElement should be performed by first fetching the element from storage
- *     Since some {@link BaseStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
+ * All RUD operation on GraphElement should be performed by first fetching the element from storage
+ * Since some {@link BaseStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
  * </p>
+ *
  * @todo Check on this issue, it works for now because we don't have nested-features & Feature.valueEquals() is not properly used
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)

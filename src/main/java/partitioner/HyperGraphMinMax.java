@@ -149,7 +149,7 @@ public class HyperGraphMinMax extends Partitioner {
 
                 minParts = Arrays.stream(parts).min().getAsInt(); // Update the min parts
                 out.collect(value.setPartId(part));
-            }else{
+            } else {
                 throw new IllegalStateException("MinMax Partitioner only accepts HyperEgoGraphs as input");
             }
         }

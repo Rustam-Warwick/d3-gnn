@@ -27,7 +27,7 @@ import storage.BaseStorage;
  */
 public interface StorageProcessFunction extends RichFunction, CheckpointedFunction {
 
-    static final Logger LOG = LoggerFactory.getLogger(StorageProcessFunction.class);
+    Logger LOG = LoggerFactory.getLogger(StorageProcessFunction.class);
 
     /**
      * @return Attached storage engine

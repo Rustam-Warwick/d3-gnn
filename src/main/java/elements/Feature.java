@@ -228,7 +228,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public String getId() {
-        if(ids.f0 == ElementType.NONE) return ids.f2;
+        if (ids.f0 == ElementType.NONE) return ids.f2;
         return encodeAttachedFeatureId(ids.f0, ids.f1, ids.f2);
     }
 

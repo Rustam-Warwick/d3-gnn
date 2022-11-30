@@ -11,18 +11,16 @@ abstract public class BaseVertexOutputPlugin extends Plugin {
 
     public final String modelName;
 
-    public boolean IS_ACTIVE;
-
-    public transient ModelServer modelServer;
+    public transient ModelServer<?> modelServer;
 
     public BaseVertexOutputPlugin(String modelName, String suffix) {
-        this(modelName, suffix, true);
+        super(String.format("%s-%s", modelName, suffix));
+        this.modelName = modelName;
     }
 
     public BaseVertexOutputPlugin(String modelName, String suffix, boolean IS_ACTIVE) {
-        super(String.format("%s-%s", modelName, suffix));
+        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
         this.modelName = modelName;
-        this.IS_ACTIVE = IS_ACTIVE;
     }
 
     @Override
@@ -32,7 +30,7 @@ abstract public class BaseVertexOutputPlugin extends Plugin {
     }
 
     public NDList output(NDList feature, boolean training) {
-        return modelServer.getModel().getBlock().forward(modelServer.getParameterStore(), new NDList(feature), training);
+        return modelServer.getModel().getBlock().forward(modelServer.getParameterStore(), feature, training);
     }
 
 }

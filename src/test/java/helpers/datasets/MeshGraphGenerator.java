@@ -31,7 +31,7 @@ public class MeshGraphGenerator extends Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         DataStreamSource<GraphOp> stream = env.fromCollection(generateEdges());
-        if(fineGrainedResourceManagementEnabled) stream.slotSharingGroup("file-input");
+        if (fineGrainedResourceManagementEnabled) stream.slotSharingGroup("file-input");
         return stream;
     }
 
@@ -47,16 +47,16 @@ public class MeshGraphGenerator extends Dataset {
     }
 
 
-    protected Collection<GraphOp> generateEdges(){
+    protected Collection<GraphOp> generateEdges() {
         int meshEdgeSize = nVertices * (nVertices - 1);
         GraphOp[] resultingEdges = new GraphOp[meshEdgeSize];
         for (int i = 0; i < nVertices; i++) {
-            for (int j = 0;  j < nVertices; j++) {
-                if(i==j) continue;
+            for (int j = 0; j < nVertices; j++) {
+                if (i == j) continue;
                 GraphOp thisEdge = new GraphOp(Op.COMMIT, new DirectedEdge(new Vertex(String.valueOf(i)), new Vertex(String.valueOf(j))));
                 int startIndex = Math.abs(thisEdge.hashCode()) % meshEdgeSize;
-                while(true){
-                    if(resultingEdges[startIndex] == null){
+                while (true) {
+                    if (resultingEdges[startIndex] == null) {
                         resultingEdges[startIndex] = thisEdge;
                         break;
                     }

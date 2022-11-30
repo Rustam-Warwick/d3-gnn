@@ -82,8 +82,7 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
     @RemoteFunction
     @Override
     public void reduce(NDList newElement, int count) {
-        value.f0.addi(newElement.get(0));
-        value.f1 += count;
+        value.f0.muli(value.f1).addi(newElement.get(0)).divi(++value.f1);
     }
 
     /**
@@ -92,7 +91,8 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
     @RemoteFunction
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        value.f0.addi((newElement.get(0).sub(oldElement.get(0))));
+        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.f1);
+        value.f0.addi(increment);
     }
 
     /**

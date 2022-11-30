@@ -34,7 +34,7 @@ public class MeshHyperGraphGenerator extends Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         DataStreamSource<GraphOp> stream = env.fromCollection(generateEdges());
-        if(fineGrainedResourceManagementEnabled) stream.slotSharingGroup("file-input");
+        if (fineGrainedResourceManagementEnabled) stream.slotSharingGroup("file-input");
         return stream;
     }
 
@@ -50,7 +50,7 @@ public class MeshHyperGraphGenerator extends Dataset {
     }
 
 
-    protected Collection<GraphOp> generateEdges(){
+    protected Collection<GraphOp> generateEdges() {
         GraphOp[] resultingEdges = new GraphOp[nVertices];
         List<String> hyperEdges = IntStream.range(0, nVertices).mapToObj(item -> RandomStringGenerator.getRandomString(20)).collect(Collectors.toList());
         for (int i = 0; i < nVertices; i++) {
