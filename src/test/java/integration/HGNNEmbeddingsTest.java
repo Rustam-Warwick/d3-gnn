@@ -4,7 +4,7 @@ import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import ai.djl.nn.gnn.HGNNBlock;
+import ai.djl.nn.hgnn.HGNNBlock;
 import ai.djl.training.ParameterStore;
 import elements.GraphOp;
 import elements.features.Tensor;
@@ -101,9 +101,9 @@ public class HGNNEmbeddingsTest extends IntegrationTest {
         NDArray previousLayerEmbedding = BaseNDManager.getManager().ones(models.get(0).describeInput().get(0).getValue());
         for (Model model : models) {
             HGNNBlock block = (HGNNBlock) model.getBlock();
-            NDArray message = block.getMessageBlock().forward(store, new NDList(previousLayerEmbedding), false).get(0);
+            NDArray message = block.message(store, new NDList(previousLayerEmbedding), false).get(0);
             NDArray aggregator = message.mul(meshSize * meshSize);
-            previousLayerEmbedding = block.getUpdateBlock().forward(store, new NDList(message, aggregator), false).get(0);
+            previousLayerEmbedding = block.update(store, new NDList(message, aggregator), false).get(0);
         }
         for (Map.Entry<String, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
             Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-4, 1e-06, false));

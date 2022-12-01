@@ -20,7 +20,6 @@ import ai.djl.nn.Block;
 import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
-import ai.djl.util.PairList;
 import elements.Plugin;
 import elements.annotations.RemoteFunction;
 
@@ -40,9 +39,9 @@ public class ModelServer<T extends Block> extends Plugin {
 
     protected transient Optimizer optimizer; // Optimizer
 
-    private transient PairList<String, Shape> inputShape; // Input Shape of the model
+    private transient Shape[] inputShapes; // Input Shape of the model
 
-    private transient PairList<String, Shape> outputShape; // Output Shape of the model
+    private transient Shape[] outputShapes; // Output Shape of the model
 
     private transient ParameterStore parameterStore;
 
@@ -55,8 +54,8 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public void open() throws Exception {
         super.open();
-        inputShape = model.describeInput();
-        outputShape = model.describeOutput();
+        inputShapes = model.getBlock().getInputShapes();
+        outputShapes = model.getBlock().getOutputShapes(inputShapes);
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         parameterStore = new ParameterStore();
         collectedParameters = new NDArrayCollector<>(true);
@@ -71,12 +70,12 @@ public class ModelServer<T extends Block> extends Plugin {
         return block;
     }
 
-    public PairList<String, Shape> getInputShape() {
-        return inputShape;
+    public Shape[] getInputShapes() {
+        return inputShapes;
     }
 
-    public PairList<String, Shape> getOutputShape() {
-        return outputShape;
+    public Shape[] getOutputShapes() {
+        return outputShapes;
     }
 
     public ParameterStore getParameterStore() {

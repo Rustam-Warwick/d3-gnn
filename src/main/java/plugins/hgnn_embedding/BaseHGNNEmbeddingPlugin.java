@@ -2,7 +2,7 @@ package plugins.hgnn_embedding;
 
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
-import ai.djl.nn.gnn.HGNNBlock;
+import ai.djl.nn.hgnn.HGNNBlock;
 import elements.Feature;
 import elements.HyperEdge;
 import elements.Plugin;
@@ -50,7 +50,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @return Next layer feature
      */
     public final NDList UPDATE(NDList feature, boolean training) {
-        return (modelServer.getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+        return (modelServer.getBlock()).update(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -61,7 +61,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public final NDList MESSAGE(NDList features, boolean training) {
-        return (modelServer.getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
+        return (modelServer.getBlock()).message(modelServer.getParameterStore(), features, training);
     }
 
     /**
@@ -97,10 +97,10 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
             Feature<?, ?> aggStart;
             switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
-                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]), true);
                     break;
                 case SUM:
-                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]), true);
                     break;
                 default:
                     throw new IllegalStateException("Aggregator is not recognized");
@@ -108,7 +108,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
             aggStart.setElement(vertex, false);
             aggStart.createInternal();
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
-                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShape().get(0).getValue())); // Initialize to random value
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0])); // Initialize to random value
                 embeddingRandom.setElement(vertex, false);
                 embeddingRandom.createInternal();
             }
@@ -123,10 +123,10 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
             Feature<?, ?> aggStart;
             switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
-                    aggStart = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
+                    aggStart = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]));
                     break;
                 case SUM:
-                    aggStart = new SumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getInputShape().get(0).getValue()));
+                    aggStart = new SumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]));
                     break;
                 default:
                     throw new IllegalStateException("Aggregator is not recognized");

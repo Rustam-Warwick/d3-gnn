@@ -33,6 +33,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      */
     public transient ModelServer<GNNBlock> modelServer;
 
+
     public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
@@ -63,7 +64,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return Next layer feature
      */
     public final NDList UPDATE(NDList feature, boolean training) {
-        return (modelServer.getBlock()).getUpdateBlock().forward(modelServer.getParameterStore(), feature, training);
+        return (modelServer.getBlock()).update(modelServer.getParameterStore(), feature, training);
     }
 
     /**
@@ -74,8 +75,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * @return Message Tensor to be send to the aggregator
      */
     public final NDList MESSAGE(NDList features, boolean training) {
-        return (modelServer.getBlock()).getMessageBlock().forward(modelServer.getParameterStore(), features, training);
-
+        return (modelServer.getBlock()).message(modelServer.getParameterStore(), features, training);
     }
 
     /**
@@ -114,10 +114,10 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
             Feature<?, ?> aggStart;
             switch (modelServer.getBlock().getAgg()) {
                 case MEAN:
-                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceMeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]), true);
                     break;
                 case SUM:
-                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShape().get(0).getValue()), true);
+                    aggStart = new InPlaceSumAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]), true);
                     break;
                 default:
                     throw new IllegalStateException("Aggregator is not recognized");
@@ -125,7 +125,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
             aggStart.setElement(element, false);
             aggStart.createInternal();
             if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
-                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShape().get(0).getValue()), false); // Initialize to random value
+                Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0]), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
                 embeddingRandom.createInternal();
             }

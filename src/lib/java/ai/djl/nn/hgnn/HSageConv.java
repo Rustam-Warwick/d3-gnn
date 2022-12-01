@@ -1,23 +1,16 @@
-package ai.djl.nn.gnn;
+package ai.djl.nn.hgnn;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Bias;
-import ai.djl.nn.ParallelBlock;
 import ai.djl.nn.Parameter;
-import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
+import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.training.ParameterStore;
-import ai.djl.util.PairList;
 
-import javax.sound.sampled.Line;
-import java.util.List;
-import java.util.function.Function;
-
-public final class SAGEConv extends GNNBlock {
+public final class HSageConv extends HGNNBlock {
     Linear neigh;
 
     Linear self;
@@ -26,7 +19,7 @@ public final class SAGEConv extends GNNBlock {
 
     Shape outputShape;
 
-    public SAGEConv(int outFeatures, boolean optBias) {
+    public HSageConv(int outFeatures, boolean optBias) {
         if (optBias) {
             bias = Parameter.builder().setName("bias").setType(Parameter.Type.BIAS).build();
             addParameter(bias);

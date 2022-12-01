@@ -7,8 +7,8 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.gnn.AggregatorVariant;
-import ai.djl.nn.gnn.HyperSAGEConv;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.nn.hgnn.HSageConv;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.junit.ClassRule;
@@ -55,9 +55,9 @@ abstract public class IntegrationTest {
     public static ArrayList<Model> getHGNNModel(int layers) {
         SequentialBlock sb = new SequentialBlock();
         for (int i = 0; i < layers; i++) {
-            HyperSAGEConv layer = new HyperSAGEConv(6, true);
+            HSageConv layer = new HSageConv(6, true);
             layer.setAgg(AggregatorVariant.SUM);
-            layer.setHyperGraphAgg(AggregatorVariant.SUM);
+            layer.setHyperEdgeAgg(AggregatorVariant.SUM);
             sb.add(layer);
         }
         BaseModel model = (BaseModel) Model.newInstance("GNN");

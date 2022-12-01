@@ -61,7 +61,7 @@ public class Main {
         );
         BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
-        NDHelper.loadModel(Path.of(System.getenv("DATASET_DIR"), "ogb-products", "graphSage"), model);
+//        NDHelper.loadModel(Path.of(System.getenv("DATASET_DIR"), "ogb-products", "graphSage"), model);
         model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(100));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
@@ -81,7 +81,7 @@ public class Main {
                     new StreamingStorageProcessFunction(new CompressedListStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 10000))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 10000))
                     ),
                     new StreamingStorageProcessFunction(new CompressedListStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))

@@ -13,57 +13,39 @@ import ai.djl.util.PairList;
  * Represents a Single GNN Block
  */
 public abstract class GNNBlock extends AbstractBlock {
+
     AggregatorVariant agg = AggregatorVariant.MEAN;
-    Block messageBlock = null;
-    Block updateBlock = null;
 
     public GNNBlock() {
 
     }
 
+    /**
+     * Get the aggregator type for this GNN
+     */
     public AggregatorVariant getAgg() {
         return agg;
     }
 
+    /**
+     * Set the Aggregator Type for this GNN
+     */
     public void setAgg(AggregatorVariant agg) {
         this.agg = agg;
     }
 
-    public Block getMessageBlock() {
-        return messageBlock;
-    }
+    /**
+     * Message can have any input
+     */
+    public abstract NDList message(ParameterStore parameterStore, NDList inputs, boolean training);
 
-    public void setMessageBlock(Block messageBlock) {
-        this.messageBlock = messageBlock;
-        addChildBlock("message", messageBlock);
-    }
-
-    public Block getUpdateBlock() {
-        return updateBlock;
-    }
-
-    public void setUpdateBlock(Block updateBlock) {
-        this.updateBlock = updateBlock;
-        addChildBlock("update", updateBlock);
-    }
+    /**
+     * Input should have format of [embedding, aggregator]
+     */
+    public abstract NDList update(ParameterStore parameterStore, NDList inputs, boolean training);
 
     @Override
     protected NDList forwardInternal(ParameterStore parameterStore, NDList inputs, boolean training, PairList<String, Object> params) {
-        NDList message = getMessageBlock().forward(parameterStore, inputs, training, params);
-        return getUpdateBlock().forward(parameterStore, new NDList(inputs.get(0), message.get(0)), training, params);
-    }
-
-    @Override
-    protected void initializeChildBlocks(NDManager manager, DataType dataType, Shape... inputShapes) {
-        messageBlock.initialize(manager, dataType, inputShapes[0]);
-        Shape[] messageShapes = messageBlock.getOutputShapes(inputShapes);
-        updateBlock.initialize(manager, dataType, inputShapes[0], messageShapes[0]); // One is aggregator one is message shape
-    }
-
-    @Override
-    public Shape[] getOutputShapes(Shape[] inputShapes) {
-        Shape[] messsageShapes = getMessageBlock().getOutputShapes(inputShapes);
-        Shape[] shape = new Shape[]{messsageShapes[0], messsageShapes[0]};
-        return getUpdateBlock().getOutputShapes(shape);
+        throw new IllegalStateException("GNNBlocks should not be called as whole, use message and update functions separately");
     }
 }

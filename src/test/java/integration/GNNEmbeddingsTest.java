@@ -129,9 +129,9 @@ public class GNNEmbeddingsTest extends IntegrationTest {
         NDArray previousLayerEmbedding = BaseNDManager.getManager().ones(models.get(0).describeInput().get(0).getValue());
         for (Model model : models) {
             GNNBlock block = (GNNBlock) model.getBlock();
-            NDArray message = block.getMessageBlock().forward(store, new NDList(previousLayerEmbedding), false).get(0);
+            NDArray message = block.message(store, new NDList(previousLayerEmbedding), false).get(0);
             NDArray aggregator = message.mul(meshSize - 1);
-            previousLayerEmbedding = block.getUpdateBlock().forward(store, new NDList(previousLayerEmbedding, aggregator), false).get(0);
+            previousLayerEmbedding = block.update(store, new NDList(previousLayerEmbedding, aggregator), false).get(0);
         }
         for (Map.Entry<String, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
             Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-4, 1e-06, false));
