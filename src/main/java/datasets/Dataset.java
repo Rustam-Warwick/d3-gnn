@@ -60,6 +60,8 @@ public abstract class Dataset implements Serializable {
                 return new TagsAskUbuntu(cmdArgs);
             case "ogb-products":
                 return new OGBProducts(cmdArgs);
+            case "coauth-DBLP":
+                return new DBLPCoAuth(cmdArgs);
             default:
                 return null;
         }
