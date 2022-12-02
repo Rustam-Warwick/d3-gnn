@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class DBLPCoAuth extends Dataset {
+public class CoAuthDBLP extends Dataset {
 
     /**
      * Type of dataset to be used
@@ -30,7 +30,7 @@ public class DBLPCoAuth extends Dataset {
      * t2q -> Tag to question: Meaning 1 Question with a list of Tags
      * </p>
      */
-    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "a2p", fallbackValue = "a2p", arity = "1", description = {"Type of tags dataset: a2p (Author-Publication) or p2a (Publication 2 Author)"})
+    @CommandLine.Option(names = {"--coauthDBLP:datasetType"}, defaultValue = "a2p", fallbackValue = "a2p", arity = "1", description = {"Type of tags dataset: a2p (Author-Publication) or p2a (Publication 2 Author)"})
     protected String datasetType;
 
     /**
@@ -40,10 +40,10 @@ public class DBLPCoAuth extends Dataset {
      * edge-stream -> Producing a stream of {@link DirectedEdge}s
      * </p>
      */
-    @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
+    @CommandLine.Option(names = {"--coauthDBLP:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
     protected String streamType;
 
-    public DBLPCoAuth(String[] cmdArgs) {
+    public CoAuthDBLP(String[] cmdArgs) {
         super(cmdArgs);
     }
 

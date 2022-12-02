@@ -61,7 +61,9 @@ public abstract class Dataset implements Serializable {
             case "ogb-products":
                 return new OGBProducts(cmdArgs);
             case "coauth-DBLP":
-                return new DBLPCoAuth(cmdArgs);
+                return new CoAuthDBLP(cmdArgs);
+            case "threads-math-sx":
+                return new ThreadsMathSX(cmdArgs);
             default:
                 return null;
         }

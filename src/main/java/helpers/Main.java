@@ -9,17 +9,23 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
+import ai.djl.nn.gnn.GCNConv;
+import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.nn.hgnn.HGCNConv;
 import ai.djl.nn.hgnn.HSageConv;
 import elements.GraphOp;
 import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
+import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -29,8 +35,8 @@ public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HSageConv(64, true));
-        sb.add(new HSageConv(47, true));
+        sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(47, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(47).optBias(true).build())
@@ -69,21 +75,30 @@ public class Main {
         return models;
     }
 
+    public static void test() throws Exception {
+        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        DataStream<Integer> intStream = env.fromCollection(List.of(1,2,3,4,5));
+        IterativeStream<Integer> a = intStream.iterate();
+        a.closeWith(a.filter(item->item > 10).setParallelism(1));
+        env.execute();
+    }
+
     public static void main(String[] args) throws Throwable {
         try {
+//            test();
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, false, false, false,
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 200))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 7000))
                     ),
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(1).getName(), false, 200))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 7000))
                     )
             ).build();
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

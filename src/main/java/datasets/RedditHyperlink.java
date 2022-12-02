@@ -31,12 +31,6 @@ public class RedditHyperlink extends Dataset {
     @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
     protected String type;
 
-    /**
-     * Type of reddit hyperlink stream: full, body, title
-     */
-    @CommandLine.Option(names = {"--redditHyperlink:hasEmbeddings"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Should the vertex embeddings be streamed as well"})
-    protected boolean hasEmbeddings;
-
     public RedditHyperlink(String[] cmdArgs) {
         super(cmdArgs);
     }
