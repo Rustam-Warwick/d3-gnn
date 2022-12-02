@@ -216,8 +216,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
      * Update Vertices when the HyperEdge aggregator is updated
      */
     public void replaceF2(Aggregator<?> newAggregator, Aggregator<?> oldAggregator) {
-        NDList newMessage = MESSAGE(new NDList(newAggregator.getValue()), false);
-        NDList oldMessage = MESSAGE(new NDList(oldAggregator.getValue()), false);
+        NDList newMessage = new NDList(newAggregator.getValue());
+        NDList oldMessage = new NDList(oldAggregator.getValue());
         HyperEdge edge = (HyperEdge) newAggregator.getElement();
         for (Vertex vertex : edge.getVertices()) {
             Rmi.buildAndRun(

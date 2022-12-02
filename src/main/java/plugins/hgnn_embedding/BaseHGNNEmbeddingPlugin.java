@@ -121,7 +121,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     public void initHyperEdge(HyperEdge hyperEdge) {
         if (hyperEdge.state() == ReplicaState.MASTER) {
             Feature<?, ?> aggStart;
-            switch (modelServer.getBlock().getAgg()) {
+            switch (modelServer.getBlock().getHyperEdgeAgg()) {
                 case MEAN:
                     aggStart = new MeanAggregator("agg", BaseNDManager.getManager().zeros(modelServer.getOutputShapes()[0]));
                     break;
