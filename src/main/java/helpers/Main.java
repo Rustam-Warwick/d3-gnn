@@ -86,9 +86,10 @@ public class Main {
                             .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(1).getName(), false, 200))
                     )
             ).build();
+
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
             String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
-            env.execute(jobName);
+            env.execute();
         } finally {
             BaseNDManager.getManager().resume();
         }
