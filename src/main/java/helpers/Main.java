@@ -10,16 +10,12 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.hgnn.HSageConv;
-import elements.GraphOp;
-import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import plugins.ModelServer;
-import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
-import storage.FlatObjectStorage;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -74,21 +70,9 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, false, false, false,
-                    new StreamingStorageProcessFunction(new FlatObjectStorage()
-                            .withPlugin(new ModelServer<>(models.get(0)))
-//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(0).getName(), true, 200))
-                    ),
-                    new StreamingStorageProcessFunction(new FlatObjectStorage()
-                            .withPlugin(new ModelServer<>(models.get(1)))
-//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
-                            .withPlugin(new SessionWindowedHGNNEmbeddingLayer(models.get(1).getName(), false, 200))
-                    )
-            ).build();
-
-            String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-            String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
+            DataStream<Integer> a = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
+            IterateStream<Integer> iterateA = IterateStream.startIteration(a);
+            iterateA.closeIteration(iterateA.map(item -> item));
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

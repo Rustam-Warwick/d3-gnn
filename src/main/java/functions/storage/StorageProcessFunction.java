@@ -79,12 +79,12 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
     void broadcastMessage(GraphOp op, MessageDirection direction, @NotNull Long timestamp);
 
     /**
-     * Side outputs apart from those iterate, forward, backward messages
+     * Side outputs apart from those startIteration, forward, backward messages
      */
     <OUT> void sideMessage(OUT op, OutputTag<OUT> outputTag);
 
     /**
-     * Side outputs apart from those iterate, forward, backward messages with timestamp
+     * Side outputs apart from those startIteration, forward, backward messages with timestamp
      */
     <OUT> void sideMessage(OUT op, @NotNull OutputTag<OUT> outputTag, @NotNull Long timestamp);
 

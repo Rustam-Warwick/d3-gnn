@@ -76,11 +76,11 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
 
-    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<>("iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<>("startIteration", TypeInformation.of(GraphOp.class));
 
     public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<>("backward", TypeInformation.of(GraphOp.class));
 
-    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<>("full-iterate", TypeInformation.of(GraphOp.class));
+    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<>("full-startIteration", TypeInformation.of(GraphOp.class));
 
     /**
      * OPERATOR PROPS
@@ -329,7 +329,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
      */
 
     /**
-     * Process the watermark status and iterate
+     * Process the watermark status and startIteration
      */
     @Override
     public final void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
