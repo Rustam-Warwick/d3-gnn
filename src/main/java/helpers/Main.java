@@ -71,8 +71,10 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<Integer> a = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
-            IterateStream<Integer> iterateA = IterateStream.startIteration(a);
+            a.keyBy(item -> item).map(item -> item);
+            IterateStream<Integer, Integer> iterateA = IterateStream.startIteration(a);
             iterateA.closeIteration(iterateA.map(item -> item));
+            System.out.println(env.getStreamGraph().getStreamingPlanAsJSON());
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();
