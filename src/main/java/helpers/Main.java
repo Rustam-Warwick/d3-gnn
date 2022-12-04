@@ -9,10 +9,7 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.GCNConv;
 import ai.djl.nn.gnn.SAGEConv;
-import ai.djl.nn.hgnn.HGCNConv;
-import ai.djl.nn.hgnn.HSageConv;
 import elements.GraphOp;
 import functions.storage.StreamingStorageProcessFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -20,7 +17,6 @@ import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.text.SimpleDateFormat;
@@ -93,12 +89,12 @@ public class Main {
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(0)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 7000))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 1000))
                     ),
                     new StreamingStorageProcessFunction(new FlatObjectStorage()
                             .withPlugin(new ModelServer<>(models.get(1)))
 //                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 7000))
+                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 1000))
                     )
             ).build();
             String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());

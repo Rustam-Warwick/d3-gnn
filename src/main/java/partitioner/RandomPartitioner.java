@@ -40,6 +40,16 @@ class RandomPartitioner extends Partitioner {
 
     /**
      * Actual Random graph partitioning process function
+     * <p>
+     *     For {@link DirectedEdge} streams chose a random part and send the edge there
+     *     Src and dest master parts are going to be assigned as the first part of encountered edges
+     *     Replication Factor is calculated as = total_unique_vertices / total_number_replica_vertices
+     * </p>
+     * <p>
+     *     For {@link HyperEgoGraph} streams chose a random part and send the graph there
+     *     Vertex and HyperEdge master parts are going to be assigned as the first part of encountered edges
+     *     Replication Factor is calculated as = total_unique_hEdges / total_number_of_replica_hEdges
+     * </p>
      */
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
 
