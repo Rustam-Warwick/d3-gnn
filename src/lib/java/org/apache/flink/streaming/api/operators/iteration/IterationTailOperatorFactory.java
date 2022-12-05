@@ -1,16 +1,11 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
-import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.StreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 
-public class IterationTailOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OUT> {
-
-    /**
-     * Mailbox Executor of the corresponding Task
-     */
-    transient MailboxExecutor mailboxExecutor;
+public class IterationTailOperatorFactory<IN> extends AbstractStreamOperatorFactory<Void> implements OneInputStreamOperatorFactory<IN, Void> {
 
     /**
      * ID of the HeadTransformation. To be combined with the jobId and attemptId for uniqueness
@@ -22,8 +17,8 @@ public class IterationTailOperatorFactory<OUT> extends AbstractStreamOperatorFac
     }
 
     @Override
-    public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
-        return (T) new IterationTailOperator<>(headIterationId, mailboxExecutor);
+    public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> parameters) {
+        return (T) new IterationTailOperator<IN>(headIterationId, parameters);
     }
 
     @Override

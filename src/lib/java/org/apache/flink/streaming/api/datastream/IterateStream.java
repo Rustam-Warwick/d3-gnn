@@ -19,8 +19,8 @@ import java.util.Map;
  * Represents a Stream that has iterations.
  * Use this instead of default {@link IterativeStream}
  * @implNote This object can be interoperably used with your main transformation {@link DataStream}
- * @param <T> Output of the head transformation
- * @param <IT> Input of the head transformation, or in other words the type of iteration elements
+ * @param <T> Output of the iteration body
+ * @param <IT> Type of elements in the iteration, in other words input of the iteration body
  */
 public class IterateStream<T,IT> extends DataStream<T>{
 
@@ -56,9 +56,10 @@ public class IterateStream<T,IT> extends DataStream<T>{
     /**
      * Start the Iteration parallel to this element
      */
-    public static <T,IT> IterateStream<T,IT> startIteration(DataStream<T> input){
-        Preconditions.checkState(input.getTransformation() instanceof PhysicalTransformation);
-        return new IterateStream<>(input.getExecutionEnvironment(), input.getTransformation(), new IterateTransformation<>((PhysicalTransformation<IT>) input.getTransformation()));
+    public static <T,IT> IterateStream<T,IT> startIteration(DataStream<T> body){
+        Preconditions.checkState(body.getTransformation() instanceof PhysicalTransformation, "Input for iteration should be a physical operator");
+        Preconditions.checkState(body.getTransformation().getInputs().size() > 0, "Iteration Body cannot be a source operator, apply an identity hash to overcome this");
+        return new IterateStream<>(body.getExecutionEnvironment(), body.getTransformation(), new IterateTransformation<>((PhysicalTransformation<T>) body.getTransformation()));
     }
 
     /**

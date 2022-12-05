@@ -1,92 +1,91 @@
 package org.apache.flink.streaming.runtime.translators;
 
 import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.api.java.typeutils.TypeExtractor;
+import org.apache.flink.streaming.api.graph.SimpleTransformationTranslator;
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.streaming.api.graph.StreamNode;
-import org.apache.flink.streaming.api.graph.TransformationTranslator;
 import org.apache.flink.streaming.api.operators.iteration.IterationHeadOperatorFactory;
+import org.apache.flink.streaming.api.operators.iteration.IterationTailOperatorFactory;
 import org.apache.flink.streaming.api.transformations.IterateTransformation;
+import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class IterateTransformationTranslator<OUT> implements TransformationTranslator<OUT, IterateTransformation<OUT>> {
+public class IterateTransformationTranslator<OUT> extends SimpleTransformationTranslator<OUT, IterateTransformation<OUT>> {
     private static Logger LOG = LoggerFactory.getLogger(IterateTransformationTranslator.class);
+
     @Override
-    public Collection<Integer> translateForBatch(IterateTransformation<OUT> transformation, Context context) {
+    protected Collection<Integer> translateForBatchInternal(IterateTransformation<OUT> transformation, Context context) {
         throw new IllegalStateException("Batch Transformations are not allowed yet");
     }
 
     @Override
-    public Collection<Integer> translateForStreaming(IterateTransformation<OUT> transformation, Context context) {
-        Preconditions.checkNotNull(transformation.getIterationStartTransformation());
-        if(transformation.getIterationTailTransformations().isEmpty()){
+    public Collection<Integer> translateForStreamingInternal(IterateTransformation<OUT> transformation, Context context) {
+        // Basic Error Handling
+        Preconditions.checkNotNull(transformation.getIterationBodyTransformation());
+        if(transformation.getIterationFeedbackTransformations().isEmpty()){
             // If no tails do not add any iteration stuff
             return Collections.emptyList();
         }
+        // Easy Access
         final StreamGraph streamGraph = context.getStreamGraph();
-        final String slotSharingGroup = context.getSlotSharingGroup();
         final int iterationHeadId = transformation.getId();
         final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
+        final List<Integer> results = new ArrayList<>(List.of(iterationHeadId));
 
-        // First Transform the IterationStartTransformations and IterationEndTransformations
-        Collection<Integer> startVertexIds = context.transform(transformation.getIterationStartTransformation());
-        Collection<Integer> endVertexIds = transformation.getIterationTailTransformations().stream().map(context::transform).flatMap(item->(Stream<Integer>) item.stream()).collect(Collectors.toList());
-        StreamNode startStreamNode = startVertexIds.stream().map(id -> context.getStreamGraph().getStreamNode(id)).collect(Collectors.toList()).get(0);
-        List<StreamNode> endStreamNodes = endVertexIds.stream().map(id -> context.getStreamGraph().getStreamNode(id)).collect(Collectors.toList());
+        // Configuration of SlotSharingGroup And transforming body first
+        final Collection<Integer> bodyVertexIds = context.transform(transformation.getIterationBodyTransformation()); // Create body transformation first
+        Preconditions.checkState(bodyVertexIds.size() == 1, "Body of the Iteration should be a single operator, this transformation has multiple IDs");
+        final StreamNode bodyStreamNode = context.getStreamGraph().getStreamNode(bodyVertexIds.iterator().next());
+        final String coLocationGroupKey = bodyStreamNode.getCoLocationGroup() == null?String.format("Iteration-%s", iterationHeadId):bodyStreamNode.getCoLocationGroup();
+        final String slotSharingGroup = bodyStreamNode.getSlotSharingGroup();
+        bodyStreamNode.setCoLocationGroup(coLocationGroupKey);
 
-        // Add the Iteration HEAD Operator
+        // Add Iteration HEAD
         streamGraph.addLegacySource(
                 iterationHeadId,
                 slotSharingGroup,
-                transformation.getCoLocationGroupKey(),
+                coLocationGroupKey,
                 new IterationHeadOperatorFactory<>(iterationHeadId),
                 transformation.getOutputType(),
                 transformation.getOutputType(),
-                String.format("[HEAD]%s",startStreamNode.getOperatorName()));
+                String.format("[HEAD]%s",bodyStreamNode.getOperatorName()));
+        streamGraph.setParallelism(iterationHeadId, bodyStreamNode.getParallelism());
+        streamGraph.setMaxParallelism(iterationHeadId, transformation.getIterationBodyTransformation().getMaxParallelism());
+        streamGraph.addEdge(iterationHeadId, bodyStreamNode.getId(),0);
 
         // Add the Iteration TAIL Operators
+        for (Transformation<OUT> iterationFeedbackTransformation : transformation.getIterationFeedbackTransformations()) {
+            Collection<Integer> feedbackVertexIds = context.transform(iterationFeedbackTransformation); // Create feedback transformations first
+            int iterationTailId = Transformation.getNewNodeId();
+            results.add(iterationTailId);
+            streamGraph.addOperator(
+                    iterationTailId,
+                    slotSharingGroup,
+                    coLocationGroupKey,
+                    new IterationTailOperatorFactory(iterationHeadId),
+                    transformation.getOutputType(),
+                    TypeExtractor.createTypeInfo(Void.class),
+                    String.format("[TAIL]%s",bodyStreamNode.getOperatorName()));
+            streamGraph.setParallelism(iterationTailId, bodyStreamNode.getParallelism());
+            streamGraph.setMaxParallelism(iterationTailId, transformation.getIterationBodyTransformation().getMaxParallelism());
+            if(bodyStreamNode.getStatePartitioners().length > 0){
+                Preconditions.checkState(iterationFeedbackTransformation instanceof PartitionTransformation, "IterationBody and Feedback should be identically partitioned");
+                streamGraph.setOneInputStateKey(iterationTailId, bodyStreamNode.getStatePartitioners()[0], bodyStreamNode.getStateKeySerializer().duplicate());
+            }
 
-        // Make Edges
-        streamGraph.addEdge();
-
-        // Configure parallelism slotSharingGroup and coLocationGroups
-
-        streamGraph.setParallelism(iterationHeadId, 10);
-        streamGraph.setMaxParallelism(iterationHeadId, 10);
-//        );
-//        streamGraph.addOperator(
-//                transformationId,
-//                slotSharingGroup,
-//                transformation.getCoLocationGroupKey(),
-//                operatorFactory,
-//                inputType,
-//                transformation.getOutputType(),
-//                transformation.getName());
-//
-//        int parallelism =
-//                transformation.getParallelism() != ExecutionConfig.PARALLELISM_DEFAULT
-//                        ? transformation.getParallelism()
-//                        : executionConfig.getParallelism();
-//        streamGraph.setParallelism(transformationId, parallelism);
-//        streamGraph.setMaxParallelism(transformationId, transformation.getMaxParallelism());
-//
-//        final List<Transformation<?>> parentTransformations = transformation.getInputs();
-//        checkState(
-//                parentTransformations.size() == 1,
-//                "Expected exactly one input transformation but found "
-//                        + parentTransformations.size());
-//
-//        for (Integer inputId : context.getStreamNodeIds(parentTransformations.get(0))) {
-//            streamGraph.addEdge(inputId, transformationId, 0);
-//        }
-
-        return Collections.singleton(iterationHeadId);
+            for (Integer feedbackVertexId : feedbackVertexIds) {
+                streamGraph.addEdge(feedbackVertexId, iterationTailId, 0);
+            }
+        }
+        return results;
     }
 }

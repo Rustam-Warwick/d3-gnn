@@ -10,29 +10,33 @@ import java.util.Set;
 
 /**
  * Represents a Transformation for an Iteration
- * @param <T> Output type that goes into the iteration
+ * HEAD -> Single transformation that directs all messages to the iteration body
+ * BODY -> Transformation that processes HEAD messages jointly with its external messages
+ * FEEDBACK -> Transformations that send messages to iteration tails
+ * TAIL -> Transformation that directs messages sent to it to the iteration HEAD
+ * @param <T> The type of elements in the iteration
  */
 public class IterateTransformation<T> extends Transformation<T> {
 
     /**
-     * The original transformation to which this should be jointly sent
-     * Note that output of iterationStartTransformation can be different from T
+     * The body of this iteration to which all messages are sent to
+     * Note that output of this transformation can be different from T
      */
-    protected PhysicalTransformation<?> iterationStartTransformation;
+    protected PhysicalTransformation<?> iterationBodyTransformation;
 
     /**
-     * All the transformations that are the tails for this transformation
+     * All the transformations that are going to be fed back to the iteration head
      */
-    protected Set<Transformation<T>> iterationTailTransformations = new HashSet<>(3);
+    protected Set<Transformation<T>> iterationFeedbackTransformations = new HashSet<>(3);
 
-    public IterateTransformation(PhysicalTransformation<?> iterationStartTransformation) {
-        super(String.format("%s[HEAD]", iterationStartTransformation.getName()), (TypeInformation<T>) (iterationStartTransformation.getInputs().isEmpty()? iterationStartTransformation.getOutputType(): iterationStartTransformation.getInputs().get(0).getOutputType()), iterationStartTransformation.getParallelism());
-        this.iterationStartTransformation = iterationStartTransformation;
+    public IterateTransformation(PhysicalTransformation<?> iterationBodyTransformation) {
+        super(String.format("%s[HEAD]", iterationBodyTransformation.getName()), (TypeInformation<T>) iterationBodyTransformation.getInputs().get(0).getOutputType(), iterationBodyTransformation.getParallelism());
+        this.iterationBodyTransformation = iterationBodyTransformation;
     }
 
     @Override
     public List<Transformation<?>> getTransitivePredecessors() {
-        return iterationStartTransformation.getTransitivePredecessors();
+        return iterationBodyTransformation.getTransitivePredecessors();
     }
 
     /**
@@ -41,29 +45,29 @@ public class IterateTransformation<T> extends Transformation<T> {
      */
     @Override
     public List<Transformation<?>> getInputs() {
-        return iterationStartTransformation.getInputs();
+        return iterationBodyTransformation.getInputs();
     }
 
     /**
-     * Get the trasnformation where this iteration starts
+     * Get the transformation where this iteration starts
      */
-    public PhysicalTransformation<?> getIterationStartTransformation() {
-        return iterationStartTransformation;
+    public PhysicalTransformation<?> getIterationBodyTransformation() {
+        return iterationBodyTransformation;
     }
 
     /**
      * Get the transformations where this iteration ends
      */
-    public Set<Transformation<T>> getIterationTailTransformations() {
-        return iterationTailTransformations;
+    public Set<Transformation<T>> getIterationFeedbackTransformations() {
+        return iterationFeedbackTransformations;
     }
 
     /**
      * Add the Given Transformation as one of the iterations in the pipeline
      */
     public void addFeedbackEdge(Transformation<T> feedbackTransformation){
-        Preconditions.checkState(feedbackTransformation.getOutputType().equals(getOutputType()));
-        iterationTailTransformations.add(feedbackTransformation);
+        Preconditions.checkState(feedbackTransformation.getOutputType().equals(getOutputType()), String.format("Output Type %s is %s, expected %s", feedbackTransformation, feedbackTransformation.getOutputType(), getOutputType()));
+        iterationFeedbackTransformations.add(feedbackTransformation);
     }
 
 }
