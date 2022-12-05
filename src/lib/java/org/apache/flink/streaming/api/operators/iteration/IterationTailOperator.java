@@ -2,8 +2,8 @@ package org.apache.flink.streaming.api.operators.iteration;
 
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
-import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 
 /**
  * TAIL Operator for handling Stream Iterations
@@ -13,11 +13,11 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
     /**
      * ID Of the Head iteration to identify the buffer
      */
-    final int headIterationId;
+    protected final int headIterationId;
 
-    public IterationTailOperator(int headIterationId, StreamOperatorParameters<Void> parameters) {
+    public IterationTailOperator(int headIterationId, ProcessingTimeService processingTimeService) {
         this.headIterationId = headIterationId;
-        setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.processingTimeService = processingTimeService;
     }
 
     @Override

@@ -73,11 +73,12 @@ public class Main {
             DataStream<Integer> a = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
             DataStream<Integer> b = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
             DataStream<Integer> a_b = a.union(b);
-            IterateStream<Integer, Integer> res = IterateStream.startIteration(a_b.keyBy(item -> item).map(item -> {
+            IterateStream<Integer, Integer> res = IterateStream.startIteration(a_b.map(item -> {
                 System.out.println(item);
                 return item;
             }));
-            res.closeIteration(res.keyBy(item -> item));
+
+            res.closeIteration(res);
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

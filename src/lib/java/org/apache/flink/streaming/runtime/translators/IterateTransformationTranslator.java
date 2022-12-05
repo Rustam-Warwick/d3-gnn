@@ -14,12 +14,22 @@ import org.apache.flink.util.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 public class IterateTransformationTranslator<OUT> extends SimpleTransformationTranslator<OUT, IterateTransformation<OUT>> {
+    {
+        try{
+            Field operatorFactoryField = StreamNode.class.getDeclaredField("operatorFactory");
+
+        }catch (Exception e){
+            throw new RuntimeException("Cannot use Reflection turn off the Secrity Manager")
+        }
+
+    }
     private static Logger LOG = LoggerFactory.getLogger(IterateTransformationTranslator.class);
 
     @Override
@@ -39,7 +49,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
         final StreamGraph streamGraph = context.getStreamGraph();
         final int iterationHeadId = transformation.getId();
         final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
-        final List<Integer> results = new ArrayList<>(List.of(iterationHeadId));
+        final List<Integer> results = new ArrayList<>();
 
         // Configuration of SlotSharingGroup And transforming body first
         final Collection<Integer> bodyVertexIds = context.transform(transformation.getIterationBodyTransformation()); // Create body transformation first
@@ -48,9 +58,8 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
         final String coLocationGroupKey = bodyStreamNode.getCoLocationGroup() == null?String.format("Iteration-%s", iterationHeadId):bodyStreamNode.getCoLocationGroup();
         final String slotSharingGroup = bodyStreamNode.getSlotSharingGroup();
         bodyStreamNode.setCoLocationGroup(coLocationGroupKey);
-
-        // Add Iteration HEAD
-        streamGraph.addLegacySource(
+        // Add HEAD Logic to the Operator
+        streamGraph.addOperator(
                 iterationHeadId,
                 slotSharingGroup,
                 coLocationGroupKey,
@@ -61,7 +70,6 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
         streamGraph.setParallelism(iterationHeadId, bodyStreamNode.getParallelism());
         streamGraph.setMaxParallelism(iterationHeadId, transformation.getIterationBodyTransformation().getMaxParallelism());
         streamGraph.addEdge(iterationHeadId, bodyStreamNode.getId(),0);
-
         // Add the Iteration TAIL Operators
         for (Transformation<OUT> iterationFeedbackTransformation : transformation.getIterationFeedbackTransformations()) {
             Collection<Integer> feedbackVertexIds = context.transform(iterationFeedbackTransformation); // Create feedback transformations first
