@@ -9,9 +9,9 @@ import elements.features.Tensor;
 import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import functions.storage.StorageProcessFunction;
-import operators.BaseWrapperOperator;
 import operators.GraphStorageOperator;
 import operators.IterationTailOperator;
+import operators.OutputTags;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.runtime.state.PartNumber;
@@ -22,7 +22,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Preconditions;
 import partitioner.Partitioner;
 import picocli.CommandLine;
-import plugins.Plugin;
 import storage.BaseStorage;
 
 import java.util.Arrays;
@@ -170,8 +169,8 @@ public class GraphStream {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(internalPositionIndex - 1, 0)));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", internalPositionIndex), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperator(storageAndPlugins.f1, storageAndPlugins.f0)).setParallelism(thisParallelism);
         iterateStreams[internalPositionIndex] = IterateStream.startIteration(storageOperator);
-        if(internalPositionIndex > 0) iterateStreams[internalPositionIndex].closeIteration(storageOperator.getSideOutput(BaseWrapperOperator.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
-        if(internalPositionIndex > 1 && hasBackwardIteration) iterateStreams[internalPositionIndex -1].closeIteration(storageOperator.getSideOutput(BaseWrapperOperator.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+        if(internalPositionIndex > 0) iterateStreams[internalPositionIndex].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
+        if(internalPositionIndex > 1 && hasBackwardIteration) iterateStreams[internalPositionIndex -1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         internalPositionIndex++;
         return storageOperator;
     }

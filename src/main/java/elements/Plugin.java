@@ -1,14 +1,9 @@
-package plugins;
+package elements;
 
-import elements.GraphElement;
-import operators.GraphProcessContext;
-import operators.events.BaseOperatorEvent;
-import org.apache.flink.runtime.state.FunctionInitializationContext;
-import org.apache.flink.runtime.state.FunctionSnapshotContext;
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
+import elements.enums.CopyContext;
+import operators.interfaces.RichGraphElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import storage.BaseStorage;
 
 /**
  * <p>
@@ -17,7 +12,7 @@ import storage.BaseStorage;
  * </p>
  */
 @SuppressWarnings("unused")
-public class Plugin implements CheckpointedFunction {
+public class Plugin extends GraphElement implements RichGraphElement {
 
     /**
      * Plugin Logger
@@ -64,10 +59,10 @@ public class Plugin implements CheckpointedFunction {
         IS_ACTIVE = true;
     }
 
-    public BaseStorage getStorage(){
-        return GraphProcessContext.getContext().getStorage();
+    @Override
+    public GraphElement copy(CopyContext context) {
+        throw new IllegalStateException("Plugins cannot be copied");
     }
-
     // ----------------------- CALLBACKS --------------------
 
     /**
@@ -91,49 +86,4 @@ public class Plugin implements CheckpointedFunction {
         // pass
     }
 
-    /**
-     * Callback when the timer fires on {@link BaseStorage}
-     */
-    public void onTimer(long timestamp) {
-        // pass
-    }
-
-    /**
-     * Callback when Operator sends event to this plugin
-     */
-    public void onOperatorEvent(BaseOperatorEvent event) {
-        // pass
-    }
-
-    /**
-     * Callback when the {@link BaseStorage} closes. Perform all the clean-up
-     */
-    public void close() throws Exception {
-        // pass
-    }
-
-    /**
-     * Callback when the system closes. Perform all the initialization
-     */
-    public void open() throws Exception {
-        // pass
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("RedundantThrows")
-    @Override
-    public void initializeState(FunctionInitializationContext context) throws Exception {
-
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @SuppressWarnings("RedundantThrows")
-    @Override
-    public void snapshotState(FunctionSnapshotContext context) throws Exception {
-        // Pass
-    }
 }

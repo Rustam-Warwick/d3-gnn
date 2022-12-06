@@ -2,7 +2,7 @@ package elements;
 
 import elements.enums.*;
 import elements.features.Parts;
-import plugins.Plugin;
+import operators.OutputTags;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +53,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
         if (!isHalo() && isReplicable() && state() == ReplicaState.REPLICA) {
             GraphOp syncRequestMessage = new GraphOp(Op.SYNC_REQUEST, getMasterPart(), new SyncRequest(this));
-            getStorage().layerFunction.message(syncRequestMessage, MessageDirection.ITERATE);
+            getGraphRuntimeContext().message(syncRequestMessage, OutputTags.ITERATE_OUTPUT_TAG);
         }
         super.create();
     }
@@ -87,10 +87,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     newElement.getPart()
             );
         }
-        getStorage().cacheFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
+        getGraphRuntimeContext().getStorage().cacheFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
         if ((features != null && features.stream().anyMatch(feature -> !feature.isHalo())) || getType() == ElementType.STANDALONE_FEATURE) {
             GraphElement cpy = copy(CopyContext.SYNC);
-            getStorage().layerFunction.message(new GraphOp(Op.SYNC, newElement.getPart(), cpy), MessageDirection.ITERATE);
+            getGraphRuntimeContext().message(new GraphOp(Op.SYNC, newElement.getPart(), cpy), OutputTags.ITERATE_OUTPUT_TAG);
         }
     }
 
@@ -107,7 +107,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (getType() == ElementType.ATTACHED_FEATURE || getType() == ElementType.STANDALONE_FEATURE || (newElement.features != null && newElement.features.stream().anyMatch(feature -> !feature.isHalo())))) {
                 GraphOp message = new GraphOp(Op.SYNC, newElement.copy(CopyContext.SYNC));
-                getReplicaParts().forEach(part -> getStorage().layerFunction.message(message.setPartId(part), MessageDirection.ITERATE));
+                getReplicaParts().forEach(part -> getGraphRuntimeContext().message(message.setPartId(part), OutputTags.ITERATE_OUTPUT_TAG));
             }
             super.update(newElement);
         } else {

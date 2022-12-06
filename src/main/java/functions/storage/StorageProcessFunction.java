@@ -188,7 +188,7 @@ public interface StorageProcessFunction extends RichFunction, CheckpointedFuncti
                     Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                     break;
                 case OPERATOR_EVENT:
-                    getStorage().onOperatorEvent(value.operatorEvent);
+                    getStorage().handleOperatorEvent(value.operatorEvent);
                     break;
             }
         } catch (Exception | Error e) {

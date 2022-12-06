@@ -7,12 +7,15 @@ import ai.djl.ndarray.NDList;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.ElementType;
-import elements.enums.MessageDirection;
 import elements.enums.Op;
 import elements.features.Tensor;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.runtime.state.PartNumber;
+import org.apache.flink.runtime.state.VoidNamespace;
+import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.util.ExceptionUtils;
 
 import java.util.ArrayList;
@@ -39,41 +42,36 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
         windowThroughput = new SimpleCounter();
         BATCH = new HashMap<>();
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
+        getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
     }
 
     public void forward(Vertex v) {
-        long currentProcessingTime = getStorage().layerFunction.getTimerService().currentProcessingTime();
+        long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 200.0) * 200);
-        BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> new HashMap<>());
-        HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
+        BATCH.computeIfAbsent(getRuntimeContext().getCurrentPart(), (ignored) -> new HashMap<>());
+        HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);
-        getStorage().layerFunction.getTimerService().registerProcessingTimeTimer(timerTime);
+        getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }
 
-    /**
-     * Actually send the elements
-     *
-     * @param timestamp firing timestamp
-     */
     @Override
-    public void onTimer(long timestamp) {
-        super.onTimer(timestamp);
-        try {
+    public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
+        super.onProcessingTime(timer);
+         try {
             BaseNDManager.getManager().delay();
-            HashMap<String, Long> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
+            HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
             NDList features = new NDList();
             NDList aggregators = new NDList();
             List<Vertex> vertices = new ArrayList<>();
             PART_BATCH.forEach((key, val) -> {
-                if (val <= timestamp) {
-                    Vertex v = getStorage().getVertex(key);
+                if (val <= timer.getTimestamp()) {
+                    Vertex v = getRuntimeContext().getStorage().getVertex(key);
                     features.add((NDArray) (v.getFeature("f")).getValue());
                     aggregators.add((NDArray) (v.getFeature("agg")).getValue());
                     vertices.add(v);
@@ -88,7 +86,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
                 Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
                 updateTensor.ids.f0 = ElementType.VERTEX;
                 updateTensor.ids.f1 = messageVertex.getId();
-                getStorage().layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor), MessageDirection.FORWARD);
+                getRuntimeContext().message(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
                 throughput.inc();
             }
         } catch (Exception e) {

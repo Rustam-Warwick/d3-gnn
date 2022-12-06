@@ -57,7 +57,7 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void createInternal() {
         super.createInternal();
-        if (getStorage().needsTensorDelay()) value.f0.delay();
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.f0.delay();
     }
 
     /**
@@ -70,7 +70,7 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
     public void updateInternal(GraphElement newElement) {
         super.updateInternal(newElement);
         MeanAggregator newAggregator = (MeanAggregator) newElement;
-        if (getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
             value.f0.delay();
             newAggregator.value.f0.resume();
         }

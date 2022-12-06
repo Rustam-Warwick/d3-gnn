@@ -13,7 +13,6 @@ import operators.events.FinalWatermarkArrived;
 import operators.iterations.FeedbackChannel;
 import operators.iterations.FeedbackChannelBroker;
 import org.apache.flink.api.common.operators.MailboxExecutor;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.CloseableRegistry;
@@ -75,13 +74,6 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
 
     protected static final Logger LOG = LoggerFactory.getLogger(BaseWrapperOperator.class);
 
-    private static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values
-
-    public static OutputTag<GraphOp> ITERATE_OUTPUT_TAG = new OutputTag<>("startIteration", TypeInformation.of(GraphOp.class));
-
-    public static OutputTag<GraphOp> BACKWARD_OUTPUT_TAG = new OutputTag<>("backward", TypeInformation.of(GraphOp.class));
-
-    public static OutputTag<GraphOp> FULL_ITERATE_OUTPUT_TAG = new OutputTag<>("full-startIteration", TypeInformation.of(GraphOp.class));
 
     /**
      * OPERATOR PROPS
@@ -378,7 +370,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
             if (event.direction == null) processNow = true;
             else {
                 short sum = events.merge(event, (short) 1, (a, b) -> (short) (a + b));
-                processNow = ((event.direction == MessageDirection.BACKWARD && sum >= context.getNumberOfOutChannels(null)) || (event.direction == MessageDirection.ITERATE && sum >= context.getNumberOfOutChannels(ITERATE_OUTPUT_TAG)) || (event.direction == MessageDirection.FORWARD && sum >= numPreviousLayerInputChannels));
+                processNow = ((event.direction == MessageDirection.BACKWARD && sum >= context.getNumberOfOutChannels(null)) || (event.direction == MessageDirection.ITERATE && sum >= context.getNumberOfOutChannels(OutputTags.ITERATE_OUTPUT_TAG)) || (event.direction == MessageDirection.FORWARD && sum >= numPreviousLayerInputChannels));
                 if (processNow) events.remove(event);
             }
             if (processNow) {
@@ -459,10 +451,10 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
                         myOutputReflectionContext.getRecordWriter(internalOutput);
                 TypeSerializer<StreamElement> typeSerializer =
                         myOutputReflectionContext.getRecordWriterTypeSerializer(internalOutput);
-                broadcastOutputs.put(outputTag == null ? FORWARD_OUTPUT_TAG : outputTag, Tuple2.of(new RecordWriterBroadcastOutput<>(recordWriter, typeSerializer), myOutputReflectionContext.getNumChannels(internalOutput)));
+                broadcastOutputs.put(outputTag == null ? OutputTags.FORWARD_OUTPUT_TAG : outputTag, Tuple2.of(new RecordWriterBroadcastOutput<>(recordWriter, typeSerializer), myOutputReflectionContext.getNumChannels(internalOutput)));
             } else {
                 OutputTag<?> outputTag = myOutputReflectionContext.getChainingOutputTag(internalOutput);
-                broadcastOutputs.put(outputTag == null ? FORWARD_OUTPUT_TAG : outputTag, Tuple2.of(myOutputReflectionContext.createChainingBroadcastOutput(internalOutput, outputTag), containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()));
+                broadcastOutputs.put(outputTag == null ? OutputTags.FORWARD_OUTPUT_TAG : outputTag, Tuple2.of(myOutputReflectionContext.createChainingBroadcastOutput(internalOutput, outputTag), containingTask.getEnvironment().getTaskInfo().getNumberOfParallelSubtasks()));
             }
         }
     }
@@ -541,7 +533,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          * Get the number of output channels for the given OutputTag or null if next layer
          */
         public int getNumberOfOutChannels(@Nullable OutputTag<?> outputTag) {
-            if (outputTag == null) outputTag = FORWARD_OUTPUT_TAG;
+            if (outputTag == null) outputTag = OutputTags.FORWARD_OUTPUT_TAG;
             return broadcastOutputs.get(outputTag).f1;
         }
 
@@ -550,7 +542,7 @@ abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<Graph
          */
         public <E> void broadcastOutput(E el, @Nullable OutputTag<E> tag, @Nullable Long timestamp) {
             // 1. Store the previous value
-            if (tag == null) tag = (OutputTag<E>) FORWARD_OUTPUT_TAG;
+            if (tag == null) tag = (OutputTag<E>) OutputTags.FORWARD_OUTPUT_TAG;
             Long tmpTs = element.hasTimestamp() ? element.getTimestamp() : null;
             GraphOp tmpVal = element.getValue();
             StreamRecord<E> replaced;

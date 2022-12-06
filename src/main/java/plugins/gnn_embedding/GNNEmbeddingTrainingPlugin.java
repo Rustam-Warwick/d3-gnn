@@ -10,11 +10,13 @@ import elements.enums.*;
 import elements.features.Aggregator;
 import elements.features.MeanAggregator;
 import elements.features.Tensor;
+import operators.OutputTags;
 import operators.events.BackwardBarrier;
-import operators.events.BaseOperatorEvent;
 import operators.events.ForwardBarrier;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.shaded.guava30.com.google.common.primitives.Longs;
 
 import java.util.*;
@@ -34,14 +36,12 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        collectors = new HashMap<>(getStorage().layerFunction.getWrapperContext().getThisOperatorParts().size());
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
     }
 
     /**
      * Collect vertex -> dLoss/doutput, where vertices are masters in this part
-     *
      * @param gradients Gradients for VJP backward iteration
      */
     @RemoteFunction(triggerUpdate = false)
@@ -60,8 +60,8 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         collectors.computeIfAbsent(getPart(), (key) -> Tuple2.of(new NDArrayCollector<>(true), new NDArrayCollector<>(true)));
         NDArrayCollector<String> collector = collectors.get(getPart()).f1;
         for (Map.Entry<String, NDArray> stringNDArrayEntry : gradients.entrySet()) {
-            Vertex v = getStorage().getVertex(stringNDArrayEntry.getKey());
-            for (DirectedEdge incidentDirectedEdge : getStorage().getIncidentEdges(v, EdgeType.IN)) {
+            Vertex v = getRuntimeContext().getStorage().getVertex(stringNDArrayEntry.getKey());
+            for (DirectedEdge incidentDirectedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.IN)) {
                 collector.put(incidentDirectedEdge.getSrc().getId(), stringNDArrayEntry.getValue());
             }
         }
@@ -86,7 +86,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDList aggregatorList = new NDList(collectedGradients.size());
             NDList inputGradientsList = new NDList(collectedGradients.size());
             for (Map.Entry<String, NDArray> entry : collectedGradients.entrySet()) {
-                Vertex v = getStorage().getVertex(entry.getKey());
+                Vertex v = getRuntimeContext().getStorage().getVertex(entry.getKey());
                 vertices.add(v);
                 featuresList.add((NDArray) v.getFeature("f").getValue());
                 aggregatorList.add((NDArray) v.getFeature("agg").getValue());
@@ -109,7 +109,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             // ------------------Collect Aggregation messages + Backward messages(If not the first layer)
 
             HashMap<Short, NDArrayCollector<String>> aggGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
-            HashMap<String, NDArray> backwardGrads = getStorage().layerFunction.isFirst() ? null : new NDArrayCollector<>(false);
+            HashMap<String, NDArray> backwardGrads = getRuntimeContext().isFirst() ? null : new NDArrayCollector<>(false);
             for (int i = 0; i < collectedGradients.size(); i++) {
                 NDArray previousFeatureGrad = gradients.get(0).get(i);
                 NDArray aggGrad = gradients.get(1).get(i);
@@ -137,7 +137,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                         getType(),
                         "collectAggregators",
                         entry.getKey(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         entry.getValue()
                 );
             }
@@ -151,7 +151,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                         getType(),
                         "collect",
                         getPart(),
-                        MessageDirection.BACKWARD,
+                        OutputTags.BACKWARD_OUTPUT_TAG,
                         backwardGrads
                 );
             }
@@ -179,7 +179,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDList gradients = new NDList(collectedAggregators.size());
             List<Vertex> vertices = new ArrayList<>(collectedAggregators.size());
             for (Map.Entry<String, NDArray> stringNDArrayEntry : collectedAggregators.entrySet()) {
-                Vertex v = getStorage().getVertex(stringNDArrayEntry.getKey());
+                Vertex v = getRuntimeContext().getStorage().getVertex(stringNDArrayEntry.getKey());
                 vertices.add(v);
                 features.add((NDArray) v.getFeature("f").getValue());
                 gradients.add(stringNDArrayEntry.getValue());
@@ -190,7 +190,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             NDList messages = MESSAGE(batchedFeatures, true);
             JniUtils.backward((PtNDArray) messages.get(0), (PtNDArray) batchedMessageGradients.get(0), false, false);
             NDArray batchedFeatureGradients = batchedFeatures.get(0).getGradient();
-            if (!getStorage().layerFunction.isFirst()) {
+            if (!getRuntimeContext().isFirst()) {
                 HashMap<Short, NDArrayCollector<String>> backwardGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
                 for (int i = 0; i < vertices.size(); i++) {
                     backwardGradsPerPart.computeIfAbsent(vertices.get(i).getMasterPart(), (key) -> new NDArrayCollector<>(false));
@@ -202,7 +202,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                             getType(),
                             "collect",
                             entry.getKey(),
-                            MessageDirection.BACKWARD,
+                            OutputTags.BACKWARD_OUTPUT_TAG,
                             entry.getValue()
                     );
                 }
@@ -223,9 +223,9 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         HashMap<Vertex, Integer> srcVertices = new HashMap<>();
         HashMap<Vertex, List<Integer>> destVertices = new HashMap<>();
         NDList srcFeatures = new NDList();
-        for (Vertex vertex : getStorage().getVertices()) {
+        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
             if (vertex.state() == ReplicaState.MASTER) ((Aggregator) vertex.getFeature("agg")).reset();
-            Iterable<DirectedEdge> localInEdges = getStorage().getIncidentEdges(vertex, EdgeType.IN);
+            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN);
             for (DirectedEdge localInDirectedEdge : localInEdges) {
                 if (!srcVertices.containsKey(localInDirectedEdge.getSrc())) {
                     srcVertices.put(localInDirectedEdge.getSrc(), srcFeatures.size());
@@ -250,7 +250,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     v.getMasterPart(),
-                    MessageDirection.ITERATE,
+                    OutputTags.BACKWARD_OUTPUT_TAG,
                     new NDList(message)
             );
         });
@@ -263,7 +263,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        for (Vertex v : getStorage().getVertices()) {
+        for (Vertex v : getRuntimeContext().getStorage().getVertices()) {
             if (v.state() == ReplicaState.MASTER) {
                 features.add((NDArray) v.getFeature("f").getValue());
                 aggregators.add((NDArray) v.getFeature("agg").getValue());
@@ -275,48 +275,42 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         for (int i = 0; i < vertexIds.size(); i++) {
             Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
             updateTensor.ids = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
-            getStorage().layerFunction.message(new GraphOp(Op.COMMIT, getStorage().layerFunction.getCurrentPart(), updateTensor), MessageDirection.FORWARD);
+            getRuntimeContext().message(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), updateTensor));
         }
     }
 
-    /**
-     * Manager training and batched inference script
-     * <p>
-     * BackwardBarrier -> FirstTrainingPart then Second Training Part and sync model
-     * ForwardBarrier -> Skip one iteration for propegating features -> Inference FirstPart(reduce) -> Inference Second Part(forward)
-     * </p>
-     */
     @Override
-    public void onOperatorEvent(BaseOperatorEvent event) {
-        super.onOperatorEvent(event);
-        if (event instanceof BackwardBarrier) {
+    public void handleOperatorEvent(OperatorEvent evt) {
+        super.handleOperatorEvent(evt);
+        if (evt instanceof BackwardBarrier) {
             if (++numTrainingSyncMessages == 1) {
-                getStorage().layerFunction.runForAllLocalParts(this::trainFirstPart);
-                getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getRuntimeContext().runForAllLocalParts(this::trainFirstPart);
+                getRuntimeContext().broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
             } else {
-                getStorage().layerFunction.runForAllLocalParts(this::trainSecondPart);
-                if (getStorage().layerFunction.isFirst())
-                    getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getRuntimeContext().runForAllLocalParts(this::trainSecondPart);
+                if (getRuntimeContext().isFirst())
+                    getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
                 else
-                    getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+                    getRuntimeContext().broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
                 numTrainingSyncMessages = 0;
                 modelServer.getParameterStore().sync();
             }
-        } else if (event instanceof ForwardBarrier) {
+        } else if (evt instanceof ForwardBarrier) {
             // first 2 for updating the model, then reset agg and send new messages
             if (++numForwardSyncMessages == 2) {
-                getStorage().layerFunction.runForAllLocalParts(this::inferenceFirstPartStart);
+                getRuntimeContext().runForAllLocalParts(this::inferenceFirstPartStart);
             } else if (numForwardSyncMessages == 3) {
                 // Ready to forward
-                getStorage().layerFunction.runForAllLocalParts(this::inferenceSecondPartStart);
+                getRuntimeContext().runForAllLocalParts(this::inferenceSecondPartStart);
             }
             if (numForwardSyncMessages < 3) {
-                getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), MessageDirection.ITERATE);
+                getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
             } else {
-                getStorage().layerFunction.broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)), MessageDirection.FORWARD);
+                getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
                 numForwardSyncMessages = 0;
                 // @todo add embedding plugin start
             }
         }
     }
+
 }

@@ -4,12 +4,13 @@ import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
 import elements.enums.ElementType;
-import elements.enums.MessageDirection;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
 import elements.features.Aggregator;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
+import operators.OutputTags;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
@@ -34,12 +35,12 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
+        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
+        getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
     @Override
@@ -97,8 +98,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         tmp.ids.f0 = ElementType.VERTEX;
         tmp.ids.f1 = v.getId();
         throughput.inc();
-        latency.inc(getStorage().layerFunction.getTimerService().currentProcessingTime() - getStorage().layerFunction.currentTimestamp());
-        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp), MessageDirection.FORWARD);
+        latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+        getRuntimeContext().message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**
@@ -107,14 +108,14 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     public void reduceF1(Tensor f) {
         NDList message = null;
         Vertex v = (Vertex) f.getElement();
-        for (HyperEdge hyperEdge : getStorage().getIncidentHyperEdges(v)) {
+        for (HyperEdge hyperEdge : getRuntimeContext().getStorage().getIncidentHyperEdges(v)) {
             if (message == null) message = MESSAGE(new NDList(f.getValue()), false);
             Rmi.buildAndRun(
                     Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     hyperEdge.getMasterPart(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     message,
                     1
             );
@@ -135,7 +136,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         newEdge.getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         f1Message,
                         1
                 );
@@ -146,7 +147,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         vertex.getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         f2Message,
                         1
                 );
@@ -166,7 +167,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         edge.getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         message,
                         1
                 );
@@ -186,7 +187,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     vertex.getMasterPart(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     message,
                     1
             );
@@ -199,13 +200,13 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     public void replaceF1(Tensor newFeature, Tensor oldFeature) {
         NDList newMessage = MESSAGE(new NDList(newFeature.getValue()), false);
         NDList oldMessage = MESSAGE(new NDList(oldFeature.getValue()), false);
-        for (HyperEdge hyperEdge : getStorage().getIncidentHyperEdges((Vertex) newFeature.getElement())) {
+        for (HyperEdge hyperEdge : getRuntimeContext().getStorage().getIncidentHyperEdges((Vertex) newFeature.getElement())) {
             Rmi.buildAndRun(
                     Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "replace",
                     hyperEdge.getMasterPart(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     newMessage,
                     oldMessage
             );
@@ -225,7 +226,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
                     ElementType.ATTACHED_FEATURE,
                     "replace",
                     vertex.getMasterPart(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     newMessage,
                     oldMessage
             );

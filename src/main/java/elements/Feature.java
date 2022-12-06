@@ -1,6 +1,10 @@
 package elements;
 
-import elements.enums.*;
+import elements.enums.CopyContext;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
+import operators.OutputTags;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -127,14 +131,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public void create() {
         if (getType() == ElementType.STANDALONE_FEATURE) super.create();
-        else if (!getStorage().containsElement(ids.f1, ids.f0)) {
-            GraphElement el = getStorage().getDummyElement(ids.f1, ids.f0);
+        else if (!getGraphRuntimeContext().getStorage().containsElement(ids.f1, ids.f0)) {
+            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElement(ids.f1, ids.f0);
             setElement(el, false);
             el.create();
         } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
                 GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
-                getReplicaParts().forEach(part -> getStorage().layerFunction.message(message.setPartId(part), MessageDirection.ITERATE));
+                getReplicaParts().forEach(part -> getGraphRuntimeContext().message(message.setPartId(part), OutputTags.ITERATE_OUTPUT_TAG));
             }
             createInternal();
         }
@@ -260,8 +264,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Nullable
     public GraphElement getElement() {
         if (ids.f0 == ElementType.NONE) return null;
-        if (element == null && getStorage() != null) {
-            setElement(getStorage().getElement(ids.f1, ids.f0), true);
+        if (element == null && getGraphRuntimeContext() != null) {
+            setElement(getGraphRuntimeContext().getStorage().getElement(ids.f1, ids.f0), true);
         }
         return element;
     }

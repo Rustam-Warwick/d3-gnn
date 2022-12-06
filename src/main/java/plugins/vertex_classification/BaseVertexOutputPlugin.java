@@ -1,7 +1,8 @@
 package plugins.vertex_classification;
 
 import ai.djl.ndarray.NDList;
-import plugins.Plugin;
+import elements.Plugin;
+import org.apache.flink.configuration.Configuration;
 import plugins.ModelServer;
 
 /**
@@ -24,9 +25,9 @@ abstract public class BaseVertexOutputPlugin extends Plugin {
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        this.modelServer = (ModelServer) getStorage().getPlugin(String.format("%s-server", modelName));
+    public void open(Configuration params) throws Exception {
+        super.open(params);
+        this.modelServer = (ModelServer) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
     }
 
     public NDList output(NDList feature, boolean training) {

@@ -4,7 +4,7 @@ import ai.djl.ndarray.LifeCycleControl;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
-import operators.GraphProcessContext;
+import operators.interfaces.GraphRuntimeContext;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.Nullable;
@@ -63,10 +63,10 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     }
 
     /**
-     * Helper method for getting the storage object or null if we are not at storage operator right now
+     * Helper method for getting {@link GraphRuntimeContext} object
      */
-    public static BaseStorage getStorage() {
-        return GraphProcessContext.getContext().getStorage();
+    public static GraphRuntimeContext getGraphRuntimeContext() {
+        return GraphRuntimeContext.getContext();
     }
 
     /**
@@ -95,7 +95,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             copyFeatures = features;
             features = new ArrayList<>(copyFeatures.size());
         }
-        getStorage().addElement(this);
+        getGraphRuntimeContext().getStorage().addElement(this);
         if (copyFeatures != null && !copyFeatures.isEmpty()) {
             for (Feature<?, ?> feature : copyFeatures) {
                 feature.setElement(this, false);
@@ -139,7 +139,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 }
             }
         }
-        getStorage().updateElement(this, newElement);
+        getGraphRuntimeContext().getStorage().updateElement(this, newElement);
     }
 
     /**
@@ -234,7 +234,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * <strong>To be called in {@link BaseStorage} parts only, otherwise {@link NullPointerException}</strong>
      */
     public short getPart() {
-        return getStorage().layerFunction.getCurrentPart();
+        return getGraphRuntimeContext().getCurrentPart();
     }
 
     /**
@@ -250,7 +250,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        Feature<?, ?> feature = getStorage().getAttachedFeature(getType(), getId(), name, null);
+        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name, null);
         feature.setElement(this, false);
         return feature;
     }
@@ -264,8 +264,8 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return true;
             }
         }
-        if (getStorage() != null) {
-            return getStorage().containsAttachedFeature(getType(), getId(), name, null);
+        if (getGraphRuntimeContext() != null) {
+            return getGraphRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name, null);
         }
         return false;
     }

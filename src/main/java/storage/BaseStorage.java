@@ -4,20 +4,14 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import functions.storage.StorageProcessFunction;
-import operators.events.BaseOperatorEvent;
+import operators.interfaces.RichGraphElement;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.runtime.state.FunctionInitializationContext;
-import org.apache.flink.runtime.state.FunctionSnapshotContext;
-import org.apache.flink.runtime.state.KeyedStateBackend;
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 /**
  * Base Class for all storage Engines
@@ -26,24 +20,11 @@ import java.util.HashMap;
  * @implNote This is done so that late events are handled correctly, so all the logic is withing the specific graph element
  * @implNote However, do check for redundancy is create methods.
  */
-abstract public class BaseStorage implements CheckpointedFunction, Serializable {
-
-    /**
-     * Storages are accessed by this static field from the {@link GraphElement}
-     */
-    public static final ThreadLocal<BaseStorage> STORAGES = new ThreadLocal<>();
-
+abstract public class BaseStorage implements Serializable, RichGraphElement {
     /**
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
-
-    /**
-     * The function that this BaseStorage is attached to
-     */
-    public StorageProcessFunction layerFunction;
-
-
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -126,51 +107,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public boolean needsTensorDelay() {
         return true;
     }
-
-    /**
-     * Operator opened
-     */
-    public void open() throws Exception {
-        STORAGES.set(this);
-    }
-
-    /**
-     * Operator Closed
-     */
-    public void close() throws Exception {
-
-    }
-
-    /**
-     * OnTimer callback
-     */
-    public void onTimer(long timestamp) {
-
-    }
-
-    /**
-     * On OperatorEvent
-     */
-    public void onOperatorEvent(BaseOperatorEvent event) {
-
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void snapshotState(FunctionSnapshotContext context) throws Exception {
-
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void initializeState(FunctionInitializationContext context) throws Exception {
-
-    }
-
 
     // --------------------------- MAPPER & HELPER METHODS -------------------------
 
@@ -304,9 +240,9 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     public final GraphElement getDummyElement(String id, ElementType elementType) {
         switch (elementType) {
             case VERTEX:
-                return new Vertex(id, layerFunction.getCurrentPart());
+                return new Vertex(id, getRuntimeContext().getCurrentPart());
             case HYPEREDGE:
-                return new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
+                return new HyperEdge(id, new ArrayList<>(), getRuntimeContext().getCurrentPart());
         }
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }

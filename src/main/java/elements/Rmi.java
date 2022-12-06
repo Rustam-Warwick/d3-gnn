@@ -5,10 +5,11 @@ import com.esotericsoftware.reflectasm.MethodAccess;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
-import elements.enums.MessageDirection;
 import elements.enums.Op;
+import operators.OutputTags;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.util.ExceptionUtils;
+import org.apache.flink.util.OutputTag;
 import org.cliffc.high_scale_lib.NonBlockingIdentityHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,11 +113,11 @@ public class Rmi extends GraphElement {
     /**
      * Executes if intended for this part or sends a {@link GraphOp}
      */
-    public static void buildAndRun(String id, ElementType elemType, String methodName, short destination, MessageDirection messageDirection, Object... args) {
-        if (destination == getStorage().layerFunction.getCurrentPart() && messageDirection == MessageDirection.ITERATE) {
-            Rmi.execute(getStorage().getElement(id, elemType), methodName, args);
+    public static void buildAndRun(String id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
+        if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG)  {
+            Rmi.execute(getGraphRuntimeContext().getStorage().getElement(id, elemType), methodName, args);
         } else {
-            getStorage().layerFunction.message(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
+            getGraphRuntimeContext().message(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
         }
     }
 

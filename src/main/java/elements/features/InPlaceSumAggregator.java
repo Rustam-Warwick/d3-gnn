@@ -57,7 +57,7 @@ public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integ
     @Override
     public void createInternal() {
         super.createInternal();
-        if (getStorage().needsTensorDelay()) value.f0.delay();
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.f0.delay();
     }
 
     /**
@@ -70,7 +70,7 @@ public final class InPlaceSumAggregator extends Aggregator<Tuple2<NDArray, Integ
     public void updateInternal(GraphElement newElement) {
         super.updateInternal(newElement);
         InPlaceSumAggregator newAggregator = (InPlaceSumAggregator) newElement;
-        if (getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
             value.f0.delay();
             newAggregator.value.f0.resume();
         }

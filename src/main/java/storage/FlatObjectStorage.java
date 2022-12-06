@@ -9,6 +9,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.common.state.MapState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.configuration.Configuration;
 import org.jetbrains.annotations.Nullable;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
@@ -32,7 +33,7 @@ public class FlatObjectStorage extends BaseStorage {
     }
 
     @Override
-    public void open() throws Exception {
+    public void open(Configuration parameters) throws Exception {
         MapStateDescriptor<String, Vertex> vertexTableDesc = new MapStateDescriptor<>("vertexTable", Types.STRING, new RecursivePojoTypeInfoFactory<Vertex>().createTypeInfo(Vertex.class, null));
         MapStateDescriptor<String, Feature<?, ?>> featureTableDesc = new MapStateDescriptor<>("attachedFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
         MapStateDescriptor<String, Feature<?, ?>> independentFeatureTableDesc = new MapStateDescriptor<>("independentFeatureTable", Types.STRING, new RecursivePojoTypeInfoFactory<Feature<?, ?>>().createTypeInfo(Feature.class, null));
@@ -42,15 +43,15 @@ public class FlatObjectStorage extends BaseStorage {
         MapStateDescriptor<String, Map<String, List<DirectedEdge>>> inEdgeTableDesc = new MapStateDescriptor<>("inEdgeTable", Types.STRING, Types.MAP(Types.STRING, Types.LIST(new RecursivePojoTypeInfoFactory<DirectedEdge>().createTypeInfo(DirectedEdge.class, null))));
         MapStateDescriptor<String, List<HyperEdge>> vertex2HyperEdgeDesc = new MapStateDescriptor<>("vertex2HyperEdge", Types.STRING, Types.LIST(new RecursivePojoTypeInfoFactory<HyperEdge>().createTypeInfo(HyperEdge.class, null)));
 
-        edgeTable = layerFunction.getRuntimeContext().getMapState(edgeTableDesc);
-        hyperEdgeTable = layerFunction.getRuntimeContext().getMapState(hyperEdgeTableDesc);
-        outEdgeTable = layerFunction.getRuntimeContext().getMapState(outEdgeTableDesc);
-        inEdgeTable = layerFunction.getRuntimeContext().getMapState(inEdgeTableDesc);
-        vertexTable = layerFunction.getRuntimeContext().getMapState(vertexTableDesc);
-        attachedFeatureTable = layerFunction.getRuntimeContext().getMapState(featureTableDesc);
-        independentFeatureTable = layerFunction.getRuntimeContext().getMapState(independentFeatureTableDesc);
-        vertex2HyperEdge = layerFunction.getRuntimeContext().getMapState(vertex2HyperEdgeDesc);
-        super.open();
+        edgeTable = getRuntimeContext().getMapState(edgeTableDesc);
+        hyperEdgeTable = getRuntimeContext().getMapState(hyperEdgeTableDesc);
+        outEdgeTable = getRuntimeContext().getMapState(outEdgeTableDesc);
+        inEdgeTable = getRuntimeContext().getMapState(inEdgeTableDesc);
+        vertexTable = getRuntimeContext().getMapState(vertexTableDesc);
+        attachedFeatureTable = getRuntimeContext().getMapState(featureTableDesc);
+        independentFeatureTable = getRuntimeContext().getMapState(independentFeatureTableDesc);
+        vertex2HyperEdge = getRuntimeContext().getMapState(vertex2HyperEdgeDesc);
+        super.open(parameters);
     }
 
     @Override

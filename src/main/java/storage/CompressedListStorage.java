@@ -14,6 +14,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.configuration.Configuration;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -41,18 +42,18 @@ public class CompressedListStorage extends BaseStorage {
     public transient Tuple2<String, String> reuse2;
 
     @Override
-    public void open() throws Exception {
-        vertexTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
-        eOutTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
+    public void open(Configuration parameters) throws Exception {
+        vertexTable = getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
+        eOutTable = getRuntimeContext().getMapState(new MapStateDescriptor<>("eOutTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
         })));
-        eInTable = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
+        eInTable = getRuntimeContext().getMapState(new MapStateDescriptor<>("eInTable", Types.STRING, TypeInformation.of(new TypeHint<Set<Tuple2<String, String>>>() {
         })));
-        v2HEdge = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, List<String>>("v2HEdge", Types.STRING, Types.LIST(Types.STRING)));
-        hyperEdges = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Tuple2<Short, List<String>>>("hyperEdges", Types.STRING, Types.TUPLE(Types.SHORT, Types.LIST(Types.STRING))));
+        v2HEdge = getRuntimeContext().getMapState(new MapStateDescriptor<String, List<String>>("v2HEdge", Types.STRING, Types.LIST(Types.STRING)));
+        hyperEdges = getRuntimeContext().getMapState(new MapStateDescriptor<String, Tuple2<Short, List<String>>>("hyperEdges", Types.STRING, Types.TUPLE(Types.SHORT, Types.LIST(Types.STRING))));
         attFeatureTable = new HashMap<>(1 << 3);
         reuse = new Tuple2<>();
         reuse2 = new Tuple2<>();
-        super.open();
+        super.open(parameters);
     }
 
     @Override
@@ -74,7 +75,7 @@ public class CompressedListStorage extends BaseStorage {
             reuse.f1 = feature.ids.f0;
             if (!attFeatureTable.containsKey(reuse)) {
                 ConstructorAccess<? extends Feature> tmpConstructor = ConstructorAccess.get(feature.getClass());
-                MapState<String, Object> tmpFt = layerFunction.getRuntimeContext().getMapState(new MapStateDescriptor<String, Object>(reuse.f0 + "att" + reuse.f1.ordinal(), Types.STRING, (TypeInformation<Object>) feature.getValueTypeInfo()));
+                MapState<String, Object> tmpFt = getRuntimeContext().getMapState(new MapStateDescriptor<String, Object>(reuse.f0 + "att" + reuse.f1.ordinal(), Types.STRING, (TypeInformation<Object>) feature.getValueTypeInfo()));
                 attFeatureTable.put(reuse.copy(), new Tuple3<>(tmpFt, feature.isHalo(), tmpConstructor));
             }
             attFeatureTable.get(reuse).f0.put(feature.ids.f1, feature.value);

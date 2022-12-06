@@ -6,10 +6,10 @@ import ai.djl.ndarray.NDList;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.ElementType;
-import elements.enums.MessageDirection;
 import elements.enums.Op;
 import elements.features.Tensor;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
 
 import java.util.*;
 
@@ -33,22 +33,22 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        LOCAL_BATCH_SIZE = BATCH_SIZE / getStorage().layerFunction.getRuntimeContext().getMaxNumberOfParallelSubtasks();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
+        LOCAL_BATCH_SIZE = BATCH_SIZE / getRuntimeContext().getMaxNumberOfParallelSubtasks();
         BATCH = new HashMap<>();
     }
 
     public void forward(Vertex v) {
-        BATCH.computeIfAbsent(getStorage().layerFunction.getCurrentPart(), (ignored) -> Tuple2.of(0, new HashSet<>()));
-        Tuple2<Integer, Set<String>> PART_BATCH = BATCH.get(getStorage().layerFunction.getCurrentPart());
+        BATCH.computeIfAbsent(getRuntimeContext().getCurrentPart(), (ignored) -> Tuple2.of(0, new HashSet<>()));
+        Tuple2<Integer, Set<String>> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         PART_BATCH.f1.add(v.getId());
         if (++PART_BATCH.f0 > LOCAL_BATCH_SIZE) {
             List<Vertex> vertices = new ArrayList<>();
             NDList features = new NDList();
             NDList aggregators = new NDList();
             PART_BATCH.f1.forEach((key) -> {
-                Vertex vTmp = getStorage().getVertex(key);
+                Vertex vTmp = getRuntimeContext().getStorage().getVertex(key);
                 features.add((NDArray) (vTmp.getFeature("f")).getValue());
                 aggregators.add((NDArray) (vTmp.getFeature("agg")).getValue());
                 vertices.add(vTmp);
@@ -60,7 +60,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
                 updateTensor.ids.f0 = ElementType.VERTEX;
                 updateTensor.ids.f1 = messageVertex.getId();
-                getStorage().layerFunction.message(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor), MessageDirection.FORWARD);
+                getRuntimeContext().message(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
                 throughput.inc();
             }
             PART_BATCH.f0 = 0;

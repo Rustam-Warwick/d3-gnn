@@ -59,10 +59,10 @@ public final class HyperEgoGraph extends GraphElement {
      */
     @Override
     public void create() {
-        if (!getStorage().containsVertex(centralVertex.getId())) centralVertex.create();
+        if (!getGraphRuntimeContext().getStorage().containsVertex(centralVertex.getId())) centralVertex.create();
         for (HyperEdge hyperEdge : hyperEdges) {
-            if (getStorage().containsHyperEdge(hyperEdge.getId()))
-                getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge);
+            if (getGraphRuntimeContext().getStorage().containsHyperEdge(hyperEdge.getId()))
+                getGraphRuntimeContext().getStorage().getHyperEdge(hyperEdge.getId()).update(hyperEdge);
             else hyperEdge.create();
         }
     }

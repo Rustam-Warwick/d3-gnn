@@ -111,7 +111,7 @@ public final class DirectedEdge extends GraphElement {
      * Get src {@link Vertex}
      */
     public Vertex getSrc() {
-        if (src == null && getStorage() != null) src = getStorage().getVertex(ids.f0);
+        if (src == null && getGraphRuntimeContext() != null) src = getGraphRuntimeContext().getStorage().getVertex(ids.f0);
         return src;
     }
 
@@ -126,7 +126,7 @@ public final class DirectedEdge extends GraphElement {
      * Get dest {@link Vertex}
      */
     public Vertex getDest() {
-        if (dest == null && getStorage() != null) dest = getStorage().getVertex(ids.f1);
+        if (dest == null && getGraphRuntimeContext() != null) dest = getGraphRuntimeContext().getStorage().getVertex(ids.f1);
         return dest;
     }
 
@@ -148,10 +148,10 @@ public final class DirectedEdge extends GraphElement {
      */
     @Override
     public void createInternal() {
-        if (!getStorage().containsVertex(getSrcId())) {
+        if (!getGraphRuntimeContext().getStorage().containsVertex(getSrcId())) {
             src.create();
         }
-        if (!getStorage().containsVertex(getDestId())) {
+        if (!getGraphRuntimeContext().getStorage().containsVertex(getDestId())) {
             dest.create();
         }
         super.createInternal();

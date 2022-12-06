@@ -48,7 +48,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
     @Override
     public void createInternal() {
         super.createInternal();
-        if (getStorage().needsTensorDelay()) value.delay();
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.delay();
     }
 
     /**
@@ -61,7 +61,7 @@ public class Tensor extends Feature<NDArray, NDArray> {
     public void updateInternal(GraphElement newElement) {
         super.updateInternal(newElement);
         Tensor newTensor = (Tensor) newElement;
-        if (getStorage().needsTensorDelay() && newTensor.value != value) {
+        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newTensor.value != value) {
             value.delay();
             newTensor.value.resume();
         }

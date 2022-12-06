@@ -5,12 +5,13 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.DirectedEdge;
 import elements.Feature;
-import plugins.Plugin;
+import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
 import elements.features.InPlaceMeanAggregator;
 import elements.features.InPlaceSumAggregator;
 import elements.features.Tensor;
+import org.apache.flink.configuration.Configuration;
 import plugins.ModelServer;
 
 /**
@@ -48,12 +49,11 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
 
     /**
      * {@inheritDoc}
-     * Add modelServer Attachment
      */
     @Override
-    public void open() throws Exception {
-        super.open();
-        modelServer = (ModelServer<GNNBlock>) getStorage().getPlugin(String.format("%s-server", modelName));
+    public void open(Configuration parameters) throws Exception {
+        super.open(parameters);
+        modelServer = (ModelServer<GNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
     }
 
     /**
@@ -124,7 +124,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
             }
             aggStart.setElement(element, false);
             aggStart.createInternal();
-            if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
+            if (usingTrainableVertexEmbeddings() && getRuntimeContext().isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0]), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
                 embeddingRandom.createInternal();

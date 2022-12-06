@@ -5,10 +5,11 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.hgnn.HGNNBlock;
 import elements.Feature;
 import elements.HyperEdge;
-import plugins.Plugin;
+import elements.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
 import elements.features.*;
+import org.apache.flink.configuration.Configuration;
 import plugins.ModelServer;
 
 /**
@@ -37,9 +38,9 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        modelServer = (ModelServer<HGNNBlock>) getStorage().getPlugin(String.format("%s-server", modelName));
+    public void open(Configuration params) throws Exception {
+        super.open(params);
+        modelServer = (ModelServer<HGNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
     }
 
     /**
@@ -107,7 +108,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
             }
             aggStart.setElement(vertex, false);
             aggStart.createInternal();
-            if (usingTrainableVertexEmbeddings() && getStorage().layerFunction.isFirst()) {
+            if (usingTrainableVertexEmbeddings() && getRuntimeContext().isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0])); // Initialize to random value
                 embeddingRandom.setElement(vertex, false);
                 embeddingRandom.createInternal();
