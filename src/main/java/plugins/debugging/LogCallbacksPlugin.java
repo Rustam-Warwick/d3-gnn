@@ -1,7 +1,7 @@
 package plugins.debugging;
 
 import elements.GraphElement;
-import elements.Plugin;
+import plugins.Plugin;
 
 /**
  * Function for debugging the interaction of vertices in the system

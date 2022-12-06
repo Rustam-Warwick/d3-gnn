@@ -5,7 +5,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.hgnn.HGNNBlock;
 import elements.Feature;
 import elements.HyperEdge;
-import elements.Plugin;
+import plugins.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
 import elements.features.*;

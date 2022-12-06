@@ -125,7 +125,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     }
 
     @Override
-    public void processElement(StreamRecord<Object> element) throws Exception {
+    public void processElement(StreamRecord<Object> element) throws Exception{
         oneInputBodyOperatorRef.processElement(element);
     }
 

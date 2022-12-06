@@ -39,20 +39,10 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
-     * List of plugins attached to this storage engine
-     * These are stored separately in operator state store
-     */
-    public final HashMap<String, Plugin> plugins = new HashMap<>();
-
-    /**
      * The function that this BaseStorage is attached to
      */
     public StorageProcessFunction layerFunction;
 
-    /**
-     * KeySelector change listener
-     */
-    private transient RemoveCachedFeatures removeCachedFeatures;
 
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
@@ -138,66 +128,31 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
     }
 
     /**
-     * Get a specific plugin by its name
-     */
-    public final Plugin getPlugin(String id) {
-        return this.plugins.get(id);
-    }
-
-    /**
-     * Iterate over all plugins
-     */
-    public final Iterable<Plugin> getPlugins() {
-        return this.plugins.values();
-    }
-
-    /**
-     * Add plugin to this Storage on job startup time
-     */
-    public final BaseStorage withPlugin(Plugin plugin) {
-        assert plugin.getId() != null && !plugin.containsFeature(plugin.getId());
-        plugins.put(plugin.getId(), plugin);
-        return this;
-    }
-
-    /**
      * Operator opened
      */
     public void open() throws Exception {
         STORAGES.set(this);
-        removeCachedFeatures = new RemoveCachedFeatures();
-        layerFunction.registerKeyChangeListener(removeCachedFeatures);
-        for (Plugin value : plugins.values()) {
-            value.open();
-        }
     }
 
     /**
      * Operator Closed
      */
     public void close() throws Exception {
-        for (Plugin value : plugins.values()) {
-            value.close();
-        }
-        layerFunction.deRegisterKeyChangeListener(removeCachedFeatures);
+
     }
 
     /**
      * OnTimer callback
      */
     public void onTimer(long timestamp) {
-        for (Plugin value : plugins.values()) {
-            value.onTimer(timestamp);
-        }
+
     }
 
     /**
      * On OperatorEvent
      */
     public void onOperatorEvent(BaseOperatorEvent event) {
-        for (Plugin value : plugins.values()) {
-            value.onOperatorEvent(event);
-        }
+
     }
 
     /**
@@ -205,9 +160,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      */
     @Override
     public void snapshotState(FunctionSnapshotContext context) throws Exception {
-        for (Plugin value : plugins.values()) {
-            value.snapshotState(context);
-        }
+
     }
 
     /**
@@ -215,9 +168,7 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
      */
     @Override
     public void initializeState(FunctionInitializationContext context) throws Exception {
-        for (Plugin value : plugins.values()) {
-            value.initializeState(context);
-        }
+
     }
 
 
@@ -286,8 +237,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
             case STANDALONE_FEATURE:
                 return containsStandaloneFeature(id);
-            case PLUGIN:
-                return plugins.containsKey(id);
             case HYPEREDGE:
                 return containsHyperEdge(id);
             default:
@@ -307,8 +256,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case EDGE:
                 Tuple3<String, String, String> ids = DirectedEdge.decodeVertexIdsAndAttribute(id);
                 return getEdge(ids.f0, ids.f1, ids.f2, id);
-            case PLUGIN:
-                return getPlugin(id);
             case HYPEREDGE:
                 return getHyperEdge(id);
             default:
@@ -328,8 +275,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case EDGE:
                 DirectedEdge edge = (DirectedEdge) element;
                 return containsEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
-            case PLUGIN:
-                return plugins.containsKey(element.getId());
             case HYPEREDGE:
                 return containsHyperEdge(element.getId());
             default:
@@ -349,8 +294,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
             case EDGE:
                 DirectedEdge edge = (DirectedEdge) element;
                 return getEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
-            case PLUGIN:
-                return getPlugin(element.getId());
             case HYPEREDGE:
                 return getHyperEdge(element.getId());
             default:
@@ -366,16 +309,6 @@ abstract public class BaseStorage implements CheckpointedFunction, Serializable 
                 return new HyperEdge(id, new ArrayList<>(), layerFunction.getCurrentPart());
         }
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
-    }
-
-    // Remove Cached Plugin Features on Key Change. Important since plugins are always in memory
-    private class RemoveCachedFeatures implements KeyedStateBackend.KeySelectionListener<Object> {
-        @Override
-        public void keySelected(Object newKey) {
-            plugins.values().forEach(plugin -> {
-                if (plugin.features != null) plugin.features.clear();
-            });
-        }
     }
 
 }

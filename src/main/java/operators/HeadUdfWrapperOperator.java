@@ -34,6 +34,7 @@ import java.util.Collections;
  *
  * @param <T> Internal operator
  */
+@Deprecated
 public class HeadUdfWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, ? extends Function> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     private Path basePath;

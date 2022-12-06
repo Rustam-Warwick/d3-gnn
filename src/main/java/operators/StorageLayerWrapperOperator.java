@@ -12,6 +12,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
  *
  * @param <T>
  */
+@Deprecated
 public class StorageLayerWrapperOperator<T extends AbstractUdfStreamOperator<GraphOp, StorageProcessFunction> & Triggerable<Object, VoidNamespace> & OneInputStreamOperator<GraphOp, GraphOp>> extends BaseWrapperOperator<T> implements OneInputStreamOperator<GraphOp, GraphOp> {
 
     public StorageLayerWrapperOperator(StreamOperatorParameters<GraphOp> parameters, StreamOperatorFactory<GraphOp> operatorFactory, IterationID iterationID, short position, short totalLayers) {

@@ -10,15 +10,21 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.hgnn.HSageConv;
+import operators.GraphStorageOperator;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import storage.FlatObjectStorage;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Application entrypoint
@@ -72,18 +78,9 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<Integer> a = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
-            DataStream<Integer> b = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
-            DataStream<Integer> a_b = a.union(b);
-            IterateStream<Integer, Integer> res = IterateStream.startIteration(a_b.keyBy(item->item).process(new KeyedProcessFunction<Integer, Integer, Integer>() {
-                @Override
-                public void processElement(Integer value, KeyedProcessFunction<Integer, Integer, Integer>.Context ctx, Collector<Integer> out) throws Exception {
-                    System.out.println(value);
-                    ctx.timerService().registerProcessingTimeTimer(2222);
-                }
-            }));
-
-            res.closeIteration(res.keyBy(item -> item));
+            new GraphStream(env, args, true, false, false,
+                    Tuple2.of(new FlatObjectStorage(), Collections.emptyList())
+                    ).build();
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

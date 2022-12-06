@@ -5,7 +5,7 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import elements.DirectedEdge;
 import elements.Feature;
-import elements.Plugin;
+import plugins.Plugin;
 import elements.Vertex;
 import elements.enums.ReplicaState;
 import elements.features.InPlaceMeanAggregator;

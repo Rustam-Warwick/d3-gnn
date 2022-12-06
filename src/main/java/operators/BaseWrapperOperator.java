@@ -65,6 +65,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @implNote Assumes that if the input is keyed it should be KeyedBy PartNumber
  * @see StorageLayerWrapperOperator manages wrapping around single operators
  */
+@Deprecated
 abstract public class BaseWrapperOperator<T extends AbstractStreamOperator<GraphOp>>
         implements StreamOperator<GraphOp>, Input<GraphOp>, OperatorEventHandler, StreamOperatorStateHandler.CheckpointedStreamOperator, FeedbackConsumer<StreamRecord<GraphOp>> {
 

@@ -1,7 +1,7 @@
-package elements;
+package plugins;
 
-import elements.enums.CopyContext;
-import elements.enums.ElementType;
+import elements.GraphElement;
+import operators.GraphProcessContext;
 import operators.events.BaseOperatorEvent;
 import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
@@ -10,39 +10,33 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import storage.BaseStorage;
 
-import java.util.List;
-import java.util.Objects;
-
 /**
- * Plugin is a unique {@link GraphElement} that is attached to storage;
  * <p>
  * It always lives in the <strong>Operator State</strong> so it is not in the life-cycle of the logical keys
  * Furthermore, Plugins cam be thought of as extension of Storage, as they are allowed to created their own <strong>KeyedStates</strong>
  * </p>
  */
 @SuppressWarnings("unused")
-public class Plugin extends ReplicableGraphElement implements CheckpointedFunction {
+public class Plugin implements CheckpointedFunction {
 
     /**
      * Plugin Logger
      */
     protected final static Logger LOG = LoggerFactory.getLogger(Plugin.class);
+
     /**
      * ID of this plugin, should be unique per storage
      */
     final public String id;
+
     /**
      * Is this Plugin Active
      */
     public boolean IS_ACTIVE = true;
 
-    public Plugin() {
-        super((short) 0);
-        id = null;
-    }
+    public Plugin() { id= null;}
 
     public Plugin(String id) {
-        super((short) 0);
         this.id = id;
     }
 
@@ -51,80 +45,7 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
         this.IS_ACTIVE = IS_ACTIVE;
     }
 
-    /**
-     * {@link IllegalStateException}
-     */
-    @Override
-    public ReplicableGraphElement copy(CopyContext context) {
-        throw new IllegalStateException("No copy");
-    }
 
-    /**
-     * {@link IllegalStateException}
-     */
-    @Override
-    public void create() {
-        throw new IllegalStateException("Plugins are not created");
-    }
-
-    /**
-     * {@link IllegalStateException}
-     */
-    @Override
-    public void update(GraphElement newElement) {
-        throw new IllegalStateException("Plugins are not updated");
-    }
-
-    /**
-     * {@link IllegalStateException}
-     */
-    @Override
-    public void sync(GraphElement newElement) {
-        throw new IllegalStateException("Plugins are not synced");
-    }
-
-    /**
-     * {@link IllegalStateException}
-     */
-    @Override
-    public void delete() {
-        throw new IllegalStateException("Plugins are not deleted");
-    }
-
-    /**
-     * @return thisOperatorParts()
-     */
-    @Override
-    public List<Short> getReplicaParts() {
-        return getStorage().layerFunction.getWrapperContext().getThisOperatorParts();
-    }
-
-    /**
-     * @return parts that are the local master parts of each parallel sub-operators
-     */
-    public List<Short> othersMasterParts() {
-        return getStorage().layerFunction.getWrapperContext().getOtherOperatorMasterParts();
-    }
-
-    /**
-     * Is this key the last one in this operator
-     */
-    public boolean isLastReplica() {
-        return getReplicaParts().isEmpty() || Objects.equals(getPart(), getReplicaParts().get(getReplicaParts().size() - 1));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ElementType getType() {
-        return ElementType.PLUGIN;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public String getId() {
         return id;
     }
@@ -141,6 +62,10 @@ public class Plugin extends ReplicableGraphElement implements CheckpointedFuncti
      */
     public void start() {
         IS_ACTIVE = true;
+    }
+
+    public BaseStorage getStorage(){
+        return GraphProcessContext.getContext().getStorage();
     }
 
     // ----------------------- CALLBACKS --------------------

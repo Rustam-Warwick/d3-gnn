@@ -57,6 +57,7 @@ import java.util.function.Consumer;
  * Feedback operator send data to the Head Operator through a FeedbackChannel Broker
  * Also handles the fault-tolerance and checkpointing
  */
+@Deprecated
 public class IterationTailOperator extends AbstractStreamOperator<Void>
         implements OneInputStreamOperator<GraphOp, Void> {
 

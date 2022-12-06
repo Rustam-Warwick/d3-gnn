@@ -2,6 +2,7 @@ package elements;
 
 import elements.enums.*;
 import elements.features.Parts;
+import plugins.Plugin;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -4,6 +4,7 @@ import ai.djl.ndarray.LifeCycleControl;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
+import operators.GraphProcessContext;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.Nullable;
@@ -65,7 +66,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * Helper method for getting the storage object or null if we are not at storage operator right now
      */
     public static BaseStorage getStorage() {
-        return BaseStorage.STORAGES.get();
+        return GraphProcessContext.getContext().getStorage();
     }
 
     /**
@@ -95,7 +96,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             features = new ArrayList<>(copyFeatures.size());
         }
         getStorage().addElement(this);
-        getStorage().plugins.values().forEach(plugin -> plugin.addElementCallback(this));
         if (copyFeatures != null && !copyFeatures.isEmpty()) {
             for (Feature<?, ?> feature : copyFeatures) {
                 feature.setElement(this, false);
@@ -140,7 +140,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             }
         }
         getStorage().updateElement(this, newElement);
-        getStorage().plugins.values().forEach(plugin -> plugin.updateElementCallback(this, newElement));
     }
 
     /**

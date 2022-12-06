@@ -1,7 +1,7 @@
 package plugins.vertex_classification;
 
 import ai.djl.ndarray.NDList;
-import elements.Plugin;
+import plugins.Plugin;
 import plugins.ModelServer;
 
 /**
