@@ -13,6 +13,8 @@ import ai.djl.nn.hgnn.HSageConv;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.util.Collector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -73,12 +75,15 @@ public class Main {
             DataStream<Integer> a = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
             DataStream<Integer> b = env.fromCollection(List.of(1,2,3,4,5,6,3,2,2,1,2,2,3,3));
             DataStream<Integer> a_b = a.union(b);
-            IterateStream<Integer, Integer> res = IterateStream.startIteration(a_b.map(item -> {
-                System.out.println(item);
-                return item;
+            IterateStream<Integer, Integer> res = IterateStream.startIteration(a_b.keyBy(item->item).process(new KeyedProcessFunction<Integer, Integer, Integer>() {
+                @Override
+                public void processElement(Integer value, KeyedProcessFunction<Integer, Integer, Integer>.Context ctx, Collector<Integer> out) throws Exception {
+                    System.out.println(value);
+                    ctx.timerService().registerProcessingTimeTimer(2222);
+                }
             }));
 
-            res.closeIteration(res);
+            res.closeIteration(res.keyBy(item -> item));
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

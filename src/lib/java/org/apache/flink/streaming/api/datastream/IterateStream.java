@@ -18,7 +18,7 @@ import java.util.Map;
 /**
  * Represents a Stream that has iterations.
  * Use this instead of default {@link IterativeStream}
- * @implNote This object can be interoperably used with your main transformation {@link DataStream}
+ * @implNote This object can be inter-operably used with your body transformation {@link DataStream}. In other words the underlying transformations are the same
  * @param <T> Output of the iteration body
  * @param <IT> Type of elements in the iteration, in other words input of the iteration body
  */
@@ -50,15 +50,15 @@ public class IterateStream<T,IT> extends DataStream<T>{
     private IterateStream(StreamExecutionEnvironment environment, Transformation<T> transformation, IterateTransformation<IT> headTransformation) {
         super(environment, transformation);
         this.headTransformation = headTransformation;
-        environment.addOperator(headTransformation);
+        environment.addOperator(headTransformation); // Need this otherwise nothing is going to point go through this operator
     }
 
     /**
      * Start the Iteration parallel to this element
      */
     public static <T,IT> IterateStream<T,IT> startIteration(DataStream<T> body){
-        Preconditions.checkState(body.getTransformation() instanceof PhysicalTransformation, "Input for iteration should be a physical operator");
-        Preconditions.checkState(body.getTransformation().getInputs().size() > 0, "Iteration Body cannot be a source operator, apply an identity hash to overcome this");
+        Preconditions.checkState(body.getTransformation() instanceof PhysicalTransformation, "Iteration Body should be a physical operator");
+        Preconditions.checkState(body.getTransformation().getInputs().size() > 0, "Iteration Body cannot be a source operator, apply an identity map to overcome this");
         return new IterateStream<>(body.getExecutionEnvironment(), body.getTransformation(), new IterateTransformation<>((PhysicalTransformation<T>) body.getTransformation()));
     }
 
