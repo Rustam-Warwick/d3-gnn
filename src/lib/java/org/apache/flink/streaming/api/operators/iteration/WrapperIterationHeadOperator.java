@@ -1,6 +1,8 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
+import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.operators.MailboxExecutor;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -30,6 +32,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final MailboxExecutor mailboxExecutor;
 
     /**
+     * Full ID of {@link IterationChannel}
+     */
+    protected final Tuple3<JobID, Integer, Integer> channelID;
+
+    /**
      * Main {@link StreamOperator} that is wrapped by this HEAD
      */
     protected final StreamOperator<OUT> bodyOperator;
@@ -44,10 +51,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     protected final TwoInputStreamOperator<Object,Object, OUT> twoInputBodyOperatorRef;
 
-    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, StreamOperator<OUT> bodyOperator) {
+    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, StreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
+        this.channelID = Tuple3.of(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber());
         if(bodyOperator instanceof OneInputStreamOperator)oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
         else oneInputBodyOperatorRef = null;
         if(bodyOperator instanceof TwoInputStreamOperator)twoInputBodyOperatorRef = (TwoInputStreamOperator<Object, Object, OUT>) bodyOperator;
@@ -81,6 +89,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
+        IterationChannelBroker.getBroker().<StreamRecord<Object>>getIterationChannel(channelID).setConsumer(this::processElement, mailboxExecutor);
         bodyOperator.initializeState(streamTaskStateManager);
     }
 

@@ -4,7 +4,9 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import operators.interfaces.RichGraphElement;
+import operators.interfaces.GraphRuntimeContext;
+import operators.interfaces.RichGraphProcess;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -20,11 +22,17 @@ import java.util.ArrayList;
  * @implNote This is done so that late events are handled correctly, so all the logic is withing the specific graph element
  * @implNote However, do check for redundancy is create methods.
  */
-abstract public class BaseStorage implements Serializable, RichGraphElement {
+abstract public class BaseStorage implements Serializable, RichGraphProcess {
+
     /**
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+
+    /**
+     * Reference to the {@link GraphRuntimeContext}
+     */
+    private GraphRuntimeContext graphRuntimeContext;
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -98,17 +106,12 @@ abstract public class BaseStorage implements Serializable, RichGraphElement {
      */
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
 
-
-    // -------------------------- BASE STORAGE HELPER METHODS ------------------------------
-
     /**
      * Do elements need to delay Tensors on serialization, {@link Feature} having an {@link ai.djl.ndarray.NDArray} in them should consider delaying if storage requires so.
      */
     public boolean needsTensorDelay() {
         return true;
     }
-
-    // --------------------------- MAPPER & HELPER METHODS -------------------------
 
     public boolean addElement(GraphElement element) {
         switch (element.getType()) {
@@ -194,6 +197,8 @@ abstract public class BaseStorage implements Serializable, RichGraphElement {
                 return getEdge(ids.f0, ids.f1, ids.f2, id);
             case HYPEREDGE:
                 return getHyperEdge(id);
+            case PLUGIN:
+                getRuntimeContext().getPlugin(id);
             default:
                 return null;
         }
@@ -247,4 +252,13 @@ abstract public class BaseStorage implements Serializable, RichGraphElement {
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }
 
+    @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        this.graphRuntimeContext = (GraphRuntimeContext) t;
+    }
+
+    @Override
+    public GraphRuntimeContext getRuntimeContext() {
+        return graphRuntimeContext;
+    }
 }

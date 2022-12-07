@@ -19,9 +19,7 @@ public class IterationTailOperatorFactory<IN> extends AbstractStreamOperatorFact
 
     @Override
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> parameters) {
-        final IterationTailOperator<IN> finalOperator = new IterationTailOperator<IN>(iterationID, parameters.getProcessingTimeService());
-        finalOperator.setup(parameters.getContainingTask(),parameters.getStreamConfig(), parameters.getOutput());
-        return (T) finalOperator;
+        return (T) new IterationTailOperator<IN>(iterationID, parameters);
     }
 
     @Override

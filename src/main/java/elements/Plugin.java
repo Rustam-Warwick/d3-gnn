@@ -1,7 +1,11 @@
 package elements;
 
 import elements.enums.CopyContext;
-import operators.interfaces.RichGraphElement;
+import elements.enums.ElementType;
+import operators.interfaces.GraphListener;
+import operators.interfaces.GraphRuntimeContext;
+import operators.interfaces.RichGraphProcess;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,7 +16,7 @@ import org.slf4j.LoggerFactory;
  * </p>
  */
 @SuppressWarnings("unused")
-public class Plugin extends GraphElement implements RichGraphElement {
+public class Plugin extends GraphElement implements RichGraphProcess, GraphListener {
 
     /**
      * Plugin Logger
@@ -27,63 +31,64 @@ public class Plugin extends GraphElement implements RichGraphElement {
     /**
      * Is this Plugin Active
      */
-    public boolean IS_ACTIVE = true;
+    public boolean running;
 
-    public Plugin() { id= null;}
+    /**
+     * Reference to the {@link GraphRuntimeContext}
+     */
+    public GraphRuntimeContext graphRuntimeContext;
+
+    public Plugin() {
+        this(null, true);
+    }
 
     public Plugin(String id) {
-        this.id = id;
+        this(id, true);
     }
 
-    public Plugin(String id, boolean IS_ACTIVE) {
+    public Plugin(String id, boolean running) {
         this.id = id;
-        this.IS_ACTIVE = IS_ACTIVE;
+        this.running = running;
     }
 
+    /**
+     * {@inheritDoc}
+     * Throws {@link  IllegalStateException}
+     */
+    @Override
+    public GraphElement copy(CopyContext context) {
+        throw new IllegalStateException("Plugins should not be copied");
+    }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public GraphRuntimeContext getRuntimeContext() {
+        return graphRuntimeContext;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        graphRuntimeContext = (GraphRuntimeContext) t;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public String getId() {
         return id;
     }
 
     /**
-     * Stop this plugin
+     * {@inheritDoc}
      */
-    public void stop() {
-        IS_ACTIVE = false;
-    }
-
-    /**
-     * Start this plugin
-     */
-    public void start() {
-        IS_ACTIVE = true;
-    }
-
     @Override
-    public GraphElement copy(CopyContext context) {
-        throw new IllegalStateException("Plugins cannot be copied");
+    public ElementType getType() {
+        return ElementType.PLUGIN;
     }
-    // ----------------------- CALLBACKS --------------------
-
-    /**
-     * Callback when a graph element is created
-     */
-    public void addElementCallback(GraphElement element) {
-        // pass
-    }
-
-    /**
-     * Callback when a graph element is updated
-     */
-    public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-        // pass
-    }
-
-    /**
-     * Callback when a graph element is removed
-     */
-    public void deleteElementCallback(GraphElement deletedElement) {
-        // pass
-    }
-
 }

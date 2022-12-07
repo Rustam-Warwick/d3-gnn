@@ -14,7 +14,7 @@ import storage.BaseStorage;
  *     to send messages from {@link elements.GraphElement} at various levels
  * </p>
  */
-public interface GraphRuntimeContext extends RuntimeContext {
+public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
 
     /**
      * ThreadLocal variable holding the {@link GraphRuntimeContext}
@@ -59,6 +59,11 @@ public interface GraphRuntimeContext extends RuntimeContext {
     void broadcastMessage(GraphOp op, OutputTag<GraphOp> tag);
 
     /**
+     * Broadcast {@link GraphOp} only to the selected parts down the pipeline
+     */
+    void broadcastMessage(GraphOp op, short... selectedPartsOnly);
+
+    /**
      * Broadcast {@link GraphOp} but only to the selected parts
      */
     void broadcastMessage(GraphOp op, OutputTag<GraphOp> tag, short... selectedPartsOnly);
@@ -94,5 +99,4 @@ public interface GraphRuntimeContext extends RuntimeContext {
     default boolean isFirst(){
         return getPosition() <= 1;
     }
-
 }

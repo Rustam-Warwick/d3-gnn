@@ -14,7 +14,7 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.Triggerable;
 
-public interface RichGraphElement extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace> {
+public interface RichGraphProcess extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace> {
 
     @Override
     default void open(Configuration parameters) throws Exception {
@@ -65,4 +65,5 @@ public interface RichGraphElement extends CheckpointedFunction, RichFunction, Op
     default void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
 
     }
+
 }

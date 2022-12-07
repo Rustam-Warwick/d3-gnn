@@ -9,7 +9,7 @@ import elements.features.Tensor;
 import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import functions.storage.StorageProcessFunction;
-import operators.GraphStorageOperator;
+import operators.GraphStorageOperatorFactory;
 import operators.IterationTailOperator;
 import operators.OutputTags;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -19,6 +19,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Preconditions;
 import partitioner.Partitioner;
 import picocli.CommandLine;
@@ -167,12 +168,20 @@ public class GraphStream {
 
     protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, Tuple2<BaseStorage, List<Plugin>> storageAndPlugins){
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(internalPositionIndex - 1, 0)));
-        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", internalPositionIndex), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperator(storageAndPlugins.f1, storageAndPlugins.f0)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", internalPositionIndex), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(storageAndPlugins.f1, storageAndPlugins.f0)).setParallelism(thisParallelism);
         iterateStreams[internalPositionIndex] = IterateStream.startIteration(storageOperator);
         if(internalPositionIndex > 0) iterateStreams[internalPositionIndex].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
         if(internalPositionIndex > 1 && hasBackwardIteration) iterateStreams[internalPositionIndex -1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         internalPositionIndex++;
         return storageOperator;
+    }
+
+    protected SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter){
+        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(internalPositionIndex - 1, 0)));
+        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).process(splitter).setParallelism(thisParallelism).name("Splitter");
+        iterateStreams[internalPositionIndex] = IterateStream.startIteration(splitterOperator);
+        internalPositionIndex++;
+        return splitterOperator;
     }
 
     /**
@@ -187,8 +196,8 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
         layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
-//        layerOutputs[2] = streamingStorageLayer(layerOutputs[1], dataset.getSplitter());
-        layerOutputs[2] = layerOutputs[1];
+        layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
+//        layerOutputs[2] = layerOutputs[1];
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);
 
