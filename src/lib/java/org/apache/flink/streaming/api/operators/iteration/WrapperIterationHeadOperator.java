@@ -1,8 +1,6 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
-import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.operators.MailboxExecutor;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -34,12 +32,12 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Full ID of {@link IterationChannel}
      */
-    protected final Tuple3<JobID, Integer, Integer> channelID;
+    protected final IterationChannelKey channelID;
 
     /**
      * Main {@link StreamOperator} that is wrapped by this HEAD
      */
-    protected final StreamOperator<OUT> bodyOperator;
+    protected final AbstractStreamOperator<OUT> bodyOperator;
 
     /**
      * Just References with OneInput type to avoid constant type casting
@@ -51,11 +49,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     protected final TwoInputStreamOperator<Object,Object, OUT> twoInputBodyOperatorRef;
 
-    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, StreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
+    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
-        this.channelID = Tuple3.of(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber());
+        this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         if(bodyOperator instanceof OneInputStreamOperator)oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
         else oneInputBodyOperatorRef = null;
         if(bodyOperator instanceof TwoInputStreamOperator)twoInputBodyOperatorRef = (TwoInputStreamOperator<Object, Object, OUT>) bodyOperator;
@@ -89,8 +87,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
-        IterationChannelBroker.getBroker().<StreamRecord<Object>>getIterationChannel(channelID).setConsumer(this::processElement, mailboxExecutor);
         bodyOperator.initializeState(streamTaskStateManager);
+        IterationChannel<StreamRecord<Object>> channel = IterationChannelBroker.getBroker().getIterationChannel(channelID);
+        channel.setConsumer(this::processElement, mailboxExecutor);
+        bodyOperator.getContainingTask().getCancelables().registerCloseable(channel);
     }
 
     @Override
@@ -137,6 +137,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     public void processElement(StreamRecord<Object> element) throws Exception{
         oneInputBodyOperatorRef.processElement(element);
     }
+
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {

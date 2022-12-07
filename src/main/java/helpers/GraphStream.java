@@ -10,7 +10,6 @@ import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import functions.storage.StorageProcessFunction;
 import operators.GraphStorageOperatorFactory;
-import operators.IterationTailOperator;
 import operators.OutputTags;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
@@ -33,7 +32,6 @@ import java.util.List;
  * <p>
  * Pipeline usually starts with:
  * {@link Dataset} --> {@link Partitioner} --> Splitter --> Storage-0 --> ... --> Storage-N
- * It also includes {@link IterationTailOperator} for iterative messages
  * </p>
  */
 public class GraphStream {

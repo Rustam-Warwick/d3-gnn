@@ -1,16 +1,16 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
-import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.queues.SpscLinkedQueue;
 import org.apache.flink.util.Preconditions;
+import org.apache.flink.util.function.ThrowingConsumer;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 /**
  * <p>
@@ -24,36 +24,39 @@ public class IterationChannel<T> implements Closeable {
     /**
      * List of producers identified by their IDs
      */
-    private final ConcurrentHashMap<OperatorID, SpscLinkedQueue<T>> producers = new ConcurrentHashMap<>(5);
+    private final ConcurrentHashMap<OperatorID, IterationQueue<T>> producers = new ConcurrentHashMap<>(5);
 
     /**
-     * Consumer of this channel
+     * Consumer & Executor of this channel, changes are made entirely for volatile to take effect
      */
-    private final Tuple2<Consumer<T>, Executor> consumerAndExecutor = Tuple2.of(null, null);
+    private volatile Tuple2<ThrowingConsumer<T, Exception>, MailboxExecutor> consumerAndExecutor = Tuple2.of(null, null);
 
     /**
      * ID of this channel
      */
-    private final Tuple3<JobID, Integer, Integer> id;
+    private final IterationChannelKey channelKey;
 
-    public IterationChannel(Tuple3<JobID, Integer, Integer> id) {
-        this.id = id;
+    public IterationChannel(IterationChannelKey channelKey) {
+        this.channelKey = channelKey;
     }
 
     /**
      * Add Producer to this iteration Channel
      */
-    public void addProducer(OperatorID operatorID){
+    public IterationQueue<T> addProducer(OperatorID operatorID){
         Preconditions.checkState(!producers.contains(operatorID));
-        producers.put(operatorID, new SpscLinkedQueue<>());
+        IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
+        producers.put(operatorID, queue);
+        return queue;
     }
 
     /**
      * Set the consumer for this iteration Channel
      */
-    public void setConsumer(Consumer<T> consumer, Executor consumerExecutor){
-        this.consumerAndExecutor.f0 = consumer;
-        this.consumerAndExecutor.f1 = consumerExecutor;
+    public void setConsumer(ThrowingConsumer<T, Exception> consumer, MailboxExecutor consumerExecutor){
+        Preconditions.checkState(consumerAndExecutor.f1 == null && consumerAndExecutor.f0 == null, "A IterationQueue cannot have multiple Consumers");
+        this.consumerAndExecutor = Tuple2.of(consumer, consumerExecutor);
+        producers.values().forEach(producer->producer.setConsumerAndExecutor(this.consumerAndExecutor));
     }
 
     /**
@@ -61,6 +64,46 @@ public class IterationChannel<T> implements Closeable {
      */
     @Override
     public void close() {
+        IterationChannelBroker.getBroker().removeChannel(channelKey);
+    }
+
+    /**
+     * A wrapper Queue that the Producers directly interact with
+     * Implements {@link Runnable} and directly passes itself to Consumer {@link Executor}
+     * Implements {@link Closeable} to gracefully finish cleanup the iteration channel
+     * @param <T> Type of elements in this iteration
+     */
+    protected static class IterationQueue<T> extends SpscLinkedQueue<T> implements Runnable, Closeable {
+
+        /**
+         * Reference to the same field in the {@link IterationChannel}
+         */
+        private volatile Tuple2<ThrowingConsumer<T, Exception>, MailboxExecutor> consumerAndExecutor;
+
+        public IterationQueue(Tuple2<ThrowingConsumer<T, Exception>, MailboxExecutor> consumerAndExecutor) {
+            this.consumerAndExecutor = consumerAndExecutor;
+        }
+
+        public void setConsumerAndExecutor(Tuple2<ThrowingConsumer<T, Exception>, MailboxExecutor> consumerAndExecutor) {
+            this.consumerAndExecutor = consumerAndExecutor;
+        }
+
+        /**
+         * Starting iterating element from the start of this queue
+         */
+        @Override
+        public void run() {
+
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void close() throws IOException {
+
+        }
 
     }
+
 }

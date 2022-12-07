@@ -31,7 +31,7 @@ public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOper
 
     @Override
     public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
-        final Tuple2<StreamOperator<OUT>, Optional<ProcessingTimeService>> bodyOperatorResult = StreamOperatorFactoryUtil.createOperator(bodyOperatorFactory,(StreamTask<OUT, ?>) parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput(), parameters.getOperatorEventDispatcher());
+        final Tuple2<AbstractStreamOperator<OUT>, Optional<ProcessingTimeService>> bodyOperatorResult = StreamOperatorFactoryUtil.createOperator(bodyOperatorFactory,(StreamTask<OUT, ?>) parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput(), parameters.getOperatorEventDispatcher());
         return (T) new WrapperIterationHeadOperator<>(iterationID, getMailboxExecutor(), bodyOperatorResult.f0, parameters);
     }
 
