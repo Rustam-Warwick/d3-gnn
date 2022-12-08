@@ -22,6 +22,9 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      */
     protected final IterationChannelKey channelID;
 
+    /**
+     * {@link org.apache.flink.streaming.api.operators.iteration.IterationChannel.IterationQueue} for sending iterative messages
+     */
     protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
 
     public IterationTailOperator(int iterationID, StreamOperatorParameters<Void> parameters) {

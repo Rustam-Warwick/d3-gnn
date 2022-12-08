@@ -17,7 +17,7 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
  * @todo Add Termination Detection
  * @param <OUT> Output Type
  */
-public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>, TwoInputStreamOperator<Object, Object, OUT> {
+public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT> {
 
     /**
      * Unique ID for the Iteration
@@ -44,10 +44,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     protected final OneInputStreamOperator<Object, OUT> oneInputBodyOperatorRef;
 
-    /**
-     * Just References with TwoInput type to avoid constant type casting
-     */
-    protected final TwoInputStreamOperator<Object,Object, OUT> twoInputBodyOperatorRef;
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
@@ -56,8 +52,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         if(bodyOperator instanceof OneInputStreamOperator)oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
         else oneInputBodyOperatorRef = null;
-        if(bodyOperator instanceof TwoInputStreamOperator)twoInputBodyOperatorRef = (TwoInputStreamOperator<Object, Object, OUT>) bodyOperator;
-        else twoInputBodyOperatorRef = null;
     }
 
     @Override
@@ -72,6 +66,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void close() throws Exception {
+        IterationChannelBroker.getBroker().getIterationChannel(channelID).close();
         bodyOperator.close();
     }
 
@@ -85,12 +80,19 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         return bodyOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
     }
 
+    public void processFeedback(StreamRecord<Object> el){
+        try{
+            processElement(el);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
         bodyOperator.initializeState(streamTaskStateManager);
         IterationChannel<StreamRecord<Object>> channel = IterationChannelBroker.getBroker().getIterationChannel(channelID);
-        channel.setConsumer(this::processElement, mailboxExecutor);
-        bodyOperator.getContainingTask().getCancelables().registerCloseable(channel);
+        channel.setConsumer(this::processFeedback, mailboxExecutor);
     }
 
     @Override
@@ -152,45 +154,5 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
         oneInputBodyOperatorRef.processLatencyMarker(latencyMarker);
-    }
-
-    @Override
-    public void processElement1(StreamRecord<Object> element) throws Exception {
-        twoInputBodyOperatorRef.processElement1(element);
-    }
-
-    @Override
-    public void processElement2(StreamRecord<Object> element) throws Exception {
-        twoInputBodyOperatorRef.processElement2(element);
-    }
-
-    @Override
-    public void processWatermark1(Watermark mark) throws Exception {
-        twoInputBodyOperatorRef.processWatermark1(mark);
-    }
-
-    @Override
-    public void processWatermark2(Watermark mark) throws Exception {
-        twoInputBodyOperatorRef.processWatermark2(mark);
-    }
-
-    @Override
-    public void processLatencyMarker1(LatencyMarker latencyMarker) throws Exception {
-        twoInputBodyOperatorRef.processLatencyMarker1(latencyMarker);
-    }
-
-    @Override
-    public void processLatencyMarker2(LatencyMarker latencyMarker) throws Exception {
-        twoInputBodyOperatorRef.processLatencyMarker2(latencyMarker);
-    }
-
-    @Override
-    public void processWatermarkStatus1(WatermarkStatus watermarkStatus) throws Exception {
-        twoInputBodyOperatorRef.processWatermarkStatus1(watermarkStatus);
-    }
-
-    @Override
-    public void processWatermarkStatus2(WatermarkStatus watermarkStatus) throws Exception {
-        twoInputBodyOperatorRef.processWatermarkStatus2(watermarkStatus);
     }
 }
