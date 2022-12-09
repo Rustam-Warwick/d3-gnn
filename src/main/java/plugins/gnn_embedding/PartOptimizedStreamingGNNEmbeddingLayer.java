@@ -9,7 +9,7 @@ import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import elements.features.Tensor;
-import operators.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.*;
 

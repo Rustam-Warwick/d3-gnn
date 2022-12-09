@@ -90,7 +90,7 @@ public class IterationChannel<T> implements Closeable {
         private volatile Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         /**
-         * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore
+         * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains the mailbox
          */
         private final AtomicBoolean waiting = new AtomicBoolean(false);
 
@@ -105,7 +105,7 @@ public class IterationChannel<T> implements Closeable {
         public void setLateConsumerAndExecutor(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
             if(!isEmpty() && !waiting.getAndSet(true)){
                 this.consumerAndExecutor = consumerAndExecutor;
-                this.consumerAndExecutor.f1.execute(this, "IterationMessage");
+                scheduleMailbox();
             }else{
                 this.consumerAndExecutor = consumerAndExecutor;
             }
@@ -118,20 +118,26 @@ public class IterationChannel<T> implements Closeable {
         @Override
         public boolean add(T t) {
             boolean res = super.add(t);
-            try{
-                if(consumerAndExecutor != null && !waiting.getAndSet(true)){
-                    consumerAndExecutor.f1.execute(this, "IterationMessage");
-                }
-            }catch (NullPointerException | RejectedExecutionException ignored){
-                // Pass: This means that the mailbox is already closed or draining. So we can close prematurely
-                IOUtils.closeQuietly(this);
-            }
+            if(consumerAndExecutor != null && !waiting.getAndSet(true)) scheduleMailbox();
             return res;
         }
 
         /**
+         * Add one task to {@link MailboxExecutor}, and if closed also close the {@link IterationChannel}
+         */
+        public void scheduleMailbox(){
+            try{
+                consumerAndExecutor.f1.execute(this, "IterationMessage");
+            }catch (NullPointerException | RejectedExecutionException ignored){
+                // Mailbox executor is closed can safely close this iteration channel
+                System.out.println("Closing because" + ignored.getMessage());
+                IOUtils.closeQuietly(this);
+            }
+        }
+
+        /**
          * Starting iterating element from the start of this queue
-         * Note that by entering this message HEAD can be closed but during the execution never
+         * Note that by entering this output HEAD can be closed but during the execution never
          */
         @Override
         public void run() {

@@ -10,7 +10,7 @@ import elements.enums.*;
 import elements.features.Aggregator;
 import elements.features.MeanAggregator;
 import elements.features.Tensor;
-import operators.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import operators.events.BackwardBarrier;
 import operators.events.ForwardBarrier;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -68,7 +68,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     }
 
     /**
-     * First part of training resposible for getting triggerUpdate gradients and message gradients
+     * First part of training resposible for getting triggerUpdate gradients and output gradients
      * <p>
      * Assumes to contain only gradients for master vertices with aggregators allocated already
      * </p>
@@ -163,9 +163,9 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     }
 
     /**
-     * Second part of training responsible for getting message gradients
+     * Second part of training responsible for getting output gradients
      * <p>
-     * Batch compute gradients for message function as well as previous layer updates
+     * Batch compute gradients for output function as well as previous layer updates
      * Previous layer updates are needed only if this is not First layer of GNN
      * </p>
      */
@@ -275,7 +275,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         for (int i = 0; i < vertexIds.size(); i++) {
             Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
             updateTensor.ids = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
-            getRuntimeContext().message(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), updateTensor));
+            getRuntimeContext().output(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), updateTensor));
         }
     }
 
@@ -285,13 +285,13 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         if (evt instanceof BackwardBarrier) {
             if (++numTrainingSyncMessages == 1) {
                 getRuntimeContext().runForAllLocalParts(this::trainFirstPart);
-                getRuntimeContext().broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+                getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
             } else {
                 getRuntimeContext().runForAllLocalParts(this::trainSecondPart);
                 if (getRuntimeContext().isFirst())
-                    getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+                    getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
                 else
-                    getRuntimeContext().broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
+                    getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
                 numTrainingSyncMessages = 0;
                 modelServer.getParameterStore().sync();
             }
@@ -304,9 +304,9 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
                 getRuntimeContext().runForAllLocalParts(this::inferenceSecondPartStart);
             }
             if (numForwardSyncMessages < 3) {
-                getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
             } else {
-                getRuntimeContext().broadcastMessage(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
+                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
                 numForwardSyncMessages = 0;
                 // @todo add embedding plugin start
             }

@@ -38,7 +38,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
             operatorFactoryField = StreamNode.class.getDeclaredField("operatorFactory");
             operatorFactoryField.setAccessible(true);
         }catch (Exception e){
-            throw new RuntimeException("Cannot use Reflection turn off the Secrity Manager");
+            throw new RuntimeException("Cannot use Reflection turn off the Security Manager");
         }
 
     }
@@ -84,12 +84,13 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
                         slotSharingGroup,
                         coLocationGroupKey,
                         new IterationTailOperatorFactory<>(iterationHeadId),
-                        transformation.getOutputType(),
+                        transformation.getOutputType(), // This is actually the input type of the iteration
                         TypeExtractor.createTypeInfo(Void.class),
                         String.format("[TAIL]%s", bodyStreamNode.getOperatorName()));
                 streamGraph.setParallelism(iterationTailId, bodyStreamNode.getParallelism());
                 streamGraph.setMaxParallelism(iterationTailId, transformation.getIterationBodyTransformation().getMaxParallelism());
                 if (bodyStreamNode.getStatePartitioners().length > 0) {
+                    // If body has keySelector so should iteration tails have it
                     Preconditions.checkState(iterationFeedbackTransformation instanceof PartitionTransformation, "IterationBody and Feedback should be identically partitioned");
                     streamGraph.setOneInputStateKey(iterationTailId, bodyStreamNode.getStatePartitioners()[0], bodyStreamNode.getStateKeySerializer().duplicate());
                 }

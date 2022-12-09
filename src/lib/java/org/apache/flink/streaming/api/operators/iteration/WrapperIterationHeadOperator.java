@@ -12,12 +12,11 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 
 /**
- * HEAD Operator for handling Stream Iterations
- * Acts like a source
- * @todo Add Termination Detection
+ * HEAD logic wrapper around the main operator logic for {@link OneInputStreamOperator}
+ * Currently only supports single input stream operator but can be extended to support many sources as well
  * @param <OUT> Output Type
  */
-public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT> {
+public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>{
 
     /**
      * Unique ID for the Iteration
@@ -50,7 +49,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
-        if(bodyOperator instanceof OneInputStreamOperator)oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
+        if(bodyOperator instanceof OneInputStreamOperator) oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
         else oneInputBodyOperatorRef = null;
     }
 
@@ -82,6 +81,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     public void processFeedback(StreamRecord<Object> el){
         try{
+            setKeyContextElement(el);
             processElement(el);
         }catch (Exception e){
             e.printStackTrace();
@@ -139,7 +139,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     public void processElement(StreamRecord<Object> element) throws Exception{
         oneInputBodyOperatorRef.processElement(element);
     }
-
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {

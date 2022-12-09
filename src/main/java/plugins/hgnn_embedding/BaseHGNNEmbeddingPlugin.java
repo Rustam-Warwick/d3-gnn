@@ -14,7 +14,7 @@ import plugins.ModelServer;
 
 /**
  * Base class for all HGNN Embedding Plugins
- * message is ready when source f is ready
+ * output is ready when source f is ready
  * triggerUpdate is ready when source f and agg are ready
  */
 abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
@@ -55,7 +55,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Calling the message function, note that everything except the input is transfered to tasklifeCycleManager
+     * Calling the output function, note that everything except the input is transfered to tasklifeCycleManager
      *
      * @param features Source vertex Features or Batch
      * @param training Should we construct the training graph
@@ -66,7 +66,7 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
     }
 
     /**
-     * Is Vertex ready to send message to aggregator
+     * Is Vertex ready to send output to aggregator
      */
     public final boolean messageReady(Vertex v) {
         return v.containsFeature("f");

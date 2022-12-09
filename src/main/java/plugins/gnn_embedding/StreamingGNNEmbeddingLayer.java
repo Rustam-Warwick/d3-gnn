@@ -6,7 +6,7 @@ import elements.*;
 import elements.enums.*;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
-import operators.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
@@ -111,7 +111,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         tmp.ids.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**

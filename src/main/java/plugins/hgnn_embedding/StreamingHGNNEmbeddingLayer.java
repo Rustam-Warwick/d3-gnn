@@ -9,7 +9,7 @@ import elements.enums.ReplicaState;
 import elements.features.Aggregator;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
-import operators.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
@@ -99,7 +99,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         tmp.ids.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**
@@ -195,7 +195,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
     }
 
     /**
-     * Update HyperEdges if the initial message function happens to be changed
+     * Update HyperEdges if the initial output function happens to be changed
      */
     public void replaceF1(Tensor newFeature, Tensor oldFeature) {
         NDList newMessage = MESSAGE(new NDList(newFeature.getValue()), false);

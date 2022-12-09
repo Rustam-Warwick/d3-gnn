@@ -10,7 +10,7 @@ import elements.Rmi;
 import elements.Vertex;
 import elements.enums.MessageDirection;
 import elements.enums.ReplicaState;
-import operators.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import operators.events.BackwardBarrier;
 import operators.events.ForwardBarrier;
 import org.apache.flink.configuration.Configuration;
@@ -115,7 +115,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         if (evt instanceof ForwardBarrier) {
             epochThroughput.inc(10000);
             getRuntimeContext().runForAllLocalParts(this::startTraining);
-            getRuntimeContext().broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
+            getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
             modelServer.getParameterStore().sync();
         }
     }

@@ -10,9 +10,13 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.hgnn.HSageConv;
+import elements.GraphOp;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import plugins.ModelServer;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import storage.FlatObjectStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,14 +74,11 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<Integer> res = env.fromCollection(List.of(1,2,3,4,5,6,6,6,6));
-            IterateStream<Integer, Integer> incremeented = IterateStream.startIteration(res.keyBy(item -> item).map(item -> item + 1));
-            incremeented.print();
-            incremeented.closeIteration(incremeented.filter(item -> item < 10).keyBy(item -> item));
 
-//            new GraphStream(env, args, true, false, false,
-//                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true)))
-//                    ).build();
+            DataStream< GraphOp>[] res= new GraphStream(env, args, true, false, false,
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true)))
+                    ).build();
+            res[res.length - 1].print();
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

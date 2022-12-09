@@ -5,6 +5,7 @@ import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
 import org.apache.flink.streaming.api.operators.StreamOperatorParameters;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.util.function.ThrowingConsumer;
 
 /**
  * TAIL Operator for handling Stream Iterations
@@ -27,11 +28,18 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      */
     protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
 
+    /**
+     * Consumer for the incoming elements
+     */
+    protected final ThrowingConsumer<StreamRecord<IN>, Exception> handler;
+
     public IterationTailOperator(int iterationID, StreamOperatorParameters<Void> parameters) {
         this.iterationID = iterationID;
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         this.processingTimeService = parameters.getProcessingTimeService();
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        if(parameters.getStreamConfig().getChainIndex() == 1) handler = this::processWithReuse;
+        else handler = this::processWithoutReuse;
     }
 
     @Override
@@ -41,8 +49,22 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
         iterationQueue = channel.addProducer(getOperatorID());
     }
 
+    /**
+     * Reuse the {@link StreamRecord}
+     */
+    public void processWithReuse(StreamRecord<IN> element) throws Exception {
+        iterationQueue.add(element);
+    }
+
+    /**
+     * Create a Shallow copy of {@link StreamRecord} before processing
+     */
+    public void processWithoutReuse(StreamRecord<IN> element) throws Exception {
+        iterationQueue.add(element.copy(element.getValue()));
+    }
+
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        iterationQueue.add(element);
+        handler.accept(element);
     }
 }
