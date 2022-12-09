@@ -4,6 +4,9 @@ import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
+import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.CheckpointStreamFactory;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -16,7 +19,7 @@ import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
  * Currently only supports single input stream operator but can be extended to support many sources as well
  * @param <OUT> Output Type
  */
-public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>{
+public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>, OperatorEventHandler {
 
     /**
      * Unique ID for the Iteration
@@ -29,9 +32,19 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final MailboxExecutor mailboxExecutor;
 
     /**
+     * Termination Detection point reached
+     */
+    protected boolean readyToFinish = false;
+
+    /**
      * Full ID of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
+
+    /**
+     * Gateway to operator coordinator
+     */
+    protected final OperatorEventGateway operatorEventGateway;
 
     /**
      * Main {@link StreamOperator} that is wrapped by this HEAD
@@ -43,6 +56,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     protected final OneInputStreamOperator<Object, OUT> oneInputBodyOperatorRef;
 
+    /**
+     * Just Reference to OperatorEventHandler to avoid constant type casting
+     */
+    protected final OperatorEventHandler bodyOperatorEventHandleRef;
+
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
@@ -51,6 +69,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         if(bodyOperator instanceof OneInputStreamOperator) oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
         else oneInputBodyOperatorRef = null;
+        if(bodyOperator instanceof OperatorEventHandler) bodyOperatorEventHandleRef = (OperatorEventHandler) bodyOperator;
+        else bodyOperatorEventHandleRef = null;
+        operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
+        parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
     @Override
@@ -60,6 +82,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void finish() throws Exception {
+        while(!readyToFinish){
+            mailboxExecutor.tryYield();
+            Thread.onSpinWait();
+        }
         bodyOperator.finish();
     }
 
@@ -148,6 +174,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
         oneInputBodyOperatorRef.processWatermarkStatus(watermarkStatus);
+    }
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        if(bodyOperatorEventHandleRef != null) bodyOperatorEventHandleRef.handleOperatorEvent(evt);
     }
 
     @Override

@@ -12,11 +12,21 @@ import java.util.concurrent.CompletableFuture;
  * Similarly it optionally wraps around internal operators {@link OperatorCoordinator} but on top of it implements distributed termination detection
  */
 public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordinator {
+
+    /**
+     * Coordinator for the internal operator
+     */
     @Nullable
     protected final OperatorCoordinator bodyOperatorCoordinator;
 
-    public WrapperIterationHeadOperatorCoordinator(@Nullable  OperatorCoordinator bodyOperatorCoordinator) {
+    /**
+     * Operator Context
+     */
+    protected final Context context;
+
+    public WrapperIterationHeadOperatorCoordinator(@Nullable  OperatorCoordinator bodyOperatorCoordinator, Context context) {
         this.bodyOperatorCoordinator = bodyOperatorCoordinator;
+        this.context = context;
     }
 
     @Override
@@ -32,7 +42,6 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if(bodyOperatorCoordinator != null) bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
-
     }
 
     @Override
@@ -65,6 +74,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         if(bodyOperatorCoordinator != null) bodyOperatorCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
     }
 
+
     /**
      * Simple Provider implementation
      */
@@ -86,8 +96,8 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
         @Override
         public OperatorCoordinator create(Context context) throws Exception {
-            if(bodyOperatorCoordinatorProvider == null) return new WrapperIterationHeadOperatorCoordinator(null);
-            else return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider.create(context));
+            if(bodyOperatorCoordinatorProvider == null) return new WrapperIterationHeadOperatorCoordinator(null, context);
+            else return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider.create(context), context);
         }
     }
 }
