@@ -82,6 +82,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void finish() throws Exception {
+        if(bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0) operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
         while(!readyToFinish){
             mailboxExecutor.tryYield();
             Thread.onSpinWait();
@@ -185,4 +186,5 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
         oneInputBodyOperatorRef.processLatencyMarker(latencyMarker);
     }
+
 }

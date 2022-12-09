@@ -5,6 +5,8 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -27,7 +29,16 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     public WrapperIterationHeadOperatorCoordinator(@Nullable  OperatorCoordinator bodyOperatorCoordinator, Context context) {
         this.bodyOperatorCoordinator = bodyOperatorCoordinator;
         this.context = context;
+        context.getCoordinatorStore().compute("iteration_coordinators", (key, value) -> {
+           if(value == null) return new ArrayList<>(List.of(this));
+           else{
+               ((List<Object>) value).add(this);
+           }
+           return value;
+        });
     }
+
+    public void
 
     @Override
     public void start() throws Exception {
@@ -76,9 +87,15 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
 
     /**
+     * Message for Termination Detection
+     */
+    public static class StartTermination implements OperatorEvent{}
+
+    /**
      * Simple Provider implementation
      */
     public static class WrapperIterationHeadOperatorCoordinatorProvider implements OperatorCoordinator.Provider{
+
         protected final OperatorID operatorID;
 
         @Nullable
