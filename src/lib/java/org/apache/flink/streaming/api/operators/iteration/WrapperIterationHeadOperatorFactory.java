@@ -14,7 +14,7 @@ import java.util.Optional;
  * This operator wraps the main body operator factory and adds HEAD logic on top of it
  * @param <OUT> Output Type of the Head Operator
  */
-public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OUT> implements YieldingOperatorFactory<OUT>, CoordinatedOperatorFactory<OUT>{
+public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOperatorFactory<OUT> implements CoordinatedOperatorFactory<OUT>{
 
     /**
      * ID of the HeadTransformation. To be combined with the jobId and attemptId for uniqueness
@@ -31,10 +31,14 @@ public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOper
         this.bodyOperatorFactory = bodyOperatorFactory;
     }
 
+    /**
+     * {@inheritDoc}
+     * <strong>It is important to create {@link org.apache.flink.api.common.operators.MailboxExecutor} manually since if priority is > -1 coordinator messages will not be processed in this mailbox executor </strong>
+     */
     @Override
     public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
         final Tuple2<AbstractStreamOperator<OUT>, Optional<ProcessingTimeService>> bodyOperatorResult = StreamOperatorFactoryUtil.createOperator(bodyOperatorFactory,(StreamTask<OUT, ?>) parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput(), parameters.getOperatorEventDispatcher());
-        return (T) new WrapperIterationHeadOperator<>(iterationID, getMailboxExecutor(), bodyOperatorResult.f0, parameters);
+        return (T) new WrapperIterationHeadOperator<>(iterationID, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), bodyOperatorResult.f0, parameters);
     }
 
     @Override

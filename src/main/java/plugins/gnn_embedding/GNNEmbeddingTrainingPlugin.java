@@ -308,7 +308,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
             } else {
                 getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
                 numForwardSyncMessages = 0;
-                // @todo add embedding plugin start
+                // @todo add embedding plugin startTermination
             }
         }
     }

@@ -78,7 +78,6 @@ public class Main {
             DataStream< GraphOp>[] res= new GraphStream(env, args, true, false, false,
                     Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true)))
                     ).build();
-            res[res.length - 1].print();
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

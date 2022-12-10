@@ -14,6 +14,8 @@ import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 
+import java.util.function.Consumer;
+
 /**
  * HEAD logic wrapper around the main operator logic for {@link OneInputStreamOperator}
  * Currently only supports single input stream operator but can be extended to support many sources as well
@@ -32,7 +34,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final MailboxExecutor mailboxExecutor;
 
     /**
-     * Termination Detection point reached
+     * Termination Detection point reached can close this operator
      */
     protected boolean readyToFinish = false;
 
@@ -52,6 +54,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final AbstractStreamOperator<OUT> bodyOperator;
 
     /**
+     * Consumer of {@link OperatorEvent} depending on weather body implements {@link OperatorEventHandler} or not
+     */
+    protected final Consumer<OperatorEvent> operatorEventConsumer;
+
+    /**
      * Just References with OneInput type to avoid constant type casting
      */
     protected final OneInputStreamOperator<Object, OUT> oneInputBodyOperatorRef;
@@ -67,12 +74,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
-        if(bodyOperator instanceof OneInputStreamOperator) oneInputBodyOperatorRef = (OneInputStreamOperator<Object, OUT>) bodyOperator;
-        else oneInputBodyOperatorRef = null;
-        if(bodyOperator instanceof OperatorEventHandler) bodyOperatorEventHandleRef = (OperatorEventHandler) bodyOperator;
-        else bodyOperatorEventHandleRef = null;
         operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
+        this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator)? (OneInputStreamOperator<Object, OUT>) bodyOperator :null;
+        this.bodyOperatorEventHandleRef = (bodyOperator instanceof OperatorEventHandler)? (OperatorEventHandler) bodyOperator :null;
+        operatorEventConsumer = bodyOperatorEventHandleRef == null?this::handleOperatorEventSelf:this::handleOperatorEventWithBody;
     }
 
     @Override
@@ -82,17 +88,12 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void finish() throws Exception {
-        if(bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0) operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
-        while(!readyToFinish){
-            mailboxExecutor.tryYield();
-            Thread.onSpinWait();
-        }
+        System.out.println("FINISHED");
         bodyOperator.finish();
     }
 
     @Override
     public void close() throws Exception {
-        IterationChannelBroker.getBroker().getIterationChannel(channelID).close();
         bodyOperator.close();
     }
 
@@ -106,7 +107,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         return bodyOperator.snapshotState(checkpointId, timestamp, checkpointOptions, storageLocation);
     }
 
-    public void processFeedback(StreamRecord<Object> el){
+    /**
+     * Process Feedback messages if body is {@link OneInputStreamOperator}
+     */
+    public void processOneInputFeedback(StreamRecord<Object> el){
         try{
             setKeyContextElement(el);
             processElement(el);
@@ -119,7 +123,8 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
         bodyOperator.initializeState(streamTaskStateManager);
         IterationChannel<StreamRecord<Object>> channel = IterationChannelBroker.getBroker().getIterationChannel(channelID);
-        channel.setConsumer(this::processFeedback, mailboxExecutor);
+        bodyOperator.getContainingTask().getCancelables().registerCloseable(channel);
+        channel.setConsumer(this::processOneInputFeedback, mailboxExecutor);
     }
 
     @Override
@@ -169,6 +174,13 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
+        if(mark.getTimestamp() == Long.MAX_VALUE && !readyToFinish){
+            // Enter the termination loop
+            if(bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0) operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
+            while(!readyToFinish){
+                mailboxExecutor.yield();
+            }
+        }
         oneInputBodyOperatorRef.processWatermark(mark);
     }
 
@@ -177,9 +189,30 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         oneInputBodyOperatorRef.processWatermarkStatus(watermarkStatus);
     }
 
+    /**
+     * Handle operator event if body is NOT {@link OperatorEventHandler}
+     */
+    public void handleOperatorEventSelf(OperatorEvent evt){
+        if(evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan){
+            // Requested scan for termination detection
+            operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
+                    getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount()));
+        }else if(evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate){
+            readyToFinish = true;
+        }
+    }
+
+    /**
+     * Handle operator event if body IS {@link OperatorEventHandler}
+     */
+    public void handleOperatorEventWithBody(OperatorEvent evt){
+        bodyOperatorEventHandleRef.handleOperatorEvent(evt);
+        handleOperatorEventSelf(evt);
+    }
+
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(bodyOperatorEventHandleRef != null) bodyOperatorEventHandleRef.handleOperatorEvent(evt);
+        operatorEventConsumer.accept(evt);
     }
 
     @Override

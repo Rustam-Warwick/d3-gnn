@@ -862,8 +862,8 @@
 //    /**
 //     * Returns evenly spaced values starting from 0.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
@@ -877,8 +877,8 @@
 //    /**
 //     * Returns evenly spaced values starting from 0.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
@@ -892,123 +892,123 @@
 //    /**
 //     * Returns evenly spaced values within a given interval with step 1.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start the start of interval. The interval includes this value
+//     * @param startTermination the startTermination of interval. The interval includes this value
 //     * @param stop  the end of interval. The interval does not include this value
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray arange(int start, int stop) {
-//        return arange(start, stop, 1, DataType.INT32);
+//    default NDArray arange(int startTermination, int stop) {
+//        return arange(startTermination, stop, 1, DataType.INT32);
 //    }
 //
 //    /**
 //     * Returns evenly spaced values within a given interval with step 1.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start the start of interval. The interval includes this value
+//     * @param startTermination the startTermination of interval. The interval includes this value
 //     * @param stop  the end of interval. The interval does not include this value
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray arange(float start, float stop) {
-//        return arange(start, stop, 1.0f, DataType.FLOAT32);
+//    default NDArray arange(float startTermination, float stop) {
+//        return arange(startTermination, stop, 1.0f, DataType.FLOAT32);
 //    }
 //
 //    /**
 //     * Returns evenly spaced values within a given interval.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start the start of interval. The interval includes this value
-//     * @param stop  the end of interval. The interval does not include this value
-//     * @param step  the spacing between values
-//     * @return a new instance of {@link NDArray}
-//     */
-//    default NDArray arange(int start, int stop, int step) {
-//        return arange(start, stop, step, DataType.INT32);
-//    }
-//
-//    /**
-//     * Returns evenly spaced values within a given interval.
-//     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
-//     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
-//     * rather than a list.
-//     *
-//     * @param start the start of interval. The interval includes this value
+//     * @param startTermination the startTermination of interval. The interval includes this value
 //     * @param stop  the end of interval. The interval does not include this value
 //     * @param step  the spacing between values
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray arange(float start, float stop, float step) {
-//        return arange(start, stop, step, DataType.FLOAT32);
+//    default NDArray arange(int startTermination, int stop, int step) {
+//        return arange(startTermination, stop, step, DataType.INT32);
 //    }
 //
 //    /**
 //     * Returns evenly spaced values within a given interval.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start    the start of interval. The interval includes this value
+//     * @param startTermination the startTermination of interval. The interval includes this value
+//     * @param stop  the end of interval. The interval does not include this value
+//     * @param step  the spacing between values
+//     * @return a new instance of {@link NDArray}
+//     */
+//    default NDArray arange(float startTermination, float stop, float step) {
+//        return arange(startTermination, stop, step, DataType.FLOAT32);
+//    }
+//
+//    /**
+//     * Returns evenly spaced values within a given interval.
+//     *
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
+//     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
+//     * rather than a list.
+//     *
+//     * @param startTermination    the startTermination of interval. The interval includes this value
 //     * @param stop     the end of interval. The interval does not include this value
 //     * @param step     the spacing between values
 //     * @param dataType the {@link DataType} of the {@link NDArray}
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray arange(int start, int stop, int step, DataType dataType) {
-//        return arange((float) start, (float) stop, (float) step, dataType);
+//    default NDArray arange(int startTermination, int stop, int step, DataType dataType) {
+//        return arange((float) startTermination, (float) stop, (float) step, dataType);
 //    }
 //
 //    /**
 //     * Returns evenly spaced values within a given interval.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start    the start of interval. The interval includes this value
+//     * @param startTermination    the startTermination of interval. The interval includes this value
 //     * @param stop     the end of interval. The interval does not include this value
 //     * @param step     the spacing between values
 //     * @param dataType the {@link DataType} of the {@link NDArray}
 //     * @return a new instance of {@link NDArray}
 //     */
-//    NDArray arange(float start, float stop, float step, DataType dataType);
+//    NDArray arange(float startTermination, float stop, float step, DataType dataType);
 //
 //    /**
 //     * Returns evenly spaced values within a given interval.
 //     *
-//     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-//     * interval including start but excluding stop). For integer arguments, the function is
+//     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+//     * interval including startTermination but excluding stop). For integer arguments, the function is
 //     * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
 //     * rather than a list.
 //     *
-//     * @param start    the start of interval. The interval includes this value
+//     * @param startTermination    the startTermination of interval. The interval includes this value
 //     * @param stop     the end of interval. The interval does not include this value
 //     * @param step     the spacing between values
 //     * @param dataType the {@link DataType} of the {@link NDArray}
 //     * @param device   the {@link Device} of the {@link NDArray}
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray arange(float start, float stop, float step, DataType dataType, Device device) {
+//    default NDArray arange(float startTermination, float stop, float step, DataType dataType, Device device) {
 //        if (device == null || device.equals(getDevice())) {
-//            return arange(start, stop, step, dataType);
+//            return arange(startTermination, stop, step, dataType);
 //        }
-//        return newSubManager(device).arange(start, stop, step, dataType);
+//        return newSubManager(device).arange(startTermination, stop, step, dataType);
 //    }
 //
 //    /**
@@ -1084,79 +1084,79 @@
 //    /**
 //     * Returns evenly spaced numbers over a specified interval.
 //     *
-//     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
+//     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].
 //     *
-//     * @param start the starting value of the sequence
+//     * @param startTermination the starting value of the sequence
 //     * @param stop  the end value of the sequence
 //     * @param num   the number of samples to generate
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray linspace(int start, int stop, int num) {
-//        return linspace(start, stop, num, true);
+//    default NDArray linspace(int startTermination, int stop, int num) {
+//        return linspace(startTermination, stop, num, true);
 //    }
 //
 //    /**
 //     * Returns evenly spaced numbers over a specified interval.
 //     *
-//     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
+//     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].
 //     *
-//     * @param start the starting value of the sequence
+//     * @param startTermination the starting value of the sequence
 //     * @param stop  the end value of the sequence
 //     * @param num   the number of samples to generate
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray linspace(float start, float stop, int num) {
-//        return linspace(start, stop, num, true);
+//    default NDArray linspace(float startTermination, float stop, int num) {
+//        return linspace(startTermination, stop, num, true);
 //    }
 //
 //    /**
 //     * Returns evenly spaced numbers over a specified interval.
 //     *
-//     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+//     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
 //     * of the interval can optionally be excluded.
 //     *
-//     * @param start    the starting value of the sequence
+//     * @param startTermination    the starting value of the sequence
 //     * @param stop     the end value of the sequence
 //     * @param num      the number of samples to generate
 //     * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray linspace(int start, int stop, int num, boolean endpoint) {
-//        return linspace((float) start, (float) stop, num, endpoint);
+//    default NDArray linspace(int startTermination, int stop, int num, boolean endpoint) {
+//        return linspace((float) startTermination, (float) stop, num, endpoint);
 //    }
 //
 //    /**
 //     * Returns evenly spaced numbers over a specified interval.
 //     *
-//     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+//     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
 //     * of the interval can optionally be excluded.
 //     *
-//     * @param start    the starting value of the sequence
+//     * @param startTermination    the starting value of the sequence
 //     * @param stop     the end value of the sequence
 //     * @param num      the number of samples to generate
 //     * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
 //     * @return a new instance of {@link NDArray}
 //     */
-//    NDArray linspace(float start, float stop, int num, boolean endpoint);
+//    NDArray linspace(float startTermination, float stop, int num, boolean endpoint);
 //
 //    /**
 //     * Returns evenly spaced numbers over a specified interval.
 //     *
-//     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+//     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
 //     * of the interval can optionally be excluded.
 //     *
-//     * @param start    the starting value of the sequence
+//     * @param startTermination    the starting value of the sequence
 //     * @param stop     the end value of the sequence
 //     * @param num      the number of samples to generate
 //     * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
 //     * @param device   the {@link Device} of the {@link NDArray}
 //     * @return a new instance of {@link NDArray}
 //     */
-//    default NDArray linspace(float start, float stop, int num, boolean endpoint, Device device) {
+//    default NDArray linspace(float startTermination, float stop, int num, boolean endpoint, Device device) {
 //        if (device == null || device.equals(getDevice())) {
-//            return linspace(start, stop, num, endpoint);
+//            return linspace(startTermination, stop, num, endpoint);
 //        }
-//        return newSubManager(device).linspace(start, stop, num, endpoint);
+//        return newSubManager(device).linspace(startTermination, stop, num, endpoint);
 //    }
 //
 //    /**
@@ -2414,8 +2414,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values starting from 0.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
@@ -2429,8 +2429,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values starting from 0.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
@@ -2444,12 +2444,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval with step 1.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
+     * @param start the startTermination of interval. The interval includes this value
      * @param stop  the end of interval. The interval does not include this value
      * @return a new instance of {@link NDArray}
      */
@@ -2460,12 +2460,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval with step 1.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
+     * @param start the startTermination of interval. The interval includes this value
      * @param stop  the end of interval. The interval does not include this value
      * @return a new instance of {@link NDArray}
      */
@@ -2476,12 +2476,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
+     * @param start the startTermination of interval. The interval includes this value
      * @param stop  the end of interval. The interval does not include this value
      * @param step  the spacing between values
      * @return a new instance of {@link NDArray}
@@ -2493,12 +2493,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
+     * @param start the startTermination of interval. The interval includes this value
      * @param stop  the end of interval. The interval does not include this value
      * @param step  the spacing between values
      * @return a new instance of {@link NDArray}
@@ -2510,12 +2510,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start    the start of interval. The interval includes this value
+     * @param start    the startTermination of interval. The interval includes this value
      * @param stop     the end of interval. The interval does not include this value
      * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
@@ -2528,12 +2528,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start    the start of interval. The interval includes this value
+     * @param start    the startTermination of interval. The interval includes this value
      * @param stop     the end of interval. The interval does not include this value
      * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
@@ -2544,12 +2544,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced values within a given interval.
      *
-     * <p>Values are generated within the half-open interval [start, stop) (in other words, the
-     * interval including start but excluding stop). For integer arguments, the function is
+     * <p>Values are generated within the half-open interval [startTermination, stop) (in other words, the
+     * interval including startTermination but excluding stop). For integer arguments, the function is
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start    the start of interval. The interval includes this value
+     * @param start    the startTermination of interval. The interval includes this value
      * @param stop     the end of interval. The interval does not include this value
      * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
@@ -2636,7 +2636,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced numbers over a specified interval.
      *
-     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
+     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].
      *
      * @param start the starting value of the sequence
      * @param stop  the end value of the sequence
@@ -2650,7 +2650,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced numbers over a specified interval.
      *
-     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
+     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].
      *
      * @param start the starting value of the sequence
      * @param stop  the end value of the sequence
@@ -2664,7 +2664,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced numbers over a specified interval.
      *
-     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
      * of the interval can optionally be excluded.
      *
      * @param start    the starting value of the sequence
@@ -2680,7 +2680,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced numbers over a specified interval.
      *
-     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
      * of the interval can optionally be excluded.
      *
      * @param start    the starting value of the sequence
@@ -2694,7 +2694,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns evenly spaced numbers over a specified interval.
      *
-     * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
+     * <p>Returns num evenly spaced samples, calculated over the interval [startTermination, stop].The endpoint
      * of the interval can optionally be excluded.
      *
      * @param start    the starting value of the sequence

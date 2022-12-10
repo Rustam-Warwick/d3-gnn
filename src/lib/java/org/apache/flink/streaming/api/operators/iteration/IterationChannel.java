@@ -8,11 +8,11 @@ import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,7 +30,7 @@ public class IterationChannel<T> implements Closeable {
     /**
      * List of producers identified by their IDs
      */
-    private final ConcurrentHashMap<OperatorID, IterationQueue<T>> producers = new ConcurrentHashMap<>(5);
+    private final Map<OperatorID, IterationQueue<T>> producers = new HashMap<>(5);
 
     /**
      * Consumer & Executor of this channel, changes are made entirely for volatile to take effect
@@ -49,20 +49,26 @@ public class IterationChannel<T> implements Closeable {
     /**
      * Add Producer to this iteration Channel
      */
-    public synchronized IterationQueue<T> addProducer(OperatorID operatorID){
-        Preconditions.checkState(!producers.contains(operatorID), "Duplicate Producers in queue");
-        IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
-        producers.put(operatorID, queue);
-        return queue;
+    public IterationQueue<T> addProducer(OperatorID operatorID){
+        long processingTime = System.currentTimeMillis();
+        while(consumerAndExecutor == null) {
+            Thread.onSpinWait(); // Wait for consumer to appear
+            Preconditions.checkState(System.currentTimeMillis() - processingTime < 20000, "Cannot find a consumer in Iteration Channel, somethings wrong");
+        }
+        synchronized (this){
+            Preconditions.checkState(!producers.containsKey(operatorID), "Duplicate Producers in queue");
+            IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
+            producers.put(operatorID, queue);
+            return queue;
+        }
     }
 
     /**
      * Set the consumer for this iteration Channel
      */
-    public synchronized void setConsumer(Consumer<T> consumer, MailboxExecutor consumerExecutor){
+    public void setConsumer(Consumer<T> consumer, MailboxExecutor consumerExecutor){
         Preconditions.checkState( consumerAndExecutor == null, "A IterationQueue cannot have multiple Consumers");
         this.consumerAndExecutor = Tuple2.of(consumer, consumerExecutor);
-        producers.values().forEach(producer->producer.setLateConsumerAndExecutor(this.consumerAndExecutor));
     }
 
     /**
@@ -71,7 +77,10 @@ public class IterationChannel<T> implements Closeable {
      */
     @Override
     public void close() {
-        producers.values().forEach(IOUtils::closeQuietly);
+        producers.values().forEach(queue -> {
+            IOUtils.closeQuietly(queue);
+            queue.drain(val -> {}); // Drain all values
+        });
         IterationChannelBroker.getBroker().removeChannel(channelKey);
     }
 
@@ -86,29 +95,22 @@ public class IterationChannel<T> implements Closeable {
         /**
          * Reference to the same field in the {@link IterationChannel}
          */
-        @Nullable
-        private volatile Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
+        @NotNull
+        private Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         /**
-         * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains the mailbox
+         * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains this queue
          */
         private final AtomicBoolean waiting = new AtomicBoolean(false);
 
-        public IterationQueue(@Nullable Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
-            this.consumerAndExecutor = consumerAndExecutor;
-        }
-
         /**
-         * Set the late Consumer and Executor and do the first submit to {@link MailboxExecutor}
-         * Latter is needed cause there might be messages added to this queue before Consumer registering
+         * Is this channel closed
          */
-        public void setLateConsumerAndExecutor(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
-            if(!isEmpty() && !waiting.getAndSet(true)){
-                this.consumerAndExecutor = consumerAndExecutor;
-                scheduleMailbox();
-            }else{
-                this.consumerAndExecutor = consumerAndExecutor;
-            }
+        private final AtomicBoolean closed = new AtomicBoolean(false);
+
+
+        public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
+            this.consumerAndExecutor = consumerAndExecutor;
         }
 
         /**
@@ -117,8 +119,9 @@ public class IterationChannel<T> implements Closeable {
          */
         @Override
         public boolean add(T t) {
+            if(closed.get()) return false;
             boolean res = super.add(t);
-            if(consumerAndExecutor != null && !waiting.getAndSet(true)) scheduleMailbox();
+            if(!waiting.getAndSet(true)) scheduleMailbox();
             return res;
         }
 
@@ -129,19 +132,18 @@ public class IterationChannel<T> implements Closeable {
             try{
                 consumerAndExecutor.f1.execute(this, "IterationMessage");
             }catch (NullPointerException | RejectedExecutionException ignored){
-                // Mailbox executor is closed can safely close this iteration channel
+                // Mailbox executor is closed can safely close this iteration channel, no new messages will be accepted
                 System.out.println("Closing because" + ignored.getMessage());
                 IOUtils.closeQuietly(this);
             }
         }
 
         /**
-         * Starting iterating element from the start of this queue
+         * Starting iterating element from the startTermination of this queue
          * Note that by entering this output HEAD can be closed but during the execution never
          */
         @Override
         public void run() {
-            if(consumerAndExecutor == null) return; // Can happen that some messages are stuck after mailbox closing
             waiting.set(false);
             T el;
             while((el = poll()) != null){
@@ -151,10 +153,12 @@ public class IterationChannel<T> implements Closeable {
 
         /**
          * {@inheritDoc}
+         * Graceful finish if consumer thread executes this method
+         * But can also happen in schedule or run functions as well
          */
         @Override
         public void close() throws IOException {
-            consumerAndExecutor = null;
+            closed.set(true);
         }
 
     }

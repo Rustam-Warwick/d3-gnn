@@ -10,7 +10,7 @@ import java.util.List;
 @Deprecated
 public class TrainingEventHandler implements WrapperOperatorEventHandler {
     private static final int modelUpdatedMessagesReceived = 0; // Message received to notify about model triggerUpdate. shared by all parallel handlers
-    private static final int trainingMessagesReceived = 0; // Message received to start training
+    private static final int trainingMessagesReceived = 0; // Message received to startTermination training
     private transient WrapperOperatorCoordinator mainCoordinator;
 
     public TrainingEventHandler() {
