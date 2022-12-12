@@ -88,7 +88,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void finish() throws Exception {
-        System.out.println("FINISHED");
         bodyOperator.finish();
     }
 
@@ -198,6 +197,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
             operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
                     getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount()));
         }else if(evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate){
+            // Ready to Terminate
             readyToFinish = true;
         }
     }

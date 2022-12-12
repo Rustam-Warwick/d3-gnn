@@ -42,7 +42,6 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         this.gateways = new SubtaskGateway[context.currentParallelism()];
         this.controller = (TerminationDetectionController) context.getCoordinatorStore().compute("termination_detection_controller", (key, val)->{
             if(val == null) val = new TerminationDetectionController();
-            ((TerminationDetectionController) val).addCoordinator(this);
             return val;
         });
     }
@@ -50,11 +49,13 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     @Override
     public void start() throws Exception {
         if(bodyOperatorCoordinator != null) bodyOperatorCoordinator.start();
+        controller.addCoordinator(this);
     }
 
     @Override
     public void close() throws Exception {
         if(bodyOperatorCoordinator != null) bodyOperatorCoordinator.close();
+        controller.removeCoordinator(this);
     }
 
     @Override

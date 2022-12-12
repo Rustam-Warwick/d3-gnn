@@ -10,10 +10,19 @@ import java.util.List;
 
 public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements OneInputStreamOperatorFactory<GraphOp, GraphOp> {
 
+    /**
+     * List of {@link Plugin} working for this storage operator
+     */
     final protected List<Plugin> plugins;
 
+    /**
+     * Type of graph {@link BaseStorage} attached to this storage operator
+     */
     final protected BaseStorage storage;
 
+    /**
+     * Position of this storage operator in the entire pipeline
+     */
     final protected short position;
 
     public GraphStorageOperatorFactory(List<Plugin> plugins, BaseStorage storage, short position) {

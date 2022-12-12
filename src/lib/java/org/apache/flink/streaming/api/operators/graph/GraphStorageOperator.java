@@ -21,6 +21,7 @@ import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
@@ -54,17 +55,17 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Reuse element for handling timestamps and performance reasons
      */
-    protected transient StreamRecord<GraphOp> reuse;
-
-    /**
-     * Internal Timer service reference
-     */
-    protected transient InternalTimerService<VoidNamespace> internalTimerService;
+    protected StreamRecord<GraphOp> reuse;
 
     /**
      * User time service that {@link GraphElement} interact with
      */
-    protected transient TimerService userTimerService;
+    protected TimerService userTimerService;
+
+    /**
+     * Reference to the {@link Output} for this operator
+     */
+    protected CountingBroadcastingGraphOutputCollector thisOutput;
 
     public GraphStorageOperator(List<Plugin> plugins, BaseStorage graphStorage, short position, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = parameters.getProcessingTimeService();
@@ -73,6 +74,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.plugins = new HashMap<>();
         plugins.forEach(plugin -> this.plugins.put(plugin.getId(), plugin));
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(),getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
+        this.output = thisOutput;
         GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         storage.setRuntimeContext(impl);
         this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(impl));
@@ -82,7 +85,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void open() throws Exception {
         super.open();
-        internalTimerService =
+        InternalTimerService<VoidNamespace> internalTimerService =
                 getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
         userTimerService = new SimpleTimerService(internalTimerService);
         Configuration tmp = new Configuration();
@@ -202,42 +205,42 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void output(GraphOp op) {
-            output.collect(reuse.replace(op));
+            thisOutput.collect(reuse.replace(op));
         }
 
         @Override
         public void output(GraphOp op, OutputTag<GraphOp> tag) {
-            output.collect(tag, reuse.replace(op));
-        }
-
-        @Override
-        public void broadcast(GraphOp op) {
-            throw new IllegalStateException("NOT YET IMPLEMENTED");
-        }
-
-        @Override
-        public void broadcast(GraphOp op, OutputTag<GraphOp> tag) {
-            throw new IllegalStateException("NOT YET IMPLEMENTED");
-        }
-
-        @Override
-        public void broadcast(GraphOp op, short... selectedPartsOnly) {
-            throw new IllegalStateException("NOT YET IMPLEMENTED");
-        }
-
-        @Override
-        public void broadcast(GraphOp op, OutputTag<GraphOp> tag, short... selectedPartsOnly) {
-            throw new IllegalStateException("NOT YET IMPLEMENTED");
+            thisOutput.collect(tag, reuse.replace(op));
         }
 
         @Override
         public <T> void output(T el, OutputTag<T> tag) {
-            throw new IllegalStateException("NOT YET IMPLEMENTED");
+            thisOutput.collect(tag, reuse.replace(el));
+        }
+
+        @Override
+        public void broadcast(GraphOp op) {
+            thisOutput.broadcast(reuse.replace(op));
+        }
+
+        @Override
+        public void broadcast(GraphOp op, OutputTag<GraphOp> tag) {
+            thisOutput.broadcast(tag, reuse.replace(op));
+        }
+
+        @Override
+        public void broadcast(GraphOp op, short... selectedPartsOnly) {
+            thisOutput.broadcast(reuse.replace(op), selectedPartsOnly);
+        }
+
+        @Override
+        public void broadcast(GraphOp op, OutputTag<GraphOp> tag, short... selectedPartsOnly) {
+            thisOutput.broadcast(tag, reuse.replace(op), selectedPartsOnly);
         }
 
         @Override
         public void runForAllLocalParts(Runnable run) {
-
+            throw new IllegalStateException("NOT IMPLMENETED YET!");
         }
 
         @Override

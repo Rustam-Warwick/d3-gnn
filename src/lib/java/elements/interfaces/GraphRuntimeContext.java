@@ -12,6 +12,7 @@ import storage.BaseStorage;
  * <p>
  *     Essentially exposing a lot of {@link org.apache.flink.streaming.api.operators.StreamOperator} API is needed
  *     to send messages from {@link elements.GraphElement} at various levels of Graph callbacks
+ *     Also acts as {@link GraphListener} for element deltas
  * </p>
  */
 public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
