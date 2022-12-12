@@ -9,6 +9,7 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
+import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.nn.hgnn.HSageConv;
 import elements.GraphOp;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -29,8 +30,8 @@ public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
-        sb.add(new HSageConv(64, true));
-        sb.add(new HSageConv(47, true));
+        sb.add(new SAGEConv(64, true));
+        sb.add(new SAGEConv(47, true));
         sb.add(
                 new SequentialBlock()
                         .add(Linear.builder().setUnits(47).optBias(true).build())
@@ -76,9 +77,9 @@ public class Main {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
             DataStream< GraphOp>[] res= new GraphStream(env, args, true, false, false,
-                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true)))
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true))),
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))
                     ).build();
-            res[res.length - 1].print();
             env.execute();
         } finally {
             BaseNDManager.getManager().resume();

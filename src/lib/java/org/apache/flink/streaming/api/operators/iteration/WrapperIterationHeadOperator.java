@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
@@ -37,6 +38,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Termination Detection point reached can close this operator
      */
     protected boolean readyToFinish = false;
+
+    /**
+     * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
+     */
+    protected Boolean isLifeCycle;
 
     /**
      * Full ID of {@link IterationChannel}
@@ -111,6 +117,8 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     public void processOneInputFeedback(StreamRecord<Object> el){
         try{
+            if(isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
+            if(isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
             setKeyContextElement(el);
             processElement(el);
         }catch (Exception e){

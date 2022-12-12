@@ -138,7 +138,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
                 GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
-                getReplicaParts().forEach(part -> getGraphRuntimeContext().output(message.setPartId(part), OutputTags.ITERATE_OUTPUT_TAG));
+                getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             createInternal();
         }

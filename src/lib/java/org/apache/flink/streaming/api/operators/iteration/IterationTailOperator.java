@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.runtime.state.StateInitializationContext;
 import org.apache.flink.streaming.api.operators.AbstractStreamOperator;
 import org.apache.flink.streaming.api.operators.OneInputStreamOperator;
@@ -27,6 +28,11 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      * {@link org.apache.flink.streaming.api.operators.iteration.IterationChannel.IterationQueue} for sending iterative messages
      */
     protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
+
+    /**
+     * If the elements in this channel are instances of {@link LifeCycleControl}. If it is the case, need to delay on adding to buffer
+     */
+    protected Boolean isLifeCycle;
 
     /**
      * Consumer for the incoming elements
@@ -63,8 +69,13 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
         iterationQueue.add(element.copy(element.getValue()));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
+        if(isLifeCycle == null) isLifeCycle = element.getValue() instanceof LifeCycleControl;
+        if(isLifeCycle) ((LifeCycleControl) element.getValue()).delay();
         handler.accept(element);
     }
 }

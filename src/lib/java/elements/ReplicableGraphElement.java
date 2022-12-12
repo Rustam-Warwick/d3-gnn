@@ -107,7 +107,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (getType() == ElementType.ATTACHED_FEATURE || getType() == ElementType.STANDALONE_FEATURE || (newElement.features != null && newElement.features.stream().anyMatch(feature -> !feature.isHalo())))) {
                 GraphOp message = new GraphOp(Op.SYNC, newElement.copy(CopyContext.SYNC));
-                getReplicaParts().forEach(part -> getGraphRuntimeContext().output(message.setPartId(part), OutputTags.ITERATE_OUTPUT_TAG));
+                getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             super.update(newElement);
         } else {

@@ -131,14 +131,13 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
     @Override
     public void serialize(GraphOp record, DataOutputView target) throws IOException {
         byte flag = 0x00;
-        flag |= ((byte) record.op.ordinal()) << 5;
-        flag |= ((byte) record.messageCommunication.ordinal()) << 4;
-        if (record.partId != -1) flag |= 1 << 3;
+        flag |= ((byte) record.op.ordinal()) << 4;
+        flag |= ((byte) record.messageCommunication.ordinal()) << 3;
         if (record.element != null) flag |= 1 << 2;
         if (record.ts != null) flag |= 1 << 1;
         if (record.operatorEvent != null) flag |= 1;
         target.write(flag);
-        if (record.partId != -1) partIdTypeSerializer.serialize(record.partId, target);
+        partIdTypeSerializer.serialize(record.partId, target);
         if (record.element != null) graphElementTypeSerializer.serialize(record.element, target);
         if (record.ts != null) timestampTypeSerializer.serialize(record.ts, target);
         if (record.operatorEvent != null) operatorEventTypeSerializer.serialize(record.operatorEvent, target);
@@ -147,39 +146,34 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
     @Override
     public GraphOp deserialize(DataInputView source) throws IOException {
         byte flag = source.readByte();
-        int OpOrdinal = (flag & 0xe0) >> 5;
-        int messageCommunicationOrdinal = (flag & 0x10) >> 4;
-        boolean hasPartId = (flag & 0x08) >> 3 == 1;
+        int OpOrdinal = flag >> 4;
+        int messageCommunicationOrdinal = (flag & 0x08) >> 3;
         boolean hasElement = (flag & 0x04) >> 2 == 1;
         boolean hasTs = (flag & 0x02) >> 1 == 1;
         boolean hasOpEvent = (flag & 0x01) == 1;
-        short partId = -1;
         GraphElement el = null;
         Long ts = null;
         BaseOperatorEvent event = null;
-        if (hasPartId) partId = partIdTypeSerializer.deserialize(source);
+        short partId = partIdTypeSerializer.deserialize(source);
         if (hasElement) el = graphElementTypeSerializer.deserialize(source);
         if (hasTs) ts = timestampTypeSerializer.deserialize(source);
         if (hasOpEvent) event = operatorEventTypeSerializer.deserialize(source);
         return new GraphOp(OPS[OpOrdinal], partId, el, event, MESSAGE_COMMUNICATIONS[messageCommunicationOrdinal], ts);
-
     }
 
     @Override
     public GraphOp deserialize(GraphOp reuse, DataInputView source) throws IOException {
         if (reuse == null) return deserialize(source);
         byte flag = source.readByte();
-        int OpOrdinal = (flag & 0xe0) >> 5;
-        int messageCommunicationOrdinal = (flag & 0x10) >> 4;
-        boolean hasPartId = (flag & 0x08) >> 3 == 1;
+        int OpOrdinal = flag >> 4;
+        int messageCommunicationOrdinal = (flag & 0x08) >> 3;
         boolean hasElement = (flag & 0x04) >> 2 == 1;
         boolean hasTs = (flag & 0x02) >> 1 == 1;
         boolean hasOpEvent = (flag & 0x01) == 1;
-        Short partId = null;
         GraphElement el = null;
         Long ts = null;
         BaseOperatorEvent event = null;
-        if (hasPartId) partId = partIdTypeSerializer.deserialize(source);
+        short partId = partIdTypeSerializer.deserialize(source);
         if (hasElement) el = graphElementTypeSerializer.deserialize(source);
         if (hasTs) ts = timestampTypeSerializer.deserialize(source);
         if (hasOpEvent) event = operatorEventTypeSerializer.deserialize(source);
@@ -195,12 +189,11 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
     @Override
     public void copy(DataInputView source, DataOutputView target) throws IOException {
         byte flag = source.readByte();
-        boolean hasPartId = (flag & 0x08) >> 3 == 1;
+        target.write(flag);
         boolean hasElement = (flag & 0x04) >> 2 == 1;
         boolean hasTs = (flag & 0x02) >> 1 == 1;
         boolean hasOpEvent = (flag & 0x01) == 1;
-        target.write(flag);
-        if (hasPartId) partIdTypeSerializer.copy(source, target);
+        partIdTypeSerializer.copy(source, target);
         if (hasElement) graphElementTypeSerializer.copy(source, target);
         if (hasTs) timestampTypeSerializer.copy(source, target);
         if (hasOpEvent) operatorEventTypeSerializer.copy(source, target);

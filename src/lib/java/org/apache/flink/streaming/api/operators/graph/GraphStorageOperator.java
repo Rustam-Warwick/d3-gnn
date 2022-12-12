@@ -74,7 +74,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.plugins = new HashMap<>();
         plugins.forEach(plugin -> this.plugins.put(plugin.getId(), plugin));
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
-        this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(),getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
+        this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.output = thisOutput;
         GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         storage.setRuntimeContext(impl);
@@ -189,6 +189,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
 
     public class GraphRuntimeContextImpl implements GraphRuntimeContext{
+
         public GraphRuntimeContextImpl() {
             GraphRuntimeContext.CONTEXT_THREAD_LOCAL.set(this);
         }
@@ -229,12 +230,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         }
 
         @Override
-        public void broadcast(GraphOp op, short... selectedPartsOnly) {
+        public void broadcast(GraphOp op, List<Short> selectedPartsOnly) {
             thisOutput.broadcast(reuse.replace(op), selectedPartsOnly);
         }
 
         @Override
-        public void broadcast(GraphOp op, OutputTag<GraphOp> tag, short... selectedPartsOnly) {
+        public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly) {
             thisOutput.broadcast(tag, reuse.replace(op), selectedPartsOnly);
         }
 

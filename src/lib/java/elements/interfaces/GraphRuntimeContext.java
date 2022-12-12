@@ -7,6 +7,8 @@ import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
 
+import java.util.List;
+
 /**
  * Runtime Context with extra Graph Pipeline based operations and output functions
  * <p>
@@ -61,12 +63,12 @@ public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
     /**
      * Broadcast {@link GraphOp} only to the selected parts down the pipeline
      */
-    void broadcast(GraphOp op, short... selectedPartsOnly);
+    void broadcast(GraphOp op, List<Short> selectedPartsOnly);
 
     /**
      * Broadcast {@link GraphOp} but only to the selected parts
      */
-    void broadcast(GraphOp op, OutputTag<GraphOp> tag, short... selectedPartsOnly);
+    void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
 
     /**
      * Run the {@link Runnable} in all parts of this Operator

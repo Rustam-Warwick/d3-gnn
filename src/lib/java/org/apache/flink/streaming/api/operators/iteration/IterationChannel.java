@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -107,7 +108,6 @@ public class IterationChannel<T> implements Closeable {
          * Is this channel closed
          */
         private final AtomicBoolean closed = new AtomicBoolean(false);
-
 
         public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
             this.consumerAndExecutor = consumerAndExecutor;
