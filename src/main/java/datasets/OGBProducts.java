@@ -18,6 +18,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
 
 import java.nio.file.Path;
@@ -30,10 +31,6 @@ import java.util.Set;
  * OGBProducts Dataset object
  */
 public class OGBProducts extends Dataset {
-
-    public OGBProducts(String[] cmdArgs) {
-        super();
-    }
 
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
@@ -55,13 +52,18 @@ public class OGBProducts extends Dataset {
         return new Splitter();
     }
 
+    @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("ogb-products");
+    }
+
     protected static class Splitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             switch (value.element.getType()) {
                 case EDGE: {
                     out.collect(value);
-                    ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
+                    ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
                     break;
                 }
                 case ATTACHED_FEATURE: {
@@ -72,7 +74,7 @@ public class OGBProducts extends Dataset {
                             break;
                         }
                         case "l": {
-                            ctx.output(TRAIN_TEST_SPLIT_OUTPUT, value);
+                            ctx.output(OutputTags.TRAIN_TEST_SPLIT_OUTPUT, value);
                             break;
                         }
                     }

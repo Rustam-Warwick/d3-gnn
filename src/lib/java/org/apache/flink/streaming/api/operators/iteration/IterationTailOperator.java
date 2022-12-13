@@ -75,7 +75,7 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
         if(isLifeCycle == null) isLifeCycle = element.getValue() instanceof LifeCycleControl;
-        if(isLifeCycle) ((LifeCycleControl) element.getValue()).delay();
+        if(isLifeCycle) ((LifeCycleControl) element.getValue()).delay(); // Should be resumed on HEAD
         handler.accept(element);
     }
 }

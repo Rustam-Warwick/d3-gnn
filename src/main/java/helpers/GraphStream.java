@@ -194,8 +194,8 @@ public class GraphStream {
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
         layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
 //        layerOutputs[2] = layerOutputs[1];
-        DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT);
-        DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(Dataset.TRAIN_TEST_SPLIT_OUTPUT);
+        DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT);
+        DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 
         for (short i = 1; i <= layers; i++) {
             Tuple2<BaseStorage, List<Plugin>> processFn = processStorageAndPlugins[i-1];

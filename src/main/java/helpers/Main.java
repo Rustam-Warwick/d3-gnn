@@ -81,6 +81,8 @@ public class Main {
                     Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))
                     ).build();
             env.execute();
+        } catch (Exception e){
+            e.printStackTrace();
         } finally {
             BaseNDManager.getManager().resume();
         }

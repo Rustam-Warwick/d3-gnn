@@ -13,6 +13,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
 import picocli.CommandLine;
 
@@ -21,6 +22,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Tags-Ask-Ubuntu Temporal Hyperlink Dataset
+ * <a href="https://www.cs.cornell.edu/~arb/data/tags-ask-ubuntu/">link</a>
+ */
 public class TagsAskUbuntu extends Dataset {
 
     /**
@@ -43,10 +48,6 @@ public class TagsAskUbuntu extends Dataset {
     @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
     protected String streamType;
 
-    public TagsAskUbuntu(String[] cmdArgs) {
-        super(cmdArgs);
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -67,9 +68,17 @@ public class TagsAskUbuntu extends Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 out.collect(value);
-                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
+                ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
             }
         };
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("tags-ask-ubuntu");
     }
 
     /**

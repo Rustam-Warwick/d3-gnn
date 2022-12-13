@@ -63,7 +63,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected TimerService userTimerService;
 
     /**
-     * Reference to the {@link Output} for this operator
+     * Reference to the {@link Output} for this operator but type cast into {@link CountingBroadcastingGraphOutputCollector}
      */
     protected CountingBroadcastingGraphOutputCollector thisOutput;
 

@@ -1,35 +1,26 @@
 package datasets;
 
 import elements.GraphOp;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.Nullable;
+import partitioner.Partitioner;
 import picocli.CommandLine;
 
 import java.io.Serializable;
+import java.util.ServiceLoader;
 
 /**
  * Wrapper around graph data that gets streamed in
- * Can be a static file or other dynamic data source
+ * Uses {@link java.util.ServiceLoader} interface
+ * <strong> Can be a static file or other dynamic data source </strong>
  */
 public abstract class Dataset implements Serializable {
 
     /**
-     * OutputTag for <strong>train</strong> and <strong>test</strong> data dedicated for the last storage layer
-     */
-    public static OutputTag<GraphOp> TRAIN_TEST_SPLIT_OUTPUT = new OutputTag<>("trainData", TypeInformation.of(GraphOp.class)); // Output of train test split data
-
-    /**
-     * OutputTag for <strong>topology only data</strong> data dedicated for mid storage layers
-     */
-    public static OutputTag<GraphOp> TOPOLOGY_ONLY_DATA_OUTPUT = new OutputTag<>("topologyData", TypeInformation.of(GraphOp.class)); // Output that only contains the topology of the graph updates
-
-    /**
-     *
+     * The {@link org.apache.flink.runtime.rest.messages.checkpoints.CheckpointConfigInfo.ProcessingMode} of the dataset if it is relevant
      */
     @CommandLine.Option(names = {"--dataset:processOnce"}, defaultValue = "true", fallbackValue = "true", arity = "1", description = "Dataset: Process once or continuously")
     protected boolean processOnce;
@@ -40,32 +31,32 @@ public abstract class Dataset implements Serializable {
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
     protected boolean fineGrainedResourceManagementEnabled; // Add custom slotSharingGroupsForOperators
 
-    public Dataset() {
-
-    }
-
-    public Dataset(String[] cmdArgs) {
-        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
-    }
-
     /**
      * Helper method for getting the required dataset from string name
      */
     @Nullable
     public static Dataset getDataset(String name, String[] cmdArgs) {
-        switch (name) {
-            case "reddit-hyperlink":
-                return new RedditHyperlink(cmdArgs);
-            case "tags-ask-ubuntu":
-                return new TagsAskUbuntu(cmdArgs);
-            case "ogb-products":
-                return new OGBProducts(cmdArgs);
-            case "coauth-DBLP":
-                return new DBLPCoAuth(cmdArgs);
-            default:
-                return null;
+        ServiceLoader<Dataset> partitionerServiceLoader = ServiceLoader.load(Dataset.class);
+        for (Dataset dataset : partitionerServiceLoader) {
+            if(dataset.isResponsibleFor(name)){
+                dataset.parseCmdArgs(cmdArgs);
+                return dataset;
+            }
         }
+        return null;
     }
+
+    /**
+     * Process command line arguments
+     */
+    public final void parseCmdArgs(String[] cmdArgs){
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
+    }
+
+    /**
+     * Return true is this Dataset object can process the given name
+     */
+    public abstract boolean isResponsibleFor(String datasetName);
 
     /**
      * Build the stream of GraphOps

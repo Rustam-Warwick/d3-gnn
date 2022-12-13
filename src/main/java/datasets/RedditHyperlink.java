@@ -13,6 +13,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
 import picocli.CommandLine;
 
@@ -21,7 +22,7 @@ import java.nio.file.Path;
 
 /**
  * Subreddit -> Subreddit networks in Reddit Social Network
- * <a href="https://snap.stanford.edu/data/soc-RedditHyperlinks.html">...</a>
+ * <a href="https://snap.stanford.edu/data/soc-RedditHyperlinks.html">link</a>
  */
 public class RedditHyperlink extends Dataset {
 
@@ -36,10 +37,6 @@ public class RedditHyperlink extends Dataset {
      */
     @CommandLine.Option(names = {"--redditHyperlink:hasEmbeddings"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Should the vertex embeddings be streamed as well"})
     protected boolean hasEmbeddings;
-
-    public RedditHyperlink(String[] cmdArgs) {
-        super(cmdArgs);
-    }
 
     /**
      * {@inheritDoc}
@@ -74,6 +71,14 @@ public class RedditHyperlink extends Dataset {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("reddit-hyperlink");
+    }
+
+    /**
      * Actual Splitter function
      */
     protected static class TrainTestSplitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
@@ -81,7 +86,7 @@ public class RedditHyperlink extends Dataset {
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
             if (value.element.getType() != ElementType.ATTACHED_FEATURE)
-                ctx.output(Dataset.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
+                ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
         }
     }
 

@@ -1,6 +1,8 @@
 package org.apache.flink.streaming.api.operators.iteration;
 
+import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.LifeCycleControl;
+import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
@@ -45,7 +47,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected Boolean isLifeCycle;
 
     /**
-     * Full ID of {@link IterationChannel}
+     * Full {@link IterationChannelKey} of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
 
@@ -72,7 +74,12 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Just Reference to OperatorEventHandler to avoid constant type casting
      */
-    protected final OperatorEventHandler bodyOperatorEventHandleRef;
+    protected final OperatorEventHandler operatorEventHandleBodyOperatorRef;
+
+    /**
+     * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
+     */
+    protected transient NDManager manager = BaseNDManager.getManager();
 
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
@@ -83,8 +90,8 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator)? (OneInputStreamOperator<Object, OUT>) bodyOperator :null;
-        this.bodyOperatorEventHandleRef = (bodyOperator instanceof OperatorEventHandler)? (OperatorEventHandler) bodyOperator :null;
-        operatorEventConsumer = bodyOperatorEventHandleRef == null?this::handleOperatorEventSelf:this::handleOperatorEventWithBody;
+        this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler)? (OperatorEventHandler) bodyOperator :null;
+        operatorEventConsumer = operatorEventHandleBodyOperatorRef == null?this::handleOperatorEventSelf:this::handleOperatorEventWithBody;
     }
 
     @Override
@@ -117,12 +124,15 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     public void processOneInputFeedback(StreamRecord<Object> el){
         try{
+            manager.delay();
             if(isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
             if(isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
             setKeyContextElement(el);
             processElement(el);
         }catch (Exception e){
             e.printStackTrace();
+        }finally {
+            manager.resume();
         }
     }
 
@@ -214,7 +224,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Handle operator event if body IS {@link OperatorEventHandler}
      */
     public void handleOperatorEventWithBody(OperatorEvent evt){
-        bodyOperatorEventHandleRef.handleOperatorEvent(evt);
+        operatorEventHandleBodyOperatorRef.handleOperatorEvent(evt);
         handleOperatorEventSelf(evt);
     }
 

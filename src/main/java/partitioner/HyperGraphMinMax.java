@@ -26,10 +26,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class HyperGraphMinMax extends Partitioner {
 
-    public HyperGraphMinMax(String[] cmdArgs) {
-        super();
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -38,6 +34,14 @@ public class HyperGraphMinMax extends Partitioner {
         Preconditions.checkState(partitions > 0);
         Preconditions.checkNotNull(inputDataStream);
         return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax").setParallelism(1);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String partitionerName) {
+        return partitionerName.equals("hypergraph-minmax");
     }
 
     /**
