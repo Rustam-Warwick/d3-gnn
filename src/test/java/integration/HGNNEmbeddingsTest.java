@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+@Disabled
 public class HGNNEmbeddingsTest extends IntegrationTest {
     private static final Map<String, NDArray> vertexEmbeddings = new HashMap<>();
 

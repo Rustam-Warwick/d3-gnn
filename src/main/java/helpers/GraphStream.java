@@ -193,7 +193,6 @@ public class GraphStream {
         layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
         layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
-//        layerOutputs[2] = layerOutputs[1];
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 

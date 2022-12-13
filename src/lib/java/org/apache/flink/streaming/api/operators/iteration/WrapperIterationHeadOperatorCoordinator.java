@@ -247,7 +247,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Should be sent from {@link WrapperIterationHeadOperator} to {@link WrapperIterationHeadOperatorCoordinator}
      */
     public static class ResponseScan implements OperatorEvent{
-        public long counter;
+        public final long counter;
 
         public ResponseScan(long counter) {
             this.counter = counter;

@@ -7,13 +7,11 @@ import org.apache.flink.streaming.api.graph.SimpleTransformationTranslator;
 import org.apache.flink.streaming.api.graph.StreamGraph;
 import org.apache.flink.streaming.api.graph.StreamNode;
 import org.apache.flink.streaming.api.operators.StreamOperatorFactory;
-import org.apache.flink.streaming.api.operators.iteration.WrapperIterationHeadOperatorFactory;
 import org.apache.flink.streaming.api.operators.iteration.IterationTailOperatorFactory;
+import org.apache.flink.streaming.api.operators.iteration.WrapperIterationHeadOperatorFactory;
 import org.apache.flink.streaming.api.transformations.IterateTransformation;
 import org.apache.flink.streaming.api.transformations.PartitionTransformation;
 import org.apache.flink.util.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -42,7 +40,6 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
         }
 
     }
-    private static Logger LOG = LoggerFactory.getLogger(IterateTransformationTranslator.class);
 
     @Override
     protected Collection<Integer> translateForBatchInternal(IterateTransformation<OUT> transformation, Context context) {

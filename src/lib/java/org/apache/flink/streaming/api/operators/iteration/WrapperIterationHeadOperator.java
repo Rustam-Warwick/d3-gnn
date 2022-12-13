@@ -4,6 +4,7 @@ import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.LifeCycleControl;
 import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.operators.MailboxExecutor;
+import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
@@ -79,13 +80,15 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
      */
-    protected transient NDManager manager = BaseNDManager.getManager();
+    protected NDManager manager = BaseNDManager.getManager();
 
+    protected final Counter numRecordsInCounter;
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
+        this.numRecordsInCounter = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
@@ -127,6 +130,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
             manager.delay();
             if(isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
             if(isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
+            numRecordsInCounter.inc();
             setKeyContextElement(el);
             processElement(el);
         }catch (Exception e){

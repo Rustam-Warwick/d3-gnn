@@ -47,6 +47,10 @@ public class MeshGraphGenerator extends Dataset {
         };
     }
 
+    @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("mesh-graph-generator");
+    }
 
     protected Collection<GraphOp> generateEdges() {
         int meshEdgeSize = nVertices * (nVertices - 1);

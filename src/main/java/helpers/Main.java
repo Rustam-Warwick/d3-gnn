@@ -10,13 +10,12 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
-import ai.djl.nn.hgnn.HSageConv;
 import elements.GraphOp;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.util.ArrayList;
@@ -77,8 +76,8 @@ public class Main {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
             DataStream< GraphOp>[] res= new GraphStream(env, args, true, false, false,
-                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(),true))),
-                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(),true, 200))),
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(),false, 200)))
                     ).build();
             env.execute();
         } catch (Exception e){

@@ -81,8 +81,8 @@ dependencies{
     libAnnotationProcessor 'info.picocli:picocli-codegen:4.7.0'
     libApi('org.jctools:jctools-core:4.0.1')
     libApi 'info.picocli:picocli:4.7.0'
-    libApi("org.apache.flink:statefun-flink-core:3.2.0"){transitive(false)}
-    libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){transitive(false)}
+//    libApi("org.apache.flink:statefun-flink-core:3.2.0"){transitive(false)}
+//    libApi('org.apache.flink:flink-ml-iteration_2.12:2.0.0'){transitive(false)}
     libApi('ai.djl:api:0.19.0'){exclude group: 'org.slf4j'}
     libApi('ai.djl.pytorch:pytorch-engine:0.19.0') {exclude group: 'org.slf4j'}
     libApi 'com.boundary:high-scale-lib:1.0.6'

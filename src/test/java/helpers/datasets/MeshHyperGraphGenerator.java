@@ -40,6 +40,11 @@ public class MeshHyperGraphGenerator extends Dataset {
     }
 
     @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("mesh-hypergraph-generator");
+    }
+
+    @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
             @Override
