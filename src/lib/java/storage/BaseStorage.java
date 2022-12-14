@@ -34,9 +34,15 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
      */
     private transient GraphRuntimeContext graphRuntimeContext;
 
-   @Override
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void setRuntimeContext(RuntimeContext t) {this.graphRuntimeContext = (GraphRuntimeContext) t;}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GraphRuntimeContext getRuntimeContext() {return graphRuntimeContext;}
 

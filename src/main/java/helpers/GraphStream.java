@@ -168,6 +168,7 @@ public class GraphStream {
     protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, Tuple2<BaseStorage, List<Plugin>> storageAndPlugins, short index){
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, index - 1));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(storageAndPlugins.f1, storageAndPlugins.f0,index)).setParallelism(thisParallelism);
+        if(fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-"+index);
         iterateStreams[index] = IterateStream.startIteration(storageOperator);
         iterateStreams[index].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
         if(index > 1 && hasBackwardIteration) iterateStreams[index - 1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
@@ -177,6 +178,7 @@ public class GraphStream {
     protected SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter){
         int thisParallelism = env.getParallelism();
         SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).process(splitter).setParallelism(thisParallelism).name("Splitter");
+        if(fineGrainedResourceManagementEnabled) splitterOperator.slotSharingGroup("GNN-1");
         iterateStreams[0] = IterateStream.startIteration(splitterOperator);
         return splitterOperator;
     }

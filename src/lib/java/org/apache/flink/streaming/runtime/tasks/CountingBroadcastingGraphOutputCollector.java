@@ -20,7 +20,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 /**
- * Special Counting Output Collector for Graph.
+ * Special Counting Output Collector for {@link GraphOp}.
  * <ul>
  *     <li> Counting Output Metrics </li>
  *     <li> Handling broadcast & selective broadcast messages </li>

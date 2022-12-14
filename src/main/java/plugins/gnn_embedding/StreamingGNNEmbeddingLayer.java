@@ -32,7 +32,6 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
-
     /**
      * {@inheritDoc}
      */
@@ -107,6 +106,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false);
+        tmp.setElement(v,true);
         tmp.ids.f0 = ElementType.VERTEX;
         tmp.ids.f1 = v.getId();
         throughput.inc();

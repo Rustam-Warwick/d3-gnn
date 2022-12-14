@@ -13,6 +13,9 @@ import org.apache.flink.configuration.Configuration;
 
 import java.util.*;
 
+/**
+ * GNN Embedding layer based on a certain buffer count
+ */
 public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     public final int BATCH_SIZE; // Batch size of the operator as a whole
@@ -30,7 +33,6 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.BATCH_SIZE = BATCH_SIZE;
     }
-
 
     @Override
     public void open(Configuration params) throws Exception {

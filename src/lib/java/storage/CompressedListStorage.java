@@ -169,8 +169,7 @@ public class CompressedListStorage extends BaseStorage {
     public boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento) {
         try {
             hyperEdges.put(hyperEdge.getId(), Tuple2.of(hyperEdge.getMasterPart(), hyperEdge.getVertexIds()));
-            for (int i = memento.getVertexIds().size(); i < hyperEdge.getVertexIds().size(); i++) {
-                String vertexId = hyperEdge.getVertexIds().get(i);
+            for (String vertexId : memento.getVertexIds()) {
                 List<String> tmp = v2HEdge.get(vertexId);
                 if (tmp == null) tmp = new ArrayList<>(10);
                 tmp.add(hyperEdge.getId());

@@ -23,6 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
+ */
 public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNEmbeddingLayer {
 
     public final int sessionInterval; // Window Interval for graph element updates in milliseconds

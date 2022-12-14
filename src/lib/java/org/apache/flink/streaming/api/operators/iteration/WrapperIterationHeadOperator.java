@@ -82,6 +82,9 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     protected NDManager manager = BaseNDManager.getManager();
 
+    /**
+     * Counter of number of incoming messages to increments with iteration inputs
+     */
     protected final Counter numRecordsInCounter;
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
