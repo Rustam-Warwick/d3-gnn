@@ -1,9 +1,6 @@
 package partitioner;
 
-import elements.DirectedEdge;
-import elements.Feature;
-import elements.GraphElement;
-import elements.GraphOp;
+import elements.*;
 import elements.enums.ElementType;
 import org.apache.flink.streaming.api.operators.MultiThreadedProcessOperator;
 import org.apache.commons.lang3.NotImplementedException;
@@ -156,7 +153,27 @@ public class HDRF extends Partitioner {
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));
             minSize.set(partitionsSize.reduceValues(Long.MAX_VALUE, Math::min));
+
             return finalSelected;
+        }
+
+        public void updatePartitionTableAndAssignMaster(Vertex vertex, short part){
+            partitionTable.compute(vertex.getId(), (key, val) -> {
+                if (val == null) {
+                    // This is the first part of this vertex hence the master
+                    vertex.masterPart = part;
+                    totalNumberOfVertices.incrementAndGet();
+                    return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                } else {
+                    if (!val.contains(part)) {
+                        // Seocond or more part hence the replica
+                        totalNumberOfReplicas.incrementAndGet();
+                        val.add(part);
+                    }
+                    vertex.masterPart = val.get(0);
+                    return val;
+                }
+            });
         }
 
         @Override
@@ -166,50 +183,23 @@ public class HDRF extends Partitioner {
                 case EDGE: {
                     DirectedEdge directedEdge = (DirectedEdge) elementToPartition;
                     short part = partitionEdge(directedEdge);
-                    partitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
-                        if (val == null) {
-                            // This is the first part of this vertex hence the master
-                            directedEdge.getSrc().masterPart = part;
-                            totalNumberOfVertices.incrementAndGet();
-                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                        } else {
-                            if (!val.contains(part)) {
-                                // Seocond or more part hence the replica
-                                totalNumberOfReplicas.incrementAndGet();
-                                val.add(part);
-                            }
-                            directedEdge.getSrc().masterPart = val.get(0);
-                            return val;
-                        }
-                    });
-                    partitionTable.compute(directedEdge.getDestId(), (key, val) -> {
-                        if (val == null) {
-                            // This is the first part of this vertex hence the master
-                            directedEdge.getDest().masterPart = part;
-                            totalNumberOfVertices.incrementAndGet();
-                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                        } else {
-                            if (!val.contains(part)) {
-                                // Seocond or more part hence the replica
-                                totalNumberOfReplicas.incrementAndGet();
-                                val.add(part);
-                            }
-                            directedEdge.getDest().masterPart = val.get(0);
-                            return val;
-                        }
-                    });
+                    updatePartitionTableAndAssignMaster(directedEdge.getSrc(), part);
+                    updatePartitionTableAndAssignMaster(directedEdge.getDest(), part);
                     out.collect(value.setPartId(part));
                     break;
                 }
                 case VERTEX: {
+                    Vertex v = (Vertex) value.element;
+                    v.masterPart = partitionTable.get(value.element.getId()).get(0);
                     out.collect(value.setPartId(partitionTable.get(value.element.getId()).get(0)));
                     break;
                 }
                 case ATTACHED_FEATURE: {
                     Feature<?, ?> feature = (Feature<?, ?>) elementToPartition;
-                    if (feature.getAttachedElementType() == ElementType.VERTEX)
+                    if (feature.getAttachedElementType() == ElementType.VERTEX){
                         out.collect(value.setPartId(partitionTable.get(feature.getAttachedElementId()).get(0)));
-                    break;
+                        break;
+                    }
                 }
                 default:
                     throw new NotImplementedException("Other Element Types are not allowed: Received" + elementToPartition.getType());

@@ -11,6 +11,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
+import picocli.CommandLine;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +27,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class HyperGraphMinMax extends Partitioner {
 
+    @CommandLine.Option(names = {"--hypergraph-minmax:epsilon"}, defaultValue = "0.1", fallbackValue = "0.1", arity = "1", description = {"BetaImbalance percent used to calculate s variable in Paper"})
+    public float betaImbalance;
+
     /**
      * {@inheritDoc}
      */
@@ -33,7 +37,7 @@ public class HyperGraphMinMax extends Partitioner {
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         Preconditions.checkState(partitions > 0);
         Preconditions.checkNotNull(inputDataStream);
-        return inputDataStream.process(new Partitioner(this.partitions)).name("HyperGraphMinMax").setParallelism(1);
+        return inputDataStream.process(new Partitioner(this.partitions, this.betaImbalance)).name("HyperGraphMinMax").setParallelism(1);
     }
 
     /**
@@ -45,12 +49,22 @@ public class HyperGraphMinMax extends Partitioner {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void parseCmdArgs(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
+    }
+
+    /**
      * Actual Min-Max partitioning function
      */
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
         private final int partitions;
-        private final int s;
-        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
+
+        private final float betaImbalance;
+
+        public AtomicInteger totalNumberOfHEdges = new AtomicInteger(0);
         public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
         private transient ConcurrentHashMap<String, List<Short>> hyperEdgePartitionTable;
         private transient ConcurrentHashMap<String, Short> vertexMasterTable;
@@ -61,13 +75,9 @@ public class HyperGraphMinMax extends Partitioner {
         private transient int[] parts;
         private transient int minParts;
 
-        public Partitioner(int partitions) {
-            this(partitions, 10);
-        }
-
-        public Partitioner(int partitions, int s) {
+        public Partitioner(int partitions,float betaImbalance) {
             this.partitions = partitions;
-            this.s = s;
+            this.betaImbalance = betaImbalance;
         }
 
         @Override
@@ -84,7 +94,7 @@ public class HyperGraphMinMax extends Partitioner {
             getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    int totalVertices = totalNumberOfVertices.get();
+                    int totalVertices = totalNumberOfHEdges.get();
                     int totalReplicas = totalNumberOfReplicas.get();
                     if (totalVertices == 0) return 0;
                     return (int) ((float) totalReplicas / totalVertices * 1000);
@@ -93,12 +103,12 @@ public class HyperGraphMinMax extends Partitioner {
         }
 
         public short partitionSubHyperGraph(HyperEgoGraph graph) {
-            int active = 0;
+            int active = -1;
             String vertexId = graph.getCentralVertex().getId();
             for (HyperEdge hyperEdge : graph.getHyperEdges()) {
                 List<Short> netParts = hyperEdgePartitionTable.getOrDefault(hyperEdge.getId(), Collections.emptyList());
                 for (Short i : netParts) {
-                    if (mark[i] != null && !mark[i].equals(vertexId)) {
+                    if (mark[i] == null || !mark[i].equals(vertexId)) {
                         mark[i] = vertexId;
                         active++;
                         pids[active] = i;
@@ -111,7 +121,8 @@ public class HyperGraphMinMax extends Partitioner {
             }
             int saved = -1;
             short p = (short) ThreadLocalRandom.current().nextInt(0, partitions);
-            for (int j = 1; j <= active; j++) {
+            float s = Math.max(1, betaImbalance * ((float) vertexMasterTable.size() / partitions));
+            for (int j = 0; j <= active; j++) {
                 int i = pids[j];
                 if (parts[i] - minParts < s) {
                     if (save[j] > saved) {
@@ -120,38 +131,36 @@ public class HyperGraphMinMax extends Partitioner {
                     }
                 }
             }
+            parts[p]++;
+            minParts = Arrays.stream(parts).min().getAsInt();
             return p;
         }
-
+        public void updatePartitionTableAndAssignMaster(HyperEdge hyperEdge, short part){
+            hyperEdgePartitionTable.compute(hyperEdge.getId(), (key, val) -> {
+                // Update hyperedge part table and master part
+                // Increment the part weights according to hyperedge additions to part
+                if (val == null) {
+                    totalNumberOfHEdges.incrementAndGet();
+                    hyperEdge.masterPart = part;
+                    return new ArrayList<>(List.of(part));
+                } else {
+                    if (!val.contains(part)) {
+                        val.add(part);
+                        totalNumberOfReplicas.incrementAndGet();
+                    }
+                    hyperEdge.masterPart = val.get(0);
+                    return val;
+                }
+            });
+        }
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             if (value.element.getType() == ElementType.GRAPH) {
                 HyperEgoGraph graph = (HyperEgoGraph) value.element;
-                short part = partitionSubHyperGraph(graph); // Get the correct part
+                short part = partitionSubHyperGraph(graph);
                 vertexMasterTable.putIfAbsent(graph.getCentralVertex().getId(), part);
                 graph.getCentralVertex().masterPart = vertexMasterTable.get(graph.getCentralVertex().getId());
-                for (HyperEdge hyperEdge : graph.getHyperEdges()) {
-                    hyperEdgePartitionTable.compute(hyperEdge.getId(), (key, val) -> {
-                        // Update hyperedge part table and master part
-                        // Increment the part weights according to hyperedge additions to part
-                        if (val == null) {
-                            totalNumberOfVertices.incrementAndGet();
-                            hyperEdge.masterPart = part;
-                            parts[part]++;
-                            return new ArrayList<>(List.of(part));
-                        } else {
-                            if (!val.contains(part)) {
-                                parts[part]++;
-                                val.add(part);
-                                totalNumberOfReplicas.incrementAndGet();
-                            }
-                            hyperEdge.masterPart = val.get(0);
-                            return val;
-                        }
-                    });
-                }
-
-                minParts = Arrays.stream(parts).min().getAsInt(); // Update the min parts
+                graph.getHyperEdges().forEach(item -> updatePartitionTableAndAssignMaster(item, part));
                 out.collect(value.setPartId(part));
             } else {
                 throw new IllegalStateException("MinMax Partitioner only accepts HyperEgoGraphs as input");
