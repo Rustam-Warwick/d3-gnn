@@ -130,7 +130,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     public void processOneInputFeedback(StreamRecord<Object> el){
         try{
-            manager.delay();
             if(isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
             if(isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
             numRecordsInCounter.inc();
@@ -139,7 +138,9 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         }catch (Exception e){
             e.printStackTrace();
         }finally {
+            // NDManager is delayed per batch of iteration messages, and these messages can be quite large so it is good to delay them per element instead of per batch
             manager.resume();
+            manager.delay();
         }
     }
 

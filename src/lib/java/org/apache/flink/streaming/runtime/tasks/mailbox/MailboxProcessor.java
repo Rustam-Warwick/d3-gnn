@@ -138,7 +138,7 @@ public class MailboxProcessor implements Closeable {
             TaskMailbox mailbox,
             StreamTaskActionExecutor actionExecutor,
             MailboxMetricsController mailboxMetricsControl) {
-        this.mailboxDefaultAction = Preconditions.checkNotNull(mailboxDefaultAction);
+        this.mailboxDefaultAction = new MailboxDefaultActionWrapper(Preconditions.checkNotNull(mailboxDefaultAction));
         this.actionExecutor = Preconditions.checkNotNull(actionExecutor);
         this.mailbox = Preconditions.checkNotNull(mailbox);
         this.mailboxLoopRunning = true;
@@ -526,4 +526,26 @@ public class MailboxProcessor implements Closeable {
             }
         }
     }
+
+    /**
+     * Wrapper around mailbox Default action that delays the {@link NDManager} during the action step
+     */
+    private class MailboxDefaultActionWrapper implements MailboxDefaultAction{
+        final MailboxDefaultAction wrapperAction;
+
+        public MailboxDefaultActionWrapper(MailboxDefaultAction wrapperAction) {
+            this.wrapperAction = wrapperAction;
+        }
+
+        @Override
+        public void runDefaultAction(Controller controller) throws Exception {
+            try{
+                manager.delay();
+                wrapperAction.runDefaultAction(controller);
+            }finally {
+                manager.resume();
+            }
+        }
+    }
+
 }

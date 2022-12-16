@@ -31,6 +31,7 @@ import java.util.List;
  */
 public class IterateTransformationTranslator<OUT> extends SimpleTransformationTranslator<OUT, IterateTransformation<OUT>> {
     static final Field operatorFactoryField;
+
     static {
         try{
             operatorFactoryField = StreamNode.class.getDeclaredField("operatorFactory");

@@ -1,6 +1,5 @@
 package plugins.gnn_embedding;
 
-import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
@@ -16,7 +15,6 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.operators.InternalTimer;
-import org.apache.flink.util.ExceptionUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -66,36 +64,29 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     @Override
     public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
         super.onProcessingTime(timer);
-         try {
-            BaseNDManager.getManager().delay();
-            HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
-            NDList features = new NDList();
-            NDList aggregators = new NDList();
-            List<Vertex> vertices = new ArrayList<>();
-            PART_BATCH.forEach((key, val) -> {
-                if (val <= timer.getTimestamp()) {
-                    Vertex v = getRuntimeContext().getStorage().getVertex(key);
-                    features.add((NDArray) (v.getFeature("f")).getValue());
-                    aggregators.add((NDArray) (v.getFeature("agg")).getValue());
-                    vertices.add(v);
-                }
-            });
-            if (vertices.isEmpty()) return;
-            NDList batchedInput = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
-            NDArray batchedUpdates = UPDATE(batchedInput, false).get(0);
-            for (int i = 0; i < vertices.size(); i++) {
-                PART_BATCH.remove(vertices.get(i).getId());
-                Vertex messageVertex = vertices.get(i);
-                Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
-                updateTensor.ids.f0 = ElementType.VERTEX;
-                updateTensor.ids.f1 = messageVertex.getId();
-                getRuntimeContext().output(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
-                throughput.inc();
+        HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
+        NDList features = new NDList();
+        NDList aggregators = new NDList();
+        List<Vertex> vertices = new ArrayList<>();
+        PART_BATCH.forEach((key, val) -> {
+            if (val <= timer.getTimestamp()) {
+                Vertex v = getRuntimeContext().getStorage().getVertex(key);
+                features.add((NDArray) (v.getFeature("f")).getValue());
+                aggregators.add((NDArray) (v.getFeature("agg")).getValue());
+                vertices.add(v);
             }
-        } catch (Exception e) {
-            LOG.error(ExceptionUtils.stringifyException(e));
-        } finally {
-            BaseNDManager.getManager().resume();
+        });
+        if (vertices.isEmpty()) return;
+        NDList batchedInput = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
+        NDArray batchedUpdates = UPDATE(batchedInput, false).get(0);
+        for (int i = 0; i < vertices.size(); i++) {
+            PART_BATCH.remove(vertices.get(i).getId());
+            Vertex messageVertex = vertices.get(i);
+            Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
+            updateTensor.ids.f0 = ElementType.VERTEX;
+            updateTensor.ids.f1 = messageVertex.getId();
+            getRuntimeContext().output(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
+            throughput.inc();
         }
     }
 

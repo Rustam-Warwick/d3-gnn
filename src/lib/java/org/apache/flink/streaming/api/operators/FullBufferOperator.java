@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators;
 
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
 import java.util.ArrayDeque;
@@ -17,12 +18,16 @@ public class FullBufferOperator<IN> extends AbstractStreamOperator<IN> implement
         buffer.add(element);
     }
 
-    @Override
-    public void finish() throws Exception {
+    public void sendElements() throws Exception {
         StreamRecord<IN> tmpEl;
         while ((tmpEl = buffer.poll()) != null) {
             output.collect(tmpEl);
         }
-        super.finish();
+    }
+
+    @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        if(mark.getTimestamp() == Long.MAX_VALUE) sendElements();
+        super.processWatermark(mark);
     }
 }

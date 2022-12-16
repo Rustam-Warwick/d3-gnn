@@ -75,7 +75,6 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-
             DataStream< GraphOp>[] res = new GraphStream(env, args, true, false, false,
                     Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(),true, 200))),
                     Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))

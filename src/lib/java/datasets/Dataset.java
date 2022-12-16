@@ -6,7 +6,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.jetbrains.annotations.Nullable;
-import partitioner.Partitioner;
 import picocli.CommandLine;
 
 import java.io.Serializable;
@@ -47,7 +46,8 @@ public abstract class Dataset implements Serializable {
     }
 
     /**
-     * Process command line arguments
+     * Process command line arguments.
+     * Made final since base class already has cmd arguments
      */
     public final void parseCmdArgs(String[] cmdArgs){
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);

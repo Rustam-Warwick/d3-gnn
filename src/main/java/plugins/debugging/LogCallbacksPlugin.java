@@ -4,7 +4,7 @@ import elements.GraphElement;
 import elements.Plugin;
 
 /**
- * Function for debugging the interaction of vertices in the system
+ * Function for debugging all the callbacks in the system
  */
 public class LogCallbacksPlugin extends Plugin {
 
