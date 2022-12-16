@@ -2,7 +2,7 @@ package partitioner;
 
 import elements.*;
 import elements.enums.ElementType;
-import operators.MultiThreadedProcessOperator;
+import org.apache.flink.streaming.api.operators.MultiThreadedProcessOperator;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -45,10 +45,6 @@ public class HDRF extends Partitioner {
     @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Number of threads to distribute HDRF"})
     public int numThreads;
 
-    public HDRF(String[] cmdArgs) {
-        super(cmdArgs);
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -60,6 +56,22 @@ public class HDRF extends Partitioner {
         return inputDataStream.transform(opName,
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).setParallelism(1);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String partitionerName) {
+        return partitionerName.equals("hdrf");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void parseCmdArgs(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
     /**

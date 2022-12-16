@@ -9,6 +9,7 @@ import elements.enums.ElementType;
 import elements.enums.ReplicaState;
 import elements.features.Tensor;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 
 public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin {
@@ -24,9 +25,9 @@ public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().gauge("accuracy", new Gauge<Integer>() {
+    public void open(Configuration params) throws Exception {
+        super.open(params);
+        getRuntimeContext().getMetricGroup().gauge("accuracy", new Gauge<Integer>() {
             @Override
             public Integer getValue() {
                 int sum = correctVsIncorrect.f1 + correctVsIncorrect.f0;

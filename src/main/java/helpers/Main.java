@@ -10,18 +10,15 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
-import ai.djl.nn.hgnn.HSageConv;
 import elements.GraphOp;
-import functions.storage.StreamingStorageProcessFunction;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.IterativeStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import plugins.hgnn_embedding.SessionWindowedHGNNEmbeddingLayer;
+import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -73,35 +70,19 @@ public class Main {
         return models;
     }
 
-    public static void test() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        DataStream<Integer> intStream = env.fromCollection(List.of(1,2,3,4,5));
-        IterativeStream<Integer> a = intStream.iterate();
-        a.closeWith(a.filter(item->item > 10).setParallelism(1));
-        env.execute();
-    }
-
     public static void main(String[] args) throws Throwable {
         try {
-//            test();
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false,
-                    new StreamingStorageProcessFunction(new FlatObjectStorage()
-                            .withPlugin(new ModelServer<>(models.get(0)))
-//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(0).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 1000))
-                    ),
-                    new StreamingStorageProcessFunction(new FlatObjectStorage()
-                            .withPlugin(new ModelServer<>(models.get(1)))
-//                            .withPlugin(new StreamingHGNNEmbeddingLayer(models.get(1).getName(), true))
-                            .withPlugin(new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 1000))
-                    )
-            ).build();
-            String timeStamp = new SimpleDateFormat("MM.dd.HH.mm").format(new java.util.Date());
-            String jobName = String.format("%s (%s) [%s] %s", timeStamp, env.getParallelism(), String.join(" ", args), "SessionW-50ms");
-            env.execute(jobName);
+
+            DataStream< GraphOp>[] res = new GraphStream(env, args, true, false, false,
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(),true, 200))),
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))
+                    ).build();
+            env.execute();
+        } catch (Exception e){
+            e.printStackTrace();
         } finally {
             BaseNDManager.getManager().resume();
         }

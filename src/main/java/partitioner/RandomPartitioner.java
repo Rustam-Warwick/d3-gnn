@@ -24,11 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Implementation of Random graph partitioning algorithm.
  * Works for {@link DirectedEdge} and {@link elements.HyperEgoGraph} Streams
  */
-class RandomPartitioner extends Partitioner {
-
-    public RandomPartitioner(String[] cmdArgs) {
-        super();
-    }
+public class RandomPartitioner extends Partitioner {
 
     /**
      * {@inheritDoc}
@@ -36,6 +32,14 @@ class RandomPartitioner extends Partitioner {
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         return inputDataStream.map(new RandomMapFunction(this.partitions)).name("Random Partitioner").setParallelism(1);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String partitionerName) {
+        return partitionerName.equals("random");
     }
 
     /**

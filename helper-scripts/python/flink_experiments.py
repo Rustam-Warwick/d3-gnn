@@ -80,7 +80,7 @@ def start_experiments(configurations: List[str]):
                     state = job_response.json()['state']
                     print(state)
                     if state == "CANCELED" or state == "FINISHED" or state == "FAILED":
-                        break;
+                        break
                 sleep(40)
 
 

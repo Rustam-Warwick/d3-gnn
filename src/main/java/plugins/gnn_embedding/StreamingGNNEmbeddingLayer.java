@@ -6,6 +6,8 @@ import elements.*;
 import elements.enums.*;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
@@ -30,17 +32,16 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
-
     /**
      * {@inheritDoc}
      */
     @Override
-    public void open() throws Exception {
-        super.open();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
         throughput = new SimpleCounter();
         latency = new MovingAverageCounter(1000);
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().counter("latency", latency);
+        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
+        getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
     /**
@@ -60,7 +61,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         msg,
                         1
                 );
@@ -105,11 +106,12 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false);
+        tmp.setElement(v,true);
         tmp.ids.f0 = ElementType.VERTEX;
         tmp.ids.f1 = v.getId();
         throughput.inc();
-        latency.inc(getStorage().layerFunction.getTimerService().currentProcessingTime() - getStorage().layerFunction.currentTimestamp());
-        getStorage().layerFunction.message(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp), MessageDirection.FORWARD);
+        latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**
@@ -118,7 +120,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      * @param v Vertex
      */
     public void reduceOutEdges(Vertex v) {
-        Iterable<DirectedEdge> outEdges = getStorage().getIncidentEdges(v, EdgeType.OUT);
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
         final Object[] msg = new Object[]{null, 1};
         for (DirectedEdge directedEdge : outEdges) {
             if (messageReady(directedEdge)) {
@@ -130,7 +132,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         msg[0],
                         msg[1]
                 );
@@ -145,7 +147,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      * @param oldFeature Updated old Feature
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Iterable<DirectedEdge> outEdges = getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList[] msgs = new NDList[2];
         for (DirectedEdge directedEdge : outEdges) {
             if (messageReady(directedEdge)) {
@@ -158,7 +160,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                         ElementType.ATTACHED_FEATURE,
                         "replace",
                         directedEdge.getDest().getMasterPart(),
-                        MessageDirection.ITERATE,
+                        OutputTags.ITERATE_OUTPUT_TAG,
                         msgs[0],
                         msgs[1]
                 );

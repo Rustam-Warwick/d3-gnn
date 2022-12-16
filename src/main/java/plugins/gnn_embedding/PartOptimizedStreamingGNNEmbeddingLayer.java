@@ -8,8 +8,8 @@ import elements.Vertex;
 import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import elements.enums.MessageDirection;
 import elements.features.Tensor;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.*;
 
@@ -28,7 +28,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
      * {@inheritDoc}
      */
     public void reduceOutEdges(Vertex v) {
-        Iterable<DirectedEdge> outEdges = getStorage().getIncidentEdges(v, EdgeType.OUT);
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
         final NDList[] msg = new NDList[1];
         HashMap<Short, List<String>> reduceMessages = null;
         for (DirectedEdge directedEdge : outEdges) {
@@ -48,7 +48,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
                     getType(),
                     "receiveReduceOutEdges",
                     shortTuple2Entry.getKey(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     shortTuple2Entry.getValue(),
                     msg[0]
             );
@@ -58,7 +58,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         for (String vertex : vertices) {
-            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce", message, 1);
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce", message, 1);
         }
     }
 
@@ -66,7 +66,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
      * {@inheritDoc}
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Iterable<DirectedEdge> outEdges = getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList[] msgOld = new NDList[1];
         NDList[] msgNew = new NDList[1];
         HashMap<Short, List<String>> replaceMessages = null;
@@ -89,7 +89,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
                     getType(),
                     "receiveReplaceOutEdges",
                     shortTuple2Entry.getKey(),
-                    MessageDirection.ITERATE,
+                    OutputTags.ITERATE_OUTPUT_TAG,
                     shortTuple2Entry.getValue(),
                     msgNew[0],
                     msgOld[0]
@@ -100,7 +100,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
         for (String vertex : vertices) {
-            Rmi.execute(getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "replace", messageNew, messageOld);
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "replace", messageNew, messageOld);
         }
     }
 

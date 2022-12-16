@@ -10,13 +10,15 @@ import elements.Rmi;
 import elements.Vertex;
 import elements.enums.MessageDirection;
 import elements.enums.ReplicaState;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import operators.events.BackwardBarrier;
-import operators.events.BaseOperatorEvent;
 import operators.events.ForwardBarrier;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,11 +41,11 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     }
 
     @Override
-    public void open() throws Exception {
-        super.open();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
         epochThroughput = new SimpleCounter();
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
-        getStorage().layerFunction.getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
+        getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
+        getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
             @Override
             public Integer getValue() {
                 return (int) previousLoss * 100;
@@ -55,7 +57,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
 //    public void addElementCallback(GraphElement element) {
 //        super.addElementCallback(element);
 //        if(element.getType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
-//            element.setFeature("train_l", new Tensor(getStorage().layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
+//            element.setFeature("train_l", new Tensor(getRuntimeContext().layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
 //        }
 //    }
 
@@ -71,7 +73,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList inputs = new NDList();
         NDList labels = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        for (Vertex vertex : getStorage().getVertices()) {
+        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
             if (vertex.state() != ReplicaState.MASTER || !vertex.containsFeature("train_l")) continue;
             inputs.add((NDArray) vertex.getFeature("f").getValue());
             labels.add((NDArray) vertex.getFeature("train_l").getValue());
@@ -96,7 +98,7 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
                 getType(),
                 "collect",
                 getPart(),
-                MessageDirection.BACKWARD,
+                OutputTags.BACKWARD_OUTPUT_TAG,
                 backwardGrads
         );
     }
@@ -108,14 +110,13 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
      * </p>
      */
     @Override
-    public void onOperatorEvent(BaseOperatorEvent event) {
-        super.onOperatorEvent(event);
-        if (event instanceof ForwardBarrier) {
+    public void handleOperatorEvent(OperatorEvent evt) {
+        super.handleOperatorEvent(evt);
+        if (evt instanceof ForwardBarrier) {
             epochThroughput.inc(10000);
-            getStorage().layerFunction.runForAllLocalParts(this::startTraining);
-            getStorage().layerFunction.broadcastMessage(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), MessageDirection.BACKWARD);
+            getRuntimeContext().runForAllLocalParts(this::startTraining);
+            getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
             modelServer.getParameterStore().sync();
         }
     }
-
 }

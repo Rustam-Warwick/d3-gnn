@@ -15,13 +15,13 @@ public class LogCallbacksPlugin extends Plugin {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        LOG.error(String.format("[CREATE] %s: {%s | %s}", element, getStorage().layerFunction.getPosition(), getPart()));
+        LOG.error(String.format("[CREATE] %s: {%s | %s}", element, getRuntimeContext().getPosition(), getPart()));
     }
 
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        LOG.error(String.format("[UPDATE] %s: {%s | %s}", newElement, getStorage().layerFunction.getPosition(), getPart()));
+        LOG.error(String.format("[UPDATE] %s: {%s | %s}", newElement, getRuntimeContext().getPosition(), getPart()));
     }
 
 }

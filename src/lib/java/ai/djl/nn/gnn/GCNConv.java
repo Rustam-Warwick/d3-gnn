@@ -53,4 +53,5 @@ public final class GCNConv extends GNNBlock {
     public Shape[] getOutputShapes(Shape[] inputShapes) {
         return new Shape[]{outputShape};
     }
+
 }

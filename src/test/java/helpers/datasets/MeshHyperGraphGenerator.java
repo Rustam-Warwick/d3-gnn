@@ -11,6 +11,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
 
@@ -39,12 +40,17 @@ public class MeshHyperGraphGenerator extends Dataset {
     }
 
     @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("mesh-hypergraph-generator");
+    }
+
+    @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
         return new KeyedProcessFunction<PartNumber, GraphOp, GraphOp>() {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 out.collect(value);
-                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
+                ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
             }
         };
     }

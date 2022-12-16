@@ -23,17 +23,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Implementation of Min-Max <strong>hyperedge-cut</strong> hypergraph partitioning algorithm
- * Only works for {@link HyperEgoGraph}, and assumes that vertices are arriving only once
+ * Only works for {@link HyperEgoGraph}
  */
 public class HyperGraphMinMax extends Partitioner {
 
-
     @CommandLine.Option(names = {"--hypergraph-minmax:epsilon"}, defaultValue = "0.1", fallbackValue = "0.1", arity = "1", description = {"BetaImbalance percent used to calculate s variable in Paper"})
     public float betaImbalance;
-
-    public HyperGraphMinMax(String[] cmdArgs) {
-       super(cmdArgs);
-    }
 
     /**
      * {@inheritDoc}
@@ -43,6 +38,22 @@ public class HyperGraphMinMax extends Partitioner {
         Preconditions.checkState(partitions > 0);
         Preconditions.checkNotNull(inputDataStream);
         return inputDataStream.process(new Partitioner(this.partitions, this.betaImbalance)).name("HyperGraphMinMax").setParallelism(1);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isResponsibleFor(String partitionerName) {
+        return partitionerName.equals("hypergraph-minmax");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void parseCmdArgs(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
     /**

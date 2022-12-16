@@ -46,6 +46,6 @@ public abstract class GNNBlock extends AbstractBlock {
 
     @Override
     protected NDList forwardInternal(ParameterStore parameterStore, NDList inputs, boolean training, PairList<String, Object> params) {
-        throw new IllegalStateException("GNNBlocks should not be called as whole, use message and update functions separately");
+        throw new IllegalStateException("GNNBlocks should not be called as whole, use output and update functions separately");
     }
 }

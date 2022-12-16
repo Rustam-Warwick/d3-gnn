@@ -22,6 +22,7 @@ import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
 import elements.Plugin;
 import elements.annotations.RemoteFunction;
+import org.apache.flink.configuration.Configuration;
 
 /**
  * Plugin that stores a single model withing the GNN Pipieline
@@ -52,8 +53,8 @@ public class ModelServer<T extends Block> extends Plugin {
         this.model = m;
     }
 
-    public void open() throws Exception {
-        super.open();
+    public void open(Configuration params) throws Exception {
+        super.open(params);
         inputShapes = model.getBlock().getInputShapes();
         outputShapes = model.getBlock().getOutputShapes(inputShapes);
         optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
@@ -91,7 +92,7 @@ public class ModelServer<T extends Block> extends Plugin {
     @RemoteFunction(triggerUpdate = false)
     public void collectParameters(NDArrayCollector<String> newParameters) {
         collectedParameters.putAll(newParameters);
-        if (++NUMBER_OF_COLLECTED_PARAMETERS == getStorage().layerFunction.getRuntimeContext().getNumberOfParallelSubtasks()) {
+        if (++NUMBER_OF_COLLECTED_PARAMETERS == getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
             NUMBER_OF_COLLECTED_PARAMETERS = 0;
             collectedParameters.clear();

@@ -1894,7 +1894,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        if (cleanable != null) return;
+        if (cleanable != null) return; // Will be cleaned by its cleanable
         if (delayed == 0) getManager().detachInternal(null, this);
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {

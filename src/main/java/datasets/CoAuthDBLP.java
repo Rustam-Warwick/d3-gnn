@@ -13,6 +13,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
 import picocli.CommandLine;
 
@@ -21,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class CoAuthDBLP extends Dataset {
+public class DBLPCoAuth extends Dataset {
 
     /**
      * Type of dataset to be used
@@ -30,7 +31,7 @@ public class CoAuthDBLP extends Dataset {
      * t2q -> Tag to question: Meaning 1 Question with a list of Tags
      * </p>
      */
-    @CommandLine.Option(names = {"--coauthDBLP:datasetType"}, defaultValue = "a2p", fallbackValue = "a2p", arity = "1", description = {"Type of tags dataset: a2p (Author-Publication) or p2a (Publication 2 Author)"})
+    @CommandLine.Option(names = {"--tagsAskUbuntu:datasetType"}, defaultValue = "a2p", fallbackValue = "a2p", arity = "1", description = {"Type of tags dataset: a2p (Author-Publication) or p2a (Publication 2 Author)"})
     protected String datasetType;
 
     /**
@@ -40,12 +41,8 @@ public class CoAuthDBLP extends Dataset {
      * edge-stream -> Producing a stream of {@link DirectedEdge}s
      * </p>
      */
-    @CommandLine.Option(names = {"--coauthDBLP:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
+    @CommandLine.Option(names = {"--tagsAskUbuntu:streamType"}, defaultValue = "hypergraph", fallbackValue = "hypergraph", arity = "1", description = {"Type of stream: edge-stream or hypergraph"})
     protected String streamType;
-
-    public CoAuthDBLP(String[] cmdArgs) {
-        super(cmdArgs);
-    }
 
     /**
      * {@inheritDoc}
@@ -67,9 +64,14 @@ public class CoAuthDBLP extends Dataset {
             @Override
             public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
                 out.collect(value);
-                ctx.output(TOPOLOGY_ONLY_DATA_OUTPUT, value);
+                ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
             }
         };
+    }
+
+    @Override
+    public boolean isResponsibleFor(String datasetName) {
+        return datasetName.equals("dblp-coauth");
     }
 
     /**
