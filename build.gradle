@@ -33,6 +33,14 @@ repositories {
             snapshotsOnly()
         }
     }
+
+    maven {
+        url "https://oss.sonatype.org/content/repositories/snapshots/"
+        mavenContent {
+            snapshotsOnly()
+        }
+    }
+
 }
 
 
@@ -89,8 +97,9 @@ dependencies{
     libApi 'com.github.ben-manes.caffeine:caffeine:3.1.1'
     libApi 'com.esotericsoftware:reflectasm:1.11.9'
 
+    testImplementation 'org.tensorflow:tensorflow-core-api:0.4.2'
+    testImplementation 'org.tensorflow:tensorflow-core-api:0.4.2:macosx-x86_64'
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"
-    testImplementation group: 'org.tensorflow', name: 'tensorflow-core-platform', version: '0.3.3'
     testImplementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
 //    testImplementation 'org.junit.jupiter:junit-jupiter'
 
