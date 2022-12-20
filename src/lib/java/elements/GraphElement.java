@@ -7,6 +7,7 @@ import elements.enums.ReplicaState;
 import elements.interfaces.GraphRuntimeContext;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
 import typeinfo.recursivepojoinfo.DeSerializationListener;
@@ -229,7 +230,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     /**
      * ID of GraphElement
      */
-    abstract public String getId();
+    abstract public Object getId();
 
     /**
      * Current Part of this element
@@ -252,7 +253,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name, null);
+        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(Tuple3.of(getType(), getId(), name));
         feature.setElement(this, false);
         return feature;
     }
@@ -267,7 +268,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             }
         }
         if (getGraphRuntimeContext() != null) {
-            return getGraphRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name, null);
+            return getGraphRuntimeContext().getStorage().containsAttachedFeature(Tuple3.of(getType(), getId(), name));
         }
         return false;
     }

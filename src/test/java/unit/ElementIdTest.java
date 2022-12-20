@@ -3,6 +3,7 @@ package unit;
 import elements.*;
 import elements.enums.ElementType;
 import helpers.utils.RandomStringGenerator;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.junit.Test;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.RepeatedTest;
@@ -14,8 +15,8 @@ public class ElementIdTest {
 
     public void testAttachedFeature(GraphElement element, Feature<?, ?> feature, String featureName) {
         feature.setElement(element, true);
-        Assertions.assertEquals(feature.getId(), String.format("%s%s%s%s%s", element.getId(), Feature.DELIMITER, featureName, Feature.DELIMITER, element.getType().ordinal()));
-        Assertions.assertEquals(Feature.decodeAttachedFeatureId(feature.getId()), feature.ids);
+        Assertions.assertEquals(feature.getId(), Tuple3.of(element.getType(), element.getId(), featureName));
+        Assertions.assertEquals(feature.getElement(), element);
     }
 
     @RepeatedTest(10)
@@ -24,7 +25,7 @@ public class ElementIdTest {
         // Standalone Feature
         String featureName = RandomStringGenerator.getRandomString(20);
         Feature<?, ?> feature = new Feature<>(featureName, new Object());
-        Assertions.assertTrue(feature.ids.f0 == ElementType.NONE && feature.ids.f1 == null && feature.getName().equals(featureName));
+        Assertions.assertTrue(feature.id.f0 == ElementType.NONE && feature.id.f1 == null && feature.getName().equals(featureName));
         Assertions.assertEquals(feature.getType(), ElementType.STANDALONE_FEATURE);
 
         // Vertex id
@@ -37,16 +38,14 @@ public class ElementIdTest {
 
         // Non-Attributed Edge
         DirectedEdge nonAttributedEdge = new DirectedEdge(v, v);
-        Assertions.assertEquals(nonAttributedEdge.getId(), String.format("%s%s%s", v.getId(), DirectedEdge.DELIMITER, v.getId()));
-        Assertions.assertEquals(DirectedEdge.decodeVertexIdsAndAttribute(nonAttributedEdge.getId()), nonAttributedEdge.ids);
+        Assertions.assertEquals(nonAttributedEdge.getId(), Tuple3.of(v.getId(), v.getId(), null));
         Assertions.assertEquals(nonAttributedEdge.getType(), ElementType.EDGE);
         testAttachedFeature(nonAttributedEdge, feature, featureName);
 
         // Attributed Edge
         String attribute = RandomStringGenerator.getRandomString(20);
         DirectedEdge attributedEdge = new DirectedEdge(v, v, attribute);
-        Assertions.assertEquals(attributedEdge.getId(), String.format("%s%s%s%s%s", v.getId(), DirectedEdge.DELIMITER, v.getId(), DirectedEdge.DELIMITER, attribute));
-        Assertions.assertEquals(DirectedEdge.decodeVertexIdsAndAttribute(attributedEdge.getId()), attributedEdge.ids);
+        Assertions.assertEquals(nonAttributedEdge.getId(), Tuple3.of(v.getId(), v.getId(), attribute));
         Assertions.assertEquals(attributedEdge.getType(), ElementType.EDGE);
         testAttachedFeature(attributedEdge, feature, featureName);
 

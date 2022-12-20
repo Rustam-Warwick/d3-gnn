@@ -9,6 +9,7 @@ import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import elements.features.Tensor;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.*;
@@ -58,7 +59,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         for (String vertex : vertices) {
-            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "reduce", message, 1);
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(Tuple3.of(ElementType.VERTEX, vertex, "agg")), "reduce", message, 1);
         }
     }
 
@@ -100,7 +101,7 @@ public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddi
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
         for (String vertex : vertices) {
-            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertex, "agg", null), "replace", messageNew, messageOld);
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(Tuple3.of(ElementType.VERTEX, vertex, "agg")), "replace", messageNew, messageOld);
         }
     }
 

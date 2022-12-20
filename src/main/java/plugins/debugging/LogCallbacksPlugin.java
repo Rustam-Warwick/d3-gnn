@@ -8,8 +8,8 @@ import elements.Plugin;
  */
 public class LogCallbacksPlugin extends Plugin {
 
-    public LogCallbacksPlugin(String... vertices) {
-        super("print-vertex");
+    public LogCallbacksPlugin() {
+        super("print-callbacks");
     }
 
     @Override

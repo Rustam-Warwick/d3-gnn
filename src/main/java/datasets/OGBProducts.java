@@ -138,15 +138,15 @@ public class OGBProducts extends Dataset {
                 }
                 case ATTACHED_FEATURE: {
                     Feature<?, ?> feature = (Feature<?, ?>) value.element;
-                    if (seenVertices.contains(feature.ids.f1)) {
+                    if (seenVertices.contains(feature.id.f1)) {
                         out.collect(value);
                         return;
                     }
                     if (feature.getName().equals("f")) {
-                        pendingTensors.put(feature.ids.f1, value);
+                        pendingTensors.put(feature.id.f1, value);
                         value.delay();
                     }
-                    if (feature.getName().equals("l")) pendingLabels.put(feature.ids.f1, value);
+                    if (feature.getName().equals("l")) pendingLabels.put(feature.id.f1, value);
                 }
             }
 
@@ -161,8 +161,8 @@ public class OGBProducts extends Dataset {
         public GraphOp map(String value) throws Exception {
             String[] values = value.split(",");
             Feature<Integer, Integer> label = new Feature<>("l", Integer.parseInt(values[1]), true);
-            label.ids.f0 = ElementType.VERTEX;
-            label.ids.f1 = values[0];
+            label.id.f0 = ElementType.VERTEX;
+            label.id.f1 = values[0];
             return new GraphOp(Op.COMMIT, label);
         }
     }
@@ -179,8 +179,8 @@ public class OGBProducts extends Dataset {
                 featureFloat[i - 1] = Float.parseFloat(values[i]);
             }
             Tensor feature = new Tensor("f", BaseNDManager.getManager().create(featureFloat));
-            feature.ids.f0 = ElementType.VERTEX;
-            feature.ids.f1 = values[0];
+            feature.id.f0 = ElementType.VERTEX;
+            feature.id.f1 = values[0];
             return new GraphOp(Op.COMMIT, feature);
         }
     }

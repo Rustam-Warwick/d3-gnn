@@ -41,6 +41,7 @@ public class CompressedListStorage extends BaseStorage {
 
     public transient Tuple2<String, String> reuse2;
 
+
     @Override
     public void open(Configuration parameters) throws Exception {
         vertexTable = getRuntimeContext().getMapState(new MapStateDescriptor<>("vertexTable", String.class, Short.class));
@@ -72,13 +73,13 @@ public class CompressedListStorage extends BaseStorage {
     public boolean addAttachedFeature(Feature<?, ?> feature) {
         try {
             reuse.f0 = feature.getName();
-            reuse.f1 = feature.ids.f0;
+            reuse.f1 = feature.id.f0;
             if (!attFeatureTable.containsKey(reuse)) {
                 ConstructorAccess<? extends Feature> tmpConstructor = ConstructorAccess.get(feature.getClass());
                 MapState<String, Object> tmpFt = getRuntimeContext().getMapState(new MapStateDescriptor<String, Object>(reuse.f0 + "att" + reuse.f1.ordinal(), Types.STRING, (TypeInformation<Object>) feature.getValueTypeInfo()));
                 attFeatureTable.put(reuse.copy(), new Tuple3<>(tmpFt, feature.isHalo(), tmpConstructor));
             }
-            attFeatureTable.get(reuse).f0.put(feature.ids.f1, feature.value);
+            attFeatureTable.get(reuse).f0.put(feature.id.f1, feature.value);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -141,8 +142,8 @@ public class CompressedListStorage extends BaseStorage {
     public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         try {
             reuse.f0 = feature.getName();
-            reuse.f1 = feature.ids.f0;
-            attFeatureTable.get(reuse).f0.put(feature.ids.f1, feature.value);
+            reuse.f1 = feature.id.f0;
+            attFeatureTable.get(reuse).f0.put(feature.id.f1, feature.value);
             return true;
         } catch (Exception e) {
             e.printStackTrace();
@@ -315,9 +316,9 @@ public class CompressedListStorage extends BaseStorage {
             reuse.f1 = attachedType;
             Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>> tmp = attFeatureTable.get(reuse);
             Feature feature = tmp.f2.newInstance();
-            feature.ids.f0 = attachedType;
-            feature.ids.f1 = attachedId;
-            feature.ids.f2 = featureName;
+            feature.id.f0 = attachedType;
+            feature.id.f1 = attachedId;
+            feature.id.f2 = featureName;
             feature.halo = tmp.f1;
             feature.value = tmp.f0.get(attachedId);
             return feature;

@@ -16,7 +16,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.FlatObjectStorage;
 
 import java.util.ArrayList;
@@ -76,8 +75,7 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream< GraphOp>[] res = new GraphStream(env, args, true, false, false,
-                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(),true, 200))),
-                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbeddingLayer(models.get(1).getName(),false)))
+                    Tuple2.of(new FlatObjectStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(),true, 5000)))
                     ).build();
             env.execute();
         } catch (Exception e){

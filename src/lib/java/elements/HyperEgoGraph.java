@@ -117,7 +117,7 @@ public final class HyperEgoGraph extends GraphElement {
      * Since EgoHyperGraphs are never stored it does not have an ID
      */
     @Override
-    public String getId() {
+    public Object getId() {
         return null;
     }
 

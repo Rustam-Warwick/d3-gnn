@@ -26,7 +26,7 @@ import java.util.stream.Stream;
 
 @Disabled
 public class HGNNEmbeddingsTest extends IntegrationTest {
-    private static final Map<String, NDArray> vertexEmbeddings = new HashMap<>();
+    private static final Map<Object, NDArray> vertexEmbeddings = new HashMap<>();
 
     private static Stream<Arguments> jobArguments() {
         return Stream.of(
@@ -99,7 +99,7 @@ public class HGNNEmbeddingsTest extends IntegrationTest {
             NDArray aggregator = message.mul(meshSize * meshSize);
             previousLayerEmbedding = block.update(store, new NDList(previousLayerEmbedding, aggregator), false).get(0);
         }
-        for (Map.Entry<String, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
+        for (Map.Entry<Object, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
             Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-4, 1e-04, false));
         }
     }
@@ -109,7 +109,7 @@ public class HGNNEmbeddingsTest extends IntegrationTest {
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, Void>.Context ctx, Collector<Void> out) throws Exception {
             Tensor tensor = (Tensor) value.element;
-            vertexEmbeddings.compute(tensor.ids.f1, (vertexId, oldTensor) -> {
+            vertexEmbeddings.compute(tensor.id.f1, (vertexId, oldTensor) -> {
                 if (oldTensor != null) oldTensor.resume();
                 tensor.delay();
                 return tensor.getValue();

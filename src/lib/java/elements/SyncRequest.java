@@ -12,7 +12,7 @@ public final class SyncRequest extends GraphElement {
     /**
      * ID of element to go to
      */
-    public String elementId;
+    public Object elementId;
 
     /**
      * Type of element to go to
@@ -53,7 +53,7 @@ public final class SyncRequest extends GraphElement {
      * {@inheritDoc}
      */
     @Override
-    public String getId() {
+    public Object getId() {
         return elementId;
     }
 
@@ -77,22 +77,19 @@ public final class SyncRequest extends GraphElement {
      * {@inheritDoc}
      */
     @Override
-    public void onDeserialized() {
-    }
+    public void onDeserialized() {}
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void resume() {
-    }
+    public void resume() {}
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void delay() {
-    }
+    public void delay() {}
 
     /**
      * {@inheritDoc}

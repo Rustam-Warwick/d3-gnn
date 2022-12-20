@@ -24,11 +24,6 @@ import java.util.Objects;
 public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
-     * Delimiter used to create id for attached features
-     */
-    public static String DELIMITER = "/";
-
-    /**
      * List of Element types
      */
     public static ElementType[] ELEMENT_VALUES = ElementType.values();
@@ -52,23 +47,23 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * Ids of this Feature [Attach Element Type, Attached Element ID, Feature Name]
      */
-    public Tuple3<ElementType, String, String> ids;
+    public Tuple3<ElementType, Object, String> id;
 
     public Feature() {
         super();
-        ids = Tuple3.of(ElementType.NONE, null, null);
+        id = Tuple3.of(ElementType.NONE, null, null);
     }
 
     public Feature(String name, T value) {
         super();
         this.value = value;
-        ids = Tuple3.of(ElementType.NONE, null, name);
+        id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(String name, T value, boolean halo) {
         super();
         this.value = value;
-        ids = Tuple3.of(ElementType.NONE, null, name);
+        id = Tuple3.of(ElementType.NONE, null, name);
         this.halo = halo;
     }
 
@@ -76,30 +71,15 @@ public class Feature<T, V> extends ReplicableGraphElement {
         super(master);
         this.halo = halo;
         this.value = value;
-        ids = Tuple3.of(ElementType.NONE, null, name);
+        id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(Feature<T, V> feature, CopyContext context) {
         super(feature, context);
-        ids = feature.ids;
+        id = feature.id;
         value = feature.value;
         halo = feature.halo;
         element = feature.element;
-    }
-
-    /**
-     * Given featureName and attached Element id return the unique id for this feature
-     */
-    public static String encodeAttachedFeatureId(ElementType type, @Nullable String attachedElementId, String featureName) {
-        return attachedElementId + DELIMITER + featureName + DELIMITER + type.ordinal();
-    }
-
-    /**
-     * Given an attached Feature id, decode it returns an array of [Element Type, element_id , Feature Name]
-     */
-    public static Tuple3<ElementType, String, String> decodeAttachedFeatureId(String attachedFeatureId) {
-        String[] val = attachedFeatureId.split(DELIMITER);
-        return Tuple3.of(ELEMENT_VALUES[Integer.parseInt(val[2])], val[0], val[1]);
     }
 
     /**
@@ -131,8 +111,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public void create() {
         if (getType() == ElementType.STANDALONE_FEATURE) super.create();
-        else if (!getGraphRuntimeContext().getStorage().containsElement(ids.f1, ids.f0)) {
-            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElement(ids.f1, ids.f0);
+        else if (!getGraphRuntimeContext().getStorage().containsElement(id.f1, id.f0)) {
+            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElement(id.f1, id.f0);
             setElement(el, false);
             el.create();
         } else {
@@ -231,23 +211,22 @@ public class Feature<T, V> extends ReplicableGraphElement {
      * {@inheritDoc}
      */
     @Override
-    public String getId() {
-        if (ids.f0 == ElementType.NONE) return ids.f2;
-        return encodeAttachedFeatureId(ids.f0, ids.f1, ids.f2);
+    public Tuple3<ElementType, Object, String> getId() {
+        return id;
     }
 
     /**
      * Name of the feature
      */
     public String getName() {
-        return ids.f2;
+        return id.f2;
     }
 
     /**
      * Get id of attached {@link GraphElement}
      */
-    public String getAttachedElementId() {
-        return ids.f1;
+    public Object getAttachedElementId() {
+        return id.f1;
     }
 
     /**
@@ -255,7 +234,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Nullable
     public ElementType getAttachedElementType() {
-        return ids.f0;
+        return id.f0;
     }
 
     /**
@@ -263,9 +242,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Nullable
     public GraphElement getElement() {
-        if (ids.f0 == ElementType.NONE) return null;
+        if (id.f0 == ElementType.NONE) return null;
         if (element == null && getGraphRuntimeContext() != null) {
-            setElement(getGraphRuntimeContext().getStorage().getElement(ids.f1, ids.f0), true);
+            setElement(getGraphRuntimeContext().getStorage().getElement(id.f1, id.f0), true);
         }
         return element;
     }
@@ -277,8 +256,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;
-        ids.f0 = attachingElement.getType();
-        ids.f1 = attachingElement.getId();
+        id.f0 = attachingElement.getType();
+        id.f1 = attachingElement.getId();
         if (attachingElement.features == null) attachingElement.features = new ArrayList<>(4);
         if (testIfExistsInElement) {
             for (Feature<?, ?> feature : attachingElement.features) {
@@ -305,7 +284,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     @Override
     public ElementType getType() {
-        return ids.f0 == ElementType.NONE ? ElementType.STANDALONE_FEATURE : ElementType.ATTACHED_FEATURE;
+        return id.f0 == ElementType.NONE ? ElementType.STANDALONE_FEATURE : ElementType.ATTACHED_FEATURE;
     }
 
 }

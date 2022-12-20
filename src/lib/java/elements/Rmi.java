@@ -48,7 +48,7 @@ public class Rmi extends GraphElement {
     /**
      * ID of element where this output is directed to
      */
-    public String id;
+    public Object id;
 
     /**
      * Name of the remote method to be called
@@ -59,7 +59,7 @@ public class Rmi extends GraphElement {
         super();
     }
 
-    public Rmi(String id, String methodName, ElementType elemType, Object[] args) {
+    public Rmi(Object id, String methodName, ElementType elemType, Object[] args) {
         this.id = id;
         this.args = args;
         this.methodName = methodName;
@@ -113,7 +113,7 @@ public class Rmi extends GraphElement {
     /**
      * Executes if intended for this part or sends a {@link GraphOp}
      */
-    public static void buildAndRun(String id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
+    public static void buildAndRun(Object id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
         if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG)  {
             execute(getGraphRuntimeContext().getStorage().getElement(id, elemType), methodName, args);
         } else {
@@ -161,7 +161,7 @@ public class Rmi extends GraphElement {
      * {@inheritDoc}
      */
     @Override
-    public String getId() {
+    public Object getId() {
         return id;
     }
 

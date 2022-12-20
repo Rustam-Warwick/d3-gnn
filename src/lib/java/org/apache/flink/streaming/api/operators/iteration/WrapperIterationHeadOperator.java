@@ -78,6 +78,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final OperatorEventHandler operatorEventHandleBodyOperatorRef;
 
     /**
+     * Just Reference to ExposingInternalTimerSerivce operator to avoid constant type casting
+     */
+    protected final ExposingInternalTimerService exposingInternalTimerServiceOperatorRef;
+
+    /**
      * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
      */
     protected NDManager manager = BaseNDManager.getManager();
@@ -86,6 +91,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Counter of number of incoming messages to increments with iteration inputs
      */
     protected final Counter numRecordsInCounter;
+
+    /**
+     * Used for termination detection
+     */
+    protected long previousNumRecordsInValue;
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
@@ -97,6 +107,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator)? (OneInputStreamOperator<Object, OUT>) bodyOperator :null;
         this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler)? (OperatorEventHandler) bodyOperator :null;
+        this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService)? (ExposingInternalTimerService) bodyOperator :null;
         operatorEventConsumer = operatorEventHandleBodyOperatorRef == null?this::handleOperatorEventSelf:this::handleOperatorEventWithBody;
     }
 
@@ -214,14 +225,24 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         oneInputBodyOperatorRef.processWatermarkStatus(watermarkStatus);
     }
 
+
+
     /**
      * Handle operator event if body is NOT {@link OperatorEventHandler}
      */
     public void handleOperatorEventSelf(OperatorEvent evt){
         if(evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan){
             // Requested scan for termination detection
+            final boolean[] hasTimers = new boolean[]{false};
+            if(exposingInternalTimerServiceOperatorRef != null){
+                // If exposing check for timers to be finished
+                try{
+                    exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer)-> hasTimers[0] = true);
+                }catch (Exception ignored){}
+            }
             operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
-                    getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount()));
+                    !hasTimers[0] && numRecordsInCounter.getCount() == previousNumRecordsInValue));
+            previousNumRecordsInValue = numRecordsInCounter.getCount();
         }else if(evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate){
             // Ready to Terminate
             readyToFinish = true;

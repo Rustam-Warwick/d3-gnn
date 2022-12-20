@@ -246,7 +246,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", BaseNDManager.getManager().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                    Feature.encodeAttachedFeatureId(ElementType.VERTEX, v.getId(), "agg"),
+                   Tuple3.of(ElementType.VERTEX, v.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     v.getMasterPart(),
@@ -274,7 +274,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         NDArray updatesBatched = UPDATE(inputsBatched, false).get(0);
         for (int i = 0; i < vertexIds.size(); i++) {
             Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
-            updateTensor.ids = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
+            updateTensor.id = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
             getRuntimeContext().output(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), updateTensor));
         }
     }

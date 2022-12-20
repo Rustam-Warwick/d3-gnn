@@ -78,35 +78,37 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
 
     public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
 
+    // GETTER METHODS
     @Nullable
     public abstract Vertex getVertex(String vertexId);
 
     public abstract Iterable<Vertex> getVertices();
 
     @Nullable
-    public abstract DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId);
+    public abstract DirectedEdge getEdge(Tuple3<String, String, String> ids);
 
     public abstract Iterable<DirectedEdge> getEdges(String srcId, String destId);
 
     public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
+    @Nullable
     public abstract HyperEdge getHyperEdge(String hyperEdgeId);
 
     public abstract Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex);
 
     @Nullable
-    public abstract Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId);
+    public abstract Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids);
 
     @Nullable
-    public abstract Feature<?, ?> getStandaloneFeature(String featureName);
+    public abstract Feature<?, ?> getStandaloneFeature(Tuple3<ElementType, Object, String> ids);
 
     public abstract boolean containsVertex(String vertexId);
 
-    public abstract boolean containsAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId);
+    public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> ids);
 
-    public abstract boolean containsStandaloneFeature(String featureName);
+    public abstract boolean containsStandaloneFeature(Tuple3<ElementType, Object, String> ids);
 
-    public abstract boolean containsEdge(String srcId, String destId, @Nullable String attributeId, @Nullable String edgeId);
+    public abstract boolean containsEdge(Tuple3<String, String, String> ids);
 
     public abstract boolean containsHyperEdge(String hyperEdgeId);
 
@@ -130,15 +132,15 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
     public boolean addElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
-                return this.addVertex((Vertex) element);
+                return addVertex((Vertex) element);
             case EDGE:
-                return this.addEdge((DirectedEdge) element);
+                return addEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
                 return addAttachedFeature((Feature<?, ?>) element);
             case STANDALONE_FEATURE:
                 return addStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
-                return this.addHyperEdge((HyperEdge) element);
+                return addHyperEdge((HyperEdge) element);
             default:
                 return false;
         }
@@ -147,15 +149,15 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
     public boolean deleteElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
-                return this.deleteVertex((Vertex) element);
+                return deleteVertex((Vertex) element);
             case EDGE:
-                return this.deleteEdge((DirectedEdge) element);
+                return deleteEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
-                return this.deleteAttachedFeature((Feature<?, ?>) element);
+                return deleteAttachedFeature((Feature<?, ?>) element);
             case STANDALONE_FEATURE:
-                return this.deleteStandaloneFeature((Feature<?, ?>) element);
+                return deleteStandaloneFeature((Feature<?, ?>) element);
             case HYPEREDGE:
-                return this.deleteHyperEdge((HyperEdge) element);
+                return deleteHyperEdge((HyperEdge) element);
             default:
                 return false;
         }
@@ -164,57 +166,53 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
     public boolean updateElement(GraphElement element, GraphElement memento) {
         switch (element.getType()) {
             case VERTEX:
-                return this.updateVertex((Vertex) element, (Vertex) memento);
+                return updateVertex((Vertex) element, (Vertex) memento);
             case EDGE:
-                return this.updateEdge((DirectedEdge) element, (DirectedEdge) element);
+                return updateEdge((DirectedEdge) element, (DirectedEdge) element);
             case ATTACHED_FEATURE:
-                return this.updateAttachedFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
+                return updateAttachedFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case STANDALONE_FEATURE:
-                return this.updateStandaloneFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
+                return updateStandaloneFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
             case HYPEREDGE:
-                return this.updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
+                return updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
             default:
                 return false;
         }
     }
 
-    public boolean containsElement(String id, ElementType type) {
+    public boolean containsElement(Object id, ElementType type) {
         switch (type) {
             case VERTEX:
-                return containsVertex(id);
+                return containsVertex((String) id);
             case EDGE:
-                Tuple3<String, String, String> ids = DirectedEdge.decodeVertexIdsAndAttribute(id);
-                return containsEdge(ids.f0, ids.f1, ids.f2, id);
+                return containsEdge((Tuple3<String, String, String>) id);
             case ATTACHED_FEATURE:
-                Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
-                return containsAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+                return containsAttachedFeature((Tuple3<ElementType, Object, String>) id);
             case STANDALONE_FEATURE:
-                return containsStandaloneFeature(id);
+                return containsStandaloneFeature((Tuple3<ElementType, Object, String>) id);
             case HYPEREDGE:
-                return containsHyperEdge(id);
+                return containsHyperEdge((String) id);
             case PLUGIN:
-                return getRuntimeContext().getPlugin(id) != null;
+                return getRuntimeContext().getPlugin((String) id) != null;
             default:
                 return false;
         }
     }
 
-    public GraphElement getElement(String id, ElementType t) {
+    public GraphElement getElement(Object id, ElementType t) {
         switch (t) {
             case VERTEX:
-                return this.getVertex(id);
+                return this.getVertex((String) id);
             case ATTACHED_FEATURE:
-                Tuple3<ElementType, String, String> tmp = Feature.decodeAttachedFeatureId(id);
-                return getAttachedFeature(tmp.f0, tmp.f1, tmp.f2, id);
+                return getAttachedFeature((Tuple3<ElementType, Object, String>) id);
             case STANDALONE_FEATURE:
-                return getStandaloneFeature(id);
+                return getStandaloneFeature((Tuple3<ElementType, Object, String>) id);
             case EDGE:
-                Tuple3<String, String, String> ids = DirectedEdge.decodeVertexIdsAndAttribute(id);
-                return getEdge(ids.f0, ids.f1, ids.f2, id);
+                return getEdge((Tuple3<String, String, String>) id);
             case HYPEREDGE:
-                return getHyperEdge(id);
+                return getHyperEdge((String) id);
             case PLUGIN:
-                return getRuntimeContext().getPlugin(id);
+                return getRuntimeContext().getPlugin((String) id);
             default:
                 return null;
         }
@@ -223,17 +221,15 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
     public boolean containsElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
-                return containsVertex(element.getId());
+                return containsVertex((String) element.getId());
             case ATTACHED_FEATURE:
-                Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return containsAttachedFeature(tmp.ids.f0, tmp.ids.f1, tmp.ids.f2, null);
+                return containsAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
             case STANDALONE_FEATURE:
-                return containsStandaloneFeature(element.getId());
+                return containsStandaloneFeature((Tuple3<ElementType, Object, String>) element.getId());
             case EDGE:
-                DirectedEdge edge = (DirectedEdge) element;
-                return containsEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
+                return containsEdge((Tuple3<String, String, String>) element.getId());
             case HYPEREDGE:
-                return containsHyperEdge(element.getId());
+                return containsHyperEdge((String) element.getId());
             default:
                 return false;
         }
@@ -242,28 +238,26 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
     public GraphElement getElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
-                return getVertex(element.getId());
+                return getVertex((String) element.getId());
             case ATTACHED_FEATURE:
-                Feature<?, ?> tmp = (Feature<?, ?>) element;
-                return getAttachedFeature(tmp.ids.f0, tmp.ids.f1, tmp.ids.f2, null);
+                return getAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
             case STANDALONE_FEATURE:
-                return getStandaloneFeature(element.getId());
+                return getStandaloneFeature((Tuple3<ElementType, Object, String>) element.getId());
             case EDGE:
-                DirectedEdge edge = (DirectedEdge) element;
-                return getEdge(edge.getSrcId(), edge.getDestId(), edge.getAttribute(), null);
+                return getEdge((Tuple3<String, String, String>) element.getId());
             case HYPEREDGE:
-                return getHyperEdge(element.getId());
+                return getHyperEdge((String) element.getId());
             default:
                 return null;
         }
     }
 
-    public final GraphElement getDummyElement(String id, ElementType elementType) {
+    public final GraphElement getDummyElement(Object id, ElementType elementType) {
         switch (elementType) {
             case VERTEX:
-                return new Vertex(id, getRuntimeContext().getCurrentPart());
+                return new Vertex((String) id, getRuntimeContext().getCurrentPart());
             case HYPEREDGE:
-                return new HyperEdge(id, new ArrayList<>(), getRuntimeContext().getCurrentPart());
+                return new HyperEdge((String) id, new ArrayList<>(), getRuntimeContext().getCurrentPart());
         }
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }

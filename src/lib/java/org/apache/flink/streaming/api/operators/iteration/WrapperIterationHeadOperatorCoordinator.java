@@ -62,7 +62,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if(bodyOperatorCoordinator != null) bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
         if(event instanceof StartTermination) controller.startTermination();
-        if(event instanceof ResponseScan) controller.consumeResponse(((ResponseScan) event).counter);
+        if(event instanceof ResponseScan) controller.consumeResponse(((ResponseScan) event).terminateReady);
     }
 
     @Override
@@ -128,16 +128,6 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     private static class TerminationDetectionController extends Thread {
 
         /**
-         * Memento state of numRecords in previous scan
-         */
-        long oldCounter;
-
-        /**
-         * Current state of numRecords, might be incomplete
-         */
-        long newCounter;
-
-        /**
          * Number of sub-operators with iteration HEAD logic
          */
         int numIterationSubOperators;
@@ -148,7 +138,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         int receivedFromIterationOperators;
 
         /**
-         * Termination Detection process has started
+         * Found termination point
          */
         boolean terminationFound;
 
@@ -198,8 +188,8 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         /**
          * Consume Scan response
          */
-        synchronized void consumeResponse(long counter){
-            newCounter += counter;
+        synchronized void consumeResponse(boolean response){
+            terminationFound &= response;
             receivedFromIterationOperators++;
         }
 
@@ -207,18 +197,16 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         public void run(){
             try{
                 while(!terminationFound){
+                    terminationFound = true; // Assume found if not negated by sub-operator
                     coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doScan);
                     while(receivedFromIterationOperators < numIterationSubOperators){
                         Thread.onSpinWait();
                     }
-                    if(newCounter == oldCounter){
+                    if(terminationFound){
                         coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
-                        terminationFound = true;
                     }else{
                         Thread.sleep(4000);
                         receivedFromIterationOperators = 0;
-                        oldCounter = newCounter;
-                        newCounter = 0;
                     }
                 }
             }catch (Exception e){
@@ -247,10 +235,10 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Should be sent from {@link WrapperIterationHeadOperator} to {@link WrapperIterationHeadOperatorCoordinator}
      */
     public static class ResponseScan implements OperatorEvent{
-        public final long counter;
+        public final boolean terminateReady;
 
-        public ResponseScan(long counter) {
-            this.counter = counter;
+        public ResponseScan(boolean terminateReady) {
+            this.terminateReady = terminateReady;
         }
     }
 

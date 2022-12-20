@@ -9,11 +9,12 @@ import elements.enums.ReplicaState;
 import elements.features.Aggregator;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 
 /**
@@ -54,10 +55,10 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             reduceF1(edge); // Reduce from vertices to this hyper-edge
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if ("f".equals(feature.getName()) && feature.ids.f0 == ElementType.VERTEX) {
+            if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
                 reduceF1((Tensor) feature); // Reduce to hyper-edges for the given vertex feature (F1)
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
-            } else if ("agg".equals(feature.getName()) && feature.ids.f0 == ElementType.HYPEREDGE) {
+            } else if ("agg".equals(feature.getName()) && feature.id.f0 == ElementType.HYPEREDGE) {
                 reduceF2((Aggregator<?>) feature); // Reduce all vertex messages
             }
         }
@@ -74,12 +75,12 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         } else if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> newFeature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (newFeature.getName().equals("f") && newFeature.ids.f0 == ElementType.VERTEX) {
+            if (newFeature.getName().equals("f") && newFeature.id.f0 == ElementType.VERTEX) {
                 replaceF1((Tensor) newFeature, (Tensor) oldFeature); // Replace previously reduced hyper-edges (F1)
                 if (newFeature.state() == ReplicaState.MASTER) forward((Vertex) newFeature.getElement());
-            } else if (newFeature.getName().equals("agg") && newFeature.ids.f0 == ElementType.HYPEREDGE) {
+            } else if (newFeature.getName().equals("agg") && newFeature.id.f0 == ElementType.HYPEREDGE) {
                 replaceF2((Aggregator<?>) newFeature, (Aggregator<?>) oldFeature); // Replace previously reduced vertices (F2)
-            } else if (newFeature.getName().equals("agg") && newFeature.ids.f0 == ElementType.VERTEX) {
+            } else if (newFeature.getName().equals("agg") && newFeature.id.f0 == ElementType.VERTEX) {
                 if (newFeature.state() == ReplicaState.MASTER && newFeature.getElement().containsFeature("f"))
                     forward((Vertex) newFeature.getElement());
             }
@@ -95,8 +96,8 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false, v.getMasterPart());
-        tmp.ids.f0 = ElementType.VERTEX;
-        tmp.ids.f1 = v.getId();
+        tmp.id.f0 = ElementType.VERTEX;
+        tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
         getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
@@ -111,7 +112,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         for (HyperEdge hyperEdge : getRuntimeContext().getStorage().getIncidentHyperEdges(v)) {
             if (message == null) message = MESSAGE(new NDList(f.getValue()), false);
             Rmi.buildAndRun(
-                    Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
+                    Tuple3.of(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     hyperEdge.getMasterPart(),
@@ -132,7 +133,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             if (messageReady(vertex)) {
                 NDList f1Message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, newEdge.getId(), "agg"),
+                        Tuple3.of(ElementType.HYPEREDGE, newEdge.getId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         newEdge.getMasterPart(),
@@ -143,7 +144,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             }
             if (f2Message != null) {
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
+                        Tuple3.of(ElementType.VERTEX, vertex.getId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         vertex.getMasterPart(),
@@ -163,7 +164,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
             if (messageReady(vertex)) {
                 NDList message = MESSAGE(new NDList((NDArray) vertex.getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, edge.getId(), "agg"),
+                        Tuple3.of(ElementType.HYPEREDGE, edge.getId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         edge.getMasterPart(),
@@ -183,7 +184,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         NDList message = new NDList(aggregator.getValue());
         for (Vertex vertex : edge.getVertices()) {
             Rmi.buildAndRun(
-                    Feature.encodeAttachedFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
+                    Tuple3.of(ElementType.VERTEX, vertex.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     vertex.getMasterPart(),
@@ -202,7 +203,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         NDList oldMessage = MESSAGE(new NDList(oldFeature.getValue()), false);
         for (HyperEdge hyperEdge : getRuntimeContext().getStorage().getIncidentHyperEdges((Vertex) newFeature.getElement())) {
             Rmi.buildAndRun(
-                    Feature.encodeAttachedFeatureId(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
+                    Tuple3.of(ElementType.HYPEREDGE, hyperEdge.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "replace",
                     hyperEdge.getMasterPart(),
@@ -222,7 +223,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         HyperEdge edge = (HyperEdge) newAggregator.getElement();
         for (Vertex vertex : edge.getVertices()) {
             Rmi.buildAndRun(
-                    Feature.encodeAttachedFeatureId(ElementType.VERTEX, vertex.getId(), "agg"),
+                    Tuple3.of(ElementType.VERTEX, vertex.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "replace",
                     vertex.getMasterPart(),

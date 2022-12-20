@@ -6,6 +6,7 @@ import elements.*;
 import elements.enums.*;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
@@ -57,7 +58,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             if (messageReady(directedEdge)) {
                 NDList msg = MESSAGE(new NDList((NDArray) directedEdge.getSrc().getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -68,7 +69,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
             }
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if ("f".equals(feature.getName()) && feature.ids.f0 == ElementType.VERTEX) {
+            if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
                 // Feature is always second in creation because aggregators get created immediately after VERTEX
                 reduceOutEdges((Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
@@ -85,11 +86,11 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.ids.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
+            if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
-            if (feature.ids.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
                     forward((Vertex) feature.getElement());
             }
@@ -107,8 +108,8 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false);
         tmp.setElement(v,true);
-        tmp.ids.f0 = ElementType.VERTEX;
-        tmp.ids.f1 = v.getId();
+        tmp.id.f0 = ElementType.VERTEX;
+        tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
         getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
@@ -128,7 +129,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -156,7 +157,7 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
                     msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
                 }
                 Rmi.buildAndRun(
-                        Feature.encodeAttachedFeatureId(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "replace",
                         directedEdge.getDest().getMasterPart(),

@@ -35,7 +35,7 @@ import java.util.Set;
  * Graph Storage operator that contains multiple {@link Plugin} and a {@link BaseStorage}
  * Assumes Partitioned {@link GraphOp} as input and output
  */
-public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler {
+public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler, ExposingInternalTimerService {
 
     /**
      * Map of ID -> Plugin
@@ -56,6 +56,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      * Reuse element for handling timestamps and performance reasons
      */
     protected StreamRecord<GraphOp> reuse;
+
+    /**
+     * Internal Timer Service
+     */
+    protected InternalTimerService<VoidNamespace> internalTimerService;
 
     /**
      * User time service that {@link GraphElement} interact with
@@ -85,7 +90,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void open() throws Exception {
         super.open();
-        InternalTimerService<VoidNamespace> internalTimerService =
+        internalTimerService =
                 getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
         userTimerService = new SimpleTimerService(internalTimerService);
         Configuration tmp = new Configuration();
@@ -187,6 +192,10 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         }
     }
 
+    @Override
+    public InternalTimerService<VoidNamespace> getInternalTimerService() {
+        return internalTimerService;
+    }
 
     public class GraphRuntimeContextImpl implements GraphRuntimeContext{
 

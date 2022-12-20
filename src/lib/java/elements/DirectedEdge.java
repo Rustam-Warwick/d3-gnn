@@ -18,14 +18,9 @@ import org.jetbrains.annotations.Nullable;
 public final class DirectedEdge extends GraphElement {
 
     /**
-     * Delimiter used for creating edge id
-     */
-    public static String DELIMITER = "~";
-
-    /**
      * Ids of edge represented as [srcId, destId, @Optional attributeId]
      */
-    public Tuple3<String, String, String> ids;
+    public Tuple3<String, String, String> id;
 
     /**
      * Src {@link Vertex} for this edge
@@ -41,54 +36,33 @@ public final class DirectedEdge extends GraphElement {
 
     public DirectedEdge() {
         super();
-        ids = new Tuple3<>();
-    }
-
-    public DirectedEdge(String id) {
-        super();
-        ids = decodeVertexIdsAndAttribute(id);
+        id = new Tuple3<>();
     }
 
     public DirectedEdge(String srcId, String destId, @Nullable String attributedId) {
         super();
-        ids = Tuple3.of(srcId, destId, attributedId);
+        id = Tuple3.of(srcId, destId, attributedId);
     }
 
     public DirectedEdge(Vertex src, Vertex dest) {
         super();
         this.src = src;
         this.dest = dest;
-        ids = Tuple3.of(src.getId(), dest.getId(), null);
+        id = Tuple3.of(src.getId(), dest.getId(), null);
     }
 
     public DirectedEdge(Vertex src, Vertex dest, String attributeId) {
         super();
         this.src = src;
         this.dest = dest;
-        ids = Tuple3.of(src.getId(), dest.getId(), attributeId);
+        id = Tuple3.of(src.getId(), dest.getId(), attributeId);
     }
 
     public DirectedEdge(DirectedEdge e, CopyContext context) {
         super(e, context);
-        ids = e.ids;
+        id = e.id;
         src = e.src;
         dest = e.dest;
-    }
-
-    /**
-     * Returns [src_id, dest_id, att]
-     */
-    public static Tuple3<String, String, String> decodeVertexIdsAndAttribute(String edgeId) {
-        String[] ids = edgeId.split(DELIMITER);
-        return new Tuple3<>(ids[0], ids[1], ids.length > 2 ? ids[2] : null);
-    }
-
-    /**
-     * Encode attribute-less edge id
-     */
-    public static String encodeEdgeId(String srcId, String destId, @Nullable String attributedId) {
-        if (attributedId != null) return srcId + DELIMITER + destId + DELIMITER + attributedId;
-        return srcId + DELIMITER + destId;
     }
 
     /**
@@ -104,14 +78,14 @@ public final class DirectedEdge extends GraphElement {
      */
     @Nullable
     public String getAttribute() {
-        return ids.f2;
+        return id.f2;
     }
 
     /**
      * Get src {@link Vertex}
      */
     public Vertex getSrc() {
-        if (src == null && getGraphRuntimeContext() != null) src = getGraphRuntimeContext().getStorage().getVertex(ids.f0);
+        if (src == null && getGraphRuntimeContext() != null) src = getGraphRuntimeContext().getStorage().getVertex(id.f0);
         return src;
     }
 
@@ -119,14 +93,14 @@ public final class DirectedEdge extends GraphElement {
      * Get src vertex id
      */
     public String getSrcId() {
-        return ids.f0;
+        return id.f0;
     }
 
     /**
      * Get dest {@link Vertex}
      */
     public Vertex getDest() {
-        if (dest == null && getGraphRuntimeContext() != null) dest = getGraphRuntimeContext().getStorage().getVertex(ids.f1);
+        if (dest == null && getGraphRuntimeContext() != null) dest = getGraphRuntimeContext().getStorage().getVertex(id.f1);
         return dest;
     }
 
@@ -134,7 +108,7 @@ public final class DirectedEdge extends GraphElement {
      * Get dest vertex id
      */
     public String getDestId() {
-        return ids.f1;
+        return id.f1;
     }
 
     /**
@@ -161,8 +135,8 @@ public final class DirectedEdge extends GraphElement {
      * {@inheritDoc}
      */
     @Override
-    public String getId() {
-        return encodeEdgeId(ids.f0, ids.f1, ids.f2);
+    public Tuple3<String, String, String> getId() {
+        return id;
     }
 
     /**

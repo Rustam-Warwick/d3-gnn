@@ -83,8 +83,8 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
             PART_BATCH.remove(vertices.get(i).getId());
             Vertex messageVertex = vertices.get(i);
             Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
-            updateTensor.ids.f0 = ElementType.VERTEX;
-            updateTensor.ids.f1 = messageVertex.getId();
+            updateTensor.id.f0 = ElementType.VERTEX;
+            updateTensor.id.f1 = messageVertex.getId();
             getRuntimeContext().output(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
             throughput.inc();
         }
