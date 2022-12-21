@@ -6,11 +6,11 @@ import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
-import org.cliffc.high_scale_lib.NonBlockingIdentityHashMap;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +30,7 @@ public class Rmi extends GraphElement {
      * Class -> (Method Access, MethodName -> (Method Index, HasUpdate, hasCallback))
      * </strong>
      */
-    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>>> classRemoteMethods = new NonBlockingIdentityHashMap<>(1 << 4);
+    public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>>> classRemoteMethods = new NonBlockingHashMap<>(1 << 4);
     /**
      * Log
      */
@@ -114,7 +114,7 @@ public class Rmi extends GraphElement {
      * Executes if intended for this part or sends a {@link GraphOp}
      */
     public static void buildAndRun(Object id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
-        if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG)  {
+        if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG) {
             execute(getGraphRuntimeContext().getStorage().getElement(id, elemType), methodName, args);
         } else {
             getGraphRuntimeContext().output(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);

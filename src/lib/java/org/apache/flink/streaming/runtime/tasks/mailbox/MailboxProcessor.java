@@ -30,12 +30,10 @@ import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.WrappingRuntimeException;
 import org.apache.flink.util.function.RunnableWithException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-
 import java.io.Closeable;
 import java.util.List;
 import java.util.Optional;
@@ -81,31 +79,25 @@ public class MailboxProcessor implements Closeable {
      * processing.
      */
     protected final MailboxDefaultAction mailboxDefaultAction;
-
+    private final StreamTaskActionExecutor actionExecutor;
+    private final MailboxMetricsController mailboxMetricsControl;
+    private final NDManager manager = BaseNDManager.getManager();
     /**
      * Control flag to terminate the mailbox processor. Once it was terminated could not be
      * restarted again. Must only be accessed from mailbox thread.
      */
     private boolean mailboxLoopRunning;
-
     /**
      * Control flag to temporary suspend the mailbox loop/processor. After suspending the mailbox
      * processor can be still later resumed. Must only be accessed from mailbox thread.
      */
     private boolean suspended;
-
     /**
      * Remembers a currently active suspension of the default action. Serves as flag to indicate a
      * suspended default action (suspended if not-null) and to reuse the object as return value in
      * consecutive suspend attempts. Must only be accessed from mailbox thread.
      */
     private DefaultActionSuspension suspendedDefaultAction;
-
-    private final StreamTaskActionExecutor actionExecutor;
-
-    private final MailboxMetricsController mailboxMetricsControl;
-
-    private final NDManager manager = BaseNDManager.getManager();
 
     @VisibleForTesting
     public MailboxProcessor() {
@@ -169,7 +161,9 @@ public class MailboxProcessor implements Closeable {
         return this.mailboxMetricsControl;
     }
 
-    /** Lifecycle method to close the mailbox for action submission. */
+    /**
+     * Lifecycle method to close the mailbox for action submission.
+     */
     public void prepareClose() {
         mailbox.quiesce();
     }
@@ -238,7 +232,9 @@ public class MailboxProcessor implements Closeable {
         }
     }
 
-    /** Suspend the running of the loop which was started by {@link #runMailboxLoop()}}. */
+    /**
+     * Suspend the running of the loop which was started by {@link #runMailboxLoop()}}.
+     */
     public void suspend() {
         sendPoisonMail(() -> suspended = true);
     }
@@ -304,7 +300,9 @@ public class MailboxProcessor implements Closeable {
                 });
     }
 
-    /** Send mail in first priority for internal needs. */
+    /**
+     * Send mail in first priority for internal needs.
+     */
     private void sendPoisonMail(RunnableWithException mail) {
         mailbox.runExclusively(
                 () -> {
@@ -398,7 +396,7 @@ public class MailboxProcessor implements Closeable {
     }
 
     private void runMail(Mail mail) throws Exception {
-        try{
+        try {
             manager.delay();
             mailboxMetricsControl.getMailCounter().inc();
             mail.run();
@@ -501,7 +499,8 @@ public class MailboxProcessor implements Closeable {
      * resume execution.
      */
     private final class DefaultActionSuspension implements MailboxDefaultAction.Suspension {
-        @Nullable private final PeriodTimer suspensionTimer;
+        @Nullable
+        private final PeriodTimer suspensionTimer;
 
         public DefaultActionSuspension(@Nullable PeriodTimer suspensionTimer) {
             this.suspensionTimer = suspensionTimer;
@@ -530,7 +529,7 @@ public class MailboxProcessor implements Closeable {
     /**
      * Wrapper around mailbox Default action that delays the {@link NDManager} during the action step
      */
-    private class MailboxDefaultActionWrapper implements MailboxDefaultAction{
+    private class MailboxDefaultActionWrapper implements MailboxDefaultAction {
         final MailboxDefaultAction wrapperAction;
 
         public MailboxDefaultActionWrapper(MailboxDefaultAction wrapperAction) {
@@ -539,10 +538,10 @@ public class MailboxProcessor implements Closeable {
 
         @Override
         public void runDefaultAction(Controller controller) throws Exception {
-            try{
+            try {
                 manager.delay();
                 wrapperAction.runDefaultAction(controller);
-            }finally {
+            } finally {
                 manager.resume();
             }
         }

@@ -2,7 +2,6 @@ package partitioner;
 
 import elements.*;
 import elements.enums.ElementType;
-import org.apache.flink.streaming.api.operators.MultiThreadedProcessOperator;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -10,6 +9,7 @@ import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.operators.MultiThreadedProcessOperator;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
 import picocli.CommandLine;
@@ -157,7 +157,7 @@ public class HDRF extends Partitioner {
             return finalSelected;
         }
 
-        public void updatePartitionTableAndAssignMaster(Vertex vertex, short part){
+        public void updatePartitionTableAndAssignMaster(Vertex vertex, short part) {
             partitionTable.compute(vertex.getId(), (key, val) -> {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
@@ -196,7 +196,7 @@ public class HDRF extends Partitioner {
                 }
                 case ATTACHED_FEATURE: {
                     Feature<?, ?> feature = (Feature<?, ?>) elementToPartition;
-                    if (feature.getAttachedElementType() == ElementType.VERTEX){
+                    if (feature.getAttachedElementType() == ElementType.VERTEX) {
                         out.collect(value.setPartId(partitionTable.get(feature.getAttachedElementId()).get(0)));
                         break;
                     }

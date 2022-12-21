@@ -38,13 +38,17 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
      * {@inheritDoc}
      */
     @Override
-    public void setRuntimeContext(RuntimeContext t) {this.graphRuntimeContext = (GraphRuntimeContext) t;}
+    public GraphRuntimeContext getRuntimeContext() {
+        return graphRuntimeContext;
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public GraphRuntimeContext getRuntimeContext() {return graphRuntimeContext;}
+    public void setRuntimeContext(RuntimeContext t) {
+        this.graphRuntimeContext = (GraphRuntimeContext) t;
+    }
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -86,8 +90,6 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
 
     @Nullable
     public abstract DirectedEdge getEdge(Tuple3<String, String, String> ids);
-
-    public abstract Iterable<DirectedEdge> getEdges(String srcId, String destId);
 
     public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 

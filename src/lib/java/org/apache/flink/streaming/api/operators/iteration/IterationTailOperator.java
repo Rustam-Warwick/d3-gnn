@@ -10,6 +10,7 @@ import org.apache.flink.util.function.ThrowingConsumer;
 
 /**
  * TAIL Operator for handling Stream Iterations
+ *
  * @implNote Input to this Operator should be already partitioned as it is expected for the iteration BODY
  */
 public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> implements OneInputStreamOperator<IN, Void> {
@@ -23,28 +24,25 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      * Full ID of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
-
-    /**
-     * {@link org.apache.flink.streaming.api.operators.iteration.IterationChannel.IterationQueue} for sending iterative messages
-     */
-    protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
-
-    /**
-     * If the elements in this channel are instances of {@link LifeCycleControl}. If it is the case, need to delay on adding to buffer
-     */
-    protected Boolean isLifeCycle;
-
     /**
      * Consumer for the incoming elements
      */
     protected final ThrowingConsumer<StreamRecord<IN>, Exception> handler;
+    /**
+     * {@link org.apache.flink.streaming.api.operators.iteration.IterationChannel.IterationQueue} for sending iterative messages
+     */
+    protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
+    /**
+     * If the elements in this channel are instances of {@link LifeCycleControl}. If it is the case, need to delay on adding to buffer
+     */
+    protected Boolean isLifeCycle;
 
     public IterationTailOperator(int iterationID, StreamOperatorParameters<Void> parameters) {
         this.iterationID = iterationID;
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         this.processingTimeService = parameters.getProcessingTimeService();
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
-        if(parameters.getStreamConfig().getChainIndex() == 1) handler = this::processWithReuse;
+        if (parameters.getStreamConfig().getChainIndex() == 1) handler = this::processWithReuse;
         else handler = this::processWithoutReuse;
     }
 
@@ -74,8 +72,8 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      */
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        if(isLifeCycle == null) isLifeCycle = element.getValue() instanceof LifeCycleControl;
-        if(isLifeCycle) ((LifeCycleControl) element.getValue()).delay(); // Should be resumed on HEAD
+        if (isLifeCycle == null) isLifeCycle = element.getValue() instanceof LifeCycleControl;
+        if (isLifeCycle) ((LifeCycleControl) element.getValue()).delay(); // Should be resumed on HEAD
         handler.accept(element);
     }
 }

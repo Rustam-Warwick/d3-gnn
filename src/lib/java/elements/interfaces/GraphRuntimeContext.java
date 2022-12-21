@@ -12,9 +12,9 @@ import java.util.List;
 /**
  * Runtime Context with extra Graph Pipeline based operations and output functions
  * <p>
- *     Essentially exposing a lot of {@link org.apache.flink.streaming.api.operators.StreamOperator} API is needed
- *     to send messages from {@link elements.GraphElement} at various levels of Graph callbacks
- *     Also acts as {@link GraphListener} for element deltas
+ * Essentially exposing a lot of {@link org.apache.flink.streaming.api.operators.StreamOperator} API is needed
+ * to send messages from {@link elements.GraphElement} at various levels of Graph callbacks
+ * Also acts as {@link GraphListener} for element deltas
  * </p>
  */
 public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
@@ -98,7 +98,7 @@ public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
     /**
      * Is this Graph Storage the first in the pipeline
      */
-    default boolean isFirst(){
+    default boolean isFirst() {
         return getPosition() <= 1;
     }
 }

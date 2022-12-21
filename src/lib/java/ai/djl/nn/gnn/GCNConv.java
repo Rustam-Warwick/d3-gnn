@@ -44,7 +44,7 @@ public final class GCNConv extends GNNBlock {
     @Override
     public NDList update(ParameterStore parameterStore, NDList inputs, boolean training) {
         NDList selfTransform = self.forward(parameterStore, new NDList(inputs.get(0)), training);
-        NDArray res = bias == null? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
+        NDArray res = bias == null ? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
         return new NDList(res);
     }
 

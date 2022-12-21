@@ -100,7 +100,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
+        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), tmp));
     }
 
     /**

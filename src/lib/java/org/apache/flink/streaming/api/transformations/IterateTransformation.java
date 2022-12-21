@@ -14,6 +14,7 @@ import java.util.Set;
  * BODY -> Transformation that processes HEAD messages jointly with its external messages
  * FEEDBACK -> Transformations that send messages to iteration tails
  * TAIL -> Transformation that directs messages sent to it to the iteration HEAD
+ *
  * @param <T> The type of elements in the iteration going to the iteration BODY
  * @implNote Do not use this transformation directly
  */
@@ -66,7 +67,7 @@ public class IterateTransformation<T> extends Transformation<T> {
     /**
      * Add the Given Transformation as one of the iterations in the pipeline
      */
-    public void addFeedbackEdge(Transformation<T> feedbackTransformation){
+    public void addFeedbackEdge(Transformation<T> feedbackTransformation) {
         Preconditions.checkState(feedbackTransformation.getOutputType().equals(getOutputType()), String.format("Output Type %s is %s, expected %s", feedbackTransformation, feedbackTransformation.getOutputType(), getOutputType()));
         iterationFeedbackTransformations.add(feedbackTransformation);
     }

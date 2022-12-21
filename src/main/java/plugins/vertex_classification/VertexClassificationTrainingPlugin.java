@@ -10,7 +10,6 @@ import elements.Rmi;
 import elements.Vertex;
 import elements.enums.MessageDirection;
 import elements.enums.ReplicaState;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import operators.events.BackwardBarrier;
 import operators.events.ForwardBarrier;
 import org.apache.flink.configuration.Configuration;
@@ -19,6 +18,7 @@ import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.ArrayList;
 import java.util.HashMap;

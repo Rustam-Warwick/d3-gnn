@@ -16,7 +16,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
 
 public class NDHelper {
     public static Void VOID;
@@ -28,7 +29,7 @@ public class NDHelper {
             VOID = c.newInstance();
             c.setAccessible(false);
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
-                 IllegalAccessException e) {
+                IllegalAccessException e) {
             e.printStackTrace();
         }
     }
@@ -82,7 +83,7 @@ public class NDHelper {
         int count = 0;
         for (Pair<String, Parameter> parameter : model.getBlock().getParameters()) {
             try {
-                InputStream in = new FileInputStream(String.format("%s/%s.npy",modelPath, count++));
+                InputStream in = new FileInputStream(String.format("%s/%s.npy", modelPath, count++));
                 NDArray tmp = NDHelper.decodeNumpy(model.getNDManager(), in);
                 parameter.getValue().setArray(tmp);
             } catch (FileNotFoundException e) {

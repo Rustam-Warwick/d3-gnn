@@ -140,7 +140,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
         reuse.eraseTimestamp();
         storage.onProcessingTime(timer);
-        for(Plugin plugin: plugins.values()){
+        for (Plugin plugin : plugins.values()) {
             plugin.onProcessingTime(timer);
         }
     }
@@ -155,11 +155,14 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if(element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
+        if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
         GraphOp value = element.getValue();
         switch (value.op) {
-            case COMMIT:
+            case ADD:
+                value.element.create();
+                break;
+            case UPDATE:
                 if (!storage.containsElement(value.element)) {
                     value.element.create();
                 } else {
@@ -197,7 +200,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         return internalTimerService;
     }
 
-    public class GraphRuntimeContextImpl implements GraphRuntimeContext{
+    public class GraphRuntimeContextImpl implements GraphRuntimeContext {
 
         public GraphRuntimeContextImpl() {
             GraphRuntimeContext.CONTEXT_THREAD_LOCAL.set(this);
@@ -265,7 +268,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public short getCurrentPart() {
-            return ((PartNumber)getCurrentKey()).partId;
+            return ((PartNumber) getCurrentKey()).partId;
         }
 
         @Override

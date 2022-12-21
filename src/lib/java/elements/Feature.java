@@ -4,10 +4,10 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -117,7 +117,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
             el.create();
         } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
-                GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
+                GraphOp message = new GraphOp(Op.UPDATE, copy(CopyContext.SYNC));
                 getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             createInternal();
@@ -251,8 +251,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
      * Caches the given element, also adds this {@link Feature} to {@link GraphElement}
+     *
      * @param testIfExistsInElement If we should check for existence of duplicated {@link Feature} in {@link GraphElement}
-     * <p> If test is true, this Feature will not be added to GraphElement if there is a feature with that name already </p>
+     *                              <p> If test is true, this Feature will not be added to GraphElement if there is a feature with that name already </p>
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;

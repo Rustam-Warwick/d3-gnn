@@ -58,7 +58,7 @@ public class MeshGraphGenerator extends Dataset {
         for (int i = 0; i < nVertices; i++) {
             for (int j = 0; j < nVertices; j++) {
                 if (i == j) continue;
-                GraphOp thisEdge = new GraphOp(Op.COMMIT, new DirectedEdge(new Vertex(String.valueOf(i)), new Vertex(String.valueOf(j))));
+                GraphOp thisEdge = new GraphOp(Op.ADD, new DirectedEdge(new Vertex(String.valueOf(i)), new Vertex(String.valueOf(j))));
                 int startIndex = Math.abs(thisEdge.hashCode()) % meshEdgeSize;
                 while (true) {
                     if (resultingEdges[startIndex] == null) {

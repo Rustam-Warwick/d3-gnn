@@ -24,19 +24,20 @@ import java.util.List;
  * Transforms the {@link IterateTransformation} in the {@link StreamGraph}
  * The Body of the origin StreamGraph is wrapped around Iteration HEAD logic
  * The Tails are added as feedback edges
+ *
+ * @param <OUT>
  * @implNote If there are no feedback edges defined this transformation will have no effect!
  * Hence, it is safe to create an iteration and never close it!
  * </p>
- * @param <OUT>
  */
 public class IterateTransformationTranslator<OUT> extends SimpleTransformationTranslator<OUT, IterateTransformation<OUT>> {
     static final Field operatorFactoryField;
 
     static {
-        try{
+        try {
             operatorFactoryField = StreamNode.class.getDeclaredField("operatorFactory");
             operatorFactoryField.setAccessible(true);
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Cannot use Reflection turn off the Security Manager");
         }
 

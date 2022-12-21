@@ -99,7 +99,7 @@ public class RedditHyperlink extends Dataset {
         public GraphOp map(String value) throws Exception {
             String[] values = value.split("\t");
             DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
-            return new GraphOp(Op.COMMIT, directedEdge);
+            return new GraphOp(Op.ADD, directedEdge);
         }
     }
 

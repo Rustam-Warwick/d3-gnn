@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 /**
  * HEAD logic wrapper around the main operator logic for {@link OneInputStreamOperator}
  * Currently only supports single input stream operator but can be extended to support many sources as well
+ *
  * @param <OUT> Output Type
  */
 public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>, OperatorEventHandler {
@@ -36,62 +37,50 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Mailbox Executor to attach to
      */
     protected final MailboxExecutor mailboxExecutor;
-
-    /**
-     * Termination Detection point reached can close this operator
-     */
-    protected boolean readyToFinish = false;
-
-    /**
-     * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
-     */
-    protected Boolean isLifeCycle;
-
     /**
      * Full {@link IterationChannelKey} of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
-
     /**
      * Gateway to operator coordinator
      */
     protected final OperatorEventGateway operatorEventGateway;
-
     /**
      * Main {@link StreamOperator} that is wrapped by this HEAD
      */
     protected final AbstractStreamOperator<OUT> bodyOperator;
-
     /**
      * Consumer of {@link OperatorEvent} depending on weather body implements {@link OperatorEventHandler} or not
      */
     protected final Consumer<OperatorEvent> operatorEventConsumer;
-
     /**
      * Just References with OneInput type to avoid constant type casting
      */
     protected final OneInputStreamOperator<Object, OUT> oneInputBodyOperatorRef;
-
     /**
      * Just Reference to OperatorEventHandler to avoid constant type casting
      */
     protected final OperatorEventHandler operatorEventHandleBodyOperatorRef;
-
     /**
      * Just Reference to ExposingInternalTimerSerivce operator to avoid constant type casting
      */
     protected final ExposingInternalTimerService exposingInternalTimerServiceOperatorRef;
-
-    /**
-     * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
-     */
-    protected NDManager manager = BaseNDManager.getManager();
-
     /**
      * Counter of number of incoming messages to increments with iteration inputs
      */
     protected final Counter numRecordsInCounter;
-
+    /**
+     * Termination Detection point reached can close this operator
+     */
+    protected boolean readyToFinish = false;
+    /**
+     * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
+     */
+    protected Boolean isLifeCycle;
+    /**
+     * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
+     */
+    protected NDManager manager = BaseNDManager.getManager();
     /**
      * Used for termination detection
      */
@@ -105,10 +94,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
-        this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator)? (OneInputStreamOperator<Object, OUT>) bodyOperator :null;
-        this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler)? (OperatorEventHandler) bodyOperator :null;
-        this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService)? (ExposingInternalTimerService) bodyOperator :null;
-        operatorEventConsumer = operatorEventHandleBodyOperatorRef == null?this::handleOperatorEventSelf:this::handleOperatorEventWithBody;
+        this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator) ? (OneInputStreamOperator<Object, OUT>) bodyOperator : null;
+        this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler) ? (OperatorEventHandler) bodyOperator : null;
+        this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService) ? (ExposingInternalTimerService) bodyOperator : null;
+        operatorEventConsumer = operatorEventHandleBodyOperatorRef == null ? this::handleOperatorEventSelf : this::handleOperatorEventWithBody;
     }
 
     @Override
@@ -139,16 +128,16 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Process Feedback messages if body is {@link OneInputStreamOperator}
      */
-    public void processOneInputFeedback(StreamRecord<Object> el){
-        try{
-            if(isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
-            if(isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
+    public void processOneInputFeedback(StreamRecord<Object> el) {
+        try {
+            if (isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
+            if (isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
             numRecordsInCounter.inc();
             setKeyContextElement(el);
             processElement(el);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             // NDManager is delayed per batch of iteration messages, and these messages can be quite large so it is good to delay them per element instead of per batch
             manager.resume();
             manager.delay();
@@ -204,16 +193,17 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     }
 
     @Override
-    public void processElement(StreamRecord<Object> element) throws Exception{
+    public void processElement(StreamRecord<Object> element) throws Exception {
         oneInputBodyOperatorRef.processElement(element);
     }
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(mark.getTimestamp() == Long.MAX_VALUE && !readyToFinish){
+        if (mark.getTimestamp() == Long.MAX_VALUE && !readyToFinish) {
             // Enter the termination loop
-            if(bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0) operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
-            while(!readyToFinish){
+            if (bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0)
+                operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
+            while (!readyToFinish) {
                 mailboxExecutor.yield();
             }
         }
@@ -226,24 +216,27 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     }
 
 
-
     /**
      * Handle operator event if body is NOT {@link OperatorEventHandler}
      */
-    public void handleOperatorEventSelf(OperatorEvent evt){
-        if(evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan){
+    public void handleOperatorEventSelf(OperatorEvent evt) {
+        if (evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan) {
             // Requested scan for termination detection
             final boolean[] hasTimers = new boolean[]{false};
-            if(exposingInternalTimerServiceOperatorRef != null){
+            if (exposingInternalTimerServiceOperatorRef != null) {
                 // If exposing check for timers to be finished
-                try{
-                    exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer)-> hasTimers[0] = true);
-                }catch (Exception ignored){}
+                try {
+                    exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
+                        hasTimers[0] = true;
+                        throw new Exception("Found, do not process rest");
+                    });
+                } catch (Exception ignored) {
+                }
             }
             operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
                     !hasTimers[0] && numRecordsInCounter.getCount() == previousNumRecordsInValue));
             previousNumRecordsInValue = numRecordsInCounter.getCount();
-        }else if(evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate){
+        } else if (evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate) {
             // Ready to Terminate
             readyToFinish = true;
         }
@@ -252,7 +245,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Handle operator event if body IS {@link OperatorEventHandler}
      */
-    public void handleOperatorEventWithBody(OperatorEvent evt){
+    public void handleOperatorEventWithBody(OperatorEvent evt) {
         operatorEventHandleBodyOperatorRef.handleOperatorEvent(evt);
         handleOperatorEventSelf(evt);
     }

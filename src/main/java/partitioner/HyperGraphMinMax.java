@@ -75,7 +75,7 @@ public class HyperGraphMinMax extends Partitioner {
         private transient int[] parts;
         private transient int minParts;
 
-        public Partitioner(int partitions,float betaImbalance) {
+        public Partitioner(int partitions, float betaImbalance) {
             this.partitions = partitions;
             this.betaImbalance = betaImbalance;
         }
@@ -135,7 +135,8 @@ public class HyperGraphMinMax extends Partitioner {
             minParts = Arrays.stream(parts).min().getAsInt();
             return p;
         }
-        public void updatePartitionTableAndAssignMaster(HyperEdge hyperEdge, short part){
+
+        public void updatePartitionTableAndAssignMaster(HyperEdge hyperEdge, short part) {
             hyperEdgePartitionTable.compute(hyperEdge.getId(), (key, val) -> {
                 // Update hyperedge part table and master part
                 // Increment the part weights according to hyperedge additions to part
@@ -153,6 +154,7 @@ public class HyperGraphMinMax extends Partitioner {
                 }
             });
         }
+
         @Override
         public void processElement(GraphOp value, ProcessFunction<GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             if (value.element.getType() == ElementType.GRAPH) {

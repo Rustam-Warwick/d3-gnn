@@ -5,17 +5,9 @@ import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.NDManager;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.nn.Bias;
-import ai.djl.nn.ParallelBlock;
 import ai.djl.nn.Parameter;
-import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.training.ParameterStore;
-import ai.djl.util.PairList;
-
-import javax.sound.sampled.Line;
-import java.util.List;
-import java.util.function.Function;
 
 public final class SAGEConv extends GNNBlock {
     Linear neigh;
@@ -57,7 +49,7 @@ public final class SAGEConv extends GNNBlock {
     @Override
     public NDList update(ParameterStore parameterStore, NDList inputs, boolean training) {
         NDList selfTransform = self.forward(parameterStore, new NDList(inputs.get(0)), training);
-        NDArray res = bias == null? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
+        NDArray res = bias == null ? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
         return new NDList(res);
     }
 

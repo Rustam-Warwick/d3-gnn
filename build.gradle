@@ -87,13 +87,14 @@ dependencies{
     libRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 
     libAnnotationProcessor 'info.picocli:picocli-codegen:4.7.0'
-    libApi('org.jctools:jctools-core:4.0.1')
+
     libApi 'info.picocli:picocli:4.7.0'
     libApi('ai.djl:api:0.19.0'){exclude group: 'org.slf4j'}
     libApi('ai.djl.pytorch:pytorch-engine:0.19.0') {exclude group: 'org.slf4j'}
-    libApi 'com.boundary:high-scale-lib:1.0.6'
-    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.1'
-    libApi 'com.esotericsoftware:reflectasm:1.11.9'
+    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.2' // Cache
+    libApi 'it.unimi.dsi:fastutil:8.5.11' // Small data structures
+    libApi 'com.boundary:high-scale-lib:1.0.6' // Concurrent data structures
+    libApi 'com.esotericsoftware:reflectasm:1.11.9' // Reflection and constructors fast
 
     testImplementation 'org.tensorflow:tensorflow-core-api:0.5.0-SNAPSHOT'
     testImplementation 'org.tensorflow:tensorflow-core-api:0.5.0-SNAPSHOT:linux-x86_64'

@@ -91,8 +91,8 @@ public class TagsAskUbuntu extends Dataset {
             Vertex src = new Vertex(values[0]);
             for (int i = 1; i < values.length; i++) {
                 Vertex dest = new Vertex(values[i]);
-                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(src, dest)));
-                out.collect(new GraphOp(Op.COMMIT, new DirectedEdge(dest, src)));
+                out.collect(new GraphOp(Op.UPDATE, new DirectedEdge(src, dest)));
+                out.collect(new GraphOp(Op.UPDATE, new DirectedEdge(dest, src)));
             }
         }
     }
@@ -108,7 +108,7 @@ public class TagsAskUbuntu extends Dataset {
             List<String> hyperEdgeIds = new ArrayList<>(values.length - 1);
             hyperEdgeIds.addAll(Arrays.asList(values).subList(1, values.length));
             HyperEgoGraph hyperEgoGraph = new HyperEgoGraph(src, hyperEdgeIds);
-            out.collect(new GraphOp(Op.COMMIT, hyperEgoGraph));
+            out.collect(new GraphOp(Op.UPDATE, hyperEgoGraph));
         }
     }
 }

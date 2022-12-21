@@ -4,9 +4,10 @@ import org.apache.flink.streaming.api.operators.*;
 
 /**
  * Operator Factory for {@link IterationTailOperator}
+ *
  * @param <IN> Input to be directed to the iteration head through feedback channel
  */
-public class IterationTailOperatorFactory<IN> extends AbstractStreamOperatorFactory<Void> implements OneInputStreamOperatorFactory<IN, Void>{
+public class IterationTailOperatorFactory<IN> extends AbstractStreamOperatorFactory<Void> implements OneInputStreamOperatorFactory<IN, Void> {
 
     /**
      * ID of the HeadTransformation. To be combined with the jobId and attemptId for uniqueness

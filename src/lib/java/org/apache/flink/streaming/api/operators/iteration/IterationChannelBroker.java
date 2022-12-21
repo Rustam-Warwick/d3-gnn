@@ -23,15 +23,15 @@ public class IterationChannelBroker {
     /**
      * Get {@link IterationChannel} or create and get
      */
-    public <T> IterationChannel<T> getIterationChannel(IterationChannelKey iterationChannelKey){
-        channels.computeIfAbsent(iterationChannelKey, (ignored)->new IterationChannel<T>(iterationChannelKey));
+    public <T> IterationChannel<T> getIterationChannel(IterationChannelKey iterationChannelKey) {
+        channels.computeIfAbsent(iterationChannelKey, (ignored) -> new IterationChannel<T>(iterationChannelKey));
         return (IterationChannel<T>) channels.get(iterationChannelKey);
     }
 
     /**
      * Remove this iteration channel from the map
      */
-    public void removeChannel(IterationChannelKey channelID){
+    public void removeChannel(IterationChannelKey channelID) {
         channels.remove(channelID);
     }
 }

@@ -25,7 +25,7 @@ abstract public class Partitioner {
     public static Partitioner getPartitioner(String name, String[] cmdArgs) {
         ServiceLoader<Partitioner> partitionerServiceLoader = ServiceLoader.load(Partitioner.class);
         for (Partitioner partitioner : partitionerServiceLoader) {
-            if(partitioner.isResponsibleFor(name)){
+            if (partitioner.isResponsibleFor(name)) {
                 partitioner.parseCmdArgs(cmdArgs);
                 return partitioner;
             }
@@ -48,7 +48,8 @@ abstract public class Partitioner {
     /**
      * Process command line arguments
      */
-    public void parseCmdArgs(String[] cmdArgs){}
+    public void parseCmdArgs(String[] cmdArgs) {
+    }
 
     /**
      * Return true if this partitioner has the given name

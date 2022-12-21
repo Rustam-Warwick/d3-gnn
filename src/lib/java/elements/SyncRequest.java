@@ -77,19 +77,22 @@ public final class SyncRequest extends GraphElement {
      * {@inheritDoc}
      */
     @Override
-    public void onDeserialized() {}
+    public void onDeserialized() {
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void resume() {}
+    public void resume() {
+    }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void delay() {}
+    public void delay() {
+    }
 
     /**
      * {@inheritDoc}

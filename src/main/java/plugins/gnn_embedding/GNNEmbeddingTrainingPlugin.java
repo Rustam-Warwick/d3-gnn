@@ -4,13 +4,15 @@ import ai.djl.ndarray.*;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
-import elements.*;
+import elements.DirectedEdge;
+import elements.GraphOp;
+import elements.Rmi;
+import elements.Vertex;
 import elements.annotations.RemoteFunction;
 import elements.enums.*;
 import elements.features.Aggregator;
 import elements.features.MeanAggregator;
 import elements.features.Tensor;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import operators.events.BackwardBarrier;
 import operators.events.ForwardBarrier;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -18,6 +20,7 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.shaded.guava30.com.google.common.primitives.Longs;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.*;
 
@@ -42,6 +45,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
 
     /**
      * Collect vertex -> dLoss/doutput, where vertices are masters in this part
+     *
      * @param gradients Gradients for VJP backward iteration
      */
     @RemoteFunction(triggerUpdate = false)
@@ -246,7 +250,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         destVertices.forEach((v, list) -> {
             NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", BaseNDManager.getManager().create(Longs.toArray(list))));
             Rmi.buildAndRun(
-                   Tuple3.of(ElementType.VERTEX, v.getId(), "agg"),
+                    Tuple3.of(ElementType.VERTEX, v.getId(), "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
                     v.getMasterPart(),
@@ -275,7 +279,7 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
         for (int i = 0; i < vertexIds.size(); i++) {
             Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
             updateTensor.id = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
-            getRuntimeContext().output(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), updateTensor));
+            getRuntimeContext().output(new GraphOp(Op.UPDATE, getRuntimeContext().getCurrentPart(), updateTensor));
         }
     }
 

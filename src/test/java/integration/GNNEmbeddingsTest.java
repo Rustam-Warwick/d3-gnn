@@ -26,7 +26,7 @@ import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbeddingLayer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
 import storage.BaseStorage;
-import storage.FlatObjectStorage;
+import storage.EdgeListStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,7 +56,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = Tuple2.of(
-                        new FlatObjectStorage(),
+                        new EdgeListStorage(),
                         List.of(
                                 new ModelServer<>(models.get(i)),
                                 new StreamingGNNEmbeddingLayer(models.get(i).getName(), true),
@@ -84,10 +84,10 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = Tuple2.of(
-                        new FlatObjectStorage(),
+                        new EdgeListStorage(),
                         List.of(
                                 new ModelServer<>(models.get(i)),
-                                new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true,150),
+                                new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true, 150),
                                 new LogCallbacksPlugin())
                 );
             }
@@ -113,7 +113,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = Tuple2.of(
-                        new FlatObjectStorage(),
+                        new EdgeListStorage(),
                         List.of(
                                 new ModelServer<>(models.get(i)),
                                 new PartOptimizedStreamingGNNEmbeddingLayer(models.get(i).getName(), true),

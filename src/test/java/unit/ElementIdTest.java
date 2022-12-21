@@ -45,7 +45,7 @@ public class ElementIdTest {
         // Attributed Edge
         String attribute = RandomStringGenerator.getRandomString(20);
         DirectedEdge attributedEdge = new DirectedEdge(v, v, attribute);
-        Assertions.assertEquals(nonAttributedEdge.getId(), Tuple3.of(v.getId(), v.getId(), attribute));
+        Assertions.assertEquals(attributedEdge.getId(), Tuple3.of(v.getId(), v.getId(), attribute));
         Assertions.assertEquals(attributedEdge.getType(), ElementType.EDGE);
         testAttachedFeature(attributedEdge, feature, featureName);
 

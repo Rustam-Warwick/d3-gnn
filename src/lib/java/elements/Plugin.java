@@ -65,14 +65,18 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
      * Throws {@link IllegalStateException}
      */
     @Override
-    public Feature<?, ?> getFeature(String name) { throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");}
+    public Feature<?, ?> getFeature(String name) {
+        throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");
+    }
 
     /**
      * {@inheritDoc}
      * Throws {@link IllegalStateException}
      */
     @Override
-    public Boolean containsFeature(String name) { throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");}
+    public Boolean containsFeature(String name) {
+        throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");
+    }
 
     /**
      * {@inheritDoc}

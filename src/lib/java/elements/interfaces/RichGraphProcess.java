@@ -36,13 +36,13 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
     }
 
     @Override
-    default IterationRuntimeContext getIterationRuntimeContext() {
-        return null;
+    default void setRuntimeContext(RuntimeContext t) {
+
     }
 
     @Override
-    default void setRuntimeContext(RuntimeContext t) {
-
+    default IterationRuntimeContext getIterationRuntimeContext() {
+        return null;
     }
 
     @Override

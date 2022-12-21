@@ -11,6 +11,7 @@ public class OutputTags {
 
     /**
      * Output tag for forward messages
+     *
      * @implNote DO NOT USE THIS DIRECTLY
      */
     public static final OutputTag<GraphOp> FORWARD_OUTPUT_TAG = new OutputTag<>("forward", TypeInformation.of(GraphOp.class)); // used to retrive forward output, since hashmap cannot have null values

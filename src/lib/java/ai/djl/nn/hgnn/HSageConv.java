@@ -7,7 +7,6 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Parameter;
 import ai.djl.nn.core.Linear;
-import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.training.ParameterStore;
 
 public final class HSageConv extends HGNNBlock {
@@ -50,7 +49,7 @@ public final class HSageConv extends HGNNBlock {
     @Override
     public NDList update(ParameterStore parameterStore, NDList inputs, boolean training) {
         NDList selfTransform = self.forward(parameterStore, new NDList(inputs.get(0)), training);
-        NDArray res = bias == null? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
+        NDArray res = bias == null ? selfTransform.get(0).add(inputs.get(1)) : selfTransform.get(0).add(inputs.get(1)).add(bias.getArray());
         return new NDList(res);
     }
 

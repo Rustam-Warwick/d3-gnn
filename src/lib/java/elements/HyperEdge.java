@@ -124,7 +124,8 @@ public final class HyperEdge extends ReplicableGraphElement {
     public void updateInternal(GraphElement newElement) {
         HyperEdge newHyperEdge = (HyperEdge) newElement;
         for (int i = 0; i < newHyperEdge.vertexIds.size(); i++) {
-            if (!getGraphRuntimeContext().getStorage().containsVertex(newHyperEdge.vertexIds.get(i))) newHyperEdge.vertices.get(i).create();
+            if (!getGraphRuntimeContext().getStorage().containsVertex(newHyperEdge.vertexIds.get(i)))
+                newHyperEdge.vertices.get(i).create();
         }
         vertexIds.addAll(newHyperEdge.vertexIds);
         super.updateInternal(newElement);

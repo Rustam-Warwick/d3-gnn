@@ -8,6 +8,7 @@ import java.util.Queue;
 
 /**
  * Operator that buffers the values until the operator is closed when it finally emits everything in bulk
+ *
  * @param <IN> Type of element both to input and output
  */
 public class FullBufferOperator<IN> extends AbstractStreamOperator<IN> implements OneInputStreamOperator<IN, IN> {
@@ -27,7 +28,7 @@ public class FullBufferOperator<IN> extends AbstractStreamOperator<IN> implement
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if(mark.getTimestamp() == Long.MAX_VALUE) sendElements();
+        if (mark.getTimestamp() == Long.MAX_VALUE) sendElements();
         super.processWatermark(mark);
     }
 }

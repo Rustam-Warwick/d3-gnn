@@ -3,15 +3,18 @@ package plugins.gnn_embedding;
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.*;
-import elements.enums.*;
+import elements.enums.EdgeType;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
 import elements.features.Tensor;
 import functions.metrics.MovingAverageCounter;
 import org.apache.flink.api.java.tuple.Tuple3;
-import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.Objects;
 
@@ -107,12 +110,12 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
         Tensor tmp = new Tensor("f", update, false);
-        tmp.setElement(v,true);
+        tmp.setElement(v, true);
         tmp.id.f0 = ElementType.VERTEX;
         tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
+        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), tmp));
     }
 
     /**

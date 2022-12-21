@@ -85,7 +85,8 @@ public final class DirectedEdge extends GraphElement {
      * Get src {@link Vertex}
      */
     public Vertex getSrc() {
-        if (src == null && getGraphRuntimeContext() != null) src = getGraphRuntimeContext().getStorage().getVertex(id.f0);
+        if (src == null && getGraphRuntimeContext() != null)
+            src = getGraphRuntimeContext().getStorage().getVertex(id.f0);
         return src;
     }
 
@@ -100,7 +101,8 @@ public final class DirectedEdge extends GraphElement {
      * Get dest {@link Vertex}
      */
     public Vertex getDest() {
-        if (dest == null && getGraphRuntimeContext() != null) dest = getGraphRuntimeContext().getStorage().getVertex(id.f1);
+        if (dest == null && getGraphRuntimeContext() != null)
+            dest = getGraphRuntimeContext().getStorage().getVertex(id.f1);
         return dest;
     }
 
