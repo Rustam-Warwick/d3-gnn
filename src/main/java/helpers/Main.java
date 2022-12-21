@@ -12,6 +12,7 @@ import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.contrib.streaming.state.EmbeddedRocksDBStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
@@ -74,6 +75,7 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setStateBackend(new EmbeddedRocksDBStateBackend());
             DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
                     Tuple2.of(new EdgeListStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 5000)))
             ).build();
