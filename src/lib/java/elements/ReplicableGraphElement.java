@@ -2,9 +2,9 @@ package elements;
 
 import elements.enums.*;
 import elements.features.Parts;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -77,7 +77,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
     @Override
     public void syncRequest(GraphElement newElement) {
         if (!containsFeature("p")) {
-            Parts p = new Parts("p", new ArrayList<>(List.of(newElement.getPart())), true, (short) -1);
+            Parts p = new Parts("p", new ShortArrayList(List.of(newElement.getPart())), true);
             p.setElement(this, false);
             p.createInternal();
         } else {

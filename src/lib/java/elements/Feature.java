@@ -51,19 +51,19 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public Feature() {
         super();
-        id = Tuple3.of(ElementType.NONE, null, null);
+        this.id = Tuple3.of(ElementType.NONE, null, null);
     }
 
     public Feature(String name, T value) {
         super();
         this.value = value;
-        id = Tuple3.of(ElementType.NONE, null, name);
+        this.id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(String name, T value, boolean halo) {
         super();
         this.value = value;
-        id = Tuple3.of(ElementType.NONE, null, name);
+        this.id = Tuple3.of(ElementType.NONE, null, name);
         this.halo = halo;
     }
 
@@ -71,7 +71,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
         super(master);
         this.halo = halo;
         this.value = value;
-        id = Tuple3.of(ElementType.NONE, null, name);
+        this.id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(Feature<T, V> feature, CopyContext context) {

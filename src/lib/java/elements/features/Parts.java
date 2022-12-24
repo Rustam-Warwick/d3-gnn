@@ -3,33 +3,33 @@ package elements.features;
 import elements.Feature;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.common.typeinfo.Types;
-
-import java.util.List;
 
 /**
  * Special {@link Feature} representing the Replica parts of {@link elements.GraphElement}
  * Implements an array but works like a set
  */
-public class Parts extends Feature<List<Short>, List<Short>> {
+public class Parts extends Feature<ShortArrayList, ShortArrayList> {
+
     public Parts() {
         super();
     }
 
-    public Parts(String name, List<Short> value) {
+    public Parts(String name, ShortArrayList value) {
         super(name, value);
     }
 
-    public Parts(String name, List<Short> value, boolean halo) {
+    public Parts(String name, ShortArrayList value, boolean halo) {
         super(name, value, halo);
     }
 
-    public Parts(String name, List<Short> value, boolean halo, short master) {
+    public Parts(String name, ShortArrayList value, boolean halo, short master) {
         super(name, value, halo, master);
     }
 
-    public Parts(Feature<List<Short>, List<Short>> feature, CopyContext context) {
+    public Parts(Feature<ShortArrayList, ShortArrayList> feature, CopyContext context) {
         super(feature, context);
     }
 
@@ -71,7 +71,7 @@ public class Parts extends Feature<List<Short>, List<Short>> {
      * {@inheritDoc}
      */
     @Override
-    public List<Short> getValue() {
+    public ShortArrayList getValue() {
         return this.value;
     }
 
