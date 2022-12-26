@@ -37,50 +37,62 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Mailbox Executor to attach to
      */
     protected final MailboxExecutor mailboxExecutor;
+
     /**
      * Full {@link IterationChannelKey} of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
+
     /**
      * Gateway to operator coordinator
      */
     protected final OperatorEventGateway operatorEventGateway;
+
     /**
      * Main {@link StreamOperator} that is wrapped by this HEAD
      */
     protected final AbstractStreamOperator<OUT> bodyOperator;
+
     /**
      * Consumer of {@link OperatorEvent} depending on weather body implements {@link OperatorEventHandler} or not
      */
     protected final Consumer<OperatorEvent> operatorEventConsumer;
+
     /**
      * Just References with OneInput type to avoid constant type casting
      */
     protected final OneInputStreamOperator<Object, OUT> oneInputBodyOperatorRef;
+
     /**
      * Just Reference to OperatorEventHandler to avoid constant type casting
      */
     protected final OperatorEventHandler operatorEventHandleBodyOperatorRef;
+
     /**
      * Just Reference to ExposingInternalTimerSerivce operator to avoid constant type casting
      */
     protected final ExposingInternalTimerService exposingInternalTimerServiceOperatorRef;
+
     /**
      * Counter of number of incoming messages to increments with iteration inputs
      */
     protected final Counter numRecordsInCounter;
+
     /**
      * Termination Detection point reached can close this operator
      */
     protected boolean readyToFinish = false;
+
     /**
      * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
      */
     protected Boolean isLifeCycle;
+
     /**
      * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
      */
     protected NDManager manager = BaseNDManager.getManager();
+
     /**
      * Used for termination detection
      */

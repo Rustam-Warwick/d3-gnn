@@ -425,6 +425,9 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         public <UK, UV> MapState<UK, UV> getMapState(MapStateDescriptor<UK, UV> stateProperties) {
             return getRuntimeContext().getMapState(stateProperties);
         }
+
+        public void getGraphState(StateDescriptor<?,?> stateProperties){
+        }
     }
 
 }
