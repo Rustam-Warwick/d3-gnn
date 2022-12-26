@@ -17,88 +17,88 @@ import java.util.List;
  * Also acts as {@link GraphListener} for element deltas
  * </p>
  */
-public interface GraphRuntimeContext extends RuntimeContext, GraphListener {
+public abstract class GraphRuntimeContext implements RuntimeContext, GraphListener {
 
     /**
      * ThreadLocal variable holding the {@link GraphRuntimeContext} for {@link elements.GraphElement} to access
      * Need to populate this during the {@link java.lang.reflect.Constructor} of the implementation of this class
      */
-    ThreadLocal<GraphRuntimeContext> CONTEXT_THREAD_LOCAL = new ThreadLocal<>();
+    public static ThreadLocal<GraphRuntimeContext> CONTEXT_THREAD_LOCAL = new ThreadLocal<>();
 
     /**
      * Get the {@link BaseStorage}
      */
-    BaseStorage getStorage();
+    abstract public BaseStorage getStorage();
 
     /**
      * Get the {@link Plugin} specified by the ID
      */
-    Plugin getPlugin(String pluginId);
+    abstract public Plugin getPlugin(String pluginId);
 
     /**
      * Send {@link GraphOp} forwards down the pipeline
      */
-    void output(GraphOp op);
+    abstract public void output(GraphOp op);
 
     /**
      * Send {@link GraphOp} to specific {@link OutputTag} with same type
      */
-    void output(GraphOp op, OutputTag<GraphOp> tag);
+    abstract public void output(GraphOp op, OutputTag<GraphOp> tag);
 
     /**
      * Send <T> element to its output tag
      */
-    <T> void output(T el, OutputTag<T> tag);
+    abstract public <T> void output(T el, OutputTag<T> tag);
 
     /**
      * Broadcast {@link GraphOp} down the pipeline
      */
-    void broadcast(GraphOp op);
+    abstract public void broadcast(GraphOp op);
 
     /**
      * Broadcast {@link GraphOp} to specific {@link OutputTag} with same type
      */
-    void broadcast(GraphOp op, OutputTag<GraphOp> tag);
+    abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag);
 
     /**
      * Broadcast {@link GraphOp} only to the selected parts down the pipeline
      */
-    void broadcast(GraphOp op, List<Short> selectedPartsOnly);
+    abstract public void broadcast(GraphOp op, List<Short> selectedPartsOnly);
 
     /**
      * Broadcast {@link GraphOp} but only to the selected parts
      */
-    void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
+    abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
 
     /**
      * Run the {@link Runnable} in all parts of this Operator
      */
-    void runForAllLocalParts(Runnable run);
+    abstract public void runForAllLocalParts(Runnable run);
 
     /**
      * Return the {@link TimerService}
      */
-    TimerService getTimerService();
+    abstract public TimerService getTimerService();
 
     /**
      * Get the position of this graph storage in the entire pipeline
      */
-    short getPosition();
+    abstract public short getPosition();
 
     /**
      * Get current part of this storage that is being processed
      */
-    short getCurrentPart();
+    abstract public short getCurrentPart();
 
     /**
      * Timestamp of the element currently being processed
      */
-    long currentTimestamp();
+    abstract public long currentTimestamp();
 
     /**
      * Is this Graph Storage the first in the pipeline
      */
-    default boolean isFirst() {
+    boolean isFirst() {
         return getPosition() <= 1;
     }
 }

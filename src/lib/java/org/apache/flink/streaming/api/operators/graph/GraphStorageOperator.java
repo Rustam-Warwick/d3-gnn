@@ -200,7 +200,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         return internalTimerService;
     }
 
-    public class GraphRuntimeContextImpl implements GraphRuntimeContext {
+    public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         public GraphRuntimeContextImpl() {
             GraphRuntimeContext.CONTEXT_THREAD_LOCAL.set(this);

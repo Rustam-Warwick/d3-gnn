@@ -28,12 +28,18 @@ public class GraphStateBackend extends AbstractStateBackend {
      */
     protected final AbstractStateBackend wrappedBackend;
 
-    private GraphStateBackend(AbstractStateBackend wrappedBackend) {
+    /**
+     * Base Graph class
+     */
+    protected final Class<? extends BaseGraphState> baseGraphClass;
+
+    private GraphStateBackend(AbstractStateBackend wrappedBackend, Class<? extends BaseGraphState> baseGraphClass) {
         this.wrappedBackend = wrappedBackend;
+        this.baseGraphClass = baseGraphClass;
     }
 
-    public static GraphStateBackend with(AbstractStateBackend wrappedBackend){
-        return new GraphStateBackend(wrappedBackend);
+    public static GraphStateBackend with(AbstractStateBackend wrappedBackend, Class<? extends BaseGraphState> baseGraphClass){
+        return new GraphStateBackend(wrappedBackend, baseGraphClass);
     }
 
     @Override
@@ -52,6 +58,7 @@ public class GraphStateBackend extends AbstractStateBackend {
                 wrappedKeyedStateBackend.getKeyGroupCompressionDecorator(),
                 cancelStreamRegistry,
                 wrappedKeyedStateBackend,
+                baseGraphClass,
                 env
         ).build();
     }
@@ -72,13 +79,13 @@ public class GraphStateBackend extends AbstractStateBackend {
                 wrappedKeyedStateBackend.getKeyGroupCompressionDecorator(),
                 cancelStreamRegistry,
                 wrappedKeyedStateBackend,
+                baseGraphClass,
                 env
         ).build();
     }
 
     @Override
     public OperatorStateBackend createOperatorStateBackend(Environment env, String operatorIdentifier, @NotNull Collection<OperatorStateHandle> stateHandles, CloseableRegistry cancelStreamRegistry) throws Exception {
-        System.out.println(env.getJobVertexId().toString() +":"+ env.getTaskInfo().getTaskName());
         return wrappedBackend.createOperatorStateBackend(env, operatorIdentifier, stateHandles, cancelStreamRegistry);
     }
 

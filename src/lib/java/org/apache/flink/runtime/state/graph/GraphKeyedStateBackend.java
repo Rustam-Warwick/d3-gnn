@@ -1,5 +1,6 @@
 package org.apache.flink.runtime.state.graph;
 
+import com.esotericsoftware.reflectasm.ConstructorAccess;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -7,6 +8,7 @@ import org.apache.flink.api.common.state.State;
 import org.apache.flink.api.common.state.StateDescriptor;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.core.fs.CloseableRegistry;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.checkpoint.CheckpointType;
@@ -19,10 +21,12 @@ import org.apache.flink.runtime.state.heap.InternalKeyContext;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.runtime.state.metrics.LatencyTrackingStateConfig;
 import org.apache.flink.runtime.state.ttl.TtlTimeProvider;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.RunnableFuture;
 import java.util.stream.Stream;
 
@@ -31,6 +35,11 @@ import java.util.stream.Stream;
  * @param <K> Type of Keys
  */
 public class GraphKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
+
+    /**
+     * Map table of the {@link BaseGraphState} per task
+     */
+    final static Map<Tuple4<JobID, JobVertexID, String, Object>, BaseGraphState<?,?>> GRAPH_MAP = new NonBlockingHashMap<>();
 
     /**
      * Wrapped state backend for graphs
@@ -42,6 +51,11 @@ public class GraphKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
      */
     final protected Tuple2<JobID, JobVertexID> taskIdentifier;
 
+    /**
+     * Constructor for storage base class
+     */
+    final protected transient ConstructorAccess<? extends BaseGraphState> graphStateConstructor;
+
     public GraphKeyedStateBackend(TaskKvStateRegistry kvStateRegistry,
                                   TypeSerializer<K> keySerializer,
                                   ClassLoader userCodeClassLoader,
@@ -51,10 +65,12 @@ public class GraphKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                                   CloseableRegistry cancelStreamRegistry,
                                   InternalKeyContext<K> keyContext,
                                   AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
-                                  Tuple2<JobID, JobVertexID> taskIdentifier) {
+                                  Tuple2<JobID, JobVertexID> taskIdentifier,
+                                  ConstructorAccess<? extends BaseGraphState> graphStateConstructor) {
         super(kvStateRegistry, keySerializer, userCodeClassLoader, executionConfig, ttlTimeProvider, latencyTrackingStateConfig, cancelStreamRegistry, keyContext);
         this.wrappedKeyedStateBackend = wrappedKeyedStateBackend;
         this.taskIdentifier = taskIdentifier;
+        this.graphStateConstructor = graphStateConstructor;
     }
 
     public void notifyCheckpointSubsumed(long checkpointId) throws Exception {
