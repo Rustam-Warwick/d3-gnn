@@ -111,7 +111,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("default", TypeInformation.of(ListStorage.class), (descriptor, backend) -> new ListStorage(descriptor, backend)));
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("default", TypeInformation.of(ListStorage.class), () -> new ListStorage()));
         for (Plugin plugin : plugins.values()) {
             plugin.initializeState(context);
         }
@@ -424,7 +424,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
-            return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE,taskSharedStateDescriptor);
+            return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE, taskSharedStateDescriptor);
         }
     }
 

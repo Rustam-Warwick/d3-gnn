@@ -5,9 +5,9 @@ import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.Nullable;
@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Base Class for all Graph Storage States
@@ -29,15 +30,16 @@ import java.util.ArrayList;
  * </p>
  */
 abstract public class BaseStorage extends TaskSharedState implements Serializable {
-    public BaseStorage(TaskSharedStateDescriptor<? extends TaskSharedState, ?> descriptor, TaskSharedKeyedStateBackend<?> backend) {
-        super(descriptor, backend);
-        Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used with graph storage operators. GraphRuntimeContext is missing");
-    }
 
     /**
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+
+    /**
+     * List of {@link GraphRuntimeContext}s. Indexing is based on the index of group registration (see parent class)
+     */
+    protected List<GraphRuntimeContext> runtimeContexts = new ArrayList<>(16);
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -193,7 +195,7 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
     public GraphElement getElement(Object id, ElementType t) {
         switch (t) {
             case VERTEX:
-                return this.getVertex((String) id);
+                return getVertex((String) id);
             case ATTACHED_FEATURE:
                 return getAttachedFeature((Tuple3<ElementType, Object, String>) id);
             case STANDALONE_FEATURE:
@@ -255,6 +257,14 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
 
     final public GraphRuntimeContext getRuntimeContext(){
         return GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
+    }
+
+    @Override
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
+        Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
+        Preconditions.checkState(taskSharedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
+        runtimeContexts.add(getRuntimeContext());
+        super.register(taskSharedStateBackend);
     }
 
 }

@@ -142,8 +142,9 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
      */
     public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor){
         TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val)->(
-           val == null ? taskSharedStateDescriptor.getStateSupplier().apply(taskSharedStateDescriptor, this):val
+           val == null ? taskSharedStateDescriptor.getStateSupplier().get():val
         ));
+        taskLocal.register(this);
         return (S) taskLocal;
     }
 

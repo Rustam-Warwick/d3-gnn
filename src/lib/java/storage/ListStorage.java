@@ -12,10 +12,6 @@ import org.jetbrains.annotations.Nullable;
 
 public class ListStorage extends BaseStorage {
 
-    public ListStorage(TaskSharedStateDescriptor<? extends TaskSharedState, ?> descriptor, TaskSharedKeyedStateBackend<?> backend) {
-        super(descriptor, backend);
-    }
-
     @Override
     public boolean addAttachedFeature(Feature<?, ?> feature) {
         return false;
