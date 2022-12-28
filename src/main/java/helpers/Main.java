@@ -11,15 +11,12 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.runtime.state.graph.BaseGraphState;
-import org.apache.flink.runtime.state.graph.GraphStateBackend;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import storage.EdgeListStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,9 +74,9 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            env.setStateBackend(GraphStateBackend.with(new HashMapStateBackend(), BaseGraphState.class));
+            env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
             DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
-                    Tuple2.of(new EdgeListStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 5000)))
+                    List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 5000))
             ).build();
             env.execute();
         } catch (Exception e) {

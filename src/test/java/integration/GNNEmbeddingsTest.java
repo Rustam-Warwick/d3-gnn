@@ -11,7 +11,6 @@ import elements.Plugin;
 import elements.features.Tensor;
 import helpers.GraphStream;
 import helpers.datasets.MeshGraphGenerator;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -25,8 +24,6 @@ import plugins.debugging.LogCallbacksPlugin;
 import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbeddingLayer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import storage.BaseStorage;
-import storage.EdgeListStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,15 +50,14 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
+            List<Plugin>[] processFunctions = new List[layers];
             for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
+                processFunctions[i] =
                         List.of(
                                 new ModelServer<>(models.get(i)),
                                 new StreamingGNNEmbeddingLayer(models.get(i).getName(), true),
-                                new LogCallbacksPlugin())
-                );
+                                new LogCallbacksPlugin()
+                        );
             }
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
@@ -81,15 +77,12 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
+            List<Plugin>[] processFunctions = new List[layers];
             for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
-                        List.of(
+                processFunctions[i] = List.of(
                                 new ModelServer<>(models.get(i)),
                                 new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true, 150),
-                                new LogCallbacksPlugin())
-                );
+                                new LogCallbacksPlugin());
             }
 
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
@@ -110,15 +103,12 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
+            List<Plugin>[] processFunctions = new List[layers];
             for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
-                        List.of(
+                processFunctions[i] = List.of(
                                 new ModelServer<>(models.get(i)),
                                 new PartOptimizedStreamingGNNEmbeddingLayer(models.get(i).getName(), true),
-                                new LogCallbacksPlugin())
-                );
+                                new LogCallbacksPlugin());
             }
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);

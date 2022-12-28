@@ -1,11 +1,13 @@
-package elements.interfaces;
+package org.apache.flink.streaming.api.operators.graph.interfaces;
 
 import elements.GraphOp;
 import elements.Plugin;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.runtime.state.taskshared.TaskSharedState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import storage.BaseStorage;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
-import storage.BaseStorage;
 
 import java.util.List;
 
@@ -14,7 +16,7 @@ import java.util.List;
  * <p>
  * Essentially exposing a lot of {@link org.apache.flink.streaming.api.operators.StreamOperator} API is needed
  * to send messages from {@link elements.GraphElement} at various levels of Graph callbacks
- * Also acts as {@link GraphListener} for element deltas
+ * Also acts as {@link GraphListener} for storage updates
  * </p>
  */
 public abstract class GraphRuntimeContext implements RuntimeContext, GraphListener {
@@ -24,6 +26,10 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Need to populate this during the {@link java.lang.reflect.Constructor} of the implementation of this class
      */
     public static ThreadLocal<GraphRuntimeContext> CONTEXT_THREAD_LOCAL = new ThreadLocal<>();
+
+    public GraphRuntimeContext() {
+        CONTEXT_THREAD_LOCAL.set(this);
+    }
 
     /**
      * Get the {@link BaseStorage}
@@ -52,11 +58,13 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
 
     /**
      * Broadcast {@link GraphOp} down the pipeline
+     * @implNote Broadcast GraphOps should have messageCommunication as broadcast otherwise key error will occur
      */
     abstract public void broadcast(GraphOp op);
 
     /**
      * Broadcast {@link GraphOp} to specific {@link OutputTag} with same type
+     * @implNote Broadcast GraphOps should have messageCommunication as broadcast otherwise key error will occur
      */
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag);
 
@@ -69,6 +77,11 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Broadcast {@link GraphOp} but only to the selected parts
      */
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
+
+    /**
+     * Get Task Shared State from {@link org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend}
+     */
+    abstract public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor);
 
     /**
      * Run the {@link Runnable} in all parts of this Operator
@@ -98,7 +111,7 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     /**
      * Is this Graph Storage the first in the pipeline
      */
-    boolean isFirst() {
+    public boolean isFirst() {
         return getPosition() <= 1;
     }
 }

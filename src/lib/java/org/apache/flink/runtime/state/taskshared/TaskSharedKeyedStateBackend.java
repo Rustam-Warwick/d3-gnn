@@ -1,6 +1,5 @@
-package org.apache.flink.runtime.state.graph;
+package org.apache.flink.runtime.state.taskshared;
 
-import com.esotericsoftware.reflectasm.ConstructorAccess;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
@@ -23,6 +22,7 @@ import org.apache.flink.runtime.state.metrics.LatencyTrackingStateConfig;
 import org.apache.flink.runtime.state.ttl.TtlTimeProvider;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.NotNull;
+import storage.BaseStorage;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -31,46 +31,46 @@ import java.util.concurrent.RunnableFuture;
 import java.util.stream.Stream;
 
 /**
- * Keyed State Backend for {@link GraphStateBackend}
+ * Keyed State Backend for {@link TaskSharedStateBackend}
+ * <p>
+ *     As with {@link TaskSharedStateBackend} it wraps around a pre-defined {@link KeyedStateBackend} and
+ *     basically uses it for all normal state operations
+ *     On top of it it implements methods for handling task local state access
+ * </p>
  * @param <K> Type of Keys
  */
-public class GraphKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
+public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
 
     /**
-     * Map table of the {@link BaseGraphState} per task
+     * Map table of the {@link BaseStorage} per task
+     * Key is [JobID, JobVertexID, State Name, NameSpace]. NameSpace for task shared state cannot be changed afterwards
      */
-    final static Map<Tuple4<JobID, JobVertexID, String, Object>, BaseGraphState<?,?>> GRAPH_MAP = new NonBlockingHashMap<>();
+    final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new NonBlockingHashMap<>();
 
     /**
-     * Wrapped state backend for graphs
+     * Wrapped delegate state backend
      */
     final protected AbstractKeyedStateBackend<K> wrappedKeyedStateBackend;
 
     /**
-     * Identifier to this task with all operators
+     * Identifier to this task within all local operators
      */
     final protected Tuple2<JobID, JobVertexID> taskIdentifier;
 
-    /**
-     * Constructor for storage base class
-     */
-    final protected transient ConstructorAccess<? extends BaseGraphState> graphStateConstructor;
 
-    public GraphKeyedStateBackend(TaskKvStateRegistry kvStateRegistry,
-                                  TypeSerializer<K> keySerializer,
-                                  ClassLoader userCodeClassLoader,
-                                  ExecutionConfig executionConfig,
-                                  TtlTimeProvider ttlTimeProvider,
-                                  LatencyTrackingStateConfig latencyTrackingStateConfig,
-                                  CloseableRegistry cancelStreamRegistry,
-                                  InternalKeyContext<K> keyContext,
-                                  AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
-                                  Tuple2<JobID, JobVertexID> taskIdentifier,
-                                  ConstructorAccess<? extends BaseGraphState> graphStateConstructor) {
+    public TaskSharedKeyedStateBackend(TaskKvStateRegistry kvStateRegistry,
+                                       TypeSerializer<K> keySerializer,
+                                       ClassLoader userCodeClassLoader,
+                                       ExecutionConfig executionConfig,
+                                       TtlTimeProvider ttlTimeProvider,
+                                       LatencyTrackingStateConfig latencyTrackingStateConfig,
+                                       CloseableRegistry cancelStreamRegistry,
+                                       InternalKeyContext<K> keyContext,
+                                       AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
+                                       Tuple2<JobID, JobVertexID> taskIdentifier) {
         super(kvStateRegistry, keySerializer, userCodeClassLoader, executionConfig, ttlTimeProvider, latencyTrackingStateConfig, cancelStreamRegistry, keyContext);
         this.wrappedKeyedStateBackend = wrappedKeyedStateBackend;
         this.taskIdentifier = taskIdentifier;
-        this.graphStateConstructor = graphStateConstructor;
     }
 
     public void notifyCheckpointSubsumed(long checkpointId) throws Exception {
@@ -132,9 +132,19 @@ public class GraphKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
     public <N, S extends State, V> S getOrCreateKeyedState(TypeSerializer<N> namespaceSerializer, StateDescriptor<S, V> stateDescriptor) throws Exception {
         return wrappedKeyedStateBackend.getOrCreateKeyedState(namespaceSerializer, stateDescriptor);
     }
-
+    @Override
     public void publishQueryableStateIfEnabled(StateDescriptor<?, ?> stateDescriptor, InternalKvState<?, ?, ?> kvState) {
         wrappedKeyedStateBackend.publishQueryableStateIfEnabled(stateDescriptor, kvState);
+    }
+
+    /**
+     *  Create or get {@link TaskSharedState} from backend
+     */
+    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor){
+        TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val)->(
+           val == null ? taskSharedStateDescriptor.getStateSupplier().apply(taskSharedStateDescriptor, this):val
+        ));
+        return (S) taskLocal;
     }
 
     @Override

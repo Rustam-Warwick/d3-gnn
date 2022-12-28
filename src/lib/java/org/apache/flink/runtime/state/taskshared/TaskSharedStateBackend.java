@@ -1,4 +1,4 @@
-package org.apache.flink.runtime.state.graph;
+package org.apache.flink.runtime.state.taskshared;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -15,37 +15,34 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * Special State Backend supporting In-Memory Graphs
+ * Special State Backend supporting In-Memory shared state within single task
  * <p>
  *     Wraps around internal {@link StateBackend} hence can be used with RockDB or HashMapStateBackend
- *     Nonetheless, Graph will be stored in memory
+ *     Nonetheless, shared state will be stored in memory
  * </p>
  */
-public class GraphStateBackend extends AbstractStateBackend {
+public class TaskSharedStateBackend extends AbstractStateBackend {
 
     /**
      * Backend that is wrapped with this
      */
     protected final AbstractStateBackend wrappedBackend;
 
-    /**
-     * Base Graph class
-     */
-    protected final Class<? extends BaseGraphState> baseGraphClass;
-
-    private GraphStateBackend(AbstractStateBackend wrappedBackend, Class<? extends BaseGraphState> baseGraphClass) {
+    private TaskSharedStateBackend(AbstractStateBackend wrappedBackend) {
         this.wrappedBackend = wrappedBackend;
-        this.baseGraphClass = baseGraphClass;
     }
 
-    public static GraphStateBackend with(AbstractStateBackend wrappedBackend, Class<? extends BaseGraphState> baseGraphClass){
-        return new GraphStateBackend(wrappedBackend, baseGraphClass);
+    /**
+     * Creator static method for better semantic usage
+     */
+    public static TaskSharedStateBackend with(AbstractStateBackend wrappedBackend){
+        return new TaskSharedStateBackend(wrappedBackend);
     }
 
     @Override
     public <K> AbstractKeyedStateBackend<K> createKeyedStateBackend(Environment env, JobID jobID, String operatorIdentifier, TypeSerializer<K> keySerializer, int numberOfKeyGroups, KeyGroupRange keyGroupRange, TaskKvStateRegistry kvStateRegistry, TtlTimeProvider ttlTimeProvider, MetricGroup metricGroup, @NotNull Collection<KeyedStateHandle> stateHandles, CloseableRegistry cancelStreamRegistry) throws IOException {
         AbstractKeyedStateBackend<K> wrappedKeyedStateBackend = wrappedBackend.createKeyedStateBackend(env, jobID, operatorIdentifier, keySerializer, numberOfKeyGroups, keyGroupRange, kvStateRegistry, ttlTimeProvider, metricGroup, stateHandles, cancelStreamRegistry);
-        return new GraphKeyedStateBackendBuilder<>(
+        return new TaskSharedKeyedStateBackendBuilder<>(
                 kvStateRegistry,
                 keySerializer,
                 env.getUserCodeClassLoader().asClassLoader(),
@@ -58,7 +55,6 @@ public class GraphStateBackend extends AbstractStateBackend {
                 wrappedKeyedStateBackend.getKeyGroupCompressionDecorator(),
                 cancelStreamRegistry,
                 wrappedKeyedStateBackend,
-                baseGraphClass,
                 env
         ).build();
     }
@@ -66,7 +62,7 @@ public class GraphStateBackend extends AbstractStateBackend {
     @Override
     public <K> CheckpointableKeyedStateBackend<K> createKeyedStateBackend(Environment env, JobID jobID, String operatorIdentifier, TypeSerializer<K> keySerializer, int numberOfKeyGroups, KeyGroupRange keyGroupRange, TaskKvStateRegistry kvStateRegistry, TtlTimeProvider ttlTimeProvider, MetricGroup metricGroup, @NotNull Collection<KeyedStateHandle> stateHandles, CloseableRegistry cancelStreamRegistry, double managedMemoryFraction) throws Exception {
         AbstractKeyedStateBackend<K> wrappedKeyedStateBackend = (AbstractKeyedStateBackend<K>) wrappedBackend.createKeyedStateBackend(env, jobID, operatorIdentifier, keySerializer, numberOfKeyGroups, keyGroupRange, kvStateRegistry, ttlTimeProvider, metricGroup, stateHandles, cancelStreamRegistry, managedMemoryFraction);
-        return new GraphKeyedStateBackendBuilder<>(
+        return new TaskSharedKeyedStateBackendBuilder<>(
                 kvStateRegistry,
                 keySerializer,
                 env.getUserCodeClassLoader().asClassLoader(),
@@ -79,7 +75,6 @@ public class GraphStateBackend extends AbstractStateBackend {
                 wrappedKeyedStateBackend.getKeyGroupCompressionDecorator(),
                 cancelStreamRegistry,
                 wrappedKeyedStateBackend,
-                baseGraphClass,
                 env
         ).build();
     }

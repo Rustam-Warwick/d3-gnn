@@ -4,10 +4,12 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import elements.interfaces.GraphRuntimeContext;
-import elements.interfaces.RichGraphProcess;
-import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.taskshared.TaskSharedState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
+import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,39 +18,26 @@ import java.io.Serializable;
 import java.util.ArrayList;
 
 /**
- * Base Class for all storage Engines
- *
- * @implNote Subclassses extendind from this class should not care about foreign keys. All GraphElements should be stored rather independent from each other
- * @implNote This is done so that late events are handled correctly, so all the logic is withing the specific graph element
- * @implNote However, do check for redundancy is create methods.
+ * Base Class for all Graph Storage States
+ * <p>
+ *     Graph Storage state is different from other {@link org.apache.flink.runtime.state.internal.InternalKvState} as it holds many types of elements
+ *     Features, Vertices, Edges, HyperEdges
+ *     In order to facilitate such logic, graph storage is recursive. It is a state holding itself
+ *     Graph Storage can decide to publish its stored vertices or edges as a KV state as well
+ *     It is also not part of default {@link org.apache.flink.runtime.state.heap.StateMap} or {@link org.apache.flink.runtime.state.heap.StateTable} logic
+ *     BaseStorage is self-sustaining state
+ * </p>
  */
-abstract public class BaseStorage implements Serializable, RichGraphProcess {
+abstract public class BaseStorage extends TaskSharedState implements Serializable {
+    public BaseStorage(TaskSharedStateDescriptor<? extends TaskSharedState, ?> descriptor, TaskSharedKeyedStateBackend<?> backend) {
+        super(descriptor, backend);
+        Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used with graph storage operators. GraphRuntimeContext is missing");
+    }
 
     /**
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
-
-    /**
-     * Reference to the {@link GraphRuntimeContext}
-     */
-    private transient GraphRuntimeContext graphRuntimeContext;
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public GraphRuntimeContext getRuntimeContext() {
-        return graphRuntimeContext;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setRuntimeContext(RuntimeContext t) {
-        this.graphRuntimeContext = (GraphRuntimeContext) t;
-    }
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -262,6 +251,10 @@ abstract public class BaseStorage implements Serializable, RichGraphProcess {
                 return new HyperEdge((String) id, new ArrayList<>(), getRuntimeContext().getCurrentPart());
         }
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
+    }
+
+    final public GraphRuntimeContext getRuntimeContext(){
+        return GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
     }
 
 }

@@ -4,7 +4,7 @@ import ai.djl.ndarray.LifeCycleControl;
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.ReplicaState;
-import elements.interfaces.GraphRuntimeContext;
+import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple3;

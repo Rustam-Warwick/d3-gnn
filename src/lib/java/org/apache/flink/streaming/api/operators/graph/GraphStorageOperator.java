@@ -4,7 +4,6 @@ import elements.GraphElement;
 import elements.GraphOp;
 import elements.Plugin;
 import elements.Rmi;
-import elements.interfaces.GraphRuntimeContext;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.accumulators.*;
@@ -12,24 +11,31 @@ import org.apache.flink.api.common.cache.DistributedCache;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.state.*;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
+import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.taskshared.TaskSharedState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
+import storage.ListStorage;
 
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Graph Storage operator that contains multiple {@link Plugin} and a {@link BaseStorage}
@@ -55,7 +61,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Reuse element for handling timestamps and performance reasons
      */
-    protected StreamRecord<GraphOp> reuse;
+    protected StreamRecord<GraphOp> reuse = new StreamRecord<>(null);;
 
     /**
      * Internal Timer Service
@@ -72,19 +78,13 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected CountingBroadcastingGraphOutputCollector thisOutput;
 
-    public GraphStorageOperator(List<Plugin> plugins, BaseStorage graphStorage, short position, StreamOperatorParameters<GraphOp> parameters) {
+    public GraphStorageOperator(List<Plugin> plugins, short position, StreamOperatorParameters<GraphOp> parameters) {
+        GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         this.processingTimeService = parameters.getProcessingTimeService();
         this.position = position;
-        this.storage = graphStorage;
-        this.plugins = new HashMap<>();
-        plugins.forEach(plugin -> this.plugins.put(plugin.getId(), plugin));
+        this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(p -> ((Plugin) p).getId(), p->{p.setRuntimeContext(impl);return p;})));
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
-        this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
-        this.output = thisOutput;
-        GraphRuntimeContext impl = new GraphRuntimeContextImpl();
-        storage.setRuntimeContext(impl);
-        this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(impl));
-        reuse = new StreamRecord<>(null);
+        this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
     }
 
     @Override
@@ -94,7 +94,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                 getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
         userTimerService = new SimpleTimerService(internalTimerService);
         Configuration tmp = new Configuration();
-        storage.open(tmp);
         for (Plugin plugin : plugins.values()) {
             plugin.open(tmp);
         }
@@ -102,17 +101,17 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void close() throws Exception {
-        storage.close();
         for (Plugin plugin : plugins.values()) {
             plugin.close();
         }
         super.close();
     }
 
+
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage.initializeState(context);
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("default", TypeInformation.of(ListStorage.class), (descriptor, backend) -> new ListStorage(descriptor, backend)));
         for (Plugin plugin : plugins.values()) {
             plugin.initializeState(context);
         }
@@ -121,7 +120,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void snapshotState(StateSnapshotContext context) throws Exception {
         super.snapshotState(context);
-        storage.snapshotState(context);
         for (Plugin plugin : plugins.values()) {
             plugin.snapshotState(context);
         }
@@ -130,7 +128,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void onEventTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
         reuse.setTimestamp(timer.getTimestamp());
-        storage.onEventTime(timer);
         for (Plugin plugin : plugins.values()) {
             plugin.onEventTime(timer);
         }
@@ -139,7 +136,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
         reuse.eraseTimestamp();
-        storage.onProcessingTime(timer);
         for (Plugin plugin : plugins.values()) {
             plugin.onProcessingTime(timer);
         }
@@ -147,7 +143,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        storage.handleOperatorEvent(evt);
         for (Plugin plugin : plugins.values()) {
             plugin.handleOperatorEvent(evt);
         }
@@ -190,7 +185,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                 Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                 break;
             case OPERATOR_EVENT:
-                storage.handleOperatorEvent(value.operatorEvent);
+
                 break;
         }
     }
@@ -200,11 +195,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         return internalTimerService;
     }
 
-    public class GraphRuntimeContextImpl extends GraphRuntimeContext {
+    @Override
+    public <K> TaskSharedKeyedStateBackend<K> getKeyedStateBackend() {
+        return (TaskSharedKeyedStateBackend<K>) super.getKeyedStateBackend(); // Typecast error if not
+    }
 
-        public GraphRuntimeContextImpl() {
-            GraphRuntimeContext.CONTEXT_THREAD_LOCAL.set(this);
-        }
+    public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
         public BaseStorage getStorage() {
@@ -426,7 +422,9 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
             return getRuntimeContext().getMapState(stateProperties);
         }
 
-        public void getGraphState(StateDescriptor<?,?> stateProperties){
+        @Override
+        public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
+            return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE,taskSharedStateDescriptor);
         }
     }
 

@@ -8,7 +8,6 @@ import elements.features.Parts;
 import elements.features.Tensor;
 import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -21,7 +20,6 @@ import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Preconditions;
 import partitioner.Partitioner;
 import picocli.CommandLine;
-import storage.BaseStorage;
 
 import java.util.Arrays;
 import java.util.List;
@@ -43,7 +41,7 @@ public class GraphStream {
     /**
      * List of storage and plugins where each one corresponds to single layer in GNN pipeline
      */
-    protected final Tuple2<BaseStorage, List<Plugin>>[] processStorageAndPlugins;
+    protected final List<Plugin>[] plugins;
     /**
      * If the last storage layer should receive topology updates
      */
@@ -108,7 +106,7 @@ public class GraphStream {
 
 
     @SafeVarargs
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, Tuple2<BaseStorage, List<Plugin>>... processStorageAndPlugins) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, List<Plugin>... plugins) {
         Preconditions.checkNotNull(env);
         Arrays.sort(cmdArgs);
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
@@ -118,8 +116,8 @@ public class GraphStream {
         this.hasFullLoopIteration = hasFullLoopIteration;
         this.hasBackwardIteration = hasBackwardIteration;
         this.hasLastLayerTopology = hasLastLayerTopology;
-        this.processStorageAndPlugins = processStorageAndPlugins;
-        this.layers = (short) processStorageAndPlugins.length;
+        this.plugins = plugins;
+        this.layers = (short) plugins.length;
         this.iterateStreams = new IterateStream[this.layers + 1];
         this.dataset = Dataset.getDataset(datasetName, cmdArgs);
         this.partitioner = Partitioner.getPartitioner(partitionerName, cmdArgs);
@@ -159,9 +157,9 @@ public class GraphStream {
         return this;
     }
 
-    protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, Tuple2<BaseStorage, List<Plugin>> storageAndPlugins, short index) {
+    protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream,List<Plugin> plugins, short index) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, index - 1));
-        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(storageAndPlugins.f1, storageAndPlugins.f0, index)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(plugins, index)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + index);
         iterateStreams[index] = IterateStream.startIteration(storageOperator);
         iterateStreams[index].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
@@ -194,7 +192,7 @@ public class GraphStream {
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 
         for (short i = 1; i <= layers; i++) {
-            Tuple2<BaseStorage, List<Plugin>> processFn = processStorageAndPlugins[i - 1];
+            List<Plugin> processFn = plugins[i - 1];
             if (i == 1) {
                 layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], processFn, i);
             } else if (i == layers) {
