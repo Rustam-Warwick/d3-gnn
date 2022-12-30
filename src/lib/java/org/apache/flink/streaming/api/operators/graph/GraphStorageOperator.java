@@ -107,7 +107,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         super.close();
     }
 
-
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
@@ -265,6 +264,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public short getCurrentPart() {
             return ((PartNumber) getCurrentKey()).partId;
+        }
+
+        @Override
+        public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend() {
+            return GraphStorageOperator.this.getKeyedStateBackend();
         }
 
         @Override

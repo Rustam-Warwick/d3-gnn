@@ -3,11 +3,13 @@ package org.apache.flink.streaming.api.operators.graph.interfaces;
 import elements.GraphOp;
 import elements.Plugin;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.runtime.state.PartNumber;
+import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
-import storage.BaseStorage;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
+import storage.BaseStorage;
 
 import java.util.List;
 
@@ -77,6 +79,8 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Broadcast {@link GraphOp} but only to the selected parts
      */
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
+
+    abstract public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend();
 
     /**
      * Get Task Shared State from {@link org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend}

@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Base Class for all Graph Storage States
@@ -35,11 +34,6 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
-
-    /**
-     * List of {@link GraphRuntimeContext}s. Indexing is based on the index of group registration (see parent class)
-     */
-    protected List<GraphRuntimeContext> runtimeContexts = new ArrayList<>(16);
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -263,7 +257,6 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
         Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
         Preconditions.checkState(taskSharedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
-        runtimeContexts.add(getRuntimeContext());
         super.register(taskSharedStateBackend);
     }
 

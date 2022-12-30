@@ -16,12 +16,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 abstract public class TaskSharedState implements State {
 
     /**
-     * Group ID to index. Index represents a logical index of registration for this group ID
+     * Group ID to index. Index represents a logical index(order) of registration for this group ID
      */
     protected final Int2IntOpenHashMap groupIdToIndex = new Int2IntOpenHashMap();
 
     /**
-     * Counter for each register() calls
+     * Counter for each register() calls. Used to populate group-to-index map
      */
     protected final AtomicInteger registrationCounter = new AtomicInteger(0);
 
@@ -29,7 +29,7 @@ abstract public class TaskSharedState implements State {
      * Callback for accessing this state from a sub-task
      */
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend){
-        int index = registrationCounter.incrementAndGet();
+        int index = registrationCounter.getAndIncrement();
         for (int i = taskSharedStateBackend.getKeyGroupRange().getStartKeyGroup(); i <= taskSharedStateBackend.getKeyGroupRange().getEndKeyGroup(); i++) {
             groupIdToIndex.put(i, index);
         }
