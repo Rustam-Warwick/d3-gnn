@@ -11,7 +11,7 @@ import java.util.function.Supplier;
  * {@link org.apache.flink.api.common.state.StateDescriptor.Type} UNKNOWN is used to disallow such states being registered in normal state
  * <strong> Accepts a supplier for actually creating the task shared state objects</strong>
  */
-public class TaskSharedStateDescriptor<S extends TaskSharedState,V> extends StateDescriptor<S, V> {
+public class TaskSharedStateDescriptor<S extends TaskSharedState, V> extends StateDescriptor<S, V> {
 
     /**
      * Supplier pattern for creating {@link TaskSharedState}

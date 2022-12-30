@@ -61,7 +61,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Reuse element for handling timestamps and performance reasons
      */
-    protected StreamRecord<GraphOp> reuse = new StreamRecord<>(null);;
+    protected StreamRecord<GraphOp> reuse = new StreamRecord<>(null);
 
     /**
      * Internal Timer Service
@@ -79,12 +79,15 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected CountingBroadcastingGraphOutputCollector thisOutput;
 
     public GraphStorageOperator(List<Plugin> plugins, short position, StreamOperatorParameters<GraphOp> parameters) {
-        GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         this.processingTimeService = parameters.getProcessingTimeService();
         this.position = position;
-        this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(p -> ((Plugin) p).getId(), p->{p.setRuntimeContext(impl);return p;})));
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
+        GraphRuntimeContext impl = new GraphRuntimeContextImpl();
+        this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(p -> p.getId(), p -> {
+            p.setRuntimeContext(impl);
+            return p;
+        })));
     }
 
     @Override

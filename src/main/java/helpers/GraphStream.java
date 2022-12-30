@@ -10,6 +10,8 @@ import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.runtime.state.PartNumber;
+import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -108,6 +110,7 @@ public class GraphStream {
     @SafeVarargs
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, List<Plugin>... plugins) {
         Preconditions.checkNotNull(env);
+        env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
         Arrays.sort(cmdArgs);
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
         this.env = env;
@@ -157,7 +160,7 @@ public class GraphStream {
         return this;
     }
 
-    protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream,List<Plugin> plugins, short index) {
+    protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, List<Plugin> plugins, short index) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, index - 1));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(plugins, index)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + index);

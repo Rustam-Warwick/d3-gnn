@@ -1,6 +1,6 @@
 package benchmarks;
 
-import org.jctools.queues.SpscLinkedQueue;
+import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.queues.SpscLinkedQueue;
 import org.junit.Test;
 
 import java.util.ArrayList;

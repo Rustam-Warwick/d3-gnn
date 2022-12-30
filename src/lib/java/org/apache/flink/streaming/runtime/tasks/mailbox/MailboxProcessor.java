@@ -473,7 +473,7 @@ public class MailboxProcessor implements Closeable {
 
         private final MailboxProcessor mailboxProcessor;
 
-        protected MailboxController(MailboxProcessor mailboxProcessor) {
+        private MailboxController(MailboxProcessor mailboxProcessor) {
             this.mailboxProcessor = mailboxProcessor;
         }
 

@@ -53,7 +53,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     public void forward(Vertex v) {
         long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionInterval;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 200.0) * 200);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
         BATCH.computeIfAbsent(getRuntimeContext().getCurrentPart(), (ignored) -> new HashMap<>());
         HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);

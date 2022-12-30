@@ -10,10 +10,10 @@ import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.FunctionSnapshotContext;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
-import storage.BaseStorage;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.Triggerable;
+import storage.BaseStorage;
 
 /**
  * Aggregated Interfaces for elements pertaining operator logic of graph
@@ -22,10 +22,12 @@ import org.apache.flink.streaming.api.operators.Triggerable;
 public interface RichGraphProcess extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace> {
 
     @Override
-    default void open(Configuration parameters) throws Exception {}
+    default void open(Configuration parameters) throws Exception {
+    }
 
     @Override
-    default void close() throws Exception {}
+    default void close() throws Exception {
+    }
 
     @Override
     default GraphRuntimeContext getRuntimeContext() {
@@ -33,7 +35,8 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
     }
 
     @Override
-    default void setRuntimeContext(RuntimeContext t) {}
+    default void setRuntimeContext(RuntimeContext t) {
+    }
 
     @Override
     default IterationRuntimeContext getIterationRuntimeContext() {
@@ -41,18 +44,23 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
     }
 
     @Override
-    default void snapshotState(FunctionSnapshotContext context) throws Exception {}
+    default void snapshotState(FunctionSnapshotContext context) throws Exception {
+    }
 
     @Override
-    default void initializeState(FunctionInitializationContext context) throws Exception {}
+    default void initializeState(FunctionInitializationContext context) throws Exception {
+    }
 
     @Override
-    default void handleOperatorEvent(OperatorEvent evt) {}
+    default void handleOperatorEvent(OperatorEvent evt) {
+    }
 
     @Override
-    default void onEventTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {}
+    default void onEventTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
+    }
 
     @Override
-    default void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {}
+    default void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
+    }
 
 }

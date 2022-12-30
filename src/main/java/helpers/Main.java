@@ -11,12 +11,10 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import elements.GraphOp;
-import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
+import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,9 +72,9 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
             DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
-                    List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbeddingLayer(models.get(0).getName(), true))
+                    List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 100)),
+                    List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100))
             ).build();
             env.execute();
         } catch (Exception e) {

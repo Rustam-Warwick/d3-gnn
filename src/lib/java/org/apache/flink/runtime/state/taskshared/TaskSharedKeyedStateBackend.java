@@ -33,10 +33,11 @@ import java.util.stream.Stream;
 /**
  * Keyed State Backend for {@link TaskSharedStateBackend}
  * <p>
- *     As with {@link TaskSharedStateBackend} it wraps around a pre-defined {@link KeyedStateBackend} and
- *     basically uses it for all normal state operations
- *     On top of it it implements methods for handling task local state access
+ * As with {@link TaskSharedStateBackend} it wraps around a pre-defined {@link KeyedStateBackend} and
+ * basically uses it for all normal state operations
+ * On top of it it implements methods for handling task local state access
  * </p>
+ *
  * @param <K> Type of Keys
  */
 public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
@@ -83,11 +84,6 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     @Override
-    public void setCurrentKey(K newKey) {
-        wrappedKeyedStateBackend.setCurrentKey(newKey);
-    }
-
-    @Override
     public void registerKeySelectionListener(KeySelectionListener<K> listener) {
         wrappedKeyedStateBackend.registerKeySelectionListener(listener);
     }
@@ -107,8 +103,17 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
         return wrappedKeyedStateBackend.getCurrentKey();
     }
 
+    @Override
+    public void setCurrentKey(K newKey) {
+        wrappedKeyedStateBackend.setCurrentKey(newKey);
+    }
+
     public int getCurrentKeyGroupIndex() {
         return wrappedKeyedStateBackend.getCurrentKeyGroupIndex();
+    }
+
+    public void setCurrentKeyGroupIndex(int currentKeyGroupIndex) {
+        wrappedKeyedStateBackend.setCurrentKeyGroupIndex(currentKeyGroupIndex);
     }
 
     public int getNumberOfKeyGroups() {
@@ -132,17 +137,18 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     public <N, S extends State, V> S getOrCreateKeyedState(TypeSerializer<N> namespaceSerializer, StateDescriptor<S, V> stateDescriptor) throws Exception {
         return wrappedKeyedStateBackend.getOrCreateKeyedState(namespaceSerializer, stateDescriptor);
     }
+
     @Override
     public void publishQueryableStateIfEnabled(StateDescriptor<?, ?> stateDescriptor, InternalKvState<?, ?, ?> kvState) {
         wrappedKeyedStateBackend.publishQueryableStateIfEnabled(stateDescriptor, kvState);
     }
 
     /**
-     *  Create or get {@link TaskSharedState} from backend
+     * Create or get {@link TaskSharedState} from backend
      */
-    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor){
-        TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val)->(
-           val == null ? taskSharedStateDescriptor.getStateSupplier().get():val
+    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
+        TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val) -> (
+                val == null ? taskSharedStateDescriptor.getStateSupplier().get() : val
         ));
         taskLocal.register(this);
         return (S) taskLocal;
@@ -177,10 +183,6 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
 
     public InternalKeyContext<K> getKeyContext() {
         return wrappedKeyedStateBackend.getKeyContext();
-    }
-
-    public void setCurrentKeyGroupIndex(int currentKeyGroupIndex) {
-        wrappedKeyedStateBackend.setCurrentKeyGroupIndex(currentKeyGroupIndex);
     }
 
     @Nonnull

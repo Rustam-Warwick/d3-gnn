@@ -17,8 +17,8 @@ import java.util.Collection;
 /**
  * Special State Backend supporting In-Memory shared state within single task
  * <p>
- *     Wraps around internal {@link StateBackend} hence can be used with RockDB or HashMapStateBackend
- *     Nonetheless, shared state will be stored in memory
+ * Wraps around internal {@link StateBackend} hence can be used with RockDB or HashMapStateBackend
+ * Nonetheless, shared state will be stored in memory
  * </p>
  */
 public class TaskSharedStateBackend extends AbstractStateBackend {
@@ -35,7 +35,7 @@ public class TaskSharedStateBackend extends AbstractStateBackend {
     /**
      * Creator static method for better semantic usage
      */
-    public static TaskSharedStateBackend with(AbstractStateBackend wrappedBackend){
+    public static TaskSharedStateBackend with(AbstractStateBackend wrappedBackend) {
         return new TaskSharedStateBackend(wrappedBackend);
     }
 

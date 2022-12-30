@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * This state does not actively scope to keys instead the state is shared and stored for all tasks
  * Implementations should obviously be Thread-Safe
  * <p>
- *     Note that it is not a KVState but it can create a wrapper KVState if needed to register for publishable states
+ * Note that it is not a KVState but it can create a wrapper KVState if needed to register for publishable states
  * </p>
  */
 abstract public class TaskSharedState implements State {
@@ -28,7 +28,7 @@ abstract public class TaskSharedState implements State {
     /**
      * Callback for accessing this state from a sub-task
      */
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend){
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
         int index = registrationCounter.getAndIncrement();
         for (int i = taskSharedStateBackend.getKeyGroupRange().getStartKeyGroup(); i <= taskSharedStateBackend.getKeyGroupRange().getEndKeyGroup(); i++) {
             groupIdToIndex.put(i, index);

@@ -2,7 +2,10 @@ package org.apache.flink.streaming.api.operators.graph.interfaces;
 
 import elements.GraphOp;
 import elements.Plugin;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.shorts.ShortList;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
@@ -29,7 +32,18 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      */
     public static ThreadLocal<GraphRuntimeContext> CONTEXT_THREAD_LOCAL = new ThreadLocal<>();
 
+    /**
+     * This operator parts list
+     */
+    protected ShortList thisOperatorParts = new ShortArrayList();
+
     public GraphRuntimeContext() {
+        PartNumber tmpPartNumber = PartNumber.of((short) 0);
+        for (short i = 0; i < getMaxNumberOfParallelSubtasks(); i++) {
+            tmpPartNumber.partId = i;
+            int op = KeyGroupRangeAssignment.assignKeyToParallelOperator(tmpPartNumber, getMaxNumberOfParallelSubtasks(), getNumberOfParallelSubtasks());
+            if (op == getIndexOfThisSubtask()) thisOperatorParts.add(i);
+        }
         CONTEXT_THREAD_LOCAL.set(this);
     }
 
@@ -60,12 +74,14 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
 
     /**
      * Broadcast {@link GraphOp} down the pipeline
+     *
      * @implNote Broadcast GraphOps should have messageCommunication as broadcast otherwise key error will occur
      */
     abstract public void broadcast(GraphOp op);
 
     /**
      * Broadcast {@link GraphOp} to specific {@link OutputTag} with same type
+     *
      * @implNote Broadcast GraphOps should have messageCommunication as broadcast otherwise key error will occur
      */
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag);
@@ -106,6 +122,13 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Get current part of this storage that is being processed
      */
     abstract public short getCurrentPart();
+
+    /**
+     * Gets the list of parts mapped to this operator
+     */
+    public ShortList getThisOperatorParts() {
+        return thisOperatorParts;
+    }
 
     /**
      * Timestamp of the element currently being processed

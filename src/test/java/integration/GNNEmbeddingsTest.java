@@ -80,9 +80,9 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             List<Plugin>[] processFunctions = new List[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = List.of(
-                                new ModelServer<>(models.get(i)),
-                                new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true, 150),
-                                new LogCallbacksPlugin());
+                        new ModelServer<>(models.get(i)),
+                        new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true, 150),
+                        new LogCallbacksPlugin());
             }
 
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
@@ -106,9 +106,9 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             List<Plugin>[] processFunctions = new List[layers];
             for (int i = 0; i < layers; i++) {
                 processFunctions[i] = List.of(
-                                new ModelServer<>(models.get(i)),
-                                new PartOptimizedStreamingGNNEmbeddingLayer(models.get(i).getName(), true),
-                                new LogCallbacksPlugin());
+                        new ModelServer<>(models.get(i)),
+                        new PartOptimizedStreamingGNNEmbeddingLayer(models.get(i).getName(), true),
+                        new LogCallbacksPlugin());
             }
             DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);

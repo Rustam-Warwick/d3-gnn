@@ -20,12 +20,12 @@ import java.util.ArrayList;
 /**
  * Base Class for all Graph Storage States
  * <p>
- *     Graph Storage state is different from other {@link org.apache.flink.runtime.state.internal.InternalKvState} as it holds many types of elements
- *     Features, Vertices, Edges, HyperEdges
- *     In order to facilitate such logic, graph storage is recursive. It is a state holding itself
- *     Graph Storage can decide to publish its stored vertices or edges as a KV state as well
- *     It is also not part of default {@link org.apache.flink.runtime.state.heap.StateMap} or {@link org.apache.flink.runtime.state.heap.StateTable} logic
- *     BaseStorage is self-sustaining state
+ * Graph Storage state is different from other {@link org.apache.flink.runtime.state.internal.InternalKvState} as it holds many types of elements
+ * Features, Vertices, Edges, HyperEdges
+ * In order to facilitate such logic, graph storage is recursive. It is a state holding itself
+ * Graph Storage can decide to publish its stored vertices or edges as a KV state as well
+ * It is also not part of default {@link org.apache.flink.runtime.state.heap.StateMap} or {@link org.apache.flink.runtime.state.heap.StateTable} logic
+ * BaseStorage is self-sustaining state
  * </p>
  */
 abstract public class BaseStorage extends TaskSharedState implements Serializable {
@@ -249,7 +249,7 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }
 
-    final public GraphRuntimeContext getRuntimeContext(){
+    final public GraphRuntimeContext getRuntimeContext() {
         return GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
     }
 
