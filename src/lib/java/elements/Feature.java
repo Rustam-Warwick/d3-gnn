@@ -4,8 +4,6 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.jetbrains.annotations.Nullable;
@@ -154,13 +152,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public boolean valuesEqual(T v1, T v2) {
         return false;
-    }
-
-    /**
-     * Helper TypeInfo for the storage layers
-     */
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.GENERIC(Object.class);
     }
 
     /**

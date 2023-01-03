@@ -124,21 +124,21 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public short getCurrentPart();
 
     /**
-     * Gets the list of parts mapped to this operator
-     */
-    public ShortList getThisOperatorParts() {
-        return thisOperatorParts;
-    }
-
-    /**
      * Timestamp of the element currently being processed
      */
     abstract public long currentTimestamp();
 
     /**
+     * Gets the list of parts mapped to this operator
+     */
+    public final ShortList getThisOperatorParts() {
+        return thisOperatorParts;
+    }
+
+    /**
      * Is this Graph Storage the first in the pipeline
      */
-    public boolean isFirst() {
+    public final boolean isFirst() {
         return getPosition() <= 1;
     }
 }

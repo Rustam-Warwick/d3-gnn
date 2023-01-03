@@ -106,14 +106,6 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
      */
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
 
-    /**
-     * Do elements need to delay Tensors on serialization, {@link Feature} having an {@link ai.djl.ndarray.NDArray} in them should consider delaying if storage requires so.
-     */
-    public boolean needsTensorDelay() {
-        return true;
-    }
-
-
     // -------------------- HELPER METHODS ----------------
 
     public boolean addElement(GraphElement element) {

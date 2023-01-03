@@ -1,5 +1,6 @@
 package storage;
 
+import ai.djl.ndarray.LifeCycleControl;
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
 import elements.enums.CacheFeatureContext;
@@ -11,6 +12,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.Nullable;
@@ -30,9 +32,9 @@ public class ListStorage extends BaseStorage {
     Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
 
     /**
-     * Vertex feature -> [halo, constructor, index in the vertex table]
+     * Vertex feature -> [halo, constructor, index in the vertex table, LifeCycleManager]
      */
-    Map<String, Tuple3<Boolean, ConstructorAccess<? extends Feature>, Integer>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
+    Map<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,Boolean>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
 
     /**
      * Counter for vertex features, the localVertex table will hold feature in a list according to this index
@@ -54,16 +56,17 @@ public class ListStorage extends BaseStorage {
     @Override
     public boolean addAttachedFeature(Feature<?, ?> feature) {
         if (feature.getAttachedElementType() == ElementType.VERTEX) {
-            vertexFeatureInfo.computeIfAbsent(feature.getName(), (key) -> Tuple3.of(feature.isHalo(), ConstructorAccess.get(feature.getClass()), vertexFeatureIndex.getAndIncrement()));
+            vertexFeatureInfo.computeIfAbsent(feature.getName(), (key) -> Tuple4.of(feature.isHalo(), ConstructorAccess.get(feature.getClass()), vertexFeatureIndex.getAndIncrement(), (feature.value instanceof LifeCycleControl)));
             localVertexTable.get(getRuntimeContext().getCurrentPart()).compute((String) feature.getAttachedElementId(), (key, val) -> {
                 if (val.f2 == null) val.f2 = new Object[0];
-                int indexOfFeature = vertexFeatureInfo.get(feature.getName()).f2;
-                if (indexOfFeature >= val.f2.length) {
-                    Object[] tmp = new Object[indexOfFeature + 1];
+                Tuple4<?,?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
+                if (featureInfo.f2 >= val.f2.length) {
+                    Object[] tmp = new Object[featureInfo.f2 + 1];
                     System.arraycopy(val.f2, 0, tmp, 0, val.f2.length);
                     val.f2 = tmp;
                 }
-                val.f2[indexOfFeature] = feature.value;
+                val.f2[featureInfo.f2] = feature.value;
+                if(featureInfo.f3) ((LifeCycleControl) feature.value).delay();
                 return val;
             });
             return true;
@@ -106,9 +109,13 @@ public class ListStorage extends BaseStorage {
     @Override
     public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         if (feature.getAttachedElementType() == ElementType.VERTEX) {
-            int index = vertexFeatureInfo.get(feature.getName()).f2;
+            Tuple4<?,?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
             Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) feature.getAttachedElementId()).f2;
-            features[index] = feature.value;
+            if(featureInfo.f3){
+                ((LifeCycleControl) features[featureInfo.f2]).resume();
+                ((LifeCycleControl) feature.value).delay();
+            }
+            features[featureInfo.f2] = feature.value;
             return true;
         }
         return false;
@@ -192,7 +199,7 @@ public class ListStorage extends BaseStorage {
                 if(vertexTable.f1 != null) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
             }
             if(edge_type == EdgeType.IN || edge_type == EdgeType.BOTH){
-                if(vertexTable.f0 != null) srcEdgeIterable = vertexTable.f0.stream().map(dstatt -> (new DirectedEdge(dstatt.f0, vertex.getId(), dstatt.f1))).iterator();
+                if(vertexTable.f0 != null) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
             }
             final Iterator<DirectedEdge> srcIteratorFinal = srcEdgeIterable;
             final Iterator<DirectedEdge> destIteratorFinal = destEdgeIterable;
@@ -215,7 +222,7 @@ public class ListStorage extends BaseStorage {
     @Override
     public @Nullable Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids) {
         if (ids.f0 == ElementType.VERTEX) {
-            Tuple3<Boolean, ConstructorAccess<? extends Feature>, Integer> featureInfo = vertexFeatureInfo.get(ids.f2);
+            Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,?> featureInfo = vertexFeatureInfo.get(ids.f2);
             Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2[featureInfo.f2];
             Feature feature = featureInfo.f1.newInstance();
             feature.value = value;
@@ -283,7 +290,7 @@ public class ListStorage extends BaseStorage {
         try {
             if (element.getType() == ElementType.VERTEX) {
                 Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) element.getId()).f2;
-                for (Map.Entry<String, Tuple3<Boolean, ConstructorAccess<? extends Feature>, Integer>> stringTuple3Entry : vertexFeatureInfo.entrySet()) {
+                for (Map.Entry<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,Boolean>> stringTuple3Entry : vertexFeatureInfo.entrySet()) {
                     if ((!stringTuple3Entry.getValue().f0 && context == CacheFeatureContext.HALO) || (stringTuple3Entry.getValue().f0 && context == CacheFeatureContext.NON_HALO) || features.length <= stringTuple3Entry.getValue().f2 || features[stringTuple3Entry.getValue().f2] == null)
                         continue; // This feature not needed to cache
                     if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(stringTuple3Entry.getKey())))

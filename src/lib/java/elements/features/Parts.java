@@ -4,8 +4,6 @@ import elements.Feature;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 
 /**
  * Special {@link Feature} representing the Replica parts of {@link elements.GraphElement}
@@ -73,13 +71,5 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
     @Override
     public ShortArrayList getValue() {
         return this.value;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.LIST(Types.SHORT);
     }
 }
