@@ -44,14 +44,14 @@ import java.util.stream.Collectors;
  */
 public class PtModel extends BaseModel {
 
-    public PtModel() {
+    public PtModel(){
         this(null, null);
     }
 
     /**
      * Constructs a new Model on a given device.
      *
-     * @param name   the model name
+     * @param name the model name
      * @param device the device the model should be located on
      */
     PtModel(String name, Device device) {
@@ -61,9 +61,7 @@ public class PtModel extends BaseModel {
         dataType = DataType.FLOAT32;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void load(Path modelPath, String prefix, Map<String, ?> options)
             throws IOException, MalformedModelException {
@@ -84,12 +82,14 @@ public class PtModel extends BaseModel {
             String[] extraFileKeys = new String[0];
             String[] extraFileValues = new String[0];
             boolean mapLocation = false;
+            boolean trainParam = false;
             // load jit extra files
             if (options != null) {
                 if (options.containsKey("extraFiles")) {
                     extraFileKeys = ((String) options.get("extraFiles")).split(",");
                     extraFileValues = new String[extraFileKeys.length];
                 }
+                trainParam = Boolean.parseBoolean((String) options.get("trainParam"));
                 mapLocation = Boolean.parseBoolean((String) options.get("mapLocation"));
             }
             block =
@@ -98,10 +98,19 @@ public class PtModel extends BaseModel {
                             modelFile,
                             mapLocation,
                             extraFileKeys,
-                            extraFileValues);
+                            extraFileValues,
+                            trainParam);
             for (int i = 0; i < extraFileKeys.length; i++) {
                 properties.put(extraFileKeys[i], extraFileValues[i]);
             }
+
+            /*
+             * By default, the parameters are frozen, since the previous version before adding this
+             * trainParam, they were frozen due to the setting JITCallGuard guard, which disables
+             * autograd. Also, the pretrained parameters usually should not be updated too much. It
+             * is safe to freeze it. Users may unfreeze it and set their learning rate small.
+             */
+            block.freezeParameters(!trainParam);
         } else {
             boolean hasParameter = true;
             if (options != null) {
@@ -124,9 +133,7 @@ public class PtModel extends BaseModel {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void load(InputStream modelStream, Map<String, ?> options) throws IOException {
         boolean mapLocation = false;
@@ -174,9 +181,7 @@ public class PtModel extends BaseModel {
         return modelFile;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public Trainer newTrainer(TrainingConfig trainingConfig) {
         PairList<Initializer, Predicate<Parameter>> initializer = trainingConfig.getInitializers();
@@ -193,9 +198,7 @@ public class PtModel extends BaseModel {
         return new Trainer(this, trainingConfig);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public String[] getArtifactNames() {
         try {

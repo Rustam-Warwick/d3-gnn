@@ -13,20 +13,16 @@ public interface LifeCycleControl {
     /**
      * Delays the normal cycle of object pool de-allocation
      */
-    default void delay() {
-    }
+    default void delay() {}
 
     /**
      * Resume the object to object pool cycle
      */
-    default void resume() {
-    }
+    default void resume() {}
 
     /**
      * Pool is destroying this object, last actions
      */
-    default void destroy() {
-
-    }
+    default void destroy() {}
 
 }

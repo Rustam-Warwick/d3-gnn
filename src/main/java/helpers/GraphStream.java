@@ -108,7 +108,6 @@ public class GraphStream {
     @CommandLine.Option(names = {"-d", "--dataset"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Dataset to be used")
     protected String datasetName;
 
-
     @SafeVarargs
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, List<Plugin>... plugins) {
         Preconditions.checkNotNull(env);
@@ -149,7 +148,7 @@ public class GraphStream {
     /**
      * Manually set the {@link Dataset}
      */
-    public GraphStream setDataset(Dataset dataset) {
+    public final GraphStream setDataset(Dataset dataset) {
         this.dataset = dataset;
         return this;
     }
@@ -157,12 +156,19 @@ public class GraphStream {
     /**
      * Manually set the {@link Partitioner}
      */
-    public GraphStream setPartitioner(Partitioner partitioner) {
+    public final GraphStream setPartitioner(Partitioner partitioner) {
         this.partitioner = partitioner;
         return this;
     }
 
-    protected SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, List<Plugin> plugins, short index) {
+    /**
+     * Add Storage operator
+     * @param inputStream incoming GraphOp for this layer, not partitioned yet
+     * @param plugins List of Plugins to be used
+     * @param index index of the storage layer [1...layers]
+     * @return Output of this storage operator not partitioned
+     */
+    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, List<Plugin> plugins, short index) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, index - 1));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(plugins, index)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + index);
@@ -173,7 +179,13 @@ public class GraphStream {
         return storageOperator;
     }
 
-    protected SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
+    /**
+     * Add Splitter Operator
+     * @param inputStream Input stream after partitioning this graph
+     * @param splitter Splitter function usually getting from the Dataset object
+     * @return Return the splitted dataset result with side output tags
+     */
+    protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
         int thisParallelism = env.getParallelism();
         SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperator(splitter)).setParallelism(thisParallelism).name("Splitter");
         if (fineGrainedResourceManagementEnabled) splitterOperator.slotSharingGroup("GNN-1");
@@ -181,18 +193,12 @@ public class GraphStream {
         return splitterOperator;
     }
 
+
     /**
-     * Build the execution pipeline
-     *
-     * @return [dataset stream, partitioner output, splitter output, ...storage layers]
+     * Second part of build responsible for storage operators, this part is extandable
+     * @param layerOutputs [datsset, partitioner, splitter, ... empty]
      */
-    public DataStream<GraphOp>[] build() {
-        Preconditions.checkNotNull(dataset);
-        Preconditions.checkNotNull(partitioner);
-        SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
-        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
-        layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
-        layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
+    public DataStream<GraphOp>[] build(SingleOutputStreamOperator<GraphOp>[] layerOutputs){
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 
@@ -209,6 +215,21 @@ public class GraphStream {
             }
         }
         return layerOutputs;
+    }
+
+    /**
+     * Build the execution pipeline
+     *
+     * @return [dataset stream, partitioner output, splitter output, ...storage layers]
+     */
+    public final DataStream<GraphOp>[] build() {
+        Preconditions.checkNotNull(dataset);
+        Preconditions.checkNotNull(partitioner);
+        SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
+        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
+        layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
+        layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
+        return build(layerOutputs);
     }
 
 }

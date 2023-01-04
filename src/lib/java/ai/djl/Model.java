@@ -65,7 +65,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     /**
      * Creates an empty model instance on the specified {@link Device}.
      *
-     * @param name   the model name
+     * @param name the model name
      * @param device the device to load the model onto
      * @return a new model instance
      */
@@ -76,7 +76,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     /**
      * Creates an empty model instance on the specified {@link Device} and engine.
      *
-     * @param name       the model name
+     * @param name the model name
      * @param engineName the name of the engine
      * @return a new model instance
      */
@@ -88,8 +88,8 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     /**
      * Creates an empty model instance on the specified {@link Device} and engine.
      *
-     * @param name       the model name
-     * @param device     the device to load the model onto
+     * @param name the model name
+     * @param device the device to load the model onto
      * @param engineName the name of the engine
      * @return a new model instance
      */
@@ -104,7 +104,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Loads the model from the {@code modelPath}.
      *
      * @param modelPath the directory or file path of the model location
-     * @throws IOException             when IO operation fails in loading a resource
+     * @throws IOException when IO operation fails in loading a resource
      * @throws MalformedModelException if model file is corrupted
      */
     default void load(Path modelPath) throws IOException, MalformedModelException {
@@ -115,8 +115,8 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Loads the model from the {@code modelPath} and the given name.
      *
      * @param modelPath the directory or file path of the model location
-     * @param prefix    the model file name or path prefix
-     * @throws IOException             when IO operation fails in loading a resource
+     * @param prefix the model file name or path prefix
+     * @throws IOException when IO operation fails in loading a resource
      * @throws MalformedModelException if model file is corrupted
      */
     default void load(Path modelPath, String prefix) throws IOException, MalformedModelException {
@@ -127,9 +127,9 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Loads the model from the {@code modelPath} with the name and options provided.
      *
      * @param modelPath the directory or file path of the model location
-     * @param prefix    the model file name or path prefix
-     * @param options   engine specific load model options, see documentation for each engine
-     * @throws IOException             when IO operation fails in loading a resource
+     * @param prefix the model file name or path prefix
+     * @param options engine specific load model options, see documentation for each engine
+     * @throws IOException when IO operation fails in loading a resource
      * @throws MalformedModelException if model file is corrupted
      */
     void load(Path modelPath, String prefix, Map<String, ?> options)
@@ -139,7 +139,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Loads the model from the {@code InputStream}.
      *
      * @param is the {@code InputStream} to load the model from
-     * @throws IOException             when IO operation fails in loading a resource
+     * @throws IOException when IO operation fails in loading a resource
      * @throws MalformedModelException if model file is corrupted
      */
     default void load(InputStream is) throws IOException, MalformedModelException {
@@ -149,9 +149,9 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     /**
      * Loads the model from the {@code InputStream} with the options provided.
      *
-     * @param is      the {@code InputStream} to load the model from
+     * @param is the {@code InputStream} to load the model from
      * @param options engine specific load model options, see documentation for each engine
-     * @throws IOException             when IO operation fails in loading a resource
+     * @throws IOException when IO operation fails in loading a resource
      * @throws MalformedModelException if model file is corrupted
      */
     void load(InputStream is, Map<String, ?> options) throws IOException, MalformedModelException;
@@ -159,7 +159,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     /**
      * Saves the model to the specified {@code modelPath} with the name provided.
      *
-     * @param modelPath    the directory or file path of the model location
+     * @param modelPath the directory or file path of the model location
      * @param newModelName the new model name to be saved, use null to keep original model name
      * @throws IOException when IO operation fails in loading a resource
      */
@@ -207,7 +207,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * <p>properties will be saved/loaded with model, user can store some information about the
      * model in here.
      *
-     * @param key   the name of the property
+     * @param key the name of the property
      * @param value the value of the property
      */
     void setProperty(String key, String value);
@@ -231,8 +231,8 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Creates a new Predictor based on the model on the current device.
      *
      * @param translator the object used for pre-processing and postprocessing
-     * @param <I>        the input object for pre-processing
-     * @param <O>        the output object from postprocessing
+     * @param <I> the input object for pre-processing
+     * @param <O> the output object from postprocessing
      * @return an instance of {@code Predictor}
      */
     default <I, O> Predictor<I, O> newPredictor(Translator<I, O> translator) {
@@ -243,9 +243,9 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * Creates a new Predictor based on the model.
      *
      * @param translator the object used for pre-processing and postprocessing
-     * @param device     the device to use for prediction
-     * @param <I>        the input object for pre-processing
-     * @param <O>        the output object from postprocessing
+     * @param device the device to use for prediction
+     * @param <I> the input object for pre-processing
+     * @param <O> the output object from postprocessing
      * @return an instance of {@code Predictor}
      */
     <I, O> Predictor<I, O> newPredictor(Translator<I, O> translator, Device device);
@@ -286,12 +286,12 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * String synset = model.getArtifact("synset.txt", k -> IOUtils.toString(k)));
      * }</pre>
      *
-     * @param name     the name of the desired artifact
+     * @param name the name of the desired artifact
      * @param function the function to load the artifact
-     * @param <T>      the type of the returned artifact object
+     * @param <T> the type of the returned artifact object
      * @return the current (existing or computed) artifact associated with the specified name, or
-     * null if the computed value is null
-     * @throws IOException        when IO operation fails in loading a resource
+     *     null if the computed value is null
+     * @throws IOException when IO operation fails in loading a resource
      * @throws ClassCastException if the cached artifact cannot be cast to the target class
      */
     <T> T getArtifact(String name, Function<InputStream, T> function) throws IOException;
@@ -310,17 +310,10 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      *
      * @param name the name of the desired artifact
      * @return a {@link java.io.InputStream} object or {@code null} if no resource with this name is
-     * found
+     *     found
      * @throws IOException when IO operation fails in loading a resource
      */
     InputStream getArtifactAsStream(String name) throws IOException;
-
-    /**
-     * Returns the standard data type used within the model.
-     *
-     * @return the standard data type used within the model
-     */
-    DataType getDataType();
 
     /**
      * Sets the standard data type used within the model.
@@ -328,6 +321,13 @@ public interface Model extends AutoCloseable, KryoExternalizable {
      * @param dataType the standard data type to use
      */
     void setDataType(DataType dataType);
+
+    /**
+     * Returns the standard data type used within the model.
+     *
+     * @return the standard data type used within the model
+     */
+    DataType getDataType();
 
     /**
      * Casts the model to support a different precision level.
@@ -351,9 +351,7 @@ public interface Model extends AutoCloseable, KryoExternalizable {
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     void close();
 }

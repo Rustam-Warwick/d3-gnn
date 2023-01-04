@@ -2,6 +2,7 @@ package partitioner;
 
 import elements.*;
 import elements.enums.ElementType;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -163,7 +164,7 @@ public class HDRF extends Partitioner {
                     // This is the first part of this vertex hence the master
                     vertex.masterPart = part;
                     totalNumberOfVertices.incrementAndGet();
-                    return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
+                    return Collections.synchronizedList(new ShortArrayList(List.of(part)));
                 } else {
                     if (!val.contains(part)) {
                         // Seocond or more part hence the replica
@@ -190,8 +191,8 @@ public class HDRF extends Partitioner {
                 }
                 case VERTEX: {
                     Vertex v = (Vertex) value.element;
-                    v.masterPart = partitionTable.get(value.element.getId()).get(0);
-                    out.collect(value.setPartId(partitionTable.get(value.element.getId()).get(0)));
+                    v.masterPart = partitionTable.get(v.getId()).get(0);
+                    out.collect(value.setPartId(v.getMasterPart()));
                     break;
                 }
                 case ATTACHED_FEATURE: {

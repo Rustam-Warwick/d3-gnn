@@ -10,6 +10,7 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -49,7 +50,7 @@ public class Main {
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return Activation.softmax(ndArrays);
+                                return Activation.softPlus(ndArrays);
                             }
                         })
 
@@ -57,7 +58,7 @@ public class Main {
         BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
 //        NDHelper.loadModel(Path.of(System.getenv("DATASET_DIR"), "ogb-products", "graphSage"), model);
-        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(100));
+        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(17));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             BaseModel tmp = (BaseModel) Model.newInstance("GNN"); // Should all have the same name
@@ -73,7 +74,7 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
-                    List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 100)),
+                    List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)),
                     List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100))
             ).build();
             env.execute();
