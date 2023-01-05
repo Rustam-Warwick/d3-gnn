@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class ListStorage extends BaseStorage {
+public class DefaultStorage extends BaseStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique

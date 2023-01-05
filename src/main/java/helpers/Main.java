@@ -16,6 +16,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
+import plugins.vertex_classification.VertexClassificationAccuracyReporter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,29 +29,29 @@ public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
+        sb.add(new SAGEConv(128, true));
         sb.add(new SAGEConv(64, true));
-        sb.add(new SAGEConv(47, true));
         sb.add(
                 new SequentialBlock()
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(32).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
                                 return Activation.relu(ndArrays);
                             }
                         })
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(16).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
                                 return Activation.relu(ndArrays);
                             }
                         })
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(2).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return Activation.softPlus(ndArrays);
+                                return Activation.sigmoid(ndArrays);
                             }
                         })
 
@@ -73,9 +74,10 @@ public class Main {
             BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
+            DataStream<GraphOp>[] res = new GraphStream(env, args, false, false, false,
                     List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)),
-                    List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100))
+                    List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)),
+                    List.of(new ModelServer<>(models.get(2)))
             ).build();
             env.execute();
         } catch (Exception e) {

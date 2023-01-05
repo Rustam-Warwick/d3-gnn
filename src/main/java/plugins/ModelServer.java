@@ -34,9 +34,9 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public Model model;
 
-    public transient T block;
-
     public int NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
+
+    public transient T block;
 
     protected transient Optimizer optimizer; // Optimizer
 

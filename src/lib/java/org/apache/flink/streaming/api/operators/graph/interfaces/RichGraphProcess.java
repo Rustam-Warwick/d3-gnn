@@ -17,7 +17,7 @@ import storage.BaseStorage;
 
 /**
  * Aggregated Interfaces for elements pertaining operator logic of graph
- * To be implemented by {@link BaseStorage} and {@link elements.Plugin}
+ * To be implemented by {@link elements.Plugin}
  */
 public interface RichGraphProcess extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace> {
 

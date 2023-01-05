@@ -5,6 +5,8 @@ import elements.Plugin;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
@@ -96,6 +98,9 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      */
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
 
+    /**
+     * Return {@link TaskSharedKeyedStateBackend}
+     */
     abstract public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend();
 
     /**
@@ -127,6 +132,18 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Timestamp of the element currently being processed
      */
     abstract public long currentTimestamp();
+
+    /**
+     * Return {@link OperatorEventGateway}
+     */
+    abstract public OperatorEventGateway getOperatorEventGateway();
+
+    /**
+     * Send {@link OperatorEvent} to Operator Coordinator
+     */
+    public final void sendOperatorEvent(OperatorEvent event){
+        getOperatorEventGateway().sendEventToCoordinator(event);
+    }
 
     /**
      * Gets the list of parts mapped to this operator

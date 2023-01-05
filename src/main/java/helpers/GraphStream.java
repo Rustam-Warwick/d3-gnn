@@ -19,6 +19,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperator;
+import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Preconditions;
@@ -187,7 +188,7 @@ public class GraphStream {
      */
     protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
         int thisParallelism = env.getParallelism();
-        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperator(splitter)).setParallelism(thisParallelism).name("Splitter");
+        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperatorFactory(splitter)).setParallelism(thisParallelism).name("Splitter");
         if (fineGrainedResourceManagementEnabled) splitterOperator.slotSharingGroup("GNN-1");
         iterateStreams[0] = IterateStream.startIteration(splitterOperator);
         return splitterOperator;
@@ -195,7 +196,7 @@ public class GraphStream {
 
 
     /**
-     * Second part of build responsible for storage operators, this part is extandable
+     * Second part of build responsible for storage operators, this part is modifiable(extensible)
      * @param layerOutputs [datsset, partitioner, splitter, ... empty]
      */
     public DataStream<GraphOp>[] build(SingleOutputStreamOperator<GraphOp>[] layerOutputs){
@@ -205,13 +206,13 @@ public class GraphStream {
         for (short i = 1; i <= layers; i++) {
             List<Plugin> processFn = plugins[i - 1];
             if (i == 1) {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], processFn, i);
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], processFn, i); // First directly from splitter
             } else if (i == layers) {
                 if (hasLastLayerTopology)
-                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), processFn, i);
-                else layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), processFn, i);
+                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), processFn, i); // last with topology
+                else layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), processFn, i); // Last without topology
             } else {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), processFn, i);
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), processFn, i); // Mid topology + previour
             }
         }
         return layerOutputs;

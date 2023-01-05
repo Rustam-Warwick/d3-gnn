@@ -10,9 +10,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Special type of {@link GraphElement} containing some kind of logic.
+ * TAKE INTO ACCOUNT THE FOLLOWING LIMITATIONS WHEN CREATING SUCH PLUGINS !!!
  * <p>
- * It always lives in the <strong>Operator State</strong> so it is not in the life-cycle of the logical keys
+ * It always lives in the <strong>{@link org.apache.flink.runtime.state.taskshared.TaskSharedState}</strong>
  * Furthermore, Plugins cam be thought of as extension of Storage, as they are allowed to created their own <strong>KeyedStates</strong>
+ * Plugins are typically stateless, otherwise thread-safe, since they can be accessed through multiple task threads and keys at once
+ * It can have state objects but make sure to have them wrapped around {@link ThreadLocal} or get through {@link org.apache.flink.runtime.state.KeyedStateBackend}
  * </p>
  */
 @SuppressWarnings("unused")
@@ -76,22 +80,6 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     @Override
     public Boolean containsFeature(String name) {
         throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public GraphRuntimeContext getRuntimeContext() {
-        return graphRuntimeContext;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setRuntimeContext(RuntimeContext t) {
-        graphRuntimeContext = (GraphRuntimeContext) t;
     }
 
     /**

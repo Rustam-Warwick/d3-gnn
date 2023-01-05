@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators.graph;
 
+import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.Plugin;
@@ -15,9 +16,11 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.taskshared.TaskSharedMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
@@ -28,13 +31,14 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
-import storage.ListStorage;
+import storage.DefaultStorage;
 
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -44,9 +48,14 @@ import java.util.stream.Collectors;
 public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler, ExposingInternalTimerService {
 
     /**
-     * Map of ID -> Plugin
+     * Map of ID -> Plugin. Actually {@link TaskSharedMapState}
      */
     protected Map<String, Plugin> plugins;
+
+    /**
+     * Storage constructor access for state creation
+     */
+    protected final ConstructorAccess<? extends BaseStorage> storageConstructor;
 
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
@@ -56,12 +65,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * This horizontal position of this pipeline
      */
-    protected short position;
+    protected final short position;
 
     /**
      * Reuse element for handling timestamps and performance reasons
      */
-    protected StreamRecord<GraphOp> reuse = new StreamRecord<>(null);
+    protected final StreamRecord<GraphOp> reuse = new StreamRecord<>(null);
 
     /**
      * Internal Timer Service
@@ -76,18 +85,22 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Reference to the {@link Output} for this operator but type cast into {@link CountingBroadcastingGraphOutputCollector}
      */
-    protected CountingBroadcastingGraphOutputCollector thisOutput;
+    protected final CountingBroadcastingGraphOutputCollector thisOutput;
 
-    public GraphStorageOperator(List<Plugin> plugins, short position, StreamOperatorParameters<GraphOp> parameters) {
+    /**
+     * Operator Event Gateway
+     */
+    protected final OperatorEventGateway operatorEventGateway;
+
+    public GraphStorageOperator(List<Plugin> plugins, short position, ConstructorAccess<? extends BaseStorage> storageConstructor, StreamOperatorParameters<GraphOp> parameters) {
+        this.storageConstructor = storageConstructor;
         this.processingTimeService = parameters.getProcessingTimeService();
         this.position = position;
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         GraphRuntimeContext impl = new GraphRuntimeContextImpl();
-        this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(p -> p.getId(), p -> {
-            p.setRuntimeContext(impl);
-            return p;
-        })));
+        this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p))); // Temporary hold locally, during initializeState move to task shared state
     }
 
     @Override
@@ -113,7 +126,10 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("default", TypeInformation.of(ListStorage.class), () -> new ListStorage()));
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageConstructor::newInstance));
+        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedMapState.class), (Supplier<TaskSharedMapState<String, Plugin>>) TaskSharedMapState::new));
+        plugins.forEach(taskLocalPlugin::putIfAbsent);
+        plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
         for (Plugin plugin : plugins.values()) {
             plugin.initializeState(context);
         }
@@ -187,7 +203,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                 Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                 break;
             case OPERATOR_EVENT:
-
                 break;
         }
     }
@@ -272,6 +287,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend() {
             return GraphStorageOperator.this.getKeyedStateBackend();
+        }
+
+        @Override
+        public OperatorEventGateway getOperatorEventGateway() {
+            return operatorEventGateway;
         }
 
         @Override

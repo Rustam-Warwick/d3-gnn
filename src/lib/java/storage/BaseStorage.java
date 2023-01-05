@@ -67,7 +67,6 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
 
     public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
 
-    // GETTER METHODS
     @Nullable
     public abstract Vertex getVertex(String vertexId);
 
