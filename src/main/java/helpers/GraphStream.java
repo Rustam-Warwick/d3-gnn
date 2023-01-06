@@ -26,7 +26,6 @@ import partitioner.Partitioner;
 import picocli.CommandLine;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -186,7 +185,7 @@ public class GraphStream {
      *
      * @param inputStream Input stream after partitioning this graph
      * @param splitter    Splitter function usually getting from the Dataset object
-     * @return Return the splitted dataset result with side output tags
+     * @return Return the splitter dataset result with side output tags
      */
     protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
         int thisParallelism = env.getParallelism();

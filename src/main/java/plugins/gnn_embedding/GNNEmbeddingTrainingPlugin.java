@@ -29,6 +29,7 @@ import java.util.*;
  * Plugin that manages the training of GNNEmbeddingLayer
  */
 public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
+
     public int numForwardSyncMessages; // #Sync Messages sent for starting batched inference
 
     public int numTrainingSyncMessages; // #Sync messages sent for backward messages

@@ -9,6 +9,7 @@ import org.apache.flink.api.common.accumulators.*;
 import org.apache.flink.api.common.cache.DistributedCache;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
+import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -26,6 +27,7 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
 import storage.GraphStorage;
 
@@ -69,14 +71,24 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected InternalTimerService<VoidNamespace> internalTimerService;
 
-    public DatasetSplitterOperator(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, StreamOperatorParameters<GraphOp> parameters) {
+    protected final MailboxExecutor mailboxExecutor;
+
+    /**
+     * Operation mode of the splitter
+     */
+    protected OperationMode operationMode = OperationMode.RUNNING;
+
+
+    public DatasetSplitterOperator(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
-        this.processingTimeService = parameters.getProcessingTimeService();
+        this.processingTimeService = processingTimeService;
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.mailboxExecutor = mailboxExecutor;
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         new GraphRuntimeContextImpl(); // Create so it is stored in ThreadLocal state
         this.eventPool = new GraphEventPool(this);
+        parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
     @Override
@@ -105,7 +117,16 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        // None, add in the future
+        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+            operationMode = OperationMode.TRAINING;
+            try{
+                while(operationMode == OperationMode.TRAINING){
+                    mailboxExecutor.yield();
+                }
+            }catch (InterruptedException ignored){
+                // Can be interrupted to close prematurely
+            }
+        }
     }
 
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
@@ -352,6 +373,14 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
             return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE, taskSharedStateDescriptor);
         }
+    }
+
+    /**
+     * Mode of operation of this operator
+     */
+    enum OperationMode{
+        RUNNING,
+        TRAINING
     }
 
 }

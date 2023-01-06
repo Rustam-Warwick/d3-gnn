@@ -6,6 +6,8 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeServiceAware;
 import org.apache.flink.util.Preconditions;
 
 /**
@@ -14,7 +16,7 @@ import org.apache.flink.util.Preconditions;
  * This is always located at the start of the operator chain hence does not requre explicit position. It is always 0
  * </p>
  */
-public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements CoordinatedOperatorFactory<GraphOp>, OneInputStreamOperatorFactory<GraphOp, GraphOp> {
+public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements CoordinatedOperatorFactory<GraphOp>, OneInputStreamOperatorFactory<GraphOp, GraphOp>, ProcessingTimeServiceAware {
 
     /**
      * Main Splitter process UDF
@@ -25,6 +27,11 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
      * {@link org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider} if exists
      */
     final protected GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider;
+
+    /**
+     * Process timer services
+     */
+    protected transient ProcessingTimeService processingTimeService;
 
     public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         Preconditions.checkNotNull(processFunction);
@@ -43,7 +50,7 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
 
     @Override
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
-        return (T) new DatasetSplitterOperator(processFunction, parameters);
+        return (T) new DatasetSplitterOperator(processFunction, processingTimeService, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), parameters);
     }
 
     @Override
@@ -54,5 +61,10 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
     @Override
     public Class<? extends StreamOperator> getStreamOperatorClass(ClassLoader classLoader) {
         return DatasetSplitterOperator.class;
+    }
+
+    @Override
+    public void setProcessingTimeService(ProcessingTimeService processingTimeService) {
+        this.processingTimeService = processingTimeService;
     }
 }

@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
+import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
 import storage.DefaultStorage;
 import storage.GraphStorage;
@@ -96,17 +97,17 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected TimerService userTimerService;
 
-
-    public GraphStorageOperator(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider, StreamOperatorParameters<GraphOp> parameters) {
+    public GraphStorageOperator(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
+        this.processingTimeService = processingTimeService;
+        super.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.storageProvider = storageProvider;
-        this.processingTimeService = parameters.getProcessingTimeService();
         this.position = position;
-        setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
-        this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
-        GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p))); // Temporary hold locally, during initializeState move to task shared state
+        this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
+        new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
         this.eventPool = new GraphEventPool(this);
+        this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
+        parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
     @Override

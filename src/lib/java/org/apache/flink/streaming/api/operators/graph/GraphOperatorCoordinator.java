@@ -19,21 +19,36 @@ import java.util.function.Function;
  */
 public class GraphOperatorCoordinator implements OperatorCoordinator {
 
+    /**
+     * Context
+     */
     protected final Context context;
 
+    /**
+     * Position of this coordinator operator
+     */
     protected final short position;
 
+    /**
+     * Position -> Coordinator. Linking all the coordinators
+     */
     protected final Short2ObjectOpenHashMap<GraphOperatorCoordinator> positionToCoordinators;
 
+    /**
+     * Sub coordinators
+     */
     protected final GraphOperatorSubCoordinator[] graphOperatorSubCoordinators;
 
-    protected final SubtaskGateway[] gateways;
+    /**
+     * Gateways for this coordinator subtasks
+     */
+    protected final SubtaskGateway[] subTaskGateways;
 
     public GraphOperatorCoordinator(Context context, short position, GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         this.context = context;
         this.position = position;
-        this.gateways = new SubtaskGateway[context.currentParallelism()];
-        positionToCoordinators = (Short2ObjectOpenHashMap<GraphOperatorCoordinator>) context.getCoordinatorStore().compute("graph_coordinators", (key, val) -> {
+        this.subTaskGateways = new SubtaskGateway[context.currentParallelism()];
+        this.positionToCoordinators = (Short2ObjectOpenHashMap<GraphOperatorCoordinator>) context.getCoordinatorStore().compute("graph_coordinators", (key, val) -> {
             if (val == null) val = new Short2ObjectOpenHashMap<>();
             ((Short2ObjectOpenHashMap<GraphOperatorCoordinator>) val).put(position, this);
             return val;
@@ -92,7 +107,7 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
 
     @Override
     public void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason) {
-        gateways[subtask] = null;
+        subTaskGateways[subtask] = null;
         for (GraphOperatorSubCoordinator graphOperatorSubCoordinator : graphOperatorSubCoordinators) {
             graphOperatorSubCoordinator.executionAttemptFailed(subtask, attemptNumber, reason);
         }
@@ -100,7 +115,7 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
 
     @Override
     public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
-        gateways[subtask] = gateway;
+        subTaskGateways[subtask] = gateway;
         for (GraphOperatorSubCoordinator graphOperatorSubCoordinator : graphOperatorSubCoordinators) {
             graphOperatorSubCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
         }

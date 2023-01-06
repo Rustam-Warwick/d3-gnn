@@ -16,8 +16,11 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.LatencyMarker;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
+import org.apache.flink.streaming.runtime.tasks.OperatorEventDispatcherImpl;
 import org.apache.flink.streaming.runtime.watermarkstatus.WatermarkStatus;
 
+import java.lang.reflect.Field;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -27,6 +30,20 @@ import java.util.function.Consumer;
  * @param <OUT> Output Type
  */
 public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, OneInputStreamOperator<Object, OUT>, OperatorEventHandler {
+
+    /**
+     * Event dispatched map field
+     */
+    static final Field eventDispatcherMapField;
+
+    static {
+        try{
+            eventDispatcherMapField = OperatorEventDispatcherImpl.class.getDeclaredField("handlers");
+            eventDispatcherMapField.setAccessible(true);
+        }catch (Exception e){
+            throw new RuntimeException("Run off security mananger, need to access reflection");
+        }
+    }
 
     /**
      * Unique ID for the Iteration
@@ -105,7 +122,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.numRecordsInCounter = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
+        try{
+            // Underlying operator is initialized first, so it may have declared a dispatcher already. Need to override
+            Map<OperatorID, OperatorEventHandler> handlerMap = (Map<OperatorID, OperatorEventHandler>) eventDispatcherMapField.get(parameters.getOperatorEventDispatcher());
+            handlerMap.put(getOperatorID(), this);
+        }catch (Exception e){throw new RuntimeException("Cannot access the field");}
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator) ? (OneInputStreamOperator<Object, OUT>) bodyOperator : null;
         this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler) ? (OperatorEventHandler) bodyOperator : null;
         this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService) ? (ExposingInternalTimerService) bodyOperator : null;

@@ -2,7 +2,6 @@ package org.apache.flink.streaming.api.operators.graph;
 
 import elements.GraphEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.shaded.zookeeper3.org.apache.zookeeper.server.Request;
 import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
@@ -46,7 +45,9 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if((event instanceof RequestTraining) && (++receivedRequestEvents == numRequestEventsToStart)){
-
+            for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
+                subTaskGateway.sendEvent(new FlushDataFlow());
+            }
         }
     }
 
@@ -97,4 +98,5 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
         }
     }
+
 }
