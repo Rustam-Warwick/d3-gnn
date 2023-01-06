@@ -25,16 +25,16 @@ import elements.annotations.RemoteFunction;
 import org.apache.flink.configuration.Configuration;
 
 /**
- * Plugin that stores a single model withing the GNN Pipieline
+ * Plugin that stores a single model withing the GNN Pipeline
  * <p>
- * Handles model synchronization through MASTER - REPLICA (2hop process)
+ *      Handles model synchronization through {@code allReduce}
  * </p>
  */
 public class ModelServer<T extends Block> extends Plugin {
 
     public Model model;
 
-    public int NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
+    public transient ThreadLocal<Short> NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
 
     public transient T block;
 
@@ -53,14 +53,18 @@ public class ModelServer<T extends Block> extends Plugin {
         this.model = m;
     }
 
-    public void open(Configuration params) throws Exception {
+    public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        inputShapes = model.getBlock().getInputShapes();
-        outputShapes = model.getBlock().getOutputShapes(inputShapes);
-        optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
-        parameterStore = new ParameterStore();
-        collectedParameters = new NDArrayCollector<>(true);
-        block = (T) model.getBlock();
+        if(NUMBER_OF_COLLECTED_PARAMETERS == null) {
+            NUMBER_OF_COLLECTED_PARAMETERS = new ThreadLocal<>();
+            inputShapes = model.getBlock().getInputShapes();
+            outputShapes = model.getBlock().getOutputShapes(inputShapes);
+            optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
+            parameterStore = new ParameterStore();
+            collectedParameters = new NDArrayCollector<>(true);
+            block = (T) model.getBlock();
+        }
+        NUMBER_OF_COLLECTED_PARAMETERS.set((short) 0);
     }
 
     public Model getModel() {
@@ -92,9 +96,10 @@ public class ModelServer<T extends Block> extends Plugin {
     @RemoteFunction(triggerUpdate = false)
     public void collectParameters(NDArrayCollector<String> newParameters) {
         collectedParameters.putAll(newParameters);
-        if (++NUMBER_OF_COLLECTED_PARAMETERS == getRuntimeContext().getNumberOfParallelSubtasks()) {
+        NUMBER_OF_COLLECTED_PARAMETERS.set((short) (NUMBER_OF_COLLECTED_PARAMETERS.get() + 1));
+        if (NUMBER_OF_COLLECTED_PARAMETERS.get() == getRuntimeContext().getNumberOfParallelSubtasks()) {
             parameterStore.updateAllParameters();
-            NUMBER_OF_COLLECTED_PARAMETERS = 0;
+            NUMBER_OF_COLLECTED_PARAMETERS.set((short) 0);
             collectedParameters.clear();
         }
     }

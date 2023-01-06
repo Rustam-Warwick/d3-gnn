@@ -44,14 +44,14 @@ import java.util.stream.Collectors;
  */
 public class PtModel extends BaseModel {
 
-    public PtModel(){
+    public PtModel() {
         this(null, null);
     }
 
     /**
      * Constructs a new Model on a given device.
      *
-     * @param name the model name
+     * @param name   the model name
      * @param device the device the model should be located on
      */
     PtModel(String name, Device device) {
@@ -61,7 +61,9 @@ public class PtModel extends BaseModel {
         dataType = DataType.FLOAT32;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void load(Path modelPath, String prefix, Map<String, ?> options)
             throws IOException, MalformedModelException {
@@ -133,7 +135,9 @@ public class PtModel extends BaseModel {
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void load(InputStream modelStream, Map<String, ?> options) throws IOException {
         boolean mapLocation = false;
@@ -181,7 +185,9 @@ public class PtModel extends BaseModel {
         return modelFile;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public Trainer newTrainer(TrainingConfig trainingConfig) {
         PairList<Initializer, Predicate<Parameter>> initializer = trainingConfig.getInitializers();
@@ -198,7 +204,9 @@ public class PtModel extends BaseModel {
         return new Trainer(this, trainingConfig);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String[] getArtifactNames() {
         try {

@@ -24,9 +24,9 @@ import java.util.Objects;
  */
 public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
 
-    protected transient Counter throughput; // Throughput counter, only used for last layer
+    protected transient ThreadLocal<Counter> throughput; // Throughput counter, only used for last layer
 
-    protected transient Counter latency; // Throughput counter, only used for last layer
+    protected transient ThreadLocal<Counter> latency; // Throughput counter, only used for last layer
 
     public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "inferencer", trainableVertexEmbeddings);
@@ -40,12 +40,14 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
      * {@inheritDoc}
      */
     @Override
-    public void open(Configuration params) throws Exception {
+    public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        throughput = new SimpleCounter();
-        latency = new MovingAverageCounter(1000);
-        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
-        getRuntimeContext().getMetricGroup().counter("latency", latency);
+        throughput = throughput == null? new ThreadLocal<>():throughput;
+        latency = latency == null?new ThreadLocal<>():latency;
+        throughput.set(new SimpleCounter());
+        latency.set(new MovingAverageCounter(1000));
+        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput.get()));
+        getRuntimeContext().getMetricGroup().counter("latency", latency.get());
     }
 
     /**
@@ -113,8 +115,8 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
         tmp.setElement(v, true);
         tmp.id.f0 = ElementType.VERTEX;
         tmp.id.f1 = v.getId();
-        throughput.inc();
-        latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+        throughput.get().inc();
+        latency.get().inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
         getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), tmp));
     }
 

@@ -13,7 +13,6 @@ import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.Triggerable;
-import storage.BaseStorage;
 
 /**
  * Aggregated Interfaces for elements pertaining operator logic of graph

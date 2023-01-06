@@ -227,7 +227,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         oneInputBodyOperatorRef.processWatermarkStatus(watermarkStatus);
     }
 
-
     /**
      * Handle operator event if body is NOT {@link OperatorEventHandler}
      */

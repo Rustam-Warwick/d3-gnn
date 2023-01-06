@@ -10,13 +10,13 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
-import ai.djl.pytorch.engine.PtModel;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import plugins.vertex_classification.VertexClassificationAccuracyReporter;
+import plugins.scheduler.BatchSizeTrainingScheduler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,9 +75,9 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<GraphOp>[] res = new GraphStream(env, args, false, false, false,
-                    List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)),
-                    List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)),
-                    List.of(new ModelServer<>(models.get(2)))
+                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)), pos),
+                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)), pos),
+                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeTrainingScheduler(models.get(2).getName(), 1024)), pos)
             ).build();
             env.execute();
         } catch (Exception e) {

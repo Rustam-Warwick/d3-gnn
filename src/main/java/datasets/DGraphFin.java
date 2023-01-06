@@ -52,22 +52,22 @@ public class DGraphFin extends Dataset {
         return new Splitter();
     }
 
-    protected static class Splitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp>{
+    protected static class Splitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
         protected final float trainProb = 0.2f;
+
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
-            if(value.element.getType() == ElementType.EDGE){
+            if (value.element.getType() == ElementType.EDGE) {
                 out.collect(value);
                 ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
-            }
-            else if(value.element.getType() == ElementType.ATTACHED_FEATURE){
-                Feature<?,?> feature = (Feature<?, ?>) value.element;
-                if(feature.getName().equals("f")){
+            } else if (value.element.getType() == ElementType.ATTACHED_FEATURE) {
+                Feature<?, ?> feature = (Feature<?, ?>) value.element;
+                if (feature.getName().equals("f")) {
                     // Feature
                     out.collect(value);
-                }else if(feature.getName().equals("l")){
+                } else if (feature.getName().equals("l")) {
                     // Label
-                    if(ThreadLocalRandom.current().nextFloat() < trainProb) feature.id.f2 = "tl"; // Train label
+                    if (ThreadLocalRandom.current().nextFloat() < trainProb) feature.id.f2 = "tl"; // Train label
                     ctx.output(OutputTags.TRAIN_TEST_SPLIT_OUTPUT, value);
                 }
             }
@@ -107,27 +107,28 @@ public class DGraphFin extends Dataset {
             });
         }
 
-        public void checkTimers(long timestamp, Collector<GraphOp> out){
-            try{
-                if(labelsTimer.isEmpty()) return;
+        public void checkTimers(long timestamp, Collector<GraphOp> out) {
+            try {
+                if (labelsTimer.isEmpty()) return;
                 Tuple2<GraphOp, Long> val;
-                while((val = labelsTimer.first()).f1 <= timestamp){
+                while ((val = labelsTimer.first()).f1 <= timestamp) {
                     labelsTimer.dequeue();
                     out.collect(val.f0);
                     val.f0.resume();
                 }
-            }catch (NoSuchElementException ignored){}
+            } catch (NoSuchElementException ignored) {
+            }
         }
 
-        public void generateFeature(int vertexId, Collector<GraphOp> out){
+        public void generateFeature(int vertexId, Collector<GraphOp> out) {
             Tensor feature = new Tensor("f", vertexFeatures.get(vertexId));
             feature.id.f0 = ElementType.VERTEX;
             feature.id.f1 = String.valueOf(vertexId);
             out.collect(new GraphOp(Op.ADD, feature));
         }
 
-        public void addLabelToQueue(int vertexId, long processTimestamp){
-            if(vertexLabels.get(vertexId).eq(0).getBoolean() || vertexLabels.get(vertexId).eq(1).getBoolean()){
+        public void addLabelToQueue(int vertexId, long processTimestamp) {
+            if (vertexLabels.get(vertexId).eq(0).getBoolean() || vertexLabels.get(vertexId).eq(1).getBoolean()) {
                 // We only care about the first 2 classes [0->Non-Fraud, 1->Fraud]
                 Tensor label = new Tensor("l", vertexLabels.get(vertexId));
                 label.id.f0 = ElementType.VERTEX;
@@ -142,13 +143,13 @@ public class DGraphFin extends Dataset {
             checkTimers(ctx.timerService().currentProcessingTime(), out);
             out.collect(value);
             DirectedEdge edge = (DirectedEdge) value.element;
-            if(!seenVertices.contains(edge.getSrcId())){
+            if (!seenVertices.contains(edge.getSrcId())) {
                 int vertexIndex = Integer.parseInt(edge.getSrcId());
                 generateFeature(vertexIndex, out);
                 addLabelToQueue(vertexIndex, ctx.timerService().currentProcessingTime());
                 seenVertices.add(edge.getSrcId());
             }
-            if(!seenVertices.contains(edge.getDestId())){
+            if (!seenVertices.contains(edge.getDestId())) {
                 int vertexIndex = Integer.parseInt(edge.getDestId());
                 generateFeature(vertexIndex, out);
                 addLabelToQueue(vertexIndex, ctx.timerService().currentProcessingTime());
@@ -160,7 +161,7 @@ public class DGraphFin extends Dataset {
     /**
      * Class for parsing the Edges in this dataset
      */
-    protected static class ParseEdges implements MapFunction<String, GraphOp>{
+    protected static class ParseEdges implements MapFunction<String, GraphOp> {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] srcDestTs = value.split(",");

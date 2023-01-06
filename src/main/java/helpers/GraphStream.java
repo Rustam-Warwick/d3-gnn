@@ -18,7 +18,6 @@ import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperator;
 import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
@@ -28,6 +27,7 @@ import picocli.CommandLine;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Helper class for creating a pipeline
@@ -46,7 +46,7 @@ public class GraphStream {
     /**
      * List of storage and plugins where each one corresponds to single layer in GNN pipeline
      */
-    protected final List<Plugin>[] plugins;
+    protected final Function<Short, GraphStorageOperatorFactory>[] operatorFactorySuppliers;
     /**
      * If the last storage layer should receive topology updates
      */
@@ -110,7 +110,7 @@ public class GraphStream {
     protected String datasetName;
 
     @SafeVarargs
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, List<Plugin>... plugins) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, Function<Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
         Preconditions.checkNotNull(env);
         env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
         Arrays.sort(cmdArgs);
@@ -121,9 +121,9 @@ public class GraphStream {
         this.hasFullLoopIteration = hasFullLoopIteration;
         this.hasBackwardIteration = hasBackwardIteration;
         this.hasLastLayerTopology = hasLastLayerTopology;
-        this.plugins = plugins;
-        this.layers = (short) plugins.length;
-        this.iterateStreams = new IterateStream[this.layers + 1];
+        this.operatorFactorySuppliers = operatorFactorySuppliers;
+        this.layers = (short) operatorFactorySuppliers.length;
+        this.iterateStreams = new IterateStream[this.layers + 1]; // SPLITTER + Storage operator
         this.dataset = Dataset.getDataset(datasetName, cmdArgs);
         this.partitioner = Partitioner.getPartitioner(partitionerName, cmdArgs);
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));
@@ -164,26 +164,28 @@ public class GraphStream {
 
     /**
      * Add Storage operator
+     *
      * @param inputStream incoming GraphOp for this layer, not partitioned yet
-     * @param plugins List of Plugins to be used
-     * @param index index of the storage layer [1...layers]
+     * @param operatorFactorySupplier     List of Plugins to be used
+     * @param position       position of the storage layer [1...layers]
      * @return Output of this storage operator not partitioned
      */
-    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, List<Plugin> plugins, short index) {
-        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, index - 1));
-        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", index), TypeExtractor.createTypeInfo(GraphOp.class), new GraphStorageOperatorFactory(plugins, index)).setParallelism(thisParallelism);
-        if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + index);
-        iterateStreams[index] = IterateStream.startIteration(storageOperator);
-        iterateStreams[index].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
-        if (index > 1 && hasBackwardIteration)
-            iterateStreams[index - 1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, Function<Short, GraphStorageOperatorFactory> operatorFactorySupplier, short position) {
+        int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, position - 1));
+        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position)).setParallelism(thisParallelism);
+        if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
+        iterateStreams[position] = IterateStream.startIteration(storageOperator);
+        iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
+        if (position > 1 && hasBackwardIteration)
+            iterateStreams[position - 1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         return storageOperator;
     }
 
     /**
      * Add Splitter Operator
+     *
      * @param inputStream Input stream after partitioning this graph
-     * @param splitter Splitter function usually getting from the Dataset object
+     * @param splitter    Splitter function usually getting from the Dataset object
      * @return Return the splitted dataset result with side output tags
      */
     protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
@@ -197,22 +199,24 @@ public class GraphStream {
 
     /**
      * Second part of build responsible for storage operators, this part is modifiable(extensible)
+     *
      * @param layerOutputs [datsset, partitioner, splitter, ... empty]
      */
-    public DataStream<GraphOp>[] build(SingleOutputStreamOperator<GraphOp>[] layerOutputs){
+    public DataStream<GraphOp>[] build(SingleOutputStreamOperator<GraphOp>[] layerOutputs) {
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 
         for (short i = 1; i <= layers; i++) {
-            List<Plugin> processFn = plugins[i - 1];
+            Function<Short, GraphStorageOperatorFactory> operatorFactorySupplier = operatorFactorySuppliers[i - 1];
             if (i == 1) {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], processFn, i); // First directly from splitter
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], operatorFactorySupplier, i); // First directly from splitter
             } else if (i == layers) {
                 if (hasLastLayerTopology)
-                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), processFn, i); // last with topology
-                else layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), processFn, i); // Last without topology
+                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), operatorFactorySupplier, i); // last with topology
+                else
+                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), operatorFactorySupplier, i); // Last without topology
             } else {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), processFn, i); // Mid topology + previour
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), operatorFactorySupplier, i); // Mid topology + previour
             }
         }
         return layerOutputs;

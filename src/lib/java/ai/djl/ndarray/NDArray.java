@@ -118,7 +118,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Shape}.
      *
      * @return {@code true} if this {@code NDArray} is a scalar {@code NDArray} with empty {@link
-     *     Shape}
+     * Shape}
      */
     default boolean isScalar() {
         return getShape().isScalar();
@@ -137,7 +137,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Moves this {@code NDArray} to a different {@link Device}.
      *
      * @param device the {@link Device} to be set
-     * @param copy set {@code true} if you want to return a copy of the Existing {@code NDArray}
+     * @param copy   set {@code true} if you want to return a copy of the Existing {@code NDArray}
      * @return the result {@code NDArray} with the new {@link Device}
      */
     NDArray toDevice(Device device, boolean copy);
@@ -146,7 +146,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Converts this {@code NDArray} to a different {@link DataType}.
      *
      * @param dataType the {@link DataType} to be set
-     * @param copy set {@code true} if you want to return a copy of the Existing {@code NDArray}
+     * @param copy     set {@code true} if you want to return a copy of the Existing {@code NDArray}
      * @return the result {@code NDArray} with the new {@link DataType}
      */
     NDArray toType(DataType dataType, boolean copy);
@@ -444,7 +444,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param index the locations to update
      * @param value the value to replace with. Can broadcast if given smaller dimensions than the
-     *     index
+     *              index
      */
     default void set(NDIndex index, NDArray value) {
         getNDArrayInternal().getIndexer(getManager()).set(this, index, value);
@@ -463,7 +463,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     /**
      * Sets the specific index by a function.
      *
-     * @param index the locations to update
+     * @param index    the locations to update
      * @param function the function to change the value
      */
     default void set(NDIndex index, Function<NDArray, NDArray> function) {
@@ -506,7 +506,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Returns a partial {@code NDArray}.
      *
      * @param manager the manager used to create the arrays
-     * @param index the section of this {@code NDArray} to return
+     * @param index   the section of this {@code NDArray} to return
      * @return the partial {@code NDArray}
      */
     default NDArray get(NDManager manager, NDIndex index) {
@@ -527,8 +527,8 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Returns a partial {@code NDArray}.
      *
      * @param indices the indices used to indicate what to get
-     * @param args arguments to replace the varaible "{}" in the indices string. Can be an integer,
-     *     long, boolean {@link NDArray}, or integer {@link NDArray}.
+     * @param args    arguments to replace the varaible "{}" in the indices string. Can be an integer,
+     *                long, boolean {@link NDArray}, or integer {@link NDArray}.
      * @return the partial {@code NDArray}
      * @see NDIndex#NDIndex(String, Object...)
      */
@@ -540,7 +540,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Returns a partial {@code NDArray}.
      *
      * @param indices the indices with each index corresponding to the dimensions and negative
-     *     indices starting from the end
+     *                indices starting from the end
      * @return the partial {@code NDArray}
      */
     default NDArray get(long... indices) {
@@ -552,7 +552,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param manager the manager used to create the arrays
      * @param indices the indices with each index corresponding to the dimensions and negative
-     *     indices starting from the end
+     *                indices starting from the end
      * @return the partial {@code NDArray}
      */
     default NDArray get(NDManager manager, long... indices) {
@@ -565,7 +565,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * idx_{ijk}, k} if axis=1 or arr_{i, j, idx_{ijk}} if axis=2
      *
      * @param index picks the elements of an NDArray to the same position as index
-     * @param axis the entries of index are indices of axis
+     * @param axis  the entries of index are indices of axis
      * @return the partial {@code NDArray} of the same shape as index
      */
     NDArray gather(NDArray index, int axis);
@@ -586,7 +586,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * output is of the same shape as index.
      *
      * @param manager the manager used to create the arrays
-     * @param index picks the elements of an NDArray and output to the same entry as in index
+     * @param index   picks the elements of an NDArray and output to the same entry as in index
      * @return the partial {@code NDArray} of the same shape as index
      */
     NDArray take(NDManager manager, NDArray index);
@@ -596,7 +596,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * numbers in data, which is of the same shape as index.
      *
      * @param index select the entries of an {@code NDArray}
-     * @param data numbers to assign to the indexed entries
+     * @param data  numbers to assign to the indexed entries
      * @return the NDArray with updated values
      */
     NDArray put(NDArray index, NDArray data);
@@ -741,7 +741,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * axis.
      *
      * @param index boolean {@code NDArray} mask
-     * @param axis an integer that represents the axis of {@code NDArray} to mask from
+     * @param axis  an integer that represents the axis of {@code NDArray} to mask from
      * @return the result {@code NDArray}
      */
     NDArray booleanMask(NDArray index, int axis);
@@ -755,7 +755,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * input array of positive ints of dimension [batch_size].
      *
      * @param sequenceLength used to handle variable-length sequences
-     * @param value the constant value to be set
+     * @param value          the constant value to be set
      * @return the result {@code NDArray}
      */
     NDArray sequenceMask(NDArray sequenceLength, float value);
@@ -964,11 +964,11 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * true
      * </pre>
      *
-     * @param other the {@code NDArray} to compare with
-     * @param rtol the relative tolerance parameter
-     * @param atol the absolute tolerance parameter
+     * @param other    the {@code NDArray} to compare with
+     * @param rtol     the relative tolerance parameter
+     * @param atol     the absolute tolerance parameter
      * @param equalNan whether to compare NaN’s as equal. If {@code true}, NaN’s in the {@link
-     *     NDArray} will be considered equal to NaN’s in the other {@code NDArray}
+     *                 NDArray} will be considered equal to NaN’s in the other {@code NDArray}
      * @return the boolean result
      */
     default boolean allClose(NDArray other, double rtol, double atol, boolean equalNan) {
@@ -2374,7 +2374,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axes the axes along which to operate
      * @return the maximum of this {@code NDArray} with the specified axes removed from the Shape
-     *     containing the max
+     * containing the max
      * @see NDArray#max(int[], boolean)
      */
     default NDArray max(int[] axes) {
@@ -2404,9 +2404,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axes the axes along which to operate
+     * @param axes     the axes along which to operate
      * @param keepDims {@code true} to keep the specified axes as size 1 in the output array, {@code
-     *     false} to squeeze the values out of the output array.
+     *                 false} to squeeze the values out of the output array.
      * @return the maximum of this {@code NDArray}
      */
     NDArray max(int[] axes, boolean keepDims);
@@ -2456,7 +2456,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axes the axes along which to operate
      * @return the minimum of this {@code NDArray} with the specified axes removed from the Shape
-     *     containing the min
+     * containing the min
      * @see NDArray#min(int[], boolean)
      */
     default NDArray min(int[] axes) {
@@ -2486,9 +2486,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axes the axes along which to operate
+     * @param axes     the axes along which to operate
      * @param keepDims {@code true} to keep the specified axes as size 1 in the output array, {@code
-     *     false} to squeeze the values out of the output array
+     *                 false} to squeeze the values out of the output array
      * @return the minimum of this {@code NDArray}
      */
     NDArray min(int[] axes, boolean keepDims);
@@ -2537,7 +2537,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axes the axes along which to operate
      * @return the sum of this {@code NDArray} with the specified axes removed from the Shape
-     *     containing the sum
+     * containing the sum
      * @see NDArray#sum(int[], boolean)
      */
     default NDArray sum(int[] axes) {
@@ -2567,9 +2567,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axes the axes along which to operate
+     * @param axes     the axes along which to operate
      * @param keepDims {@code true} to keep the specified axes as size 1 in the output array, {@code
-     *     false} to squeeze the values out of the output array
+     *                 false} to squeeze the values out of the output array
      * @return the sum of this {@code NDArray}
      */
     NDArray sum(int[] axes, boolean keepDims);
@@ -2589,7 +2589,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * input is a vector of size N, the result will also be a vector of size N, with elements. [x1,
      * x1 * x2, x1 * x2 *x3 ...]
      *
-     * @param axis the axis along which to operate
+     * @param axis     the axis along which to operate
      * @param dataType the datatype of the output
      * @return the cumulative product of this
      */
@@ -2639,7 +2639,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axes the axes along which to operate
      * @return the product of this {@code NDArray} with the specified axes removed from the Shape
-     *     containing the prod
+     * containing the prod
      * @see NDArray#prod(int[], boolean)
      */
     default NDArray prod(int[] axes) {
@@ -2669,9 +2669,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axes the axes along which to operate
+     * @param axes     the axes along which to operate
      * @param keepDims {@code true} to keep the specified axes as size 1 in the output array, {@code
-     *     false} to squeeze the values out of the output array
+     *                 false} to squeeze the values out of the output array
      * @return the product of this {@code NDArray}
      */
     NDArray prod(int[] axes, boolean keepDims);
@@ -2720,7 +2720,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axes the axes along which to operate
      * @return the average of this {@code NDArray} with the specified axes removed from the Shape
-     *     containing the mean
+     * containing the mean
      * @see NDArray#mean(int[], boolean)
      */
     default NDArray mean(int[] axes) {
@@ -2750,9 +2750,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axes the axes along which to operate
+     * @param axes     the axes along which to operate
      * @param keepDims {@code true} to keep the specified axes as size 1 in the output array, {@code
-     *     false} to squeeze the values out of the output array
+     *                 false} to squeeze the values out of the output array
      * @return the average of this {@code NDArray}
      */
     NDArray mean(int[] axes, boolean keepDims);
@@ -2802,7 +2802,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param exponent the exponent value in the norm formulation
-     * @param dim the dimension to reduce
+     * @param dim      the dimension to reduce
      * @return the normalized {@code NDArray}
      */
     default NDArray normalize(double exponent, long dim) {
@@ -2829,8 +2829,8 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param exponent the exponent value in the norm formulation
-     * @param dim the dimension to reduce
-     * @param eps the small value to avoid division by zero
+     * @param dim      the dimension to reduce
+     * @param eps      the small value to avoid division by zero
      * @return the normalized {@code NDArray}
      */
     NDArray normalize(double exponent, long dim, double eps);
@@ -2841,7 +2841,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * <p>Rotation direction is from the first towards the second axis.
      *
      * @param times Number of times the array is rotated by 90 degrees.
-     * @param axes The array is rotated in the plane defined by the axes. Axes must be different.
+     * @param axes  The array is rotated in the plane defined by the axes. Axes must be different.
      * @return the rotated NDArray
      */
     NDArray rotate90(int times, int[] axes);
@@ -2926,7 +2926,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param offset offset of the diagonal from the main diagonal. Can be both positive and
-     *     negative.
+     *               negative.
      * @return the sum along diagonals of this {@code NDArray}
      */
     default NDArray trace(int offset) {
@@ -2961,11 +2961,11 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param offset offset of the diagonal from the main diagonal. Can be both positive and
-     *     negative.
-     * @param axis1 axes to be used as the first axis of the 2-D sub-arrays from which the diagonals
-     *     should be taken
-     * @param axis2 axes to be used as the second axis of the 2-D sub-arrays from which the
-     *     diagonals should be taken
+     *               negative.
+     * @param axis1  axes to be used as the first axis of the 2-D sub-arrays from which the diagonals
+     *               should be taken
+     * @param axis2  axes to be used as the second axis of the 2-D sub-arrays from which the
+     *               diagonals should be taken
      * @return the sum along diagonals of this {@code NDArray}
      */
     NDArray trace(int offset, int axis1, int axis2);
@@ -2995,7 +2995,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param sections this {@code NDArray} will be divided into N (sections) equal {@code NDArray}
      * @return an {@link NDList} with size(axis) {@code NDArray}s with {@link Shape} {@code
-     *     this.shape.remove(axis) }
+     * this.shape.remove(axis) }
      * @see NDArray#split(long, int)
      */
     default NDList split(long sections) {
@@ -3025,10 +3025,10 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param indices the entries indicate where along axis this {@code NDArray} is split. If an
-     *     index exceeds the dimension of this {@code NDArray} along axis, an empty sub-{@link
-     *     NDArray} is returned correspondingly.
+     *                index exceeds the dimension of this {@code NDArray} along axis, an empty sub-{@link
+     *                NDArray} is returned correspondingly.
      * @return an NDList with size(axis) {@code NDArray}s with {@link Shape} {@code
-     *     this.shape.remove(axis) }
+     * this.shape.remove(axis) }
      * @see NDArray#split(long[], int)
      */
     default NDList split(long[] indices) {
@@ -3066,12 +3066,12 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param sections this {@code NDArray} will be divided into N (sections) equal arrays along
-     *     axis
-     * @param axis the axis to split along
+     *                 axis
+     * @param axis     the axis to split along
      * @return an {@link NDList} with numOutputs {@code NDArray}s with {@link Shape} {@code
-     *     (this.shape.axis /= axis) }
+     * (this.shape.axis /= axis) }
      * @throws IllegalArgumentException thrown if the numOutputs does not equally divide the given
-     *     axis
+     *                                  axis
      */
     default NDList split(long sections, int axis) {
         long axisSize = getShape().getShape()[axis];
@@ -3119,11 +3119,11 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param indices the entries indicate where along axis this {@code NDArray} is split. If an
-     *     index exceeds the dimension of this {@code NDArray} along axis, an empty sub-array is
-     *     returned correspondingly
-     * @param axis the axis to split along
+     *                index exceeds the dimension of this {@code NDArray} along axis, an empty sub-array is
+     *                returned correspondingly
+     * @param axis    the axis to split along
      * @return an {@link NDList} with numOutputs {@code NDArray}s with {@link Shape} {@code
-     *     (this.shape.axis /= axis) }
+     * (this.shape.axis /= axis) }
      */
     NDList split(long[] indices, int axis);
 
@@ -3165,7 +3165,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param newShape the long array to reshape into. Must have equal size to the current shape
      * @return a reshaped {@code NDArray}
      * @throws IllegalArgumentException thrown if the given {@link Shape} does not match the size of
-     *     the current shape
+     *                                  the current shape
      */
     default NDArray reshape(long... newShape) {
         return reshape(new Shape(newShape));
@@ -3193,7 +3193,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param shape the {@link Shape} to reshape into. Must have equal size to the current shape
      * @return a reshaped {@code NDArray}
      * @throws IllegalArgumentException thrown if the given {@link Shape} does not match the size of
-     *     the current shape
+     *                                  the current shape
      */
     NDArray reshape(Shape shape);
 
@@ -3223,7 +3223,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axis the position in the expanded axes where the new axis is placed
      * @return the result {@code NDArray}. The number of dimensions is one greater than that of the
-     *     {@code NDArray}
+     * {@code NDArray}
      */
     NDArray expandDims(int axis);
 
@@ -3284,7 +3284,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @throws IllegalArgumentException thrown if the given axis is not a singleton dimension
      */
     default NDArray squeeze(int axis) {
-        return squeeze(new int[] {axis});
+        return squeeze(new int[]{axis});
     }
 
     /**
@@ -3309,7 +3309,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param axes the axes at which to remove the singleton dimensions
      * @return a result {@code NDArray} of same size and data without the axes at part of the shape
      * @throws IllegalArgumentException thrown if any of the given axes are not a singleton
-     *     dimension
+     *                                  dimension
      */
     NDArray squeeze(int[] axes);
 
@@ -3329,9 +3329,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param array the input {@code NDArray} which must have the same {@link Shape}as this {@code
-     *     NDArray}
+     *              NDArray}
      * @return the result {@code NDArray}. The stacked {@code NDArray} has one more dimension than
-     *     the input {@code NDArray}.
+     * the input {@code NDArray}.
      */
     default NDArray stack(NDArray array) {
         return stack(array, 0);
@@ -3358,11 +3358,11 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param array the input {@code NDArray} which must have the same {@link Shape}as this {@code
-     *     NDArray}
-     * @param axis the axis in the result {@code NDArray} along which the input {@code NDArray} are
-     *     stacked
+     *              NDArray}
+     * @param axis  the axis in the result {@code NDArray} along which the input {@code NDArray} are
+     *              stacked
      * @return the result {@code NDArray}. The stacked {@code NDArray} has one more dimension than
-     *     the input {@code NDArray}.
+     * the input {@code NDArray}.
      */
     default NDArray stack(NDArray array, int axis) {
         return getNDArrayInternal().stack(new NDList(array), axis);
@@ -3382,7 +3382,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param array a {@code NDArray} which have the same {@link Shape}as this {@code NDArray},
-     *     except in the dimension corresponding to axis
+     *              except in the dimension corresponding to axis
      * @return the concatenated {@code NDArray}
      */
     default NDArray concat(NDArray array) {
@@ -3403,8 +3403,8 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param array a {@code NDArray} which have the same {@link Shape}as this {@code NDArray},
-     *     except in the dimension corresponding to axis
-     * @param axis the axis along which this {@code NDArray} will be joined
+     *              except in the dimension corresponding to axis
+     * @param axis  the axis along which this {@code NDArray} will be joined
      * @return the concatenated {@code NDArray}
      */
     default NDArray concat(NDArray array, int axis) {
@@ -3444,7 +3444,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param other the other {@code NDArray} to operate on
      * @return the boolean {@code NDArray} of the logical AND operation applied to the elements of
-     *     this {@code NDArray} and the other {@code NDArray}
+     * this {@code NDArray} and the other {@code NDArray}
      */
     NDArray logicalAnd(NDArray other);
 
@@ -3477,7 +3477,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param other the other {@code NDArray} to operate on
      * @return the boolean {@code NDArray} of the logical OR operation applied to the elements of
-     *     this {@code NDArray} and the other {@code NDArray}
+     * this {@code NDArray} and the other {@code NDArray}
      */
     NDArray logicalOr(NDArray other);
 
@@ -3509,7 +3509,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param other the other {@code NDArray} to operate on
      * @return the boolean {@code NDArray} of the logical XOR operation applied to the elements of
-     *     this {@code NDArray} and the other {@code NDArray}
+     * this {@code NDArray} and the other {@code NDArray}
      */
     NDArray logicalXor(NDArray other);
 
@@ -3563,7 +3563,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @return a {@code NDArray} of indices corresponding to elements in this {@code NDArray} on the
-     *     axis, the output DataType is always {@link DataType#INT64}
+     * axis, the output DataType is always {@link DataType#INT64}
      * @see NDArray#argSort(int, boolean)
      */
     default NDArray argSort() {
@@ -3594,7 +3594,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * @param axis the axis to sort along
      * @return a {@code NDArray} of indices corresponding to elements in this {@code NDArray} on the
-     *     axis, the output DataType is always {@link DataType#INT64}
+     * axis, the output DataType is always {@link DataType#INT64}
      * @see NDArray#argSort(int, boolean)
      */
     default NDArray argSort(int axis) {
@@ -3618,10 +3618,10 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axis the axis to sort along
+     * @param axis      the axis to sort along
      * @param ascending whether to sort ascending
      * @return a {@code NDArray} of indices corresponding to elements in this {@code NDArray} on the
-     *     axis, the output DataType is always {@link DataType#INT64}
+     * axis, the output DataType is always {@link DataType#INT64}
      */
     NDArray argSort(int axis, boolean ascending);
 
@@ -3758,7 +3758,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * entries are infinite, or {@code false} where they are not infinite.
      *
      * @return the boolean {@code NDArray} with value {@code true} if this {@code NDArray}'s entries
-     *     are infinite
+     * are infinite
      */
     NDArray isInfinite();
 
@@ -3783,7 +3783,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @return the boolean {@code NDArray} with value {@code true} if this {@code NDArray}'s {@link
-     *     NDArray} are NaN
+     * NDArray} are NaN
      */
     NDArray isNaN();
 
@@ -3819,7 +3819,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param axis the axis to repeat
+     * @param axis    the axis to repeat
      * @param repeats the number of times to repeat for each axis
      * @return a {@code NDArray} that has been tiled
      * @throws IllegalArgumentException thrown for invalid axis
@@ -3896,7 +3896,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * [0., 0., 1., 1., 2., 2.]
      * </pre>
      *
-     * @param axis the axis to repeat
+     * @param axis    the axis to repeat
      * @param repeats the number of times to repeat for each axis
      * @return an {@code NDArray} that has been repeated
      * @throws IllegalArgumentException thrown for invalid axis
@@ -4075,7 +4075,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param min the minimum value
      * @param max the maximum value
      * @return an {@code NDArray} with the elements of this {@code NDArray}, but where values &lt;
-     *     min are replaced with min, and those &gt; max with max
+     * min are replaced with min, and those &gt; max with max
      */
     NDArray clip(Number min, Number max);
 
@@ -4184,7 +4184,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param axes the axes to swap to
      * @return the transposed {@code NDArray}
      * @throws IllegalArgumentException thrown when passing a axis that is greater than the actual
-     *     number of dimensions
+     *                                  number of dimensions
      */
     NDArray transpose(int... axes);
 
@@ -4350,7 +4350,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * Returns median along given dimension(s).
      *
      * @param percentile the target percentile in range of 0..100
-     * @param axes the dimension to calculate percentile for
+     * @param axes       the dimension to calculate percentile for
      * @return the result {@code NDArray} NDArray
      */
     NDArray percentile(Number percentile, int[] axes);
@@ -4487,7 +4487,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @return {@code true} if any of the elements within this {@code NDArray} are non-zero or
-     *     {@code true}
+     * {@code true}
      */
     default NDArray any() {
         return toType(DataType.BOOLEAN, false).sum().gt(0);
@@ -4511,7 +4511,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @return {@code true} if none of the elements within this {@code NDArray} are non-zero or
-     *     {@code true}
+     * {@code true}
      */
     default NDArray none() {
         return toType(DataType.BOOLEAN, false).sum().eq(0);
@@ -4559,7 +4559,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @return the number of non-zero values in this {@code NDArray} along a given axis
      */
     default NDArray countNonzero(int axis) {
-        return toType(DataType.BOOLEAN, false).sum(new int[] {axis});
+        return toType(DataType.BOOLEAN, false).sum(new int[]{axis});
     }
 
     /**
@@ -4578,7 +4578,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      */
     NDArray erfinv();
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     default List<NDArray> getResourceNDArrays() {
         return Collections.singletonList(this);
@@ -4615,10 +4617,10 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     /**
      * Runs the debug string representation of this {@code NDArray}.
      *
-     * @param maxSize the maximum elements to print out
-     * @param maxDepth the maximum depth to print out
-     * @param maxRows the maximum rows to print out
-     * @param maxColumns the maximum columns to print out
+     * @param maxSize     the maximum elements to print out
+     * @param maxDepth    the maximum depth to print out
+     * @param maxRows     the maximum rows to print out
+     * @param maxColumns  the maximum columns to print out
      * @param withContent true to show the content of NDArray
      * @return the debug string representation of this {@code NDArray}
      */
@@ -4627,7 +4629,9 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
         return NDFormat.format(this, maxSize, maxDepth, maxRows, maxColumns, withContent);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     void close();
 
@@ -4670,8 +4674,8 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param axes If axes contains an integer, it specifies the axis of x along which to compute
-     *     the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
-     *     matrices, and the matrix norms of these matrices are computed.
+     *             the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
+     *             matrices, and the matrix norms of these matrices are computed.
      * @return the norm of this {@code NDArray}
      */
     default NDArray norm(int[] axes) {
@@ -4696,8 +4700,8 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * </pre>
      *
      * @param keepDims If this is set to True, the axes which are normed over are left in the result
-     *     as dimensions with size one. With this option the result will broadcast correctly against
-     *     the original x.
+     *                 as dimensions with size one. With this option the result will broadcast correctly against
+     *                 the original x.
      * @return the norm of this {@code NDArray}
      */
     NDArray norm(boolean keepDims);
@@ -4719,12 +4723,12 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * [3.1623, 4.4721]
      * </pre>
      *
-     * @param axes If axes contains an integer, it specifies the axis of x along which to compute
-     *     the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
-     *     matrices, and the matrix norms of these matrices are computed.
+     * @param axes     If axes contains an integer, it specifies the axis of x along which to compute
+     *                 the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
+     *                 matrices, and the matrix norms of these matrices are computed.
      * @param keepDims keepDims If this is set to True, the axes which are normed over are left in
-     *     the result as dimensions with size one. With this option the result will broadcast
-     *     correctly against the original x.
+     *                 the result as dimensions with size one. With this option the result will broadcast
+     *                 correctly against the original x.
      * @return the norm of this {@code NDArray}
      */
     default NDArray norm(int[] axes, boolean keepDims) {
@@ -4748,13 +4752,13 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * [3.1623, 4.4721]
      * </pre>
      *
-     * @param ord Order of the norm.
-     * @param axes If axes contains an integer, it specifies the axis of x along which to compute
-     *     the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
-     *     matrices, and the matrix norms of these matrices are computed.
+     * @param ord      Order of the norm.
+     * @param axes     If axes contains an integer, it specifies the axis of x along which to compute
+     *                 the vector norms. If axis contains 2 integers, it specifies the axes that hold 2-D
+     *                 matrices, and the matrix norms of these matrices are computed.
      * @param keepDims keepDims If this is set to True, the axes which are normed over are left in
-     *     the result as dimensions with size one. With this option the result will broadcast
-     *     correctly against the original x.
+     *                 the result as dimensions with size one. With this option the result will broadcast
+     *                 correctly against the original x.
      * @return the norm of this {@code NDArray}
      */
     NDArray norm(int ord, int[] axes, boolean keepDims);
@@ -4803,7 +4807,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @param depth Depth of the one hot dimension.
      * @return one-hot encoding of this {@code NDArray}
      * @see <a
-     *     href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
+     * href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
      */
     default NDArray oneHot(int depth) {
         return oneHot(depth, 1f, 0f, DataType.FLOAT32);
@@ -4850,11 +4854,11 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param depth Depth of the one hot dimension.
+     * @param depth    Depth of the one hot dimension.
      * @param dataType dataType of the output.
      * @return one-hot encoding of this {@code NDArray}
      * @see <a
-     *     href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
+     * href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
      */
     default NDArray oneHot(int depth, DataType dataType) {
         return oneHot(depth, 1f, 0f, dataType);
@@ -4888,13 +4892,13 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param depth Depth of the one hot dimension.
-     * @param onValue The value assigned to the locations represented by indices.
+     * @param depth    Depth of the one hot dimension.
+     * @param onValue  The value assigned to the locations represented by indices.
      * @param offValue The value assigned to the locations not represented by indices.
      * @param dataType dataType of the output.
      * @return one-hot encoding of this {@code NDArray}
      * @see <a
-     *     href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
+     * href=https://d2l.djl.ai/chapter_linear-networks/softmax-regression.html#classification-problems>Classification-problems</a>
      */
     NDArray oneHot(int depth, float onValue, float offValue, DataType dataType);
 

@@ -3,7 +3,6 @@ package elements;
 import ai.djl.ndarray.LifeCycleControl;
 import elements.enums.MessageCommunication;
 import elements.enums.Op;
-import operators.events.BaseOperatorEvent;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.jetbrains.annotations.NotNull;
 import typeinfo.graphopinfo.GraphOpTypeInfoFactory;
@@ -38,7 +37,7 @@ public final class GraphOp implements LifeCycleControl {
     /**
      * Operator Event for the plugins communicated through this channel
      */
-    public BaseOperatorEvent operatorEvent;
+    public GraphEvent graphEvent;
 
     /**
      * Type of communication output Part-to-Part or Broadcast
@@ -67,23 +66,23 @@ public final class GraphOp implements LifeCycleControl {
         this.element = element;
     }
 
-    public GraphOp(BaseOperatorEvent evt) {
+    public GraphOp(GraphEvent evt) {
         this.op = Op.OPERATOR_EVENT;
-        this.operatorEvent = evt;
+        this.graphEvent = evt;
         this.messageCommunication = MessageCommunication.BROADCAST;
     }
 
-    public GraphOp(Op op, short partId, GraphElement element, BaseOperatorEvent operatorEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
+    public GraphOp(Op op, short partId, GraphElement element, GraphEvent graphEvent, @NotNull MessageCommunication messageCommunication, Long ts) {
         this.op = op;
         this.partId = partId;
         this.element = element;
-        this.operatorEvent = operatorEvent;
+        this.graphEvent = graphEvent;
         this.messageCommunication = messageCommunication;
         this.ts = ts;
     }
 
     public GraphOp copy() {
-        return new GraphOp(this.op, this.partId, this.element, this.operatorEvent, this.messageCommunication, this.ts);
+        return new GraphOp(this.op, this.partId, this.element, this.graphEvent, this.messageCommunication, this.ts);
     }
 
     public GraphOp setOp(@NotNull Op op) {
@@ -111,8 +110,8 @@ public final class GraphOp implements LifeCycleControl {
         return this;
     }
 
-    public GraphOp setOperatorEvent(BaseOperatorEvent operatorEvent) {
-        this.operatorEvent = operatorEvent;
+    public GraphOp setGraphEvent(GraphEvent graphEvent) {
+        this.graphEvent = graphEvent;
         return this;
     }
 
@@ -143,12 +142,12 @@ public final class GraphOp implements LifeCycleControl {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GraphOp graphOp = (GraphOp) o;
-        return op == graphOp.op && Objects.equals(element, graphOp.element) && Objects.equals(operatorEvent, graphOp.operatorEvent);
+        return op == graphOp.op && Objects.equals(element, graphOp.element) && Objects.equals(graphEvent, graphOp.graphEvent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(op, element, operatorEvent);
+        return Objects.hash(op, element, graphEvent);
     }
 
 }

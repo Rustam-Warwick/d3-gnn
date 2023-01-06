@@ -1,6 +1,5 @@
 package org.apache.flink.streaming.api.operators.graph;
 
-import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.GraphElement;
 import elements.GraphOp;
 import elements.Plugin;
@@ -30,8 +29,8 @@ import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeCon
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.util.OutputTag;
-import storage.BaseStorage;
 import storage.DefaultStorage;
+import storage.GraphStorage;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -42,25 +41,15 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * Graph Storage operator that contains multiple {@link Plugin} and a {@link BaseStorage}
+ * Graph Storage operator that contains multiple {@link Plugin} and a {@link GraphStorage}
  * Assumes Partitioned {@link GraphOp} as input and output
  */
 public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler, ExposingInternalTimerService {
 
     /**
-     * Map of ID -> Plugin. Actually {@link TaskSharedMapState}
-     */
-    protected Map<String, Plugin> plugins;
-
-    /**
      * Storage constructor access for state creation
      */
-    protected final ConstructorAccess<? extends BaseStorage> storageConstructor;
-
-    /**
-     * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
-     */
-    protected BaseStorage storage;
+    protected final GraphStorage.GraphStorageProvider storageProvider;
 
     /**
      * This horizontal position of this pipeline
@@ -73,16 +62,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final StreamRecord<GraphOp> reuse = new StreamRecord<>(null);
 
     /**
-     * Internal Timer Service
-     */
-    protected InternalTimerService<VoidNamespace> internalTimerService;
-
-    /**
-     * User time service that {@link GraphElement} interact with
-     */
-    protected TimerService userTimerService;
-
-    /**
      * Reference to the {@link Output} for this operator but type cast into {@link CountingBroadcastingGraphOutputCollector}
      */
     protected final CountingBroadcastingGraphOutputCollector thisOutput;
@@ -92,8 +71,34 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected final OperatorEventGateway operatorEventGateway;
 
-    public GraphStorageOperator(List<Plugin> plugins, short position, ConstructorAccess<? extends BaseStorage> storageConstructor, StreamOperatorParameters<GraphOp> parameters) {
-        this.storageConstructor = storageConstructor;
+    /**
+     * Event pool for handling flowing {@link elements.GraphEvent}
+     */
+    protected final GraphEventPool eventPool;
+
+    /**
+     * Map of ID -> Plugin. Actually {@link TaskSharedMapState}
+     */
+    protected Map<String, Plugin> plugins;
+
+    /**
+     * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
+     */
+    protected GraphStorage storage;
+
+    /**
+     * Internal Timer Service
+     */
+    protected InternalTimerService<VoidNamespace> internalTimerService;
+
+    /**
+     * User time service that {@link GraphElement} interact with
+     */
+    protected TimerService userTimerService;
+
+
+    public GraphStorageOperator(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider, StreamOperatorParameters<GraphOp> parameters) {
+        this.storageProvider = storageProvider;
         this.processingTimeService = parameters.getProcessingTimeService();
         this.position = position;
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
@@ -101,6 +106,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         GraphRuntimeContext impl = new GraphRuntimeContextImpl();
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p))); // Temporary hold locally, during initializeState move to task shared state
+        this.eventPool = new GraphEventPool(this);
     }
 
     @Override
@@ -126,7 +132,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageConstructor::newInstance));
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider));
         Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedMapState.class), (Supplier<TaskSharedMapState<String, Plugin>>) TaskSharedMapState::new));
         plugins.forEach(taskLocalPlugin::putIfAbsent);
         plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
@@ -220,7 +226,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public BaseStorage getStorage() {
+        public GraphStorage getStorage() {
             return storage;
         }
 
@@ -266,7 +272,15 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void runForAllLocalParts(Runnable run) {
-            throw new IllegalStateException("NOT IMPLMENETED YET!");
+            PartNumber initialKey = (PartNumber) getCurrentKey();
+            try{
+                for (short thisOperatorPart : getThisOperatorParts()) {
+                    setCurrentKey(PartNumber.of(thisOperatorPart));
+                    run.run();
+                }
+            }finally {
+                setCurrentKey(initialKey);
+            }
         }
 
         @Override

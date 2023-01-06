@@ -63,7 +63,7 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
                 updateTensor.id.f0 = ElementType.VERTEX;
                 updateTensor.id.f1 = messageVertex.getId();
                 getRuntimeContext().output(new GraphOp(Op.UPDATE, updateTensor.getMasterPart(), updateTensor));
-                throughput.inc();
+                throughput.get().inc();
             }
             PART_BATCH.f0 = 0;
             PART_BATCH.f1.clear();

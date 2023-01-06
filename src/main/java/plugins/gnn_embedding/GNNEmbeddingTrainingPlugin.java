@@ -9,12 +9,13 @@ import elements.GraphOp;
 import elements.Rmi;
 import elements.Vertex;
 import elements.annotations.RemoteFunction;
-import elements.enums.*;
+import elements.enums.EdgeType;
+import elements.enums.ElementType;
+import elements.enums.Op;
+import elements.enums.ReplicaState;
 import elements.features.Aggregator;
 import elements.features.MeanAggregator;
 import elements.features.Tensor;
-import operators.events.BackwardBarrier;
-import operators.events.ForwardBarrier;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
@@ -286,35 +287,35 @@ public class GNNEmbeddingTrainingPlugin extends BaseGNNEmbeddingPlugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if (evt instanceof BackwardBarrier) {
-            if (++numTrainingSyncMessages == 1) {
-                getRuntimeContext().runForAllLocalParts(this::trainFirstPart);
-                getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
-            } else {
-                getRuntimeContext().runForAllLocalParts(this::trainSecondPart);
-                if (getRuntimeContext().isFirst())
-                    getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
-                else
-                    getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
-                numTrainingSyncMessages = 0;
-                modelServer.getParameterStore().sync();
-            }
-        } else if (evt instanceof ForwardBarrier) {
-            // first 2 for updating the model, then reset agg and send new messages
-            if (++numForwardSyncMessages == 2) {
-                getRuntimeContext().runForAllLocalParts(this::inferenceFirstPartStart);
-            } else if (numForwardSyncMessages == 3) {
-                // Ready to forward
-                getRuntimeContext().runForAllLocalParts(this::inferenceSecondPartStart);
-            }
-            if (numForwardSyncMessages < 3) {
-                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
-            } else {
-                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
-                numForwardSyncMessages = 0;
-                // @todo add embedding plugin startTermination
-            }
-        }
+//        if (evt instanceof BackwardBarrier) {
+//            if (++numTrainingSyncMessages == 1) {
+//                getRuntimeContext().runForAllLocalParts(this::trainFirstPart);
+//                getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+//            } else {
+//                getRuntimeContext().runForAllLocalParts(this::trainSecondPart);
+//                if (getRuntimeContext().isFirst())
+//                    getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+//                else
+//                    getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
+//                numTrainingSyncMessages = 0;
+//                modelServer.getParameterStore().sync();
+//            }
+//        } else if (evt instanceof ForwardBarrier) {
+//            // first 2 for updating the model, then reset agg and send new messages
+//            if (++numForwardSyncMessages == 2) {
+//                getRuntimeContext().runForAllLocalParts(this::inferenceFirstPartStart);
+//            } else if (numForwardSyncMessages == 3) {
+//                // Ready to forward
+//                getRuntimeContext().runForAllLocalParts(this::inferenceSecondPartStart);
+//            }
+//            if (numForwardSyncMessages < 3) {
+//                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.ITERATE)), OutputTags.ITERATE_OUTPUT_TAG);
+//            } else {
+//                getRuntimeContext().broadcast(new GraphOp(new ForwardBarrier(MessageDirection.FORWARD)));
+//                numForwardSyncMessages = 0;
+//                // @todo add embedding plugin startTermination
+//            }
+//        }
     }
 
 }

@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class DefaultStorage extends BaseStorage {
+public class DefaultStorage extends GraphStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
@@ -34,7 +34,7 @@ public class DefaultStorage extends BaseStorage {
     /**
      * Vertex feature -> [halo, constructor, index in the vertex table, LifeCycleManager]
      */
-    Map<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,Boolean>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
+    Map<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
 
     /**
      * Counter for vertex features, the localVertex table will hold feature in a list according to this index
@@ -59,14 +59,14 @@ public class DefaultStorage extends BaseStorage {
             vertexFeatureInfo.computeIfAbsent(feature.getName(), (key) -> Tuple4.of(feature.isHalo(), ConstructorAccess.get(feature.getClass()), vertexFeatureIndex.getAndIncrement(), (feature.value instanceof LifeCycleControl)));
             localVertexTable.get(getRuntimeContext().getCurrentPart()).compute((String) feature.getAttachedElementId(), (key, val) -> {
                 if (val.f2 == null) val.f2 = new Object[0];
-                Tuple4<?,?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
+                Tuple4<?, ?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
                 if (featureInfo.f2 >= val.f2.length) {
                     Object[] tmp = new Object[featureInfo.f2 + 1];
                     System.arraycopy(val.f2, 0, tmp, 0, val.f2.length);
                     val.f2 = tmp;
                 }
                 val.f2[featureInfo.f2] = feature.value;
-                if(featureInfo.f3) ((LifeCycleControl) feature.value).delay();
+                if (featureInfo.f3) ((LifeCycleControl) feature.value).delay();
                 return val;
             });
             return true;
@@ -109,9 +109,9 @@ public class DefaultStorage extends BaseStorage {
     @Override
     public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
         if (feature.getAttachedElementType() == ElementType.VERTEX) {
-            Tuple4<?,?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
+            Tuple4<?, ?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
             Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) feature.getAttachedElementId()).f2;
-            if(featureInfo.f3){
+            if (featureInfo.f3) {
                 ((LifeCycleControl) features[featureInfo.f2]).resume();
                 ((LifeCycleControl) feature.value).delay();
             }
@@ -191,20 +191,22 @@ public class DefaultStorage extends BaseStorage {
 
     @Override
     public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
-        try{
-            Tuple3<ObjectOpenHashSet<Tuple2<String,String>>, ObjectOpenHashSet<Tuple2<String, String>>, ?> vertexTable = localVertexTable.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
+        try {
+            Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, ?> vertexTable = localVertexTable.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> srcEdgeIterable = Collections.emptyIterator();
             Iterator<DirectedEdge> destEdgeIterable = Collections.emptyIterator();
-            if(edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH){
-                if(vertexTable.f1 != null) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
+            if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
+                if (vertexTable.f1 != null)
+                    destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
             }
-            if(edge_type == EdgeType.IN || edge_type == EdgeType.BOTH){
-                if(vertexTable.f0 != null) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
+            if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
+                if (vertexTable.f0 != null)
+                    srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
             }
             final Iterator<DirectedEdge> srcIteratorFinal = srcEdgeIterable;
             final Iterator<DirectedEdge> destIteratorFinal = destEdgeIterable;
             return () -> IteratorUtils.chainedIterator(srcIteratorFinal, destIteratorFinal);
-        }catch (Exception ignored){
+        } catch (Exception ignored) {
             return Collections.emptyList();
         }
     }
@@ -222,7 +224,7 @@ public class DefaultStorage extends BaseStorage {
     @Override
     public @Nullable Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids) {
         if (ids.f0 == ElementType.VERTEX) {
-            Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,?> featureInfo = vertexFeatureInfo.get(ids.f2);
+            Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(ids.f2);
             Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2[featureInfo.f2];
             Feature feature = featureInfo.f1.newInstance();
             feature.value = value;
@@ -290,7 +292,7 @@ public class DefaultStorage extends BaseStorage {
         try {
             if (element.getType() == ElementType.VERTEX) {
                 Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) element.getId()).f2;
-                for (Map.Entry<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer,Boolean>> stringTuple3Entry : vertexFeatureInfo.entrySet()) {
+                for (Map.Entry<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean>> stringTuple3Entry : vertexFeatureInfo.entrySet()) {
                     if ((!stringTuple3Entry.getValue().f0 && context == CacheFeatureContext.HALO) || (stringTuple3Entry.getValue().f0 && context == CacheFeatureContext.NON_HALO) || features.length <= stringTuple3Entry.getValue().f2 || features[stringTuple3Entry.getValue().f2] == null)
                         continue; // This feature not needed to cache
                     if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(stringTuple3Entry.getKey())))

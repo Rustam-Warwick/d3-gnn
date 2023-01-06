@@ -15,11 +15,13 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.operators.InternalTimer;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
@@ -30,7 +32,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
 
     public transient Map<Short, HashMap<String, Long>> BATCH; // Map for storing processingTimes
 
-    private transient Counter windowThroughput; // Throughput counter, only used for last layer
+    private transient ThreadLocal<Counter> windowThroughput; // Throughput counter, only used for last layer
 
     public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
@@ -43,11 +45,12 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     }
 
     @Override
-    public void open(Configuration params) throws Exception {
+    public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        windowThroughput = new SimpleCounter();
-        BATCH = new HashMap<>();
-        getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
+        BATCH = BATCH == null? new NonBlockingHashMap<>(): BATCH;
+        windowThroughput = windowThroughput == null? new ThreadLocal<>():windowThroughput;
+        windowThroughput.set(new SimpleCounter());
+        getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput.get()));
     }
 
     public void forward(Vertex v) {
@@ -58,7 +61,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
         HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);
         getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
-        windowThroughput.inc();
+        windowThroughput.get().inc();
     }
 
     @Override
@@ -86,7 +89,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
             updateTensor.id.f0 = ElementType.VERTEX;
             updateTensor.id.f1 = messageVertex.getId();
             getRuntimeContext().output(new GraphOp(Op.UPDATE, updateTensor.getMasterPart(), updateTensor));
-            throughput.inc();
+            throughput.get().inc();
         }
     }
 

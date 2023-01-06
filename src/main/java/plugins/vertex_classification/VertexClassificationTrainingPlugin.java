@@ -5,13 +5,9 @@ import ai.djl.ndarray.types.Shape;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.loss.Loss;
-import elements.GraphOp;
 import elements.Rmi;
 import elements.Vertex;
-import elements.enums.MessageDirection;
 import elements.enums.ReplicaState;
-import operators.events.BackwardBarrier;
-import operators.events.ForwardBarrier;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.Gauge;
@@ -112,11 +108,11 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if (evt instanceof ForwardBarrier) {
-            epochThroughput.inc(10000);
-            getRuntimeContext().runForAllLocalParts(this::startTraining);
-            getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
-            modelServer.getParameterStore().sync();
-        }
+//        if (evt instanceof ForwardBarrier) {
+//            epochThroughput.inc(10000);
+//            getRuntimeContext().runForAllLocalParts(this::startTraining);
+//            getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
+//            modelServer.getParameterStore().sync();
+//        }
     }
 }

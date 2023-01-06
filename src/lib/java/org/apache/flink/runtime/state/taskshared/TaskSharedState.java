@@ -26,7 +26,7 @@ abstract public class TaskSharedState implements State {
     protected final AtomicInteger registrationCounter = new AtomicInteger(0);
 
     /**
-     * Callback for accessing this state from a sub-task
+     * Register sub-task to this shared state object
      */
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
         int index = registrationCounter.getAndIncrement();

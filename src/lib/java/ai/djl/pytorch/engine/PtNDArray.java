@@ -21,7 +21,6 @@ import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.ndarray.types.SparseFormat;
 import ai.djl.pytorch.jni.JniUtils;
-import ai.djl.pytorch.jni.LibUtils;
 import ai.djl.util.NativeResource;
 import sun.misc.Unsafe;
 
@@ -1185,13 +1184,17 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         return JniUtils.sum(this, Arrays.stream(axes).mapToLong(i -> i).toArray(), keepDims);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray cumProd(int axis) {
         return JniUtils.cumProd(this, axis, null);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDArray cumProd(int axis, DataType dataType) {
         return JniUtils.cumProd(this, axis, dataType);

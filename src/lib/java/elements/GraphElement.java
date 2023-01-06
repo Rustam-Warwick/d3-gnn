@@ -9,7 +9,7 @@ import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.Nullable;
-import storage.BaseStorage;
+import storage.GraphStorage;
 import typeinfo.recursivepojoinfo.DeSerializationListener;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
@@ -23,7 +23,7 @@ import java.util.Objects;
  * Abstract class representing all the elements in the graph.
  * <p>
  * All RUD operation on GraphElement should be performed by first fetching the element from storage
- * Since some {@link BaseStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
+ * Since some {@link GraphStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
  * </p>
  *
  * @todo Check on this issue, it works for now because we don't have nested-features & Feature.valueEquals() is not properly used
@@ -234,7 +234,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Current Part of this element
-     * <strong>To be called in {@link BaseStorage} parts only, otherwise {@link NullPointerException}</strong>
+     * <strong>To be called in {@link GraphStorage} parts only, otherwise {@link NullPointerException}</strong>
      */
     public short getPart() {
         return getGraphRuntimeContext().getCurrentPart();

@@ -6,24 +6,39 @@ import org.apache.flink.runtime.operators.coordination.OperatorCoordinator;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.*;
+import org.apache.flink.util.Preconditions;
 
 /**
  * {@link AbstractStreamOperatorFactory} for {@link DatasetSplitterOperator}
  * <p>
- *      This is always located at the start of the operator chain hence does not requre explicit position. It is always 0
+ * This is always located at the start of the operator chain hence does not requre explicit position. It is always 0
  * </p>
  */
 public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactory<GraphOp> implements CoordinatedOperatorFactory<GraphOp>, OneInputStreamOperatorFactory<GraphOp, GraphOp> {
 
+    /**
+     * Main Splitter process UDF
+     */
     protected final KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction;
 
-    public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction) {
+    /**
+     * {@link org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider} if exists
+     */
+    final protected GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider;
+
+    public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+        Preconditions.checkNotNull(processFunction);
         this.processFunction = processFunction;
+        this.graphOperatorSubCoordinatorsProvider = graphOperatorSubCoordinatorsProvider;
+    }
+
+    public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction) {
+        this(processFunction, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
     }
 
     @Override
     public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
-        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider((short) 0, operatorID);
+        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider((short) 0, operatorID, graphOperatorSubCoordinatorsProvider);
     }
 
     @Override

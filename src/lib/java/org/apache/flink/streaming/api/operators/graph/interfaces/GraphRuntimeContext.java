@@ -14,12 +14,12 @@ import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
-import storage.BaseStorage;
+import storage.GraphStorage;
 
 import java.util.List;
 
 /**
- * Runtime Context with extra Graph Pipeline based operations and output functions
+ * Runtime Context saved in ThreadLocal state with extra Graph Pipeline based operations and output functions
  * <p>
  * Essentially exposing a lot of {@link org.apache.flink.streaming.api.operators.StreamOperator} API is needed
  * to send messages from {@link elements.GraphElement} at various levels of Graph callbacks
@@ -50,9 +50,9 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     }
 
     /**
-     * Get the {@link BaseStorage}
+     * Get the {@link GraphStorage}
      */
-    abstract public BaseStorage getStorage();
+    abstract public GraphStorage getStorage();
 
     /**
      * Get the {@link Plugin} specified by the ID
@@ -141,7 +141,7 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     /**
      * Send {@link OperatorEvent} to Operator Coordinator
      */
-    public final void sendOperatorEvent(OperatorEvent event){
+    public final void sendOperatorEvent(OperatorEvent event) {
         getOperatorEventGateway().sendEventToCoordinator(event);
     }
 

@@ -37,8 +37,11 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
 
     private static final long serialVersionUID = 1L;
 
-    /** Constructs an empty NDList. */
-    public NDList() {}
+    /**
+     * Constructs an empty NDList.
+     */
+    public NDList() {
+    }
 
     /**
      * Constructs an empty NDList with the specified initial capacity.
@@ -71,7 +74,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
     /**
      * Decodes NDList from byte array.
      *
-     * @param manager manager assigned to {@link NDArray}
+     * @param manager   manager assigned to {@link NDArray}
      * @param byteArray byte array to load from
      * @return {@code NDList}
      */
@@ -80,26 +83,10 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void delay() {
-        forEach(NDArray::delay);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void resume() {
-        forEach(NDArray::resume);
-    }
-
-    /**
      * Decodes NDList from {@link InputStream}.
      *
      * @param manager manager assigned to {@link NDArray}
-     * @param is input stream contains the ndlist information
+     * @param is      input stream contains the ndlist information
      * @return {@code NDList}
      */
     public static NDList decode(NDManager manager, InputStream is) {
@@ -148,6 +135,22 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
             list.add(array);
         }
         return list;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void delay() {
+        forEach(NDArray::delay);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume() {
+        forEach(NDArray::resume);
     }
 
     /**
@@ -207,7 +210,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
      *
      * @return the head NDArray
      * @throws IndexOutOfBoundsException if the index is out of range ({@code index &lt; 0 || index
-     *     &gt;= size()})
+     *                                   &gt;= size()})
      */
     public NDArray head() {
         return get(0);
@@ -258,7 +261,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
      * Converts all the {@code NDArray} in {@code NDList} to a different {@link Device}.
      *
      * @param device the {@link Device} to be set
-     * @param copy set {@code true} if you want to return a copy of the underlying NDArray
+     * @param copy   set {@code true} if you want to return a copy of the underlying NDArray
      * @return a new {@code NDList} with the NDArrays on specified {@link Device}
      */
     public NDList toDevice(Device device, boolean copy) {
@@ -273,31 +276,41 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         return newNDList;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public NDManager getManager() {
         return head().getManager();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public List<NDArray> getResourceNDArrays() {
         return this;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void attach(NDManager manager) {
         forEach(array -> array.attach(manager));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void tempAttach(NDManager manager) {
         forEach(array -> array.tempAttach(manager));
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void detach() {
         forEach(NDResource::detach);
@@ -340,7 +353,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
     /**
      * Writes the encoded NDList to {@code OutputStream}.
      *
-     * @param os the {@code OutputStream} to be written to
+     * @param os    the {@code OutputStream} to be written to
      * @param numpy encode in npz format if true
      * @throws IOException if failed on IO operation
      */
@@ -371,13 +384,17 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         dos.flush();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public byte[] getAsBytes() {
         return encode();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public ByteBuffer toByteBuffer() {
         return ByteBuffer.wrap(encode());
@@ -392,14 +409,18 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         return stream().map(NDArray::getShape).toArray(Shape[]::new);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void close() {
         forEach(NDArray::close);
         clear();
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder(200);

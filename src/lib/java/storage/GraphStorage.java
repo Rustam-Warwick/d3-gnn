@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.function.Supplier;
 
 /**
  * Base Class for all Graph Storage States
@@ -28,12 +29,12 @@ import java.util.ArrayList;
  * BaseStorage is self-sustaining state
  * </p>
  */
-abstract public class BaseStorage extends TaskSharedState implements Serializable {
+abstract public class GraphStorage extends TaskSharedState implements Serializable {
 
     /**
      * Logger
      */
-    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+    protected static Logger LOG = LoggerFactory.getLogger(GraphStorage.class);
 
     // ------------------------ ABSTRACT METHODS -------------------------------------
 
@@ -249,6 +250,22 @@ abstract public class BaseStorage extends TaskSharedState implements Serializabl
         Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
         Preconditions.checkState(taskSharedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
         super.register(taskSharedStateBackend);
+    }
+
+    /**
+     * Provider pattern for GraphStorage
+     */
+    public interface GraphStorageProvider extends Supplier<GraphStorage>, Serializable {
+    }
+
+    /**
+     * Default provider using {@link DefaultStorage}
+     */
+    public static class DefaultGraphStorageProvider implements GraphStorageProvider {
+        @Override
+        public GraphStorage get() {
+            return new DefaultStorage();
+        }
     }
 
 }
