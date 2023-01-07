@@ -12,9 +12,11 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.operators.InternalTimer;
+import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.util.ArrayList;
@@ -64,15 +66,13 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
         windowThroughput.get().inc();
     }
 
-    @Override
-    public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
-        super.onProcessingTime(timer);
+    public void evictUpUntil(long timestamp){
         HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<Vertex> vertices = new ArrayList<>();
         PART_BATCH.forEach((key, val) -> {
-            if (val <= timer.getTimestamp()) {
+            if (val <= timestamp) {
                 Vertex v = getRuntimeContext().getStorage().getVertex(key);
                 features.add((NDArray) (v.getFeature("f")).getValue());
                 aggregators.add((NDArray) (v.getFeature("agg")).getValue());
@@ -93,4 +93,19 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
         }
     }
 
+    @Override
+    public void onProcessingTime(InternalTimer<PartNumber, VoidNamespace> timer) throws Exception {
+        super.onProcessingTime(timer);
+        evictUpUntil(timer.getTimestamp());
+    }
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        super.handleOperatorEvent(evt);
+        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+            getRuntimeContext().runForAllLocalParts(()-> {
+                if(BATCH.containsKey(getRuntimeContext().getCurrentPart())) evictUpUntil(Long.MAX_VALUE);
+            });
+        }
+    }
 }

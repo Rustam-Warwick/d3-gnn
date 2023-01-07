@@ -5,6 +5,7 @@ import elements.Plugin;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import org.apache.flink.api.common.functions.RuntimeContext;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
@@ -75,7 +76,12 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public <T> void output(T el, OutputTag<T> tag);
 
     /**
-     * Broadcast {@link GraphOp} down the pipeline
+     * Broadcast {@link GraphOp} down the pipeline to connected edges
+     */
+    abstract public void broadcastAll(GraphOp op);
+
+    /**
+     * Broadcast {@link GraphOp} down the forward pipeline
      *
      * @implNote Broadcast GraphOps should have messageCommunication as broadcast otherwise key error will occur
      */
@@ -119,9 +125,19 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public TimerService getTimerService();
 
     /**
+     * Get all input gates
+     */
+    abstract public IndexedInputGate[] getInputGates();
+
+    /**
      * Get the position of this graph storage in the entire pipeline
      */
     abstract public short getPosition();
+
+    /**
+     * Get the number of layers in the pipeline
+     */
+    abstract public short getLayers();
 
     /**
      * Get current part of this storage that is being processed
@@ -153,7 +169,14 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     }
 
     /**
-     * Is this Graph Storage the first in the pipeline
+     * Is this operator the last one in the pipeline
+     */
+    public final boolean isLast(){
+        return getPosition() == getLayers();
+    }
+
+    /**
+     * Is this Graph Storage the first in the pipeline: First is either SPLITTER and First Storage layer
      */
     public final boolean isFirst() {
         return getPosition() <= 1;

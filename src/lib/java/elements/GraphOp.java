@@ -51,9 +51,7 @@ public final class GraphOp implements LifeCycleControl {
      */
     public Long ts;
 
-    public GraphOp() {
-
-    }
+    public GraphOp() {}
 
     public GraphOp(Op op, GraphElement element) {
         this.op = op;

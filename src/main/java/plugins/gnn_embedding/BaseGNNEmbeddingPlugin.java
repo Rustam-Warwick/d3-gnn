@@ -51,9 +51,9 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * {@inheritDoc}
      */
     @Override
-    public void open(Configuration parameters) throws Exception {
+    public synchronized void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        modelServer = (ModelServer<GNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
+        modelServer = modelServer == null? (ModelServer<GNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName)):modelServer;
     }
 
     /**

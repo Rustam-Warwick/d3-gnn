@@ -83,7 +83,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Just Reference to OperatorEventHandler to avoid constant type casting
      */
-    protected final OperatorEventHandler operatorEventHandleBodyOperatorRef;
+    protected final OperatorEventHandler operatorEventHandlerBodyOperatorRef;
 
     /**
      * Just Reference to ExposingInternalTimerSerivce operator to avoid constant type casting
@@ -125,12 +125,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         try{
             // Underlying operator is initialized first, so it may have declared a dispatcher already. Need to override
             Map<OperatorID, OperatorEventHandler> handlerMap = (Map<OperatorID, OperatorEventHandler>) eventDispatcherMapField.get(parameters.getOperatorEventDispatcher());
-            handlerMap.put(getOperatorID(), this);
+            this.operatorEventHandlerBodyOperatorRef = handlerMap.put(getOperatorID(), this);
         }catch (Exception e){throw new RuntimeException("Cannot access the field");}
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator) ? (OneInputStreamOperator<Object, OUT>) bodyOperator : null;
-        this.operatorEventHandleBodyOperatorRef = (bodyOperator instanceof OperatorEventHandler) ? (OperatorEventHandler) bodyOperator : null;
         this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService) ? (ExposingInternalTimerService) bodyOperator : null;
-        operatorEventConsumer = operatorEventHandleBodyOperatorRef == null ? this::handleOperatorEventSelf : this::handleOperatorEventWithBody;
+        operatorEventConsumer = operatorEventHandlerBodyOperatorRef == null ? this::handleOperatorEventSelf : this::handleOperatorEventWithBody;
     }
 
     @Override
@@ -278,7 +277,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      * Handle operator event if body IS {@link OperatorEventHandler}
      */
     public void handleOperatorEventWithBody(OperatorEvent evt) {
-        operatorEventHandleBodyOperatorRef.handleOperatorEvent(evt);
+        operatorEventHandlerBodyOperatorRef.handleOperatorEvent(evt);
         handleOperatorEventSelf(evt);
     }
 

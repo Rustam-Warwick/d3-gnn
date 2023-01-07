@@ -26,21 +26,27 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
     /**
      * {@link org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider} if exists
      */
-    final protected GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider;
+    protected final GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider;
+
+    /**
+     * Number of layers in the GNN pipeline
+     */
+    protected final short layers;
 
     /**
      * Process timer services
      */
     protected transient ProcessingTimeService processingTimeService;
 
-    public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+    public DatasetSplitterOperatorFactory(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         Preconditions.checkNotNull(processFunction);
         this.processFunction = processFunction;
         this.graphOperatorSubCoordinatorsProvider = graphOperatorSubCoordinatorsProvider;
+        this.layers = layers;
     }
 
-    public DatasetSplitterOperatorFactory(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction) {
-        this(processFunction, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
+    public DatasetSplitterOperatorFactory(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> processFunction) {
+        this(layers, processFunction, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
     }
 
     @Override
@@ -50,7 +56,8 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
 
     @Override
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
-        return (T) new DatasetSplitterOperator(processFunction, processingTimeService, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), parameters);
+        // Mailbox executor should have priority -1 else operator events will not be processed on training state
+        return (T) new DatasetSplitterOperator(layers, processFunction, processingTimeService, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), parameters);
     }
 
     @Override

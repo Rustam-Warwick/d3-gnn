@@ -17,7 +17,7 @@ import java.util.function.Function;
  * @param <T> key type
  * @param <V> value type
  */
-public class TaskSharedMapState<T, V> extends TaskSharedState implements Map<T, V> {
+public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T, V> {
 
     protected Map<T, V> wrappedMap = new NonBlockingHashMap<>();
 

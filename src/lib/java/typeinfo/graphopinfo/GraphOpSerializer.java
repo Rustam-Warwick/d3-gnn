@@ -58,7 +58,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
                 partIdTypeSerializer = (TypeSerializer<Short>) fieldSerializers[i];
             if (fields[i].getName().equals("element"))
                 graphElementTypeSerializer = (TypeSerializer<GraphElement>) fieldSerializers[i];
-            if (fields[i].getName().equals("operatorEvent"))
+            if (fields[i].getName().equals("graphEvent"))
                 operatorEventTypeSerializer = (TypeSerializer<GraphEvent>) fieldSerializers[i];
             if (fields[i].getName().equals("ts")) timestampTypeSerializer = (TypeSerializer<Long>) fieldSerializers[i];
         }

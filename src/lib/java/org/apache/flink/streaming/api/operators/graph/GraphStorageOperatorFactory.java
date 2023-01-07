@@ -29,6 +29,11 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
     final protected short position;
 
     /**
+     * Number of layers in the pipeline
+     */
+    final protected short layers;
+
+    /**
      * Class of storage to be used for storing elements
      */
     final protected GraphStorage.GraphStorageProvider storageProvider;
@@ -44,31 +49,32 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
     transient protected ProcessingTimeService processingTimeService;
 
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         Preconditions.checkState(position > 0, "Position should be greated than 0, 0 is for Splitter operator");
         Preconditions.checkNotNull(plugins, "Plugins cannot be null");
         Preconditions.checkState(plugins.stream().allMatch(plugin -> plugin.getId() != null), "Plugin ID should be non-null and unique");
         this.position = position;
+        this.layers = layers;
         this.plugins = plugins;
         this.storageProvider = storageProvider;
         this.graphOperatorSubCoordinatorsProvider = graphOperatorSubCoordinatorsProvider;
     }
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider) {
-        this(plugins, position, storageProvider, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider) {
+        this(plugins, position, layers, storageProvider, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
     }
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
-        this(plugins, position, new GraphStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+        this(plugins, position,layers, new GraphStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
     }
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position) {
-        this(plugins, position, new GraphStorage.DefaultGraphStorageProvider());
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers) {
+        this(plugins, position, layers, new GraphStorage.DefaultGraphStorageProvider());
     }
 
     @Override
     public <T extends StreamOperator<GraphOp>> T createStreamOperator(StreamOperatorParameters<GraphOp> parameters) {
-        return (T) new GraphStorageOperator(plugins, position, storageProvider, processingTimeService, parameters);
+        return (T) new GraphStorageOperator(plugins, position, layers, storageProvider, processingTimeService, parameters);
     }
 
     @Override

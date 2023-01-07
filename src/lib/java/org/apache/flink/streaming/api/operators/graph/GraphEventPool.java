@@ -4,6 +4,7 @@ import elements.GraphEvent;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
+import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -31,6 +32,7 @@ public class GraphEventPool implements Serializable {
 
     public GraphEventPool(OperatorEventHandler streamOperator) {
         this.graphRuntimeContext = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
+        Preconditions.checkNotNull(graphRuntimeContext, "Cannot find graph runtime context");
         this.events = new Object2ObjectOpenHashMap<>(4);
         this.eventHandler = streamOperator;
     }

@@ -1,8 +1,10 @@
 package org.apache.flink.streaming.api.operators.graph;
 
 import elements.GraphElement;
+import elements.GraphEvent;
 import elements.GraphOp;
 import elements.Plugin;
+import elements.enums.Op;
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.accumulators.*;
@@ -12,6 +14,7 @@ import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
@@ -39,7 +42,10 @@ import java.util.Set;
  * <strong>SPLITTER</strong> operator located at the start of the operator chain
  * <p>
  * Apart from taking in the {@link KeyedProcessFunction} for splitting the {@link datasets.Dataset}
- * also handles the training and flushing the input stream
+ * also handles the training and flushing the input stream.
+ * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.FlushDataFlow} it stops the operator from consuming messages
+ * This causes a backpressure which also hold the checkpoints. Note that iteration messages will still flow normally only topological messages will stop
+ * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.ResumeDataFlow} it will resume the computation and continue streaming
  * </p>
  *
  * @implNote Always located at position 0, hence no explicit position passed in here
@@ -50,6 +56,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      * Reference to the {@link Output} for this operator but type cast into {@link CountingBroadcastingGraphOutputCollector}
      */
     protected final CountingBroadcastingGraphOutputCollector thisOutput;
+
+    /**
+     * Number of layers in the GNN pipeline
+     */
+    protected final short layers;
 
     /**
      * Reuse element for handling timestamps and performance reasons
@@ -71,6 +82,9 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected InternalTimerService<VoidNamespace> internalTimerService;
 
+    /**
+     * Mailbox executor for handling operator events in case training mod
+     */
     protected final MailboxExecutor mailboxExecutor;
 
     /**
@@ -78,11 +92,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected OperationMode operationMode = OperationMode.RUNNING;
 
-
-    public DatasetSplitterOperator(KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
+    public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
         this.processingTimeService = processingTimeService;
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.layers = layers;
         this.mailboxExecutor = mailboxExecutor;
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
@@ -102,7 +116,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
-        super.processElement(element);
+        if(element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
+        else super.processElement(element);
     }
 
     @Override
@@ -118,6 +133,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+            thisOutput.broadcastAll(reuse.replace(new GraphOp((GraphEvent) evt)));
             operationMode = OperationMode.TRAINING;
             try{
                 while(operationMode == OperationMode.TRAINING){
@@ -127,6 +143,18 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
                 // Can be interrupted to close prematurely
             }
         }
+        else if(evt instanceof TrainingSubCoordinator.ResumeDataFlow){
+            // Back to running mode
+            operationMode = OperationMode.RUNNING;
+        }
+    }
+
+    /**
+     * Mode of operation of this operator
+     */
+    enum OperationMode{
+        RUNNING,
+        TRAINING
     }
 
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
@@ -154,6 +182,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         @Override
         public <T> void output(T el, OutputTag<T> tag) {
             thisOutput.collect(tag, reuse.replace(el));
+        }
+
+        @Override
+        public void broadcastAll(GraphOp op) {
+            thisOutput.broadcastAll(reuse.replace(op));
         }
 
         @Override
@@ -195,8 +228,18 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         }
 
         @Override
+        public IndexedInputGate[] getInputGates() {
+            return getContainingTask().getEnvironment().getAllInputGates();
+        }
+
+        @Override
         public short getPosition() {
             return 0;
+        }
+
+        @Override
+        public short getLayers() {
+            return layers;
         }
 
         @Override
@@ -373,14 +416,6 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
             return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE, taskSharedStateDescriptor);
         }
-    }
-
-    /**
-     * Mode of operation of this operator
-     */
-    enum OperationMode{
-        RUNNING,
-        TRAINING
     }
 
 }

@@ -75,9 +75,9 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<GraphOp>[] res = new GraphStream(env, args, false, false, false,
-                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)), pos),
-                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)), pos),
-                    pos -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeTrainingScheduler(models.get(2).getName(), 1024)), pos)
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)), pos, layers),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)), pos, layers),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeTrainingScheduler(models.get(2).getName(), 256)), pos, layers)
             ).build();
             env.execute();
         } catch (Exception e) {

@@ -14,12 +14,13 @@ import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
+import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedPluginMap;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
@@ -58,6 +59,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final short position;
 
     /**
+     * Number of layers in the pipeline
+     */
+    protected final short layers;
+
+    /**
      * Reuse element for handling timestamps and performance reasons
      */
     protected final StreamRecord<GraphOp> reuse = new StreamRecord<>(null);
@@ -78,7 +84,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final GraphEventPool eventPool;
 
     /**
-     * Map of ID -> Plugin. Actually {@link TaskSharedMapState}
+     * Map of ID -> Plugin. Actually {@link TaskSharedPluginMap}
      */
     protected Map<String, Plugin> plugins;
 
@@ -97,11 +103,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected TimerService userTimerService;
 
-    public GraphStorageOperator(List<Plugin> plugins, short position, GraphStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
+    public GraphStorageOperator(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = processingTimeService;
         super.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.storageProvider = storageProvider;
         this.position = position;
+        this.layers = layers;
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p))); // Temporary hold locally, during initializeState move to task shared state
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
@@ -134,7 +141,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
         storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider));
-        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedMapState.class), (Supplier<TaskSharedMapState<String, Plugin>>) TaskSharedMapState::new));
+        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedPluginMap.class), (Supplier<TaskSharedPluginMap<String, Plugin>>) TaskSharedPluginMap::new));
         plugins.forEach(taskLocalPlugin::putIfAbsent);
         plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
         for (Plugin plugin : plugins.values()) {
@@ -210,6 +217,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                 Rmi.execute(rpcElement, rmi.methodName, rmi.args);
                 break;
             case OPERATOR_EVENT:
+                eventPool.addEvent(element.getValue().graphEvent);
                 break;
         }
     }
@@ -252,6 +260,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         }
 
         @Override
+        public void broadcastAll(GraphOp op) {
+            thisOutput.broadcastAll(reuse.replace(op));
+        }
+
+        @Override
         public void broadcast(GraphOp op) {
             thisOutput.broadcast(reuse.replace(op));
         }
@@ -290,8 +303,18 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         }
 
         @Override
+        public IndexedInputGate[] getInputGates() {
+            return getContainingTask().getEnvironment().getAllInputGates();
+        }
+
+        @Override
         public short getPosition() {
             return position;
+        }
+
+        @Override
+        public short getLayers() {
+            return layers;
         }
 
         @Override

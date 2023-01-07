@@ -1,10 +1,13 @@
 package org.apache.flink.streaming.api.operators.graph;
 
 import elements.GraphEvent;
+import elements.GraphOp;
+import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.util.Preconditions;
 
 import javax.annotation.Nullable;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -33,14 +36,10 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     @Override
-    public void start() throws Exception {
-
-    }
+    public void start() throws Exception {}
 
     @Override
-    public void close() throws Exception {
-
-    }
+    public void close() throws Exception {}
 
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
@@ -48,6 +47,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
                 subTaskGateway.sendEvent(new FlushDataFlow());
             }
+            System.out.println("FLUSH DATAFLOW MESSAGE SENT");
         }
     }
 
@@ -93,6 +93,41 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
      */
     public static class FlushDataFlow extends GraphEvent{
 
+        protected transient byte iteration;
+
+        protected transient short numReceived;
+
+        protected transient short shouldReceive;
+
+        @Override
+        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
+            if(incoming == null){
+                // First ever occurance
+                shouldReceive = (short) Arrays.stream(pool.graphRuntimeContext.getInputGates()).mapToInt(InputGate::getNumberOfInputChannels).sum();
+            }
+            if(++numReceived == shouldReceive && checkEviction(pool)) {
+                pool.evict(this); // Evict so plugins can respond
+                pushToNext(pool);
+            }
+        }
+
+        public void pushToNext(GraphEventPool pool){
+            if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));
+        }
+
+        public boolean checkEviction(GraphEventPool pool){
+            if(pool.graphRuntimeContext.isLast()) return true;
+            if(iteration == 2) return true;
+            iteration++;
+            numReceived = 0;
+            shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
+            pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
+            return false;
+        }
+
+    }
+
+    public static class ResumeDataFlow extends GraphEvent{
         @Override
         public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
 

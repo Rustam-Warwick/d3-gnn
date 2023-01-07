@@ -26,6 +26,7 @@ import partitioner.Partitioner;
 import picocli.CommandLine;
 
 import java.util.Arrays;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 /**
@@ -45,7 +46,7 @@ public class GraphStream {
     /**
      * List of storage and plugins where each one corresponds to single layer in GNN pipeline
      */
-    protected final Function<Short, GraphStorageOperatorFactory>[] operatorFactorySuppliers;
+    protected final BiFunction<Short,Short, GraphStorageOperatorFactory>[] operatorFactorySuppliers;
     /**
      * If the last storage layer should receive topology updates
      */
@@ -109,7 +110,7 @@ public class GraphStream {
     protected String datasetName;
 
     @SafeVarargs
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, Function<Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, BiFunction<Short, Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
         Preconditions.checkNotNull(env);
         env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
         Arrays.sort(cmdArgs);
@@ -169,9 +170,9 @@ public class GraphStream {
      * @param position       position of the storage layer [1...layers]
      * @return Output of this storage operator not partitioned
      */
-    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, Function<Short, GraphStorageOperatorFactory> operatorFactorySupplier, short position) {
+    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, BiFunction<Short, Short, GraphStorageOperatorFactory> operatorFactorySupplier, short position) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, position - 1));
-        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
         iterateStreams[position] = IterateStream.startIteration(storageOperator);
         iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
@@ -189,7 +190,7 @@ public class GraphStream {
      */
     protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
         int thisParallelism = env.getParallelism();
-        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperatorFactory(splitter)).setParallelism(thisParallelism).name("Splitter");
+        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperatorFactory(layers,splitter)).setParallelism(thisParallelism).name("Splitter");
         if (fineGrainedResourceManagementEnabled) splitterOperator.slotSharingGroup("GNN-1");
         iterateStreams[0] = IterateStream.startIteration(splitterOperator);
         return splitterOperator;
@@ -206,7 +207,7 @@ public class GraphStream {
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
 
         for (short i = 1; i <= layers; i++) {
-            Function<Short, GraphStorageOperatorFactory> operatorFactorySupplier = operatorFactorySuppliers[i - 1];
+            BiFunction<Short,Short, GraphStorageOperatorFactory> operatorFactorySupplier = operatorFactorySuppliers[i - 1];
             if (i == 1) {
                 layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], operatorFactorySupplier, i); // First directly from splitter
             } else if (i == layers) {

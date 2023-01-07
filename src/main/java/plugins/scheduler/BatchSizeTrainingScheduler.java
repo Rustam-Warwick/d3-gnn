@@ -5,6 +5,7 @@ import elements.GraphElement;
 import elements.Plugin;
 import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 
 /**
@@ -50,6 +51,14 @@ public class BatchSizeTrainingScheduler extends Plugin {
             if(dataCount == batchSize){
                 getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
             }
+        }
+    }
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        super.handleOperatorEvent(evt);
+        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+            System.out.println("FLUSH DATAFLOW MESSAGE RECEIVED");
         }
     }
 }
