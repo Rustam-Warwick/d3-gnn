@@ -43,7 +43,7 @@ import java.util.Set;
  * <p>
  * Apart from taking in the {@link KeyedProcessFunction} for splitting the {@link datasets.Dataset}
  * also handles the training and flushing the input stream.
- * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.FlushDataFlow} it stops the operator from consuming messages
+ * On reception of {@link TrainingSubCoordinator.FlushForTraining} it stops the operator from consuming messages
  * This causes a backpressure which also hold the checkpoints. Note that iteration messages will still flow normally only topological messages will stop
  * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.ResumeDataFlow} it will resume the computation and continue streaming
  * </p>
@@ -132,7 +132,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
             thisOutput.broadcastAll(reuse.replace(new GraphOp((GraphEvent) evt)));
             operationMode = OperationMode.TRAINING;
             try{

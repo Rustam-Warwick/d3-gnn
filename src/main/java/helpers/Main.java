@@ -10,6 +10,7 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -17,6 +18,7 @@ import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactor
 import plugins.ModelServer;
 import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
 import plugins.scheduler.BatchSizeTrainingScheduler;
+import plugins.vertex_classification.VertexClassificationTrainingPlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,7 +79,8 @@ public class Main {
             DataStream<GraphOp>[] res = new GraphStream(env, args, false, false, false,
                     (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)), pos, layers),
                     (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)), pos, layers),
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeTrainingScheduler(models.get(2).getName(), 256)), pos, layers)
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new VertexClassificationTrainingPlugin(models.get(2).getName(), Loss.l1Loss()),
+            new BatchSizeTrainingScheduler(256)), pos, layers)
             ).build();
             env.execute();
         } catch (Exception e) {

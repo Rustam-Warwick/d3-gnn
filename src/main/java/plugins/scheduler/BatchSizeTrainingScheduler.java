@@ -24,30 +24,30 @@ public class BatchSizeTrainingScheduler extends Plugin {
     /**
      * Count of available training data up till now
      */
-    protected transient ThreadLocal<Integer> trainingDataCount;
+    protected transient ThreadLocal<Integer> trainingDataSize;
 
-    public BatchSizeTrainingScheduler(String modelName, int batchSize){
+    public BatchSizeTrainingScheduler(int batchSize){
         super("training_scheduler");
         this.batchSize = batchSize;
     }
 
-    public BatchSizeTrainingScheduler(String modelName){
-        this(modelName, 512);
+    public BatchSizeTrainingScheduler(){
+        this( 512);
     }
 
     @Override
     public synchronized void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        trainingDataCount = trainingDataCount == null ? new ThreadLocal<>(): trainingDataCount;
-        trainingDataCount.set(0);
+        trainingDataSize = trainingDataSize == null ? new ThreadLocal<>(): trainingDataSize;
+        trainingDataSize.set(0);
     }
 
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         if(element.getType() == ElementType.ATTACHED_FEATURE && ((Feature<?,?>)element).getName().equals("tl")){
-            int dataCount = trainingDataCount.get() + 1;
-            trainingDataCount.set(dataCount);
+            int dataCount = trainingDataSize.get() + 1;
+            trainingDataSize.set(dataCount);
             if(dataCount == batchSize){
                 getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
             }
@@ -57,8 +57,8 @@ public class BatchSizeTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
-            System.out.println("FLUSH DATAFLOW MESSAGE RECEIVED");
+        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize.get()));
         }
     }
 }

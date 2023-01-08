@@ -23,7 +23,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
@@ -102,7 +101,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushDataFlow){
+        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
             getRuntimeContext().runForAllLocalParts(()-> {
                 if(BATCH.containsKey(getRuntimeContext().getCurrentPart())) evictUpUntil(Long.MAX_VALUE);
             });

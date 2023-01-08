@@ -10,11 +10,11 @@ import elements.Vertex;
 import elements.enums.ReplicaState;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
-import org.apache.flink.metrics.Gauge;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,9 +27,9 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
 
     public final Loss loss;
 
-    protected transient Counter epochThroughput; // Epoch Trhoughput counter
+    protected transient ThreadLocal<Counter> epochThroughput; // Epoch Throughput counter
 
-    protected transient float previousLoss;
+    protected transient ThreadLocal<Short> miniBatchCount;
 
     public VertexClassificationTrainingPlugin(String modelName, Loss loss) {
         super(modelName, "trainer");
@@ -37,25 +37,13 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     }
 
     @Override
-    public void open(Configuration params) throws Exception {
+    public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        epochThroughput = new SimpleCounter();
-        getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
-        getRuntimeContext().getMetricGroup().gauge("lossValue", new Gauge<Integer>() {
-            @Override
-            public Integer getValue() {
-                return (int) previousLoss * 100;
-            }
-        });
+        epochThroughput = epochThroughput == null?new ThreadLocal<>():epochThroughput;
+        miniBatchCount = miniBatchCount == null?new ThreadLocal<>():miniBatchCount;
+        epochThroughput.set(new SimpleCounter());
+        getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput.get(), 30));
     }
-
-//    @Override
-//    public void addElementCallback(GraphElement element) {
-//        super.addElementCallback(element);
-//        if(element.getType() == ElementType.VERTEX && element.state() == ReplicaState.MASTER){
-//            element.setFeature("train_l", new Tensor(getRuntimeContext().layerFunction.getWrapperContext().getNDManager().ones(new Shape()),false, null));
-//        }
-//    }
 
     /**
      * For all the trainVertices compute the backward pass and send the collected gradients to previous layer
@@ -81,7 +69,6 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-        previousLoss = meanLoss.getFloat();
         JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);
         NDArray gradient = batchedInputs.get(0).getGradient();
         // 2. Prepare the HashMap for Each Vertex and send to previous layer
@@ -108,11 +95,9 @@ public class VertexClassificationTrainingPlugin extends BaseVertexOutputPlugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-//        if (evt instanceof ForwardBarrier) {
-//            epochThroughput.inc(10000);
-//            getRuntimeContext().runForAllLocalParts(this::startTraining);
-//            getRuntimeContext().broadcast(new GraphOp(new BackwardBarrier(MessageDirection.BACKWARD)), OutputTags.BACKWARD_OUTPUT_TAG);
-//            modelServer.getParameterStore().sync();
-//        }
+        if(evt instanceof TrainingSubCoordinator.StartTrainingWithMiniBatch){
+            miniBatchCount.set(((TrainingSubCoordinator.StartTrainingWithMiniBatch) evt).miniBatchCount);
+            getRuntimeContext().runForAllLocalParts(this::startTraining);
+        }
     }
 }
