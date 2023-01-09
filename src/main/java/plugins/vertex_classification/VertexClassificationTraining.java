@@ -179,8 +179,8 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.StartTrainingWithMiniBatch){
-            epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTrainingWithMiniBatch) evt).miniBatches, ((TrainingSubCoordinator.StartTrainingWithMiniBatch) evt).epochs);
+        if(evt instanceof TrainingSubCoordinator.StartTraining){
+            epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
             getRuntimeContext().runForAllLocalParts(this::startTraining);
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }

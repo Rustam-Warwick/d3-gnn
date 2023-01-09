@@ -18,17 +18,17 @@ public class GraphEventPool implements Serializable {
     /**
      * Main operator to send the events on eviction
      */
-    protected final OperatorEventHandler eventHandler;
+    public final OperatorEventHandler eventHandler;
 
     /**
      * Map of {@link GraphEvent}
      */
-    protected final Map<GraphEvent, GraphEvent> events;
+    public final Map<GraphEvent, GraphEvent> events;
 
     /**
      * Cached {@link GraphRuntimeContext}
      */
-    protected final GraphRuntimeContext graphRuntimeContext;
+    public final GraphRuntimeContext graphRuntimeContext;
 
     public GraphEventPool(OperatorEventHandler streamOperator) {
         this.graphRuntimeContext = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();

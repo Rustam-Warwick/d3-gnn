@@ -20,12 +20,6 @@ import java.util.Objects;
  */
 @SuppressWarnings({"unused", "unchecked"})
 public class Feature<T, V> extends ReplicableGraphElement {
-
-    /**
-     * List of Element types
-     */
-    public static ElementType[] ELEMENT_VALUES = ElementType.values();
-
     /**
      * Actual value stored in this Feature object
      */

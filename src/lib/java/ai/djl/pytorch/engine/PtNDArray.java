@@ -1910,7 +1910,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        if (cleanable != null) return; // Will be cleaned by its cleanable
+        if (cleanable != null) {
+            cleanable.clean();
+            return;
+        };
         if (delayed == 0) getManager().detachInternal(null, this);
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
@@ -1920,7 +1923,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             UNSAFE.invokeCleaner(dataRef[0]);
             dataRef[0] = null;
         }
-        if (cleanable != null) cleanable.clean();
     }
 
     /**
@@ -1928,7 +1930,10 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void destroy() {
-        if (cleanable != null) return;
+        if (cleanable != null) {
+            cleanable.clean();
+            return;
+        };
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);
@@ -1937,7 +1942,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             UNSAFE.invokeCleaner(dataRef[0]);
             dataRef[0] = null;
         }
-        if (cleanable != null) cleanable.clean();
     }
 
     public static class PtNDArrayFinalizeTask implements Runnable {

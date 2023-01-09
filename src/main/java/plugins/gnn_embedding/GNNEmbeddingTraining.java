@@ -27,7 +27,9 @@ import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import java.util.*;
 
 /**
- * Plugin that manages the training of GNNEmbeddingLayer
+ * <p>
+ *      Plugin that manages the training of {@link BaseGNNEmbeddings}
+ * </p>
  */
 public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
 
@@ -66,7 +68,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * Assumes to contain only gradients for master vertices with aggregators allocated already
      * </p>
      */
-    public void trainFirstPart() {
+    public void backwardFirstPhase() {
         NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
         if(collectedGradients.isEmpty()) return;
 
@@ -160,8 +162,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * Previous layer updates are needed only if this is not First layer of GNN
      * </p>
      */
-    public void trainSecondPart() {
-        try {
+    public void backwardSecondPhase() {
+            if(true) return;
             if (!part2GradientAggregators.containsKey(getPart())) return;
             NDArrayCollector<String> collectedAggregators = null;
             if (collectedAggregators.isEmpty()) return;
@@ -199,8 +201,19 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                 }
             }
             collectedAggregators.clear();
-        } catch (Exception e) {
-            e.printStackTrace();
+    }
+
+    /**
+     * <p>
+     *     Zero phase that overlaps with mode sync
+     *     Simply reset the aggregator values in storage
+     * </p>
+     */
+    public void forwardZeroPhase(){
+        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
+            if(vertex.state() == ReplicaState.MASTER){
+                ((Aggregator<?>) vertex.getFeature("agg")).reset();
+            }
         }
     }
 
@@ -210,7 +223,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * Reset local aggregators, Collect local vertices, batch messages going to a vertex and send RMI reduce messages
      * </p>
      */
-    public void inferenceFirstPartStart() {
+    public void forwardFirstPhase() {
+        if(true) return;
         HashMap<Vertex, Integer> srcVertices = new HashMap<>();
         HashMap<Vertex, List<Integer>> destVertices = new HashMap<>();
         NDList srcFeatures = new NDList();
@@ -250,7 +264,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     /**
      * Forward all local MASTER Vertices to the next layer
      */
-    public void inferenceSecondPartStart() {
+    public void forwardSecondPhase() {
+        if(true) return;
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
@@ -274,8 +289,21 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.BackwardPhaser){
-            if(((TrainingSubCoordinator.BackwardPhaser) evt).iteration == 1) getRuntimeContext().runForAllLocalParts(this::trainFirstPart);
-            else System.out.println("Second");
+            if(!((TrainingSubCoordinator.BackwardPhaser) evt).isSecondPhase) getRuntimeContext().runForAllLocalParts(this::backwardFirstPhase);
+            else getRuntimeContext().runForAllLocalParts(this::backwardSecondPhase);
+        }
+        else if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
+            switch (((TrainingSubCoordinator.ForwardPhaser) evt).iteration){
+                case 0:
+                    getRuntimeContext().runForAllLocalParts(this::forwardZeroPhase);
+                    break;
+                case 1:
+                    getRuntimeContext().runForAllLocalParts(this::forwardFirstPhase);
+                    break;
+                case 2:
+                    getRuntimeContext().runForAllLocalParts(this::forwardSecondPhase);
+                    break;
+            }
         }
     }
 }

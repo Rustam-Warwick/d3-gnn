@@ -55,6 +55,7 @@ public class Rmi extends GraphElement {
      */
     public String methodName;
 
+
     public Rmi() {
         super();
     }

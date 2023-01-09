@@ -45,7 +45,7 @@ import java.util.Set;
  * also handles the training and flushing the input stream.
  * On reception of {@link TrainingSubCoordinator.FlushForTraining} it stops the operator from consuming messages
  * This causes a backpressure which also hold the checkpoints. Note that iteration messages will still flow normally only topological messages will stop
- * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.ResumeDataFlow} it will resume the computation and continue streaming
+ * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.ResumeInference} it will resume the computation and continue streaming
  * </p>
  *
  * @implNote Always located at position 0, hence no explicit position passed in here
@@ -73,11 +73,6 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     protected final OperatorEventGateway operatorEventGateway;
 
     /**
-     * Event pool for handling flowing {@link elements.GraphEvent}
-     */
-    protected final GraphEventPool eventPool;
-
-    /**
      * Internal Timer Service
      */
     protected InternalTimerService<VoidNamespace> internalTimerService;
@@ -101,7 +96,6 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         new GraphRuntimeContextImpl(); // Create so it is stored in ThreadLocal state
-        this.eventPool = new GraphEventPool(this);
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
@@ -116,8 +110,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
-        if(element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
-        else super.processElement(element);
+        super.processElement(element);
     }
 
     @Override
@@ -143,7 +136,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
                 // Can be interrupted to close prematurely
             }
         }
-        else if(evt instanceof TrainingSubCoordinator.ResumeDataFlow){
+        else if(evt instanceof TrainingSubCoordinator.ResumeInference){
             // Back to running mode
             operationMode = OperationMode.RUNNING;
         }
