@@ -28,7 +28,7 @@
 // *      vertex id translation added to vertexTable
 // *      vertexTable, edgeList in state backend
 // *      v2e should be in-memory and recovered on restart. We can implement a custom HashMap that takes long keys [src_id, dest_id] resulting with a string list of attributes
-// *      features can remain like this or better to add a caching layer moving elements to backend on TTL
+// *      features can remain like this or better to aggregate a caching layer moving elements to backend on TTL
 // *      More useful if feature tables are separated for vertices, edges and etc...
 // * </p>
 // */
@@ -95,13 +95,13 @@
 //    public boolean addEdge(DirectedEdge directedEdge) {
 //        try {
 //            int index = ((List<?>) edgeList.get()).size();
-//            edgeList.add(directedEdge.getId());
+//            edgeList.aggregate(directedEdge.getId());
 //            Tuple2<IntArrayList, IntArrayList> srcTuple = v2e.get(directedEdge.getSrcId());
 //            Tuple2<IntArrayList, IntArrayList> destTuple = v2e.get(directedEdge.getDestId());
 //            if (srcTuple == null) srcTuple = Tuple2.of(new IntArrayList(2), new IntArrayList());
 //            if (destTuple == null) destTuple = Tuple2.of(new IntArrayList(2), new IntArrayList());
-//            srcTuple.f1.add(index);
-//            destTuple.f0.add(index);
+//            srcTuple.f1.aggregate(index);
+//            destTuple.f0.aggregate(index);
 //            v2e.put(directedEdge.getSrcId(), srcTuple);
 //            v2e.put(directedEdge.getDestId(), destTuple);
 //            return true;

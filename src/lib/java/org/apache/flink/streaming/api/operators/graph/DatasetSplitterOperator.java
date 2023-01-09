@@ -191,7 +191,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
         @Override
         public void broadcast(GraphOp op) {
-            thisOutput.broadcast(reuse.replace(op));
+            thisOutput.broadcast(null,reuse.replace(op));
         }
 
         @Override
@@ -201,12 +201,22 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
         @Override
         public void broadcast(GraphOp op, List<Short> selectedPartsOnly) {
-            thisOutput.broadcast(reuse.replace(op), selectedPartsOnly);
+            thisOutput.broadcast(null, reuse.replace(op), selectedPartsOnly);
         }
 
         @Override
         public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly) {
             thisOutput.broadcast(tag, reuse.replace(op), selectedPartsOnly);
+        }
+
+        @Override
+        public int getNumOfOutChannels() {
+            return thisOutput.getNumChannels(null);
+        }
+
+        @Override
+        public int getNumOfOutChannels(OutputTag<GraphOp> tag) {
+            return thisOutput.getNumChannels(tag);
         }
 
         @Override

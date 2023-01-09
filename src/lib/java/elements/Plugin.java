@@ -4,7 +4,6 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import org.apache.flink.runtime.state.taskshared.TaskSharedPluginMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphListener;
-import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.api.operators.graph.interfaces.RichGraphProcess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,11 +36,6 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
      * Is this Plugin currently running
      */
     public boolean running;
-
-    /**
-     * Reference to the {@link GraphRuntimeContext}
-     */
-    public transient GraphRuntimeContext graphRuntimeContext;
 
     public Plugin() {
         this(null, true);

@@ -10,22 +10,22 @@ import elements.enums.CopyContext;
  *
  * @implNote <strong>Use this if the updated oldValue is never used by the plugins</strong>
  */
-public final class InPlaceSumAggregator extends Aggregator<CountValueHolder> {
+public final class InPlaceSumAggregator extends Aggregator<CountTensorHolder> {
 
     public InPlaceSumAggregator() {
         super();
     }
 
     public InPlaceSumAggregator(String id, NDArray value) {
-        super(id, new CountValueHolder(value, 0));
+        super(id, new CountTensorHolder(value, 0));
     }
 
     public InPlaceSumAggregator(String id, NDArray value, boolean halo) {
-        super(id, new CountValueHolder(value, 0), halo);
+        super(id, new CountTensorHolder(value, 0), halo);
     }
 
     public InPlaceSumAggregator(String id, NDArray value, boolean halo, short master) {
-        super(id, new CountValueHolder(value, 0), halo, master);
+        super(id, new CountTensorHolder(value, 0), halo, master);
     }
 
     public InPlaceSumAggregator(InPlaceSumAggregator f, CopyContext context) {

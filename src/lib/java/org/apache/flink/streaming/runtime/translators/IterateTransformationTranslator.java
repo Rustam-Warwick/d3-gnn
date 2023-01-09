@@ -54,7 +54,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
             // Basic Error Handling
             Preconditions.checkNotNull(transformation.getIterationBodyTransformation());
             if (transformation.getIterationFeedbackTransformations().isEmpty()) {
-                // If no tails do not add any iteration stuff
+                // If no tails do not aggregate any iteration stuff
                 return Collections.emptyList();
             }
             // Easy Access

@@ -28,4 +28,12 @@ public interface LifeCycleControl {
     default void destroy() {
     }
 
+    /**
+     * Simply resume and then delay
+     */
+    default void resumeAndDelay(){
+        resume();
+        delay();
+    }
+
 }

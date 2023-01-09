@@ -15,7 +15,7 @@ public class MLTests {
 //        TFloat32 arr2_float = TFloat32.tensorOf(org.tensorflow.ndarray.Shape.of(10, 10));
 //        Placeholder<TFloat32> arr1 = tf.placeholder(TFloat32.class);
 //        Placeholder<TFloat32> arr2 = tf.placeholder(TFloat32.class);
-//        Add<TFloat32> res = tf.math.add(arr2, arr1);
+//        Add<TFloat32> res = tf.math.aggregate(arr2, arr1);
 //        for (int i = 0; i < 100000; i++) {
 //            Result a = session.runner().addTarget(res).fetch(res).feed(arr1, arr1_float).feed(arr2, arr2_float).run();
 ////            arr2.scalars().forEach(item -> System.out.println(item.getObject()));
@@ -31,7 +31,7 @@ public class MLTests {
 //        INDArray arr1 = Nd4j.rand(10, 10);
 //        INDArray arr2 = Nd4j.rand(10, 10);
 //        for (int i = 0; i < 100000; i++) {
-//            arr1.add(arr2);
+//            arr1.aggregate(arr2);
 //        }
 //        System.out.println("Time taken for ND4j: " + (System.currentTimeMillis() - ms));
 //    }
@@ -44,7 +44,7 @@ public class MLTests {
 //        NDArray arr1 = m.randomUniform(0, 1, new Shape(10, 10));
 //        NDArray arr2 = m.randomUniform(0, 1, new Shape(10, 10));
 //        for (int i = 0; i < 100000; i++) {
-//            arr1.add(arr2);
+//            arr1.aggregate(arr2);
 //        }
 //        m.resume();
 //        System.out.println("Time taken for PyTorch: " + (System.currentTimeMillis() - ms));

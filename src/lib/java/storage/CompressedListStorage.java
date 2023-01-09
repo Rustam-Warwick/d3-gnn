@@ -110,8 +110,8 @@
 //            if (eOut == null) eOut = new HashSet<>(10);
 //            Set<Tuple2<String, String>> eIn = eInTable.get(directedEdge.getDestId());
 //            if (eIn == null) eIn = new HashSet<>(10);
-//            eOut.add(Tuple2.of(directedEdge.getDestId(), directedEdge.getAttribute()));
-//            eIn.add(Tuple2.of(directedEdge.getSrcId(), directedEdge.getAttribute()));
+//            eOut.aggregate(Tuple2.of(directedEdge.getDestId(), directedEdge.getAttribute()));
+//            eIn.aggregate(Tuple2.of(directedEdge.getSrcId(), directedEdge.getAttribute()));
 //            eOutTable.put(directedEdge.getSrcId(), eOut);
 //            eInTable.put(directedEdge.getDestId(), eIn);
 //            return true;
@@ -128,7 +128,7 @@
 //            for (String vertexId : hyperEdge.getVertexIds()) {
 //                List<String> tmp = v2HEdge.get(vertexId);
 //                if (tmp == null) tmp = new ArrayList<>(10);
-//                tmp.add(hyperEdge.getId());
+//                tmp.aggregate(hyperEdge.getId());
 //                v2HEdge.put(vertexId, tmp);
 //            }
 //            return true;
@@ -173,7 +173,7 @@
 //            for (String vertexId : memento.getVertexIds()) {
 //                List<String> tmp = v2HEdge.get(vertexId);
 //                if (tmp == null) tmp = new ArrayList<>(10);
-//                tmp.add(hyperEdge.getId());
+//                tmp.aggregate(hyperEdge.getId());
 //                v2HEdge.put(vertexId, tmp);
 //            }
 //            return true;

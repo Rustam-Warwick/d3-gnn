@@ -1,7 +1,6 @@
 package org.apache.flink.streaming.runtime.tasks;
 
 import elements.GraphOp;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputSerializer;
@@ -14,6 +13,7 @@ import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -121,78 +121,48 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
     }
 
     /**
-     * Broadcast single messages to all output channels in the forward edge
+     * Broadcast single message to all output channels for an {@link OutputTag} output or forward if {@code outputTag == null}
      */
-    public void broadcast(StreamRecord<GraphOp> record) {
+    public void broadcast(@Nullable OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record) {
         for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
-            if (info == null) continue;
-            if (info.f0 == null) {
-                info.f2.setInstance(record);
-                try {
-                    info.f1.broadcastEmit(info.f2);
-                    numRecordsOutCounter.inc(info.f3);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e.getMessage(), e);
-                }
-                return;
+            if (info == null || (outputTag == null ^ info.f0 == null) || (info.f0 != null && !OutputTag.isResponsibleFor(outputTag, info.f0))) continue;
+            info.f2.setInstance(record);
+            try {
+                info.f1.broadcastEmit(info.f2);
+                numRecordsOutCounter.inc(info.f3);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e.getMessage(), e);
             }
+            return;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }
 
     /**
-     * Broadcast single message to all output channels for an {@link OutputTag} output
+     * Selectively broadcast {@link GraphOp} to all channels for {@link OutputTag} or forward if {@code outputTag == null}
      */
-    public void broadcast(OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record) {
-        for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
-            if (info == null) continue;
-            if (OutputTag.isResponsibleFor(outputTag, info.f0)) {
-                info.f2.setInstance(record);
-                try {
-                    info.f1.broadcastEmit(info.f2);
-                    numRecordsOutCounter.inc(info.f3);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e.getMessage(), e);
-                }
-                return;
+    public void broadcast(@Nullable OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record, List<Short> selectedParts) {
+        for (int i = 0; i < outputInternalInfo.length; i++) {
+            if (outputInternalInfo[i] == null || (outputTag == null ^ outputInternalInfo[i].f0 == null) || (outputInternalInfo[i].f0 != null && !OutputTag.isResponsibleFor(outputTag, outputInternalInfo[i].f0))) continue;
+            outputInternalInfo[i].f2.broadcastStart();
+            for (short selectedPart : selectedParts) {
+                record.getValue().setPartId(selectedPart);
+                outputs[i].collect(outputTag, record);
             }
+            numRecordsOutCounter.inc(selectedParts.size());
+            outputInternalInfo[i].f2.broadcastFinish();
+            return;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }
 
     /**
-     * Do a selective broadcast of a single {@link GraphOp} to multiple parts in the forward by only changing the part id
+     * Gets the number of output channel in the given output tag
      */
-    public void broadcast(StreamRecord<GraphOp> record, List<Short> selectedParts) {
-        for (int i = 0; i < outputInternalInfo.length; i++) {
-            if (outputInternalInfo[i] == null) continue;
-            if (outputInternalInfo[i].f0 == null) {
-                outputInternalInfo[i].f2.broadcastStart();
-                for (short selectedPart : selectedParts) {
-                    record.getValue().setPartId(selectedPart);
-                    outputs[i].collect(record);
-                }
-                numRecordsOutCounter.inc(selectedParts.size());
-                outputInternalInfo[i].f2.broadcastFinish();
-                return;
-            }
-        }
-        throw new IllegalStateException("No output responsible for broadcast message");
-    }
-
-    public void broadcast(OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record, List<Short> selectedParts) {
-        for (int i = 0; i < outputInternalInfo.length; i++) {
-            if (outputInternalInfo[i] == null) continue;
-            if (OutputTag.isResponsibleFor(outputTag, outputInternalInfo[i].f0)) {
-                outputInternalInfo[i].f2.broadcastStart();
-                for (short selectedPart : selectedParts) {
-                    record.getValue().setPartId(selectedPart);
-                    outputs[i].collect(outputTag, record);
-                }
-                numRecordsOutCounter.inc(selectedParts.size());
-                outputInternalInfo[i].f2.broadcastFinish();
-                return;
-            }
+    public int getNumChannels(@Nullable OutputTag<GraphOp> outputTag){
+        for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
+            if (info == null || (outputTag == null ^ info.f0 == null) || (info.f0 != null && !OutputTag.isResponsibleFor(outputTag, info.f0))) continue;
+            return info.f3;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }

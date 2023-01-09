@@ -1221,12 +1221,12 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      *
      * <pre>
      * jshell&gt; NDArray array = manager.create(new float[] {1f, 2f});
-     * jshell&gt; array.add(2f);
+     * jshell&gt; array.aggregate(2f);
      * ND: (2) cpu() float32
      * [3., 4.]
      * </pre>
      *
-     * @param n the number to add
+     * @param n the number to aggregate
      * @return the result {@code NDArray}
      */
     NDArray add(Number n);
@@ -1241,7 +1241,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * <pre>
      * jshell&gt; NDArray array1 = manager.arange(9f).reshape(3, 3);
      * jshell&gt; NDArray array2 = manager.arange(3f);
-     * jshell&gt; array1.add(array2); // broadcasting
+     * jshell&gt; array1.aggregate(array2); // broadcasting
      * ND: (3, 3) cpu() float32
      * [[ 0.,  2.,  4.],
      *  [ 3.,  5.,  7.],
@@ -1249,7 +1249,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * ]
      * </pre>
      *
-     * @param other the other {@code NDArray}s to add
+     * @param other the other {@code NDArray}s to aggregate
      * @return the result {@code NDArray}
      * @throws IllegalArgumentException others arrays must have at least one element
      */
@@ -1466,7 +1466,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * [3., 4.]
      * </pre>
      *
-     * @param n the number to add
+     * @param n the number to aggregate
      * @return the result {@code NDArray}
      */
     NDArray addi(Number n);
@@ -1489,7 +1489,7 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * [4., 6.]
      * </pre>
      *
-     * @param other the other {@code NDArray}s to add
+     * @param other the other {@code NDArray}s to aggregate
      * @return the result {@code NDArray}
      */
     NDArray addi(NDArray other);

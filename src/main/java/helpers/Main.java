@@ -16,9 +16,10 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
-import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
+import plugins.gnn_embedding.GNNEmbeddingTraining;
+import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
 import plugins.scheduler.BatchSizeTrainingScheduler;
-import plugins.vertex_classification.VertexClassificationTrainingPlugin;
+import plugins.vertex_classification.VertexClassificationTraining;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +50,7 @@ public class Main {
                                 return Activation.relu(ndArrays);
                             }
                         })
-                        .add(Linear.builder().setUnits(2).optBias(true).build())
+                        .add(Linear.builder().setUnits(1).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
@@ -73,13 +74,13 @@ public class Main {
 
     public static void main(String[] args) throws Throwable {
         try {
-            BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<GraphOp>[] res = new GraphStream(env, args, false, false, false,
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), false, 100)), pos, layers),
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbeddingLayer(models.get(1).getName(), false, 100)), pos, layers),
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new VertexClassificationTrainingPlugin(models.get(2).getName(), Loss.l1Loss()),
+            DataStream<GraphOp>[] res = new GraphStream(env, args, false, true, false,
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new GNNEmbeddingTraining(models.get(0).getName(), false), new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), pos, layers),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
+            new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), pos, layers),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new VertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss()),
             new BatchSizeTrainingScheduler(256)), pos, layers)
             ).build();
             env.execute();

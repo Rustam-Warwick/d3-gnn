@@ -105,6 +105,21 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly);
 
     /**
+     * Get the number of output channels in the forward layer
+     *
+     * @return
+     */
+    abstract public int getNumOfOutChannels();
+
+
+    /**
+     * Get the number of output channels in the {@link OutputTag}
+     *
+     * @return
+     */
+    abstract public int getNumOfOutChannels(OutputTag<GraphOp> tag);
+
+    /**
      * Return {@link TaskSharedKeyedStateBackend}
      */
     abstract public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend();

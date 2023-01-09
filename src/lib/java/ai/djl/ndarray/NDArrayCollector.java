@@ -45,7 +45,7 @@ public class NDArrayCollector<T> extends LinkedHashMap<T, NDArray> implements Li
 //                if(delayManagers) value.postpone();
 //                return value;
 //            } else {
-//                NDArray newValue = localValue.add(value);
+//                NDArray newValue = localValue.aggregate(value);
 //                if(delayManagers){
 //                    newValue.postpone();
 //                    localValue.prepone();

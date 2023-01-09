@@ -40,7 +40,7 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
     }
 
     /**
-     * {@link RemoteFunction} to add a new part to the collection
+     * {@link RemoteFunction} to aggregate a new part to the collection
      */
     @RemoteFunction
     public void add(Short element) {

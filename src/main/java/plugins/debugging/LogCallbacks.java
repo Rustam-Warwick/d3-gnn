@@ -6,9 +6,9 @@ import elements.Plugin;
 /**
  * Function for debugging all the callbacks in the system
  */
-public class LogCallbacksPlugin extends Plugin {
+public class LogCallbacks extends Plugin {
 
-    public LogCallbacksPlugin() {
+    public LogCallbacks() {
         super("print-callbacks");
     }
 

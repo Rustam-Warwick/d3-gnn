@@ -27,7 +27,7 @@ import java.util.Map;
 /**
  * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
  */
-public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNEmbeddingLayer {
+public class SessionWindowedGNNEmbedding extends PartOptimizedStreamingGNNEmbedding {
 
     public final int sessionInterval; // Window Interval for graph element updates in milliseconds
 
@@ -35,12 +35,12 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
 
     private transient ThreadLocal<Counter> windowThroughput; // Throughput counter, only used for last layer
 
-    public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
+    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings);
         this.sessionInterval = sessionInterval;
     }
 
-    public SessionWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int sessionInterval) {
+    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int sessionInterval) {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.sessionInterval = sessionInterval;
     }
@@ -49,8 +49,7 @@ public class SessionWindowedGNNEmbeddingLayer extends PartOptimizedStreamingGNNE
     public synchronized void open(Configuration params) throws Exception {
         super.open(params);
         BATCH = BATCH == null? new NonBlockingHashMap<>(): BATCH;
-        windowThroughput = windowThroughput == null? new ThreadLocal<>():windowThroughput;
-        windowThroughput.set(new SimpleCounter());
+        windowThroughput = windowThroughput == null? ThreadLocal.withInitial(SimpleCounter::new):windowThroughput;
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput.get()));
     }
 

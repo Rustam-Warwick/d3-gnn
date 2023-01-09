@@ -16,7 +16,7 @@ import java.util.*;
 /**
  * GNN Embedding layer based on a certain buffer count
  */
-public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
+public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int BATCH_SIZE; // Batch size of the operator as a whole
 
@@ -24,12 +24,12 @@ public class CountWindowedGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
 
     public transient Map<Short, Tuple2<Integer, Set<String>>> BATCH;
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
+    public CountWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int BATCH_SIZE) {
         super(modelName, trainableVertexEmbeddings);
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
-    public CountWindowedGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
+    public CountWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
         this.BATCH_SIZE = BATCH_SIZE;
     }

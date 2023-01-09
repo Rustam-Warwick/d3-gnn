@@ -22,17 +22,17 @@ import java.util.Objects;
  * {@inheritDoc}
  * Each triggerUpdate produces a new cascading effect and no optimizations are happening
  */
-public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
+public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
 
     protected transient ThreadLocal<Counter> throughput; // Throughput counter, only used for last layer
 
     protected transient ThreadLocal<Counter> latency; // Throughput counter, only used for last layer
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
+    public StreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "inferencer", trainableVertexEmbeddings);
     }
 
-    public StreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+    public StreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
         super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
     }
 
@@ -42,10 +42,8 @@ public class StreamingGNNEmbeddingLayer extends BaseGNNEmbeddingPlugin {
     @Override
     public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        throughput = throughput == null? new ThreadLocal<>():throughput;
-        latency = latency == null?new ThreadLocal<>():latency;
-        throughput.set(new SimpleCounter());
-        latency.set(new MovingAverageCounter(1000));
+        throughput = throughput == null? ThreadLocal.withInitial(SimpleCounter::new):throughput;
+        latency = latency == null?ThreadLocal.withInitial(()->new MovingAverageCounter(1000)):latency;
         getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput.get()));
         getRuntimeContext().getMetricGroup().counter("latency", latency.get());
     }

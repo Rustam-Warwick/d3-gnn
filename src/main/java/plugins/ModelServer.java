@@ -14,14 +14,12 @@
 package plugins;
 
 import ai.djl.Model;
-import ai.djl.ndarray.NDArrayCollector;
 import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.Block;
 import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
 import elements.Plugin;
-import elements.annotations.RemoteFunction;
 import org.apache.flink.configuration.Configuration;
 
 /**
@@ -34,8 +32,6 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public Model model;
 
-    public transient ThreadLocal<Short> NUMBER_OF_COLLECTED_PARAMETERS; // How many gradients have been collected so far
-
     public transient T block;
 
     protected transient Optimizer optimizer; // Optimizer
@@ -46,7 +42,6 @@ public class ModelServer<T extends Block> extends Plugin {
 
     private transient ParameterStore parameterStore;
 
-    private transient NDArrayCollector<String> collectedParameters;
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
@@ -55,16 +50,13 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        if(NUMBER_OF_COLLECTED_PARAMETERS == null) {
-            NUMBER_OF_COLLECTED_PARAMETERS = new ThreadLocal<>();
+        if(block == null) {
             inputShapes = model.getBlock().getInputShapes();
             outputShapes = model.getBlock().getOutputShapes(inputShapes);
-            optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
             parameterStore = new ParameterStore();
-            collectedParameters = new NDArrayCollector<>(true);
             block = (T) model.getBlock();
+            optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
         }
-        NUMBER_OF_COLLECTED_PARAMETERS.set((short) 0);
     }
 
     public Model getModel() {
@@ -86,23 +78,5 @@ public class ModelServer<T extends Block> extends Plugin {
     public ParameterStore getParameterStore() {
         return parameterStore;
     }
-
-    /**
-     * Collect gradients from replica on the master (part-0) node.
-     * <p>
-     * Upon receiving all gradients updates the models and syncs with the replicas
-     * </p>
-     */
-    @RemoteFunction(triggerUpdate = false)
-    public void collectParameters(NDArrayCollector<String> newParameters) {
-        collectedParameters.putAll(newParameters);
-        NUMBER_OF_COLLECTED_PARAMETERS.set((short) (NUMBER_OF_COLLECTED_PARAMETERS.get() + 1));
-        if (NUMBER_OF_COLLECTED_PARAMETERS.get() == getRuntimeContext().getNumberOfParallelSubtasks()) {
-            parameterStore.updateAllParameters();
-            NUMBER_OF_COLLECTED_PARAMETERS.set((short) 0);
-            collectedParameters.clear();
-        }
-    }
-
 
 }

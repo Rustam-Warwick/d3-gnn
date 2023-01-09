@@ -42,7 +42,7 @@ import java.util.stream.Stream;
  * </strong>
  *
  * <strong>
- * To add a new engine support we need to create NDManager and place it in ThreadLocal
+ * To aggregate a new engine support we need to create NDManager and place it in ThreadLocal
  * Further retrievals should also be done through threadlocal as well
  * </strong>
  */

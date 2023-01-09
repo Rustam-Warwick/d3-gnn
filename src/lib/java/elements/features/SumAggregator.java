@@ -8,27 +8,27 @@ import elements.enums.CopyContext;
 /**
  * MEAN {@link ai.djl.nn.gnn.AggregatorVariant} aggregator for GNNs
  */
-public final class SumAggregator extends Aggregator<CountValueHolder> {
+public final class SumAggregator extends Aggregator<CountTensorHolder> {
 
     public SumAggregator() {
         super();
     }
 
     public SumAggregator(String id, NDArray value) {
-        super(id, new CountValueHolder(value, 0));
+        super(id, new CountTensorHolder(value, 0));
     }
 
     public SumAggregator(String id, NDArray value, boolean halo) {
-        super(id, new CountValueHolder(value, 0), halo);
+        super(id, new CountTensorHolder(value, 0), halo);
     }
 
     public SumAggregator(String id, NDArray value, boolean halo, short master) {
-        super(id, new CountValueHolder(value, 0), halo, master);
+        super(id, new CountTensorHolder(value, 0), halo, master);
     }
 
     public SumAggregator(SumAggregator f, CopyContext context) {
         super(f, context);
-        if (context == CopyContext.RMI) value = new CountValueHolder(f.value.val, f.value.count);
+        if (context == CopyContext.RMI) value = new CountTensorHolder(f.value.val, f.value.count);
     }
 
     public static NDArray bulkReduce(NDArray newMessages) {

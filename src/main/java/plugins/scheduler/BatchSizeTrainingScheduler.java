@@ -7,6 +7,7 @@ import elements.enums.ElementType;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
+import org.apache.flink.util.Preconditions;
 
 /**
  * Plugin to Request training once the batch size is filled
@@ -28,6 +29,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
 
     public BatchSizeTrainingScheduler(int batchSize){
         super("training_scheduler");
+        Preconditions.checkState(batchSize > 0, "Batch size cannot be negative");
         this.batchSize = batchSize;
     }
 
@@ -38,8 +40,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
     @Override
     public synchronized void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        trainingDataSize = trainingDataSize == null ? new ThreadLocal<>(): trainingDataSize;
-        trainingDataSize.set(0);
+        trainingDataSize = trainingDataSize == null ? ThreadLocal.withInitial(() -> 0): trainingDataSize;
     }
 
     @Override

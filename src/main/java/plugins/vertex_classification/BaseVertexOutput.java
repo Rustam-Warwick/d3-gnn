@@ -8,26 +8,26 @@ import plugins.ModelServer;
 /**
  * Base class for all Vertex output Plugins
  */
-abstract public class BaseVertexOutputPlugin extends Plugin {
+abstract public class BaseVertexOutput extends Plugin {
 
     public final String modelName;
 
     public transient ModelServer<?> modelServer;
 
-    public BaseVertexOutputPlugin(String modelName, String suffix) {
+    public BaseVertexOutput(String modelName, String suffix) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
     }
 
-    public BaseVertexOutputPlugin(String modelName, String suffix, boolean IS_ACTIVE) {
+    public BaseVertexOutput(String modelName, String suffix, boolean IS_ACTIVE) {
         super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
         this.modelName = modelName;
     }
 
     @Override
-    public synchronized void open(Configuration params) throws Exception {
+    public void open(Configuration params) throws Exception {
         super.open(params);
-        modelServer = modelServer == null ? (ModelServer) getRuntimeContext().getPlugin(String.format("%s-server", modelName)): null;
+        modelServer = (ModelServer) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
     }
 
     public NDList output(NDList feature, boolean training) {

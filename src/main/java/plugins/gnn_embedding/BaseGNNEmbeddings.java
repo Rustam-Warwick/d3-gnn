@@ -17,7 +17,7 @@ import plugins.ModelServer;
 /**
  * Base class for all GNN Embedding Plugins
  */
-abstract public class BaseGNNEmbeddingPlugin extends Plugin {
+abstract public class BaseGNNEmbeddings extends Plugin {
 
     /**
      * Name of the {@link ai.djl.Model} name to fetch the {@link ModelServer}
@@ -25,7 +25,7 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     public final String modelName;
 
     /**
-     * Are vertex embeddings trainable or should it be expected for outside
+     * Are vertex embeddings trainable or should it be expected from outside
      */
     public final boolean trainableVertexEmbeddings;
 
@@ -35,13 +35,13 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
     public transient ModelServer<GNNBlock> modelServer;
 
 
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings) {
+    public BaseGNNEmbeddings(String modelName, String suffix, boolean trainableVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
     }
 
-    public BaseGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+    public BaseGNNEmbeddings(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
         super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
@@ -51,9 +51,9 @@ abstract public class BaseGNNEmbeddingPlugin extends Plugin {
      * {@inheritDoc}
      */
     @Override
-    public synchronized void open(Configuration parameters) throws Exception {
+    public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        modelServer = modelServer == null? (ModelServer<GNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName)):modelServer;
+        modelServer = (ModelServer<GNNBlock>) getRuntimeContext().getPlugin(String.format("%s-server", modelName));
     }
 
     /**

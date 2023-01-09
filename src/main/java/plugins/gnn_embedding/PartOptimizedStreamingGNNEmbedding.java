@@ -14,13 +14,13 @@ import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
 import java.util.*;
 
-public class PartOptimizedStreamingGNNEmbeddingLayer extends StreamingGNNEmbeddingLayer {
+public class PartOptimizedStreamingGNNEmbedding extends StreamingGNNEmbedding {
 
-    public PartOptimizedStreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings) {
+    public PartOptimizedStreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, trainableVertexEmbeddings);
     }
 
-    public PartOptimizedStreamingGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
+    public PartOptimizedStreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
         super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
     }
 

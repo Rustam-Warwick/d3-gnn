@@ -39,7 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -141,7 +140,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
         storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider));
-        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedPluginMap.class), (Supplier<TaskSharedPluginMap<String, Plugin>>) TaskSharedPluginMap::new));
+        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedPluginMap.class), TaskSharedPluginMap::new));
         plugins.forEach(taskLocalPlugin::putIfAbsent);
         plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
         for (Plugin plugin : plugins.values()) {
@@ -266,7 +265,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void broadcast(GraphOp op) {
-            thisOutput.broadcast(reuse.replace(op));
+            thisOutput.broadcast(null, reuse.replace(op));
         }
 
         @Override
@@ -276,12 +275,22 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void broadcast(GraphOp op, List<Short> selectedPartsOnly) {
-            thisOutput.broadcast(reuse.replace(op), selectedPartsOnly);
+            thisOutput.broadcast(null, reuse.replace(op), selectedPartsOnly);
         }
 
         @Override
         public void broadcast(GraphOp op, OutputTag<GraphOp> tag, List<Short> selectedPartsOnly) {
             thisOutput.broadcast(tag, reuse.replace(op), selectedPartsOnly);
+        }
+
+        @Override
+        public int getNumOfOutChannels() {
+            return thisOutput.getNumChannels(null);
+        }
+
+        @Override
+        public int getNumOfOutChannels(OutputTag<GraphOp> tag) {
+            return thisOutput.getNumChannels(tag);
         }
 
         @Override
@@ -292,7 +301,9 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                     setCurrentKey(PartNumber.of(thisOperatorPart));
                     run.run();
                 }
-            }finally {
+            }catch (Exception e){
+                e.printStackTrace();
+            } finally{
                 setCurrentKey(initialKey);
             }
         }

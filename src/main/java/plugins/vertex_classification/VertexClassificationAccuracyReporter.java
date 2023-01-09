@@ -12,7 +12,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 
-public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin {
+public class VertexClassificationAccuracyReporter extends BaseVertexOutput {
 
     final Tuple2<Integer, Integer> correctVsIncorrect = Tuple2.of(0, 0);
 

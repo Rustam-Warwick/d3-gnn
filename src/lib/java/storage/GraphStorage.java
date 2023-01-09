@@ -100,7 +100,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
     public abstract boolean containsHyperEdge(String hyperEdgeId);
 
     /**
-     * Given a {@link GraphElement} add all its available {@link Feature}
+     * Given a {@link GraphElement} aggregate all its available {@link Feature}
      *
      * @implNote This method is only called in <code>sync()</code> {@link GraphElement}
      */

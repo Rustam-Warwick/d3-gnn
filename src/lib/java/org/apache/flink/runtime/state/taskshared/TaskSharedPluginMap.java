@@ -1,9 +1,10 @@
 package org.apache.flink.runtime.state.taskshared;
 
+import elements.Plugin;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
-import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -13,70 +14,13 @@ import java.util.function.Function;
 
 /**
  * Map state with TaskShared semantics
- *
- * @param <T> key type
- * @param <V> value type
+ * <p>
+ *     Does not checkpoint anything as it the prerogative of the {@link Plugin}
+ * </p>
  */
-public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T, V> {
+public class TaskSharedPluginMap extends TaskSharedState implements Map<String, Plugin> {
 
-    protected Map<T, V> wrappedMap = new NonBlockingHashMap<>();
-
-    public static <K, V1> Map<K, V1> of() {
-        return Map.of();
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1) {
-        return Map.of(k1, v1);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2) {
-        return Map.of(k1, v1, k2, v2);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3) {
-        return Map.of(k1, v1, k2, v2, k3, v3);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5, K k6, V1 v6) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5, K k6, V1 v6, K k7, V1 v7) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5, K k6, V1 v6, K k7, V1 v7, K k8, V1 v8) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5, K k6, V1 v6, K k7, V1 v7, K k8, V1 v8, K k9, V1 v9) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9);
-    }
-
-    public static <K, V1> Map<K, V1> of(K k1, V1 v1, K k2, V1 v2, K k3, V1 v3, K k4, V1 v4, K k5, V1 v5, K k6, V1 v6, K k7, V1 v7, K k8, V1 v8, K k9, V1 v9, K k10, V1 v10) {
-        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9, k10, v10);
-    }
-
-    @SafeVarargs
-    public static <K, V1> Map<K, V1> ofEntries(Entry<? extends K, ? extends V1>... entries) {
-        return Map.ofEntries(entries);
-    }
-
-    public static <K, V1> Entry<K, V1> entry(K k, V1 v1) {
-        return Map.entry(k, v1);
-    }
-
-    public static <K, V1> Map<K, V1> copyOf(Map<? extends K, ? extends V1> map) {
-        return Map.copyOf(map);
-    }
+    protected Map<String, Plugin> wrappedMap = new NonBlockingHashMap<>();
 
     @Override
     public int size() {
@@ -99,23 +43,23 @@ public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T,
     }
 
     @Override
-    public V get(Object key) {
+    public Plugin get(Object key) {
         return wrappedMap.get(key);
     }
 
     @Nullable
     @Override
-    public V put(T key, V value) {
+    public Plugin put(String key, Plugin value) {
         return wrappedMap.put(key, value);
     }
 
     @Override
-    public V remove(Object key) {
+    public Plugin remove(Object key) {
         return wrappedMap.remove(key);
     }
 
     @Override
-    public void putAll(@NotNull Map<? extends T, ? extends V> m) {
+    public void putAll(@NotNull Map<? extends String, ? extends Plugin> m) {
         wrappedMap.putAll(m);
     }
 
@@ -126,19 +70,19 @@ public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T,
 
     @NotNull
     @Override
-    public Set<T> keySet() {
+    public Set<String> keySet() {
         return wrappedMap.keySet();
     }
 
     @NotNull
     @Override
-    public Collection<V> values() {
+    public Collection<Plugin> values() {
         return wrappedMap.values();
     }
 
     @NotNull
     @Override
-    public Set<Entry<T, V>> entrySet() {
+    public Set<Entry<String, Plugin>> entrySet() {
         return wrappedMap.entrySet();
     }
 
@@ -153,23 +97,23 @@ public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T,
     }
 
     @Override
-    public V getOrDefault(Object key, V defaultValue) {
+    public Plugin getOrDefault(Object key, Plugin defaultValue) {
         return wrappedMap.getOrDefault(key, defaultValue);
     }
 
     @Override
-    public void forEach(BiConsumer<? super T, ? super V> action) {
+    public void forEach(BiConsumer<? super String, ? super Plugin> action) {
         wrappedMap.forEach(action);
     }
 
     @Override
-    public void replaceAll(BiFunction<? super T, ? super V, ? extends V> function) {
+    public void replaceAll(BiFunction<? super String, ? super Plugin, ? extends Plugin> function) {
         wrappedMap.replaceAll(function);
     }
 
     @Nullable
     @Override
-    public V putIfAbsent(T key, V value) {
+    public Plugin putIfAbsent(String key, Plugin value) {
         return wrappedMap.putIfAbsent(key, value);
     }
 
@@ -179,33 +123,90 @@ public class TaskSharedPluginMap<T, V> extends TaskSharedState implements Map<T,
     }
 
     @Override
-    public boolean replace(T key, V oldValue, V newValue) {
+    public boolean replace(String key, Plugin oldValue, Plugin newValue) {
         return wrappedMap.replace(key, oldValue, newValue);
     }
 
     @Nullable
     @Override
-    public V replace(T key, V value) {
+    public Plugin replace(String key, Plugin value) {
         return wrappedMap.replace(key, value);
     }
 
     @Override
-    public V computeIfAbsent(T key, @NotNull Function<? super T, ? extends V> mappingFunction) {
+    public Plugin computeIfAbsent(String key, @NotNull Function<? super String, ? extends Plugin> mappingFunction) {
         return wrappedMap.computeIfAbsent(key, mappingFunction);
     }
 
     @Override
-    public V computeIfPresent(T key, @NotNull BiFunction<? super T, ? super V, ? extends V> remappingFunction) {
+    public Plugin computeIfPresent(String key, @NotNull BiFunction<? super String, ? super Plugin, ? extends Plugin> remappingFunction) {
         return wrappedMap.computeIfPresent(key, remappingFunction);
     }
 
     @Override
-    public V compute(T key, @NotNull BiFunction<? super T, ? super V, ? extends V> remappingFunction) {
+    public Plugin compute(String key, @NotNull BiFunction<? super String, ? super Plugin, ? extends Plugin> remappingFunction) {
         return wrappedMap.compute(key, remappingFunction);
     }
 
     @Override
-    public V merge(T key, @NotNull V value, @NotNull BiFunction<? super V, ? super V, ? extends V> remappingFunction) {
+    public Plugin merge(String key, @NotNull Plugin value, @NotNull BiFunction<? super Plugin, ? super Plugin, ? extends Plugin> remappingFunction) {
         return wrappedMap.merge(key, value, remappingFunction);
+    }
+
+    public static <K, V> Map<K, V> of() {
+        return Map.of();
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1) {
+        return Map.of(k1, v1);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2) {
+        return Map.of(k1, v1, k2, v2);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3) {
+        return Map.of(k1, v1, k2, v2, k3, v3);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9);
+    }
+
+    public static <K, V> Map<K, V> of(K k1, V v1, K k2, V v2, K k3, V v3, K k4, V v4, K k5, V v5, K k6, V v6, K k7, V v7, K k8, V v8, K k9, V v9, K k10, V v10) {
+        return Map.of(k1, v1, k2, v2, k3, v3, k4, v4, k5, v5, k6, v6, k7, v7, k8, v8, k9, v9, k10, v10);
+    }
+
+    @SafeVarargs
+    public static <K, V> Map<K, V> ofEntries(Entry<? extends K, ? extends V>... entries) {
+        return Map.ofEntries(entries);
+    }
+
+    public static <K, V> Entry<K, V> entry(K k, V v) {
+        return Map.entry(k, v);
+    }
+
+    public static <K, V> Map<K, V> copyOf(Map<? extends K, ? extends V> map) {
+        return Map.copyOf(map);
     }
 }

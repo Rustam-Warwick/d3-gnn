@@ -75,76 +75,8 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
     }
 
-    /**
-     * Final layer requests this coordinator to start the training loop
-     * Actual training loop is started once {@code numRequestEventsToStart} of such events are received
-     */
-    public static class RequestTraining implements OperatorEvent{}
 
-
-    /**
-     * Request the number of mini-batches for training
-     */
-    public static class RequestMiniBatch implements OperatorEvent{
-        protected int trainingDataSize;
-
-        public RequestMiniBatch(int trainingDataSize) {
-            this.trainingDataSize = trainingDataSize;
-        }
-    }
-
-    /**
-     * Response with the number of mini batches for this training iteration
-     */
-    public static class StartTrainingWithMiniBatch implements OperatorEvent{
-        public short miniBatchCount;
-
-        public StartTrainingWithMiniBatch(short miniBatchCount) {
-            this.miniBatchCount = miniBatchCount;
-        }
-    }
-
-    /**
-     * Event that is sent to the {@link DatasetSplitterOperator} indicating that training is entering to flush phase
-     * This event will further go down the pipeline until the last operator is met
-     */
-    public static class FlushForTraining extends GraphEvent{
-
-        protected transient byte iteration;
-
-        protected transient short numReceived;
-
-        protected transient short shouldReceive;
-
-        @Override
-        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
-            if(incoming == null){
-                // First ever occurrence
-                shouldReceive = (short) Arrays.stream(pool.graphRuntimeContext.getInputGates()).mapToInt(InputGate::getNumberOfInputChannels).sum();
-            }
-            if(++numReceived == shouldReceive && checkEviction(pool)) {
-                pool.evict(this); // Evict so plugins can respond
-                pushToNext(pool);
-            }
-        }
-
-        public void pushToNext(GraphEventPool pool){
-            if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));
-        }
-
-        public boolean checkEviction(GraphEventPool pool){
-            if(pool.graphRuntimeContext.isLast()) return true;
-            if(iteration == 2) return true;
-            iteration++;
-            numReceived = 0;
-            shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
-            pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
-            return false;
-        }
-
-    }
-
-    /**
+     /**
      * Handler for {@link RequestTraining} events
      */
     public class RequestTrainingEventsHandler implements Consumer<RequestTraining> {
@@ -191,6 +123,156 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             }
         }
 
+    }
+
+    /**
+     * Final layer requests this coordinator to start the training loop
+     * Actual training loop is started once {@code numRequestEventsToStart} of such events are received
+     */
+    public static class RequestTraining implements OperatorEvent{}
+
+
+    /**
+     * Request the number of mini-batches for training
+     */
+    public static class RequestMiniBatch implements OperatorEvent{
+        protected int trainingDataSize;
+
+        public RequestMiniBatch(int trainingDataSize) {
+            this.trainingDataSize = trainingDataSize;
+        }
+    }
+
+    /**
+     * Response with the number of mini batches for this training iteration
+     */
+    public static class StartTrainingWithMiniBatch implements OperatorEvent{
+        public short miniBatches;
+
+        public short epochs;
+
+        public StartTrainingWithMiniBatch(short miniBatches, short epochs) {
+            this.miniBatches = miniBatches;
+            this.epochs = epochs;
+        }
+
+        public StartTrainingWithMiniBatch(short miniBatches) {
+            this(miniBatches, (short) 1);
+        }
+    }
+
+    /**
+     * Event that is sent to the {@link DatasetSplitterOperator} indicating that training is entering to flush phase
+     * This event will further go down the pipeline until the last operator is met
+     * Event is doing double iteration in every layer except the last one
+     */
+    public static class FlushForTraining extends GraphEvent{
+
+        protected transient byte iteration;
+
+        protected transient short numReceived;
+
+        protected transient short shouldReceive;
+
+        @Override
+        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
+            if(incoming == null){
+                // First ever occurrence
+                shouldReceive = (short) Arrays.stream(pool.graphRuntimeContext.getInputGates()).mapToInt(InputGate::getNumberOfInputChannels).sum();
+            }
+            if(++numReceived == shouldReceive && checkEviction(pool)) {
+                pool.evict(this); // Evict so plugins can respond
+                pushToNext(pool);
+            }
+        }
+
+        public void pushToNext(GraphEventPool pool){
+            if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));
+        }
+
+        public boolean checkEviction(GraphEventPool pool){
+            if(pool.graphRuntimeContext.isLast()) return true;
+            if(iteration == 2) return true;
+            iteration++;
+            numReceived = 0;
+            shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
+            pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
+            return false;
+        }
+
+    }
+
+
+
+    /**
+     * Phaser for the backward messages during the training
+     * Doing double iteration and backward until the first layer is received
+     * Starting ForwardPhaser in the first layer
+     */
+    public static class BackwardPhaser extends GraphEvent {
+
+        public transient byte iteration;
+
+        transient short numReceived;
+
+        transient short shouldReceive;
+
+
+        @Override
+        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
+            if(incoming == null){
+                shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels();
+            }
+            if(++numReceived == shouldReceive){
+                if(iteration++ == 0) {
+                    pool.eventHandler.handleOperatorEvent(this);
+                    numReceived = 0;
+                    shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
+                    pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
+
+                }else{
+                    pool.evict(this);
+                    if(!pool.graphRuntimeContext.isFirst()) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG);
+                    else startForward(pool);
+                }
+            }
+        }
+
+        public void startForward(GraphEventPool pool){
+
+        }
+    }
+
+    /**
+     * Forward Phaser that does tripe iteration in mid-layers and single iteration in the last one
+     * Created by the BackwardPhaser in the last layer
+     */
+    public static class ForwardPhaser extends GraphEvent{
+
+        public transient byte iteration;
+
+        transient short numReceived;
+
+        transient short shouldReceive;
+
+        @Override
+        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
+
+        }
+
+        public void pushToNext(GraphEventPool pool){
+            if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));
+        }
+
+        public boolean checkEviction(GraphEventPool pool){
+            if(pool.graphRuntimeContext.isLast()) return true;
+            if(iteration == 2) return true;
+            iteration++;
+            numReceived = 0;
+            shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
+            pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
+            return false;
+        }
     }
 
     public static class ResumeDataFlow extends GraphEvent{
