@@ -20,11 +20,6 @@ public class PartOptimizedStreamingGNNEmbedding extends StreamingGNNEmbedding {
         super(modelName, trainableVertexEmbeddings);
     }
 
-    public PartOptimizedStreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
-    }
-
-
     /**
      * {@inheritDoc}
      */

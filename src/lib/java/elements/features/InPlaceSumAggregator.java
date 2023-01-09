@@ -32,10 +32,6 @@ public final class InPlaceSumAggregator extends Aggregator<CountTensorHolder> {
         super(f, context);
     }
 
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
-    }
-
     /**
      * {@inheritDoc}
      */

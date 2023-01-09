@@ -36,11 +36,6 @@ public class SessionWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLay
         this.sessionInterval = sessionInterval;
     }
 
-    public SessionWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int sessionInterval) {
-        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
-        this.sessionInterval = sessionInterval;
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);

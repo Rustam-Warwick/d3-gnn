@@ -31,12 +31,6 @@ abstract public class BaseHGNNEmbeddingPlugin extends Plugin {
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
     }
 
-    public BaseHGNNEmbeddingPlugin(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
-        this.modelName = modelName;
-        this.trainableVertexEmbeddings = trainableVertexEmbeddings;
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);

@@ -20,10 +20,6 @@ public class VertexClassificationAccuracyReporter extends BaseVertexOutput {
         super(modelName, "accuracy-reporter");
     }
 
-    public VertexClassificationAccuracyReporter(String modelName, boolean IS_ACTIVE) {
-        super(modelName, "accuracy-reporter", IS_ACTIVE);
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);

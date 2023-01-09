@@ -2,6 +2,7 @@ package elements;
 
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.taskshared.TaskSharedPluginMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphListener;
 import org.apache.flink.streaming.api.operators.graph.interfaces.RichGraphProcess;
@@ -35,19 +36,19 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     /**
      * Is this Plugin currently running
      */
-    public boolean running;
+    public transient ThreadLocal<Boolean> running;
 
     public Plugin() {
-        this(null, true);
+        this(null);
     }
 
     public Plugin(String id) {
-        this(id, true);
+        this.id = id;
     }
 
-    public Plugin(String id, boolean running) {
-        this.id = id;
-        this.running = running;
+    @Override
+    public synchronized void open(Configuration parameters) throws Exception {
+        running = running == null ? ThreadLocal.withInitial(()->true): running;
     }
 
     /**

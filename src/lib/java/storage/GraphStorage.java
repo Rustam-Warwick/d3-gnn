@@ -71,13 +71,15 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
     @Nullable
     public abstract Vertex getVertex(String vertexId);
 
-    public abstract Iterable<Vertex> getVertices();
+    public abstract Iterable<Vertex> getVertices(boolean reuse);
+
+    final public Iterable<Vertex> getVertices(){return getVertices(false);};
 
     @Nullable
     public abstract DirectedEdge getEdge(Tuple3<String, String, String> ids);
 
-    public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
-
+    public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, boolean reuse);
+    final public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type){return getIncidentEdges(vertex, edge_type, false);};
     @Nullable
     public abstract HyperEdge getHyperEdge(String hyperEdgeId);
 
@@ -98,6 +100,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
     public abstract boolean containsEdge(Tuple3<String, String, String> ids);
 
     public abstract boolean containsHyperEdge(String hyperEdgeId);
+
 
     /**
      * Given a {@link GraphElement} aggregate all its available {@link Feature}

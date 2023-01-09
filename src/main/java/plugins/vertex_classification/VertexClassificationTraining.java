@@ -92,13 +92,13 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         Arrays.sort(miniBatchVertexIds);
         NDList inputs = new NDList(miniBatchVertexIds.length);
         NDList labels = new NDList(miniBatchVertexIds.length);
-        Tuple3<ElementType, Object, String> featureId = Tuple3.of(ElementType.VERTEX, null, "f");
-        Tuple3<ElementType, Object, String> trainLabelId = Tuple3.of(ElementType.VERTEX, null, "tl");
+        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
+        Tuple3<ElementType, Object, String> reuse2 = Tuple3.of(ElementType.VERTEX, null, "tl");
         for (String vertexId : miniBatchVertexIds) {
-            featureId.f1 = vertexId;
-            trainLabelId.f1 = vertexId;
-            inputs.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(featureId).getValue());
-            labels.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(trainLabelId).getValue());
+            reuse.f1 = vertexId;
+            reuse2.f1 = vertexId;
+            inputs.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
+            labels.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse2).getValue());
         }
         NDList batchedInputs = new NDList(NDArrays.stack(inputs));
         batchedInputs.get(0).setRequiresGradient(true);
@@ -157,6 +157,15 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         }
 
         /**
+         * Finish a mini-batch and check if more are remaining
+         */
+        public boolean miniBatchFinishedCheckIfMore(){
+          currentMiniBatch = (short) ((currentMiniBatch + 1) % miniBatches);
+          if(currentMiniBatch == 0) currentEpoch++;
+          return currentEpoch < epochs;
+        }
+
+        /**
          * Returns the indices starting from 0 for this miniBatch iteration
          * [start_index, end_index)
          */
@@ -183,6 +192,16 @@ public class VertexClassificationTraining extends BaseVertexOutput {
             epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
             getRuntimeContext().runForAllLocalParts(this::startTraining);
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
+        }
+        else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1){
+            if(epochAndMiniBatchControllers.get().miniBatchFinishedCheckIfMore()){
+                // Has more
+                getRuntimeContext().runForAllLocalParts(this::startTraining);
+                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
+            }else{
+                // Stop training
+                System.out.println("Finished Training");
+            }
         }
     }
 }

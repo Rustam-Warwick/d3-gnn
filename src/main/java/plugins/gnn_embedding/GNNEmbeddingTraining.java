@@ -14,17 +14,21 @@ import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
 import elements.features.Aggregator;
-import elements.features.MeanAggregator;
 import elements.features.Tensor;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.shaded.guava30.com.google.common.primitives.Longs;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * <p>
@@ -76,13 +80,13 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
 
         NDList featuresList = new NDList(collectedGradients.keys.length);
         NDList aggregatorList = new NDList(collectedGradients.keys.length);
-        Tuple3<ElementType, Object, String> featureId = new Tuple3<>(ElementType.VERTEX, null, "f");
-        Tuple3<ElementType, Object, String> aggId = new Tuple3<>(ElementType.VERTEX, null, "agg");
+        Tuple3<ElementType, Object, String> reuse1 = new Tuple3<>(ElementType.VERTEX, null, "f");
+        Tuple3<ElementType, Object, String> reuse2 = new Tuple3<>(ElementType.VERTEX, null, "agg");
         for (int i = 0; i < collectedGradients.keys.length; i++) {
-            featureId.f1 = collectedGradients.keys[i];
-            aggId.f1 = collectedGradients.keys[i];
-            featuresList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(featureId).getValue());
-            aggregatorList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(aggId).getValue());
+            reuse1.f1 = collectedGradients.keys[i];
+            reuse2.f1 = collectedGradients.keys[i];
+            featuresList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse1).getValue());
+            aggregatorList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse2).getValue());
         }
 
         NDList batchedInputs = new NDList(NDArrays.stack(featuresList), NDArrays.stack(aggregatorList));
@@ -224,64 +228,70 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * </p>
      */
     public void forwardFirstPhase() {
-        if(true) return;
-        HashMap<Vertex, Integer> srcVertices = new HashMap<>();
-        HashMap<Vertex, List<Integer>> destVertices = new HashMap<>();
+        Object2IntOpenHashMap<String> srcVertex2PosMap = new Object2IntOpenHashMap<>();
+        HashMap<Tuple2<String, Short>, IntArrayList> destVertex2SrcIndicesMap = new HashMap<>();
         NDList srcFeatures = new NDList();
-        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
-            if (vertex.state() == ReplicaState.MASTER) ((Aggregator) vertex.getFeature("agg")).reset();
-            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN);
+        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
+        IntArrayList reuse2 = new IntArrayList();
+        for (Vertex vertex : getRuntimeContext().getStorage().getVertices(true)) {
+            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN, true);
             for (DirectedEdge localInDirectedEdge : localInEdges) {
-                if (!srcVertices.containsKey(localInDirectedEdge.getSrc())) {
-                    srcVertices.put(localInDirectedEdge.getSrc(), srcFeatures.size());
-                    srcFeatures.add((NDArray) localInDirectedEdge.getSrc().getFeature("f").getValue());
+                if (!srcVertex2PosMap.containsKey(localInDirectedEdge.getSrcId())) {
+                    srcVertex2PosMap.put(localInDirectedEdge.getSrcId(), srcFeatures.size());
+                    reuse.f1 = localInDirectedEdge.getSrcId();
+                    srcFeatures.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
                 }
-                destVertices.compute(vertex, (v, l) -> {
-                    if (l == null) {
-                        return new ArrayList<>(List.of(srcVertices.get(localInDirectedEdge.getSrc())));
-                    }
-                    l.add(srcVertices.get(localInDirectedEdge.getSrc()));
-                    return l;
-                });
+                reuse2.add(srcVertex2PosMap.getInt(localInDirectedEdge.getSrcId()));
+            }
+            if(!reuse2.isEmpty()){
+                destVertex2SrcIndicesMap.put(Tuple2.of(vertex.getId(), vertex.masterPart), reuse2.clone());
+                reuse2.clear();
             }
         }
         if (srcFeatures.isEmpty()) return;
         NDList srcFeaturesBatched = new NDList(NDArrays.stack(srcFeatures));
         NDArray messages = MESSAGE(srcFeaturesBatched, false).get(0);
-        destVertices.forEach((v, list) -> {
-            NDArray message = MeanAggregator.bulkReduce(messages.get("{}, :", BaseNDManager.getManager().create(Longs.toArray(list))));
+        destVertex2SrcIndicesMap.forEach((vInfo, list) -> {
+            NDArray message = messages.get(BaseNDManager.getManager().create(list.elements())).sum(new int[]{0});
             Rmi.buildAndRun(
-                    Tuple3.of(ElementType.VERTEX, v.getId(), "agg"),
+                    Tuple3.of(ElementType.VERTEX, vInfo.f0, "agg"),
                     ElementType.ATTACHED_FEATURE,
                     "reduce",
-                    v.getMasterPart(),
-                    OutputTags.BACKWARD_OUTPUT_TAG,
-                    new NDList(message)
+                    vInfo.f1,
+                    OutputTags.ITERATE_OUTPUT_TAG,
+                    new NDList(message),
+                    list.size()
             );
         });
+        BaseNDManager.getManager().resumeAndDelay();
     }
 
     /**
      * Forward all local MASTER Vertices to the next layer
      */
     public void forwardSecondPhase() {
-        if(true) return;
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        for (Vertex v : getRuntimeContext().getStorage().getVertices()) {
+        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
+        Tuple3<ElementType, Object, String> reuse2 = Tuple3.of(ElementType.VERTEX, null, "agg");
+        for (Vertex v : getRuntimeContext().getStorage().getVertices(true)) {
             if (v.state() == ReplicaState.MASTER) {
-                features.add((NDArray) v.getFeature("f").getValue());
-                aggregators.add((NDArray) v.getFeature("agg").getValue());
+                reuse.f1 = v.getId();
+                reuse2.f1 = v.getId();
+                features.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
+                aggregators.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse2).getValue());
                 vertexIds.add(v.getId());
             }
         }
         NDList inputsBatched = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
         NDArray updatesBatched = UPDATE(inputsBatched, false).get(0);
+        Tensor reuse3 = new Tensor("f", null, false, (short) -1);
+        reuse3.id.f0 = ElementType.VERTEX;
         for (int i = 0; i < vertexIds.size(); i++) {
-            Tensor updateTensor = new Tensor("f", updatesBatched.get(i), false, (short) -1);
-            updateTensor.id = Tuple3.of(ElementType.VERTEX, vertexIds.get(i), null);
-            getRuntimeContext().output(new GraphOp(Op.UPDATE, getRuntimeContext().getCurrentPart(), updateTensor));
+            reuse3.id.f1 = vertexIds.get(i);
+            reuse3.value = updatesBatched.get(i);
+            getRuntimeContext().output(new GraphOp(Op.UPDATE, getRuntimeContext().getCurrentPart(), reuse3));
         }
     }
 

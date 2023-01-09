@@ -31,10 +31,6 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings);
     }
 
-    public StreamingHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);

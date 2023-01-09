@@ -33,10 +33,6 @@ public final class InPlaceMeanAggregator extends Aggregator<CountTensorHolder> {
     }
 
 
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
-    }
-
     /**
      * {@inheritDoc}
      */

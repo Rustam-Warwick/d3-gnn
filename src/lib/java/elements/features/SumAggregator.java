@@ -31,10 +31,6 @@ public final class SumAggregator extends Aggregator<CountTensorHolder> {
         if (context == CopyContext.RMI) value = new CountTensorHolder(f.value.val, f.value.count);
     }
 
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
-    }
-
     /**
      * {@inheritDoc}
      */

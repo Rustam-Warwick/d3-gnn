@@ -32,10 +32,6 @@ public final class MeanAggregator extends Aggregator<CountTensorHolder> {
 
     }
 
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -50,7 +46,7 @@ public final class MeanAggregator extends Aggregator<CountTensorHolder> {
     @RemoteFunction()
     @Override
     public void reduce(NDList newElement, int count) {
-        value.val = value.val.mul(value.val).add(newElement.get(0)).div(++value.count);
+        value.val = value.val.mul(value.count).add(newElement.get(0)).div(++value.count);
     }
 
     /**

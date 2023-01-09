@@ -100,7 +100,7 @@ public class ModelServer<T extends Block> extends Plugin {
     }
 
     /**
-     * Train and broadcast new parameters
+     * Train, stop gradients and broadcast new parameters
      */
     public void syncFirstPhase(){
         if(getRuntimeContext() == masterRuntimeContext) {
@@ -123,15 +123,22 @@ public class ModelServer<T extends Block> extends Plugin {
         getRuntimeContext().broadcast(new GraphOp(new ParametersSynced()), OutputTags.ITERATE_OUTPUT_TAG);
     }
 
+    /**
+     * Update the current model with the average of other model parameters
+     */
     public void syncSecondPhase(){
         if(getRuntimeContext() == masterRuntimeContext){
             for (int i = 0; i < block.getParameters().size(); i++) {
                 block.getParameters().get(i).getValue().getArray().subi(block.getParameters().get(i).getValue().getArray()).addi(syncParameters.f0.get(i).getValue().getArray());
+                syncParameters.f0.get(i).getValue().getArray().close();
             }
             syncParameters = null;
         }
     }
 
+    /**
+     * Calculate the running average of the model parameters
+     */
     @RemoteFunction(triggerUpdate = false)
     public void sync(ParameterList parameterList){
         if(getRuntimeContext() == masterRuntimeContext){
@@ -142,6 +149,7 @@ public class ModelServer<T extends Block> extends Plugin {
                     NDArray current = syncParameters.f0.get(i).getValue().getArray();
                     NDArray update = parameterList.get(i).getValue().getArray();
                     current.addi(update.sub(current).divi(syncParameters.f1));
+                    update.close();
                 }
             }
         }
@@ -164,7 +172,7 @@ public class ModelServer<T extends Block> extends Plugin {
      *     Event evicting only after all the parameters have been synced
      * </p>
      */
-    public static class ParametersSynced extends GraphEvent{
+    public static class ParametersSynced extends GraphEvent {
         transient short received;
         @Override
         public void merge(GraphEventPool pool, @Nullable GraphEvent incoming) {

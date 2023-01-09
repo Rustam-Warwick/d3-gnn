@@ -173,8 +173,17 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public Iterable<Vertex> getVertices() {
+    public Iterable<Vertex> getVertices(boolean reuse) {
         try {
+            if(reuse){
+                Vertex reusable = new Vertex(null);
+                return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> {
+                    if(reusable.features != null) reusable.features.clear();
+                    reusable.masterPart = vertexMasterTable.get(item);
+                    reusable.id = item;
+                    return reusable;
+                }).iterator();
+            }
             return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> {
                 short masterPart = vertexMasterTable.get(item);
                 return new Vertex(item, masterPart);
@@ -190,18 +199,42 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+    public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, boolean reuse) {
         try {
             Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, ?> vertexTable = localVertexTable.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> srcEdgeIterable = Collections.emptyIterator();
             Iterator<DirectedEdge> destEdgeIterable = Collections.emptyIterator();
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
-                if (vertexTable.f1 != null)
-                    destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
+                if (vertexTable.f1 != null){
+                    if(!reuse) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
+                    else{
+                        DirectedEdge reusable = new DirectedEdge(vertex.getId(), vertex.getId(), null);
+                        destEdgeIterable = vertexTable.f1.stream().map(dstatt -> {
+                            if(reusable.features != null) reusable.features.clear();
+                            reusable.src = null;
+                            reusable.dest = null;
+                            reusable.id.f1 = dstatt.f0;
+                            reusable.id.f2 = dstatt.f1;
+                          return reusable;
+                        }).iterator();
+                    }
+                }
             }
             if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
-                if (vertexTable.f0 != null)
-                    srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
+                if (vertexTable.f0 != null){
+                    if(!reuse) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
+                    else{
+                        DirectedEdge reusable = new DirectedEdge(vertex.getId(), vertex.getId(), null);
+                        destEdgeIterable = vertexTable.f1.stream().map(srcAtt -> {
+                            if(reusable.features != null) reusable.features.clear();
+                            reusable.src = null;
+                            reusable.dest = null;
+                            reusable.id.f0 = srcAtt.f0;
+                            reusable.id.f2 = srcAtt.f1;
+                            return reusable;
+                        }).iterator();
+                    }
+                }
             }
             final Iterator<DirectedEdge> srcIteratorFinal = srcEdgeIterable;
             final Iterator<DirectedEdge> destIteratorFinal = destEdgeIterable;

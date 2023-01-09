@@ -40,11 +40,6 @@ public class SessionWindowedGNNEmbedding extends PartOptimizedStreamingGNNEmbedd
         this.sessionInterval = sessionInterval;
     }
 
-    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int sessionInterval) {
-        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
-        this.sessionInterval = sessionInterval;
-    }
-
     @Override
     public synchronized void open(Configuration params) throws Exception {
         super.open(params);

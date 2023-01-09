@@ -19,11 +19,6 @@ abstract public class BaseVertexOutput extends Plugin {
         this.modelName = modelName;
     }
 
-    public BaseVertexOutput(String modelName, String suffix, boolean IS_ACTIVE) {
-        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
-        this.modelName = modelName;
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);

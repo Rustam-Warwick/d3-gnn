@@ -12,6 +12,8 @@ import elements.features.InPlaceMeanAggregator;
 import elements.features.InPlaceSumAggregator;
 import elements.features.Tensor;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import plugins.ModelServer;
 
 /**
@@ -37,12 +39,6 @@ abstract public class BaseGNNEmbeddings extends Plugin {
 
     public BaseGNNEmbeddings(String modelName, String suffix, boolean trainableVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
-        this.modelName = modelName;
-        this.trainableVertexEmbeddings = trainableVertexEmbeddings;
-    }
-
-    public BaseGNNEmbeddings(String modelName, String suffix, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        super(String.format("%s-%s", modelName, suffix), IS_ACTIVE);
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
     }
@@ -129,6 +125,14 @@ abstract public class BaseGNNEmbeddings extends Plugin {
                 embeddingRandom.setElement(element, false);
                 embeddingRandom.createInternal();
             }
+        }
+    }
+
+    @Override
+    public void handleOperatorEvent(OperatorEvent evt) {
+        super.handleOperatorEvent(evt);
+        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+            running.set(false);
         }
     }
 }
