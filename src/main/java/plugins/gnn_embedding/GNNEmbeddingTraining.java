@@ -4,10 +4,7 @@ import ai.djl.ndarray.*;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
-import elements.DirectedEdge;
-import elements.GraphOp;
-import elements.Rmi;
-import elements.Vertex;
+import elements.*;
 import elements.annotations.RemoteFunction;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
@@ -214,10 +211,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * </p>
      */
     public void forwardZeroPhase(){
-        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
-            if(vertex.state() == ReplicaState.MASTER){
-                ((Aggregator<?>) vertex.getFeature("agg")).reset();
-            }
+        for (Feature agg : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "agg")) {
+            ((Aggregator<?>) agg).reset();
         }
     }
 
@@ -233,8 +228,22 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         NDList srcFeatures = new NDList();
         Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
         IntArrayList reuse2 = new IntArrayList();
-        for (Vertex vertex : getRuntimeContext().getStorage().getVertices(true)) {
-            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN, true);
+        for (Feature f : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "f")) {
+            for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges((Vertex) f.getElement(), EdgeType.IN)) {
+                if (!srcVertex2PosMap.containsKey(incidentEdge.getSrcId())) {
+                    srcVertex2PosMap.put(incidentEdge.getSrcId(), srcFeatures.size());
+                    srcFeatures.add((NDArray) f.getValue());
+                }
+                reuse2.add(srcVertex2PosMap.getInt(incidentEdge.getSrcId()));
+            }
+            if(!reuse2.isEmpty()){
+//                destVertex2SrcIndicesMap.put(Tuple2.of(f.getAttachedElementId(), (short) 1), reuse2.clone());
+                reuse2.clear();
+            }
+        }
+
+        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
+            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN);
             for (DirectedEdge localInDirectedEdge : localInEdges) {
                 if (!srcVertex2PosMap.containsKey(localInDirectedEdge.getSrcId())) {
                     srcVertex2PosMap.put(localInDirectedEdge.getSrcId(), srcFeatures.size());
@@ -275,7 +284,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         List<String> vertexIds = new ArrayList<>();
         Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
         Tuple3<ElementType, Object, String> reuse2 = Tuple3.of(ElementType.VERTEX, null, "agg");
-        for (Vertex v : getRuntimeContext().getStorage().getVertices(true)) {
+        for (Vertex v : getRuntimeContext().getStorage().getVertices()) {
             if (v.state() == ReplicaState.MASTER) {
                 reuse.f1 = v.getId();
                 reuse2.f1 = v.getId();

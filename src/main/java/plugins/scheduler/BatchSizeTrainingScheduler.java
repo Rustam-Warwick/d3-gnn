@@ -25,7 +25,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
     /**
      * Count of available training data up till now
      */
-    protected transient ThreadLocal<Integer> trainingDataSize;
+    protected static transient ThreadLocal<Integer> trainingDataSize = ThreadLocal.withInitial(()-> 0);
 
     public BatchSizeTrainingScheduler(int batchSize){
         super("training_scheduler");
@@ -35,12 +35,6 @@ public class BatchSizeTrainingScheduler extends Plugin {
 
     public BatchSizeTrainingScheduler(){
         this( 512);
-    }
-
-    @Override
-    public synchronized void open(Configuration parameters) throws Exception {
-        super.open(parameters);
-        trainingDataSize = trainingDataSize == null ? ThreadLocal.withInitial(() -> 0): trainingDataSize;
     }
 
     @Override

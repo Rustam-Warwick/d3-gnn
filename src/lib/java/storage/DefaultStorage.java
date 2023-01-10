@@ -6,6 +6,7 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.commons.collections.IteratorUtils;
@@ -24,37 +25,47 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class DefaultStorage extends GraphStorage {
+public final class DefaultStorage extends GraphStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
      */
-    Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
+    private final Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
 
     /**
      * Vertex feature -> [halo, constructor, index in the vertex table, LifeCycleManager]
      */
-    Map<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
+    private final Map<String, Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean>> vertexFeatureInfo = new ConcurrentHashMap<>(10);
 
     /**
      * Counter for vertex features, the localVertex table will hold feature in a list according to this index
      */
-    AtomicInteger vertexFeatureIndex = new AtomicInteger(0);
+    private final AtomicInteger vertexFeatureIndex = new AtomicInteger(0);
 
     /**
      * Vertex table described by vertex id and part so it is unique for tasks
      * * (PartID, VertexId) -> [In-Edge-Table, Out-Edge-Table, [feature values]]
      */
-    Map<Short, Map<String, Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, Object[]>>> localVertexTable = new Short2ObjectOpenHashMap<>();
+    private final Map<Short, Map<String, Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, Object[]>>> localVertexTable = new Short2ObjectOpenHashMap<>();
 
     /**
      * Simple thread local for edge containement checks
      */
-    ThreadLocal<Tuple2<String, String>> reuse = ThreadLocal.withInitial(Tuple2::new);
+    private final ThreadLocal<Tuple2<String, String>> reuse = ThreadLocal.withInitial(Tuple2::new);
+
+    /**
+     * Reuse scopes
+     */
+    private final ThreadLocal<ReuseScope> scopes = ThreadLocal.withInitial(ReuseScope::new);
+
+    /**
+     * Small elements cache for reuse scopes
+     */
+    private final ThreadLocal<ElementCacheHolderPerScopeLayer> elementCache = ThreadLocal.withInitial(ElementCacheHolderPerScopeLayer::new);
 
 
     @Override
-    public boolean addAttachedFeature(Feature<?, ?> feature) {
+    public boolean addAttachedFeature(Feature feature) {
         if (feature.getAttachedElementType() == ElementType.VERTEX) {
             vertexFeatureInfo.computeIfAbsent(feature.getName(), (key) -> Tuple4.of(feature.isHalo(), ConstructorAccess.get(feature.getClass()), vertexFeatureIndex.getAndIncrement(), (feature.value instanceof LifeCycleControl)));
             localVertexTable.get(getRuntimeContext().getCurrentPart()).compute((String) feature.getAttachedElementId(), (key, val) -> {
@@ -75,7 +86,7 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public boolean addStandaloneFeature(Feature<?, ?> feature) {
+    public boolean addStandaloneFeature(Feature feature) {
         throw new NotImplementedException("Delete not implemented yet");
     }
 
@@ -107,7 +118,7 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
+    public boolean updateAttachedFeature(Feature feature, Feature memento) {
         if (feature.getAttachedElementType() == ElementType.VERTEX) {
             Tuple4<?, ?, Integer, Boolean> featureInfo = vertexFeatureInfo.get(feature.getName());
             Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) feature.getAttachedElementId()).f2;
@@ -122,7 +133,7 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento) {
+    public boolean updateStandaloneFeature(Feature feature, Feature memento) {
         throw new NotImplementedException("Delete not implemented yet");
     }
 
@@ -142,12 +153,12 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public boolean deleteAttachedFeature(Feature<?, ?> feature) {
+    public boolean deleteAttachedFeature(Feature feature) {
         throw new NotImplementedException("Delete not implemented yet");
     }
 
     @Override
-    public boolean deleteStandaloneFeature(Feature<?, ?> feature) {
+    public boolean deleteStandaloneFeature(Feature feature) {
         throw new NotImplementedException("Delete not implemented yet");
     }
 
@@ -169,14 +180,21 @@ public class DefaultStorage extends GraphStorage {
     @Override
     public @Nullable Vertex getVertex(String vertexId) {
         short masterPart = vertexMasterTable.get(vertexId);
+        if(scopes.get().isOpen()){
+            Vertex v = elementCache.get().get().getVertex();
+            if(v.features != null) v.features.clear();
+            v.id = vertexId;
+            v.masterPart = masterPart;
+            return v;
+        }
         return new Vertex(vertexId, masterPart);
     }
 
     @Override
-    public Iterable<Vertex> getVertices(boolean reuse) {
+    public Iterable<Vertex> getVertices() {
         try {
-            if(reuse){
-                Vertex reusable = new Vertex(null);
+            if(scopes.get().isOpen()){
+                Vertex reusable = elementCache.get().get().getVertex();
                 return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> {
                     if(reusable.features != null) reusable.features.clear();
                     reusable.masterPart = vertexMasterTable.get(item);
@@ -195,20 +213,30 @@ public class DefaultStorage extends GraphStorage {
 
     @Override
     public @Nullable DirectedEdge getEdge(Tuple3<String, String, String> ids) {
+        if(scopes.get().isOpen()){
+            DirectedEdge edge = elementCache.get().get().getDirectedEdge();
+            if(edge.features != null) edge.features.clear();
+            edge.id.f0 = ids.f0;
+            edge.id.f1 = ids.f1;
+            edge.id.f2 = ids.f2;
+            edge.src = null;
+            edge.dest = null;
+            return edge;
+        }
         return new DirectedEdge(ids.f0, ids.f1, ids.f2);
     }
 
     @Override
-    public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, boolean reuse) {
+    public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
         try {
             Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, ?> vertexTable = localVertexTable.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> srcEdgeIterable = Collections.emptyIterator();
             Iterator<DirectedEdge> destEdgeIterable = Collections.emptyIterator();
             if (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH) {
                 if (vertexTable.f1 != null){
-                    if(!reuse) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
+                    if(!scopes.get().isOpen()) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
                     else{
-                        DirectedEdge reusable = new DirectedEdge(vertex.getId(), vertex.getId(), null);
+                        DirectedEdge reusable = elementCache.get().get().getDirectedEdge();
                         destEdgeIterable = vertexTable.f1.stream().map(dstatt -> {
                             if(reusable.features != null) reusable.features.clear();
                             reusable.src = null;
@@ -222,9 +250,9 @@ public class DefaultStorage extends GraphStorage {
             }
             if (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH) {
                 if (vertexTable.f0 != null){
-                    if(!reuse) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
+                    if(!scopes.get().isOpen()) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
                     else{
-                        DirectedEdge reusable = new DirectedEdge(vertex.getId(), vertex.getId(), null);
+                        DirectedEdge reusable = elementCache.get().get().getDirectedEdge();
                         destEdgeIterable = vertexTable.f1.stream().map(srcAtt -> {
                             if(reusable.features != null) reusable.features.clear();
                             reusable.src = null;
@@ -255,11 +283,11 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public @Nullable Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids) {
+    public @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> ids) {
         if (ids.f0 == ElementType.VERTEX) {
             Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(ids.f2);
             Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2[featureInfo.f2];
-            Feature feature = featureInfo.f1.newInstance();
+            Feature feature = scopes.get().isOpen()?elementCache.get().get().getVertexFeature(ids.f2):featureInfo.f1.newInstance();
             feature.value = value;
             feature.id.f0 = ids.f0;
             feature.id.f1 = ids.f1;
@@ -271,8 +299,51 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public @Nullable Feature<?, ?> getStandaloneFeature(Tuple3<ElementType, Object, String> ids) {
+    public Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName) {
+        if(elementType == ElementType.VERTEX){
+            Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(featureName);
+            if(!scopes.get().isOpen()){
+                return ()-> localVertexTable.get(getRuntimeContext().getCurrentPart()).entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().f2.length > featureInfo.f2 && entry.getValue().f2[featureInfo.f2]!=null)
+                        .map(entry -> {
+                            Feature feature = featureInfo.f1.newInstance();
+                            feature.value = entry.getValue().f2[featureInfo.f2];
+                            feature.id.f0 = elementType;
+                            feature.id.f1 = entry.getKey();
+                            feature.id.f2 = featureName;
+                            feature.halo = featureInfo.f0;
+                            return feature;
+                        }).iterator();
+            }else{
+                Feature reusable = elementCache.get().get().getVertexFeature(featureName);
+                return ()-> localVertexTable.get(getRuntimeContext().getCurrentPart()).entrySet()
+                        .stream()
+                        .filter(entry -> entry.getValue().f2.length > featureInfo.f2 && entry.getValue().f2[featureInfo.f2]!=null)
+                        .map(entry -> {
+                            if(reusable.features != null) reusable.features.clear();
+                            reusable.element = null;
+                            reusable.value = entry.getValue().f2[featureInfo.f2];
+                            reusable.id.f0 = elementType;
+                            reusable.id.f1 = entry.getKey();
+                            reusable.id.f2 = featureName;
+                            reusable.halo = featureInfo.f0;
+                            return reusable;
+                        }).iterator();
+            }
+
+        }
+        return null;
+    }
+
+    @Override
+    public @Nullable Feature getStandaloneFeature(String featureName) {
         throw new NotImplementedException("Delete not implemented yet");
+    }
+
+    @Override
+    public Iterable<Feature> getStandaloneFeatures() {
+        throw new NotImplementedException("Not implemented yet");
     }
 
     @Override
@@ -299,7 +370,7 @@ public class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public boolean containsStandaloneFeature(Tuple3<ElementType, Object, String> ids) {
+    public boolean containsStandaloneFeature(String featureName) {
         throw new NotImplementedException("Delete not implemented yet");
     }
 
@@ -354,4 +425,52 @@ public class DefaultStorage extends GraphStorage {
     public void clear() {
 
     }
+
+    @Override
+    public ReuseScope withReuse() {
+        return scopes.get().open();
+    }
+
+    public class ElementCacheHolderPerScopeLayer{
+        private SmallElementsCache[] caches = new SmallElementsCache[0];
+
+        public SmallElementsCache get(){
+            if(caches.length < scopes.get().getOpenCount()){
+                SmallElementsCache[] tmpNew = new SmallElementsCache[scopes.get().getOpenCount()];
+                System.arraycopy(caches,0, tmpNew,0, caches.length);
+                caches = tmpNew;
+            }
+            if(caches[scopes.get().getOpenCount() - 1] == null) caches[scopes.get().getOpenCount() - 1] = new SmallElementsCache();
+            return caches[scopes.get().getOpenCount() - 1];
+        }
+    }
+
+    public class SmallElementsCache {
+
+        private Vertex vertex = new Vertex();
+
+        private DirectedEdge directedEdge = new DirectedEdge();
+
+        Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
+
+        public Vertex getVertex() {
+            return vertex;
+        }
+
+        public DirectedEdge getDirectedEdge() {
+            return directedEdge;
+        }
+
+        public Feature getVertexFeature(String featureName) {
+            Feature feature = vertexFeatures.get(featureName);
+            if(feature != null) return feature;
+            Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean> info = vertexFeatureInfo.get(featureName);
+            feature = info.f1.newInstance();
+            feature.id.f2 = featureName;
+            feature.halo = info.f0;
+            vertexFeatures.put(featureName, feature);
+            return feature;
+        }
+    }
+
 }

@@ -23,6 +23,7 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
+import storage.GraphStorage;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -40,17 +41,18 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     /**
      * Epoch Throughput counter
      */
-    protected transient ThreadLocal<Counter> epochThroughput;
+    protected static transient ThreadLocal<Counter> epochThroughput = ThreadLocal.withInitial(SimpleCounter::new);
 
     /**
      * Epoch and MiniBatch Counter
      */
-    protected transient ThreadLocal<EpochAndMiniBatchController> epochAndMiniBatchControllers;
+    protected static transient ThreadLocal<EpochAndMiniBatchController> epochAndMiniBatchControllers = ThreadLocal.withInitial(EpochAndMiniBatchController::new);
 
     /**
      * Map of training vertex map 2 part
      */
     protected transient Map<Short, ObjectArrayList<String>> part2TrainingVertexMap;
+
 
     public VertexClassificationTraining(String modelName, Loss loss) {
         super(modelName, "trainer");
@@ -60,8 +62,6 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     @Override
     public synchronized void open(Configuration params) throws Exception {
         super.open(params);
-        epochThroughput = epochThroughput == null?ThreadLocal.withInitial(SimpleCounter::new):epochThroughput;
-        epochAndMiniBatchControllers = epochAndMiniBatchControllers == null? ThreadLocal.withInitial(EpochAndMiniBatchController::new): epochAndMiniBatchControllers;
         part2TrainingVertexMap = part2TrainingVertexMap == null?new Short2ObjectOpenHashMap<>():part2TrainingVertexMap;
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2TrainingVertexMap.put(part, new ObjectArrayList<>()));
         getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput.get(), 30));
@@ -162,7 +162,11 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         public boolean miniBatchFinishedCheckIfMore(){
           currentMiniBatch = (short) ((currentMiniBatch + 1) % miniBatches);
           if(currentMiniBatch == 0) currentEpoch++;
-          return currentEpoch < epochs;
+          if(currentEpoch < epochs){
+              currentEpoch = 0;
+              return true;
+          }
+          return false;
         }
 
         /**
@@ -190,7 +194,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.StartTraining){
             epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
-            getRuntimeContext().runForAllLocalParts(this::startTraining);
+            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().withReuse()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1){

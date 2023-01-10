@@ -29,88 +29,179 @@ import java.util.function.Supplier;
  * BaseStorage is self-sustaining state
  * </p>
  */
-abstract public class GraphStorage extends TaskSharedState implements Serializable {
+abstract public class GraphStorage extends TaskSharedState {
 
     /**
      * Logger
      */
     protected static Logger LOG = LoggerFactory.getLogger(GraphStorage.class);
 
-    // ------------------------ ABSTRACT METHODS -------------------------------------
+    /**
+     * Add {@link Feature} that is attached to element
+     */
+    public abstract boolean addAttachedFeature(Feature feature);
 
-    public abstract boolean addAttachedFeature(Feature<?, ?> feature);
+    /**
+     * Add {@link Feature} that is not attached to any element
+     */
+    public abstract boolean addStandaloneFeature(Feature feature);
 
-    public abstract boolean addStandaloneFeature(Feature<?, ?> feature);
-
+    /**
+     * Add {@link Vertex}
+     */
     public abstract boolean addVertex(Vertex vertex);
 
+    /**
+     * Add {@link DirectedEdge}
+     */
     public abstract boolean addEdge(DirectedEdge directedEdge);
 
+    /**
+     * Add {@link HyperEdge}
+     */
     public abstract boolean addHyperEdge(HyperEdge hyperEdge);
 
-    public abstract boolean updateAttachedFeature(Feature<?, ?> feature, Feature<?, ?> memento);
+    /**
+     * Update {@link Feature} that is attached to element
+     */
+    public abstract boolean updateAttachedFeature(Feature feature, Feature memento);
 
-    public abstract boolean updateStandaloneFeature(Feature<?, ?> feature, Feature<?, ?> memento);
+    /**
+     * Update {@link Feature} that is not attached to element
+     */
+    public abstract boolean updateStandaloneFeature(Feature feature, Feature memento);
 
+    /**
+     * Update {@link Vertex}
+     */
     public abstract boolean updateVertex(Vertex vertex, Vertex memento);
 
+    /**
+     * Update {@link DirectedEdge}
+     */
     public abstract boolean updateEdge(DirectedEdge directedEdge, DirectedEdge memento);
 
+    /**
+     * Update {@link HyperEdge}
+     */
     public abstract boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento);
 
-    public abstract boolean deleteAttachedFeature(Feature<?, ?> feature);
+    /**
+     * Delte {@link Feature} that is attached to element
+     */
+    public abstract boolean deleteAttachedFeature(Feature feature);
 
-    public abstract boolean deleteStandaloneFeature(Feature<?, ?> feature);
+    /**
+     * Update {@link Feature} that is not attached to any element
+     */
+    public abstract boolean deleteStandaloneFeature(Feature feature);
 
+    /**
+     * Delete {@link Vertex}
+     */
     public abstract boolean deleteVertex(Vertex vertex);
 
+    /**
+     * Delete {@link DirectedEdge}
+     */
     public abstract boolean deleteEdge(DirectedEdge directedEdge);
 
+    /**
+     * Delete {@link HyperEdge}
+     */
     public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
 
+    /**
+     * Get {@link Vertex} by its String key
+     */
     @Nullable
     public abstract Vertex getVertex(String vertexId);
 
-    public abstract Iterable<Vertex> getVertices(boolean reuse);
+    /**
+     * Get all {@link Vertex} in this storage
+     */
+    public abstract Iterable<Vertex> getVertices();
 
-    final public Iterable<Vertex> getVertices(){return getVertices(false);};
-
+    /**
+     * Get {@link DirectedEdge} by its full id
+     */
     @Nullable
     public abstract DirectedEdge getEdge(Tuple3<String, String, String> ids);
 
-    public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, boolean reuse);
-    final public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type){return getIncidentEdges(vertex, edge_type, false);};
+    /**
+     * Get incided edges of {@link Vertex}
+     */
+    public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+
+    /**
+     * Get {@link HyperEdge} by its String id
+     */
     @Nullable
     public abstract HyperEdge getHyperEdge(String hyperEdgeId);
 
+    /**
+     * Get {@link HyperEdge} incident to {@link Vertex}
+     */
     public abstract Iterable<HyperEdge> getIncidentHyperEdges(Vertex vertex);
 
-    @Nullable
-    public abstract Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids);
-
-    @Nullable
-    public abstract Feature<?, ?> getStandaloneFeature(Tuple3<ElementType, Object, String> ids);
-
-    public abstract boolean containsVertex(String vertexId);
-
-    public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> ids);
-
-    public abstract boolean containsStandaloneFeature(Tuple3<ElementType, Object, String> ids);
-
-    public abstract boolean containsEdge(Tuple3<String, String, String> ids);
-
-    public abstract boolean containsHyperEdge(String hyperEdgeId);
-
+    /**
+     * Get attached {@link Feature} by its id
+     */
+    public abstract @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> ids);
 
     /**
-     * Given a {@link GraphElement} aggregate all its available {@link Feature}
-     *
-     * @implNote This method is only called in <code>sync()</code> {@link GraphElement}
+     * Get all attached {@link Feature} of a given name
+     */
+    public abstract Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName);
+
+    /**
+     * Get standalone {@link Feature} given by its name
+     */
+    public abstract @Nullable Feature getStandaloneFeature(String featureName);
+
+    /**
+     * Get standalone {@link Feature} in this storage
+     */
+    public abstract Iterable<Feature> getStandaloneFeatures();
+
+    /**
+     * Does this storage contain a {@link Vertex} by its name
+     */
+    public abstract boolean containsVertex(String vertexId);
+
+    /**
+     * Does this storage contain {@link Feature} by its id
+     */
+    public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> ids);
+
+    /**
+     * Does this storage contain {@link Feature} by its id
+     */
+    public abstract boolean containsStandaloneFeature(String featureName);
+
+    /**
+     * Does this storage contain {@link DirectedEdge} by its id
+     */
+    public abstract boolean containsEdge(Tuple3<String, String, String> ids);
+
+    /**
+     * Does this torage contain {@link HyperEdge} by its id
+     */
+    public abstract boolean containsHyperEdge(String hyperEdgeId);
+
+    /**
+     * Given a {@link GraphElement} cache all its available {@link Feature}
      */
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
 
-    // -------------------- HELPER METHODS ----------------
+    /**
+     * Return an instance of {@link ReuseScope} object and open a new scope
+     */
+    public abstract ReuseScope withReuse();
 
+    /**
+     * Add {@link GraphElement}
+     */
     public boolean addElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
@@ -118,9 +209,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case EDGE:
                 return addEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
-                return addAttachedFeature((Feature<?, ?>) element);
+                return addAttachedFeature((Feature) element);
             case STANDALONE_FEATURE:
-                return addStandaloneFeature((Feature<?, ?>) element);
+                return addStandaloneFeature((Feature) element);
             case HYPEREDGE:
                 return addHyperEdge((HyperEdge) element);
             default:
@@ -128,6 +219,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Delete {@link GraphElement}
+     */
     public boolean deleteElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
@@ -135,9 +229,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case EDGE:
                 return deleteEdge((DirectedEdge) element);
             case ATTACHED_FEATURE:
-                return deleteAttachedFeature((Feature<?, ?>) element);
+                return deleteAttachedFeature((Feature) element);
             case STANDALONE_FEATURE:
-                return deleteStandaloneFeature((Feature<?, ?>) element);
+                return deleteStandaloneFeature((Feature) element);
             case HYPEREDGE:
                 return deleteHyperEdge((HyperEdge) element);
             default:
@@ -145,6 +239,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Update {@link GraphElement}
+     */
     public boolean updateElement(GraphElement element, GraphElement memento) {
         switch (element.getType()) {
             case VERTEX:
@@ -152,9 +249,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case EDGE:
                 return updateEdge((DirectedEdge) element, (DirectedEdge) element);
             case ATTACHED_FEATURE:
-                return updateAttachedFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
+                return updateAttachedFeature((Feature) element, (Feature) memento);
             case STANDALONE_FEATURE:
-                return updateStandaloneFeature((Feature<?, ?>) element, (Feature<?, ?>) memento);
+                return updateStandaloneFeature((Feature) element, (Feature) memento);
             case HYPEREDGE:
                 return updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
             default:
@@ -162,6 +259,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Does this storage contain {@link GraphElement}
+     */
     public boolean containsElement(Object id, ElementType type) {
         switch (type) {
             case VERTEX:
@@ -171,7 +271,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case ATTACHED_FEATURE:
                 return containsAttachedFeature((Tuple3<ElementType, Object, String>) id);
             case STANDALONE_FEATURE:
-                return containsStandaloneFeature((Tuple3<ElementType, Object, String>) id);
+                return containsStandaloneFeature((String) id);
             case HYPEREDGE:
                 return containsHyperEdge((String) id);
             case PLUGIN:
@@ -181,6 +281,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Get {@link GraphElement} given its id and {@link ElementType}
+     */
     public GraphElement getElement(Object id, ElementType t) {
         switch (t) {
             case VERTEX:
@@ -188,7 +291,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case ATTACHED_FEATURE:
                 return getAttachedFeature((Tuple3<ElementType, Object, String>) id);
             case STANDALONE_FEATURE:
-                return getStandaloneFeature((Tuple3<ElementType, Object, String>) id);
+                return getStandaloneFeature((String) id);
             case EDGE:
                 return getEdge((Tuple3<String, String, String>) id);
             case HYPEREDGE:
@@ -200,6 +303,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Does this storage contain {@link GraphElement}
+     */
     public boolean containsElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
@@ -207,7 +313,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case ATTACHED_FEATURE:
                 return containsAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
             case STANDALONE_FEATURE:
-                return containsStandaloneFeature((Tuple3<ElementType, Object, String>) element.getId());
+                return containsStandaloneFeature((String) element.getId());
             case EDGE:
                 return containsEdge((Tuple3<String, String, String>) element.getId());
             case HYPEREDGE:
@@ -217,6 +323,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Get the {@link GraphElement} stored in this storage
+     */
     public GraphElement getElement(GraphElement element) {
         switch (element.getType()) {
             case VERTEX:
@@ -224,7 +333,7 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
             case ATTACHED_FEATURE:
                 return getAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
             case STANDALONE_FEATURE:
-                return getStandaloneFeature((Tuple3<ElementType, Object, String>) element.getId());
+                return getStandaloneFeature((String) element.getId());
             case EDGE:
                 return getEdge((Tuple3<String, String, String>) element.getId());
             case HYPEREDGE:
@@ -234,6 +343,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         }
     }
 
+    /**
+     * Method that create a <strong>dummy</strong> {@link GraphElement} if possible
+     */
     public final GraphElement getDummyElement(Object id, ElementType elementType) {
         switch (elementType) {
             case VERTEX:
@@ -244,10 +356,19 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         throw new IllegalStateException("Dummy element can only be created for VERTEX and HYPEREDGE");
     }
 
+    /**
+     * Return {@link GraphRuntimeContext} operating in this {@link Thread}
+     */
     final public GraphRuntimeContext getRuntimeContext() {
         return GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     *     Will fail if the storage object is created outside of {@link GraphRuntimeContext} and non-part-number part
+     * </p>
+     */
     @Override
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
         Preconditions.checkNotNull(getRuntimeContext(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
@@ -256,10 +377,9 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
     }
 
     /**
-     * Provider pattern for GraphStorage
+     * Provider pattern for {@link GraphStorage}
      */
-    public interface GraphStorageProvider extends Supplier<GraphStorage>, Serializable {
-    }
+    public interface GraphStorageProvider extends Supplier<GraphStorage>, Serializable {}
 
     /**
      * Default provider using {@link DefaultStorage}
@@ -269,6 +389,35 @@ abstract public class GraphStorage extends TaskSharedState implements Serializab
         public GraphStorage get() {
             return new DefaultStorage();
         }
+    }
+
+    /**
+     * <p>
+     *     A special {@link AutoCloseable} object that should be opened when you want to access storage with reuse semantics
+     *     reuse semantics depends to the implementation of storage (Some of not might not have such semantics whatsoever)
+     *     However, generally reuse semantics makes use of shared objects to reduce allocation costs
+     *     In such mode, UDF should not depend on storing the returned objects as they might change value later
+     * </p>
+     */
+    public static class ReuseScope implements AutoCloseable {
+        protected byte openCount;
+
+        protected ReuseScope open(){
+            openCount++;
+            return this;
+        }
+
+        @Override
+        public void close() {
+            openCount--;
+        }
+
+        public boolean isOpen(){return openCount > 0;}
+
+        public byte getOpenCount(){
+             return openCount;
+        }
+
     }
 
 }
