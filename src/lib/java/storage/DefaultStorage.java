@@ -430,7 +430,7 @@ public final class DefaultStorage extends GraphStorage {
     /**
      * Reuse Scope with elements cache
      */
-    public class ScopeWithElements extends ReuseScope{
+    public class ScopeWithElements extends ReuseScope {
         private SmallElementsCache[] caches = new SmallElementsCache[0];
 
         public SmallElementsCache get(){

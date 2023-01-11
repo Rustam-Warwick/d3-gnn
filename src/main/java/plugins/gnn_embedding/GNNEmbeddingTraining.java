@@ -238,23 +238,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                 reuse2.add(srcVertex2PosMap.getInt(incidentEdge.getSrcId()));
             }
             if(!reuse2.isEmpty()){
-//                destVertex2SrcIndicesMap.put(Tuple2.of(f.getAttachedElementId(), (short) 1), reuse2.clone());
-                reuse2.clear();
-            }
-        }
-
-        for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
-            Iterable<DirectedEdge> localInEdges = getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN);
-            for (DirectedEdge localInDirectedEdge : localInEdges) {
-                if (!srcVertex2PosMap.containsKey(localInDirectedEdge.getSrcId())) {
-                    srcVertex2PosMap.put(localInDirectedEdge.getSrcId(), srcFeatures.size());
-                    reuse.f1 = localInDirectedEdge.getSrcId();
-                    srcFeatures.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
-                }
-                reuse2.add(srcVertex2PosMap.getInt(localInDirectedEdge.getSrcId()));
-            }
-            if(!reuse2.isEmpty()){
-                destVertex2SrcIndicesMap.put(Tuple2.of(vertex.getId(), vertex.masterPart), reuse2.clone());
+                destVertex2SrcIndicesMap.put(Tuple2.of((String) f.getAttachedElementId(), f.getMasterPart()), reuse2.clone());
                 reuse2.clear();
             }
         }
@@ -283,15 +267,14 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
-        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
-        Tuple3<ElementType, Object, String> reuse2 = Tuple3.of(ElementType.VERTEX, null, "agg");
-        for (Vertex v : getRuntimeContext().getStorage().getVertices()) {
-            if (v.state() == ReplicaState.MASTER) {
-                reuse.f1 = v.getId();
-                reuse2.f1 = v.getId();
-                features.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
-                aggregators.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse2).getValue());
-                vertexIds.add(v.getId());
+        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "agg");
+        for (Feature f : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "f")) {
+            if(f.getElement().state() == ReplicaState.MASTER){
+                // Master vertices with feature
+                reuse.f1 = f.getAttachedElementId();
+                features.add((NDArray) f.getValue());
+                aggregators.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuse).getValue());
+                vertexIds.add((String) f.getAttachedElementId());
             }
         }
         NDList inputsBatched = new NDList(NDArrays.stack(features), NDArrays.stack(aggregators));
@@ -303,6 +286,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
             reuse3.value = updatesBatched.get(i);
             getRuntimeContext().output(new GraphOp(Op.UPDATE, getRuntimeContext().getCurrentPart(), reuse3));
         }
+        BaseNDManager.getManager().resumeAndDelay();
     }
 
     @Override
