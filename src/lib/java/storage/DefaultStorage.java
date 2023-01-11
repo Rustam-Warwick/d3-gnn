@@ -56,13 +56,7 @@ public final class DefaultStorage extends GraphStorage {
     /**
      * Reuse scopes
      */
-    private final ThreadLocal<ReuseScope> scopes = ThreadLocal.withInitial(ReuseScope::new);
-
-    /**
-     * Small elements cache for reuse scopes
-     */
-    private final ThreadLocal<ElementCacheHolderPerScopeLayer> elementCache = ThreadLocal.withInitial(ElementCacheHolderPerScopeLayer::new);
-
+    private final ThreadLocal<ScopeWithElements> scopes = ThreadLocal.withInitial(ScopeWithElements::new);
 
     @Override
     public boolean addAttachedFeature(Feature feature) {
@@ -181,7 +175,7 @@ public final class DefaultStorage extends GraphStorage {
     public @Nullable Vertex getVertex(String vertexId) {
         short masterPart = vertexMasterTable.get(vertexId);
         if(scopes.get().isOpen()){
-            Vertex v = elementCache.get().get().getVertex();
+            Vertex v = scopes.get().get().getVertex();
             if(v.features != null) v.features.clear();
             v.id = vertexId;
             v.masterPart = masterPart;
@@ -194,7 +188,7 @@ public final class DefaultStorage extends GraphStorage {
     public Iterable<Vertex> getVertices() {
         try {
             if(scopes.get().isOpen()){
-                Vertex reusable = elementCache.get().get().getVertex();
+                Vertex reusable = scopes.get().get().getVertex();
                 return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> {
                     if(reusable.features != null) reusable.features.clear();
                     reusable.masterPart = vertexMasterTable.get(item);
@@ -214,7 +208,7 @@ public final class DefaultStorage extends GraphStorage {
     @Override
     public @Nullable DirectedEdge getEdge(Tuple3<String, String, String> ids) {
         if(scopes.get().isOpen()){
-            DirectedEdge edge = elementCache.get().get().getDirectedEdge();
+            DirectedEdge edge = scopes.get().get().getDirectedEdge();
             if(edge.features != null) edge.features.clear();
             edge.id.f0 = ids.f0;
             edge.id.f1 = ids.f1;
@@ -236,7 +230,7 @@ public final class DefaultStorage extends GraphStorage {
                 if (vertexTable.f1 != null){
                     if(!scopes.get().isOpen()) destEdgeIterable = vertexTable.f1.stream().map(dstatt -> (new DirectedEdge(vertex.getId(), dstatt.f0, dstatt.f1))).iterator();
                     else{
-                        DirectedEdge reusable = elementCache.get().get().getDirectedEdge();
+                        DirectedEdge reusable = scopes.get().get().getDirectedEdge();
                         destEdgeIterable = vertexTable.f1.stream().map(dstatt -> {
                             if(reusable.features != null) reusable.features.clear();
                             reusable.src = null;
@@ -252,7 +246,7 @@ public final class DefaultStorage extends GraphStorage {
                 if (vertexTable.f0 != null){
                     if(!scopes.get().isOpen()) srcEdgeIterable = vertexTable.f0.stream().map(srcatt -> (new DirectedEdge(srcatt.f0, vertex.getId(), srcatt.f1))).iterator();
                     else{
-                        DirectedEdge reusable = elementCache.get().get().getDirectedEdge();
+                        DirectedEdge reusable = scopes.get().get().getDirectedEdge();
                         destEdgeIterable = vertexTable.f1.stream().map(srcAtt -> {
                             if(reusable.features != null) reusable.features.clear();
                             reusable.src = null;
@@ -287,8 +281,10 @@ public final class DefaultStorage extends GraphStorage {
         if (ids.f0 == ElementType.VERTEX) {
             Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(ids.f2);
             Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2[featureInfo.f2];
-            Feature feature = scopes.get().isOpen()?elementCache.get().get().getVertexFeature(ids.f2):featureInfo.f1.newInstance();
+            Feature feature = scopes.get().isOpen()?scopes.get().get().getVertexFeature(ids.f2):featureInfo.f1.newInstance();
+            if(feature.features!=null) feature.features.clear();
             feature.value = value;
+            feature.element = null;
             feature.id.f0 = ids.f0;
             feature.id.f1 = ids.f1;
             feature.id.f2 = ids.f2;
@@ -316,7 +312,7 @@ public final class DefaultStorage extends GraphStorage {
                             return feature;
                         }).iterator();
             }else{
-                Feature reusable = elementCache.get().get().getVertexFeature(featureName);
+                Feature reusable = scopes.get().get().getVertexFeature(featureName);
                 return ()-> localVertexTable.get(getRuntimeContext().getCurrentPart()).entrySet()
                         .stream()
                         .filter(entry -> entry.getValue().f2.length > featureInfo.f2 && entry.getValue().f2[featureInfo.f2]!=null)
@@ -427,21 +423,24 @@ public final class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public ReuseScope withReuse() {
+    public ReuseScope openReuseScope() {
         return scopes.get().open();
     }
 
-    public class ElementCacheHolderPerScopeLayer{
+    /**
+     * Reuse Scope with elements cache
+     */
+    public class ScopeWithElements extends ReuseScope{
         private SmallElementsCache[] caches = new SmallElementsCache[0];
 
         public SmallElementsCache get(){
-            if(caches.length < scopes.get().getOpenCount()){
-                SmallElementsCache[] tmpNew = new SmallElementsCache[scopes.get().getOpenCount()];
+            if(caches.length < openCount){
+                SmallElementsCache[] tmpNew = new SmallElementsCache[openCount];
                 System.arraycopy(caches,0, tmpNew,0, caches.length);
                 caches = tmpNew;
             }
-            if(caches[scopes.get().getOpenCount() - 1] == null) caches[scopes.get().getOpenCount() - 1] = new SmallElementsCache();
-            return caches[scopes.get().getOpenCount() - 1];
+            if(caches[openCount - 1] == null) caches[openCount - 1] = new SmallElementsCache();
+            return caches[openCount - 1];
         }
     }
 

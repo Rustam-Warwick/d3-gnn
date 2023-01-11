@@ -22,10 +22,12 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
 
     @Override
     default void open(Configuration parameters) throws Exception {
+
     }
 
     @Override
     default void close() throws Exception {
+
     }
 
     @Override

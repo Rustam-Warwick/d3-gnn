@@ -21,6 +21,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
+import storage.GraphStorage;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -308,19 +309,21 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.BackwardPhaser){
-            if(!((TrainingSubCoordinator.BackwardPhaser) evt).isSecondPhase) getRuntimeContext().runForAllLocalParts(this::backwardFirstPhase);
+            if(!((TrainingSubCoordinator.BackwardPhaser) evt).isSecondPhase){
+                try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(this::backwardFirstPhase);}
+            }
             else getRuntimeContext().runForAllLocalParts(this::backwardSecondPhase);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
             switch (((TrainingSubCoordinator.ForwardPhaser) evt).iteration){
                 case 0:
-                    getRuntimeContext().runForAllLocalParts(this::forwardZeroPhase);
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardZeroPhase);}
                     break;
                 case 1:
-                    getRuntimeContext().runForAllLocalParts(this::forwardFirstPhase);
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardFirstPhase);}
                     break;
                 case 2:
-                    getRuntimeContext().runForAllLocalParts(this::forwardSecondPhase);
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardSecondPhase);}
                     break;
             }
         }

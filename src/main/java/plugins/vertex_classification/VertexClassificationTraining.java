@@ -89,7 +89,6 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         if(startEndIndices[0] >= startEndIndices[1]) return; // No data available
         String[] miniBatchVertexIds = new String[startEndIndices[1] - startEndIndices[0]];
         System.arraycopy(vertexIds.elements(), startEndIndices[0], miniBatchVertexIds, 0, miniBatchVertexIds.length);
-        Arrays.sort(miniBatchVertexIds);
         NDList inputs = new NDList(miniBatchVertexIds.length);
         NDList labels = new NDList(miniBatchVertexIds.length);
         Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
@@ -193,8 +192,9 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.StartTraining){
+            // Adjust the minibatch and epoch count, do the backward pass
             epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
-            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().withReuse()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
+            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1){

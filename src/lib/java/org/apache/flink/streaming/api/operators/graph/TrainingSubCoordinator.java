@@ -250,18 +250,18 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
         @Override
         public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
             if(incoming == null){
-                shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels();
+                shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels(); // Receiving initially form the forward layer
             }
             if(++numReceived == shouldReceive){
                 if(!isSecondPhase) {
                     pool.eventHandler.handleOperatorEvent(this);
                     numReceived = 0;
-                    shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();
+                    shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks(); // Then iterate
                     isSecondPhase = true;
                     pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
                 }else{
                     pool.evict(this);
-                    if(!pool.graphRuntimeContext.isFirst()) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG);
+                    if(!pool.graphRuntimeContext.isFirst()) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG); // send back
                     else pool.addEvent(new ForwardPhaser()); // Start forward pass
                 }
             }

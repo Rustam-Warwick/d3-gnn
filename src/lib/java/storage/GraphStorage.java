@@ -195,9 +195,9 @@ abstract public class GraphStorage extends TaskSharedState {
     public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
 
     /**
-     * Return an instance of {@link ReuseScope} object and open a new scope
+     * Return an instance of {@link ReuseScope} object and open that scope
      */
-    public abstract ReuseScope withReuse();
+    public abstract ReuseScope openReuseScope();
 
     /**
      * Add {@link GraphElement}
