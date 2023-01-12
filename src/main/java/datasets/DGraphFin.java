@@ -134,7 +134,7 @@ public class DGraphFin extends Dataset {
                 label.id.f0 = ElementType.VERTEX;
                 label.id.f1 = String.valueOf(vertexId);
                 label.delay();
-                labelsTimer.enqueue(Tuple2.of(new GraphOp(Op.ADD, label), processTimestamp + ThreadLocalRandom.current().nextInt(100, 5000)));
+                labelsTimer.enqueue(Tuple2.of(new GraphOp(Op.ADD, label), processTimestamp + ThreadLocalRandom.current().nextInt(2000, 5000)));
             }
         }
 

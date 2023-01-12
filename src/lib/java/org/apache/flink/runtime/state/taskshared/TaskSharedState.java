@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * </p>
  */
 abstract public class TaskSharedState implements State {
-
     /**
      * Group ID to index. Index represents a logical index(order) of registration for this group ID
      */
@@ -34,5 +33,7 @@ abstract public class TaskSharedState implements State {
             groupIdToIndex.put(i, index);
         }
     }
+
+
 
 }

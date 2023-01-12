@@ -90,7 +90,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
      */
-    protected GraphStorage storage;
+    protected GraphStorage.GraphStorageView storage;
 
     /**
      * Internal Timer Service
@@ -139,7 +139,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider));
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider)).getOrCreateView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
         Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedPluginMap.class), TaskSharedPluginMap::new));
         plugins.forEach(taskLocalPlugin::putIfAbsent);
         plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
@@ -234,7 +234,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public GraphStorage getStorage() {
+        public GraphStorage.GraphStorageView getStorage() {
             return storage;
         }
 

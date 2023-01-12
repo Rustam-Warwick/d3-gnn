@@ -153,7 +153,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public GraphStorage getStorage() {
+        public GraphStorage.GraphStorageView getStorage() {
             throw new IllegalStateException("No storage in SPLITTER");
         }
 

@@ -46,6 +46,7 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
 
     @Override
     default void snapshotState(FunctionSnapshotContext context) throws Exception {
+
     }
 
     @Override
