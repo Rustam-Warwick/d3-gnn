@@ -15,6 +15,8 @@ import elements.features.Tensor;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import org.apache.flink.api.common.state.ValueState;
+import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
@@ -103,7 +105,11 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         NDList backwardGradients = new NDList(batchedInputs.get(0).getGradient(), batchedInputs.get(1).getGradient());
 
         // ------------------Collect Aggregation messages + Backward messages(If not the first layer)
-
+        for (int i = 0; i < collectedGradients.keys.length; i++) {
+            reuse2.f1 = collectedGradients.keys[i];
+            Aggregator<?> agg = (Aggregator<?>) getRuntimeContext().getStorage().getAttachedFeature(reuse2);
+            agg.grad(backwardGradients.get(1));
+        }
 //        HashMap<Short, NDArrayCollector<String>> aggGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
 //        HashMap<String, NDArray> backwardGrads = getRuntimeContext().isFirst() ? null : new NDArrayCollector<>(false);
 //        for (int i = 0; i < collectedGradients.size(); i++) {
@@ -300,13 +306,13 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
             switch (((TrainingSubCoordinator.ForwardPhaser) evt).iteration){
-                case 0:
+                case 1:
                     try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardZeroPhase);}
                     break;
-                case 1:
+                case 2:
                     try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardFirstPhase);}
                     break;
-                case 2:
+                case 3:
                     try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardSecondPhase);}
                     break;
             }

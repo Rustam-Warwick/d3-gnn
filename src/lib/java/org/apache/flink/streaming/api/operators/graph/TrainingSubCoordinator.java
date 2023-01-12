@@ -176,7 +176,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
         }
 
         public StartTraining(short miniBatches) {
-            this(miniBatches, (short) 1);
+            this(miniBatches, (short) 16);
         }
     }
 
@@ -295,7 +295,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                 }
             }
             if(++numReceived == shouldReceive){
-                if(iteration < (pool.graphRuntimeContext.isLast()?1:2)){
+                if(iteration < (pool.graphRuntimeContext.isLast()?2:3)){
                     pool.eventHandler.handleOperatorEvent(this);
                     numReceived = 0;
                     shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks();

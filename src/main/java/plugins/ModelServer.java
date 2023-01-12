@@ -120,7 +120,6 @@ public class ModelServer<T extends Block> extends Plugin {
                     OutputTags.ITERATE_OUTPUT_TAG
             );
         }
-        getRuntimeContext().broadcast(new GraphOp(new ParametersSynced()), OutputTags.ITERATE_OUTPUT_TAG);
     }
 
     /**
@@ -129,6 +128,7 @@ public class ModelServer<T extends Block> extends Plugin {
     public void syncSecondPhase(){
         if(getRuntimeContext() == masterRuntimeContext){
             for (int i = 0; i < block.getParameters().size(); i++) {
+                block.getParameters().get(i).getValue().getArray().setRequiresGradient(false);
                 block.getParameters().get(i).getValue().getArray().subi(block.getParameters().get(i).getValue().getArray()).addi(syncParameters.f0.get(i).getValue().getArray());
                 syncParameters.f0.get(i).getValue().getArray().close();
             }
@@ -158,27 +158,12 @@ public class ModelServer<T extends Block> extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
+        if(evt instanceof TrainingSubCoordinator.ForwardPhaser) {
             if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 0) {
                 syncFirstPhase();
             }
-        }else if(evt instanceof ParametersSynced){
-            syncSecondPhase();
-        }
-    }
-
-    /**
-     * <p>
-     *     Event evicting only after all the parameters have been synced
-     * </p>
-     */
-    public static class ParametersSynced extends GraphEvent {
-        transient short received;
-        @Override
-        public void merge(GraphEventPool pool, @Nullable GraphEvent incoming) {
-            super.merge(pool, incoming);
-            if(++received == pool.graphRuntimeContext.getNumberOfParallelSubtasks()){
-                pool.evict(this);
+            else if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1) {
+                syncSecondPhase();
             }
         }
     }

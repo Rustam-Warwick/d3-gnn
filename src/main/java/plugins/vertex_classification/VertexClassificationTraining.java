@@ -34,7 +34,7 @@ import java.util.Map;
 public class VertexClassificationTraining extends BaseVertexOutput {
 
     /**
-     * Loss function for gradient calculation
+     * Loss functions for gradient calculation
      */
     public final Loss loss;
 
@@ -104,6 +104,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
+        System.out.println(meanLoss);
         synchronized(this) {
             // Synchronize the backward call
             JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);
@@ -197,7 +198,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
             try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
-        else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1){
+        else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 2){
             if(epochAndMiniBatchControllers.get().miniBatchFinishedCheckIfMore()){
                 // Has more
                 getRuntimeContext().runForAllLocalParts(this::startTraining);
