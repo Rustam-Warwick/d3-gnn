@@ -1,8 +1,6 @@
 package plugins.gnn_embedding;
 
 import ai.djl.ndarray.*;
-import ai.djl.ndarray.index.NDIndex;
-import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.AggregatorVariant;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.pytorch.engine.PtNDArray;
@@ -21,7 +19,6 @@ import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
-import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
@@ -66,10 +63,15 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     /**
      * First part of training responsible for getting triggerUpdate gradients and output gradients
      * <p>
-     * Assumes to contain only gradients for master vertices with aggregators allocated already
+     *      Assumptions:
+     *      <ul>
+     *          <li>All vertices here are in their master parts</li>
+     *          <li>All master vertices participating in train have their features </li>
+     *          <li>All master vertices here have their aggregators</li>
+     *      </ul>
      * </p>
      */
-    public void backwardFirstPhaseWithMeanAggregator() {
+    public void backwardFirstPhaseMeanOrSum() {
         // ------------- Fast return check
 
         NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
@@ -93,15 +95,17 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
             CountTensorHolder val = (CountTensorHolder) getRuntimeContext().getStorage().getAttachedFeature(aggReuseKey).value;
             aggregatorList.add(val.val);
             meanAggregatorValues[i] = val.count;
-            if(val.count > 0 && getRuntimeContext().getStorage().containsAttachedFeature(partsReuseKey)) {
+            if(val.count > 0) {
                     part2Vertices.get(getPart()).add(vertexIndex);
-                    for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(partsReuseKey)).getValue()) {
-                    part2Vertices.compute(replicaPart, (key, vertexIndices)->{
-                        if(vertexIndices == null) vertexIndices = new IntArrayList();
-                        vertexIndices.add(vertexIndex);
-                        return vertexIndices;
-                    });
-                }
+                    if(getRuntimeContext().getStorage().containsAttachedFeature(partsReuseKey)){
+                        for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(partsReuseKey)).getValue()) {
+                            part2Vertices.compute(replicaPart, (key, vertexIndices) -> {
+                                if (vertexIndices == null) vertexIndices = new IntArrayList();
+                                vertexIndices.add(vertexIndex);
+                                return vertexIndices;
+                            });
+                        }
+                    }
             }
         }
 
@@ -134,15 +138,18 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
             );
         }
 
-        collectedGradients.clear(); // Clear so that the same guy is re-used for storing aggregator gradients
+        String[] keys = collectedGradients.keys; // Take this out since we will need it afterwards
+        collectedGradients.clear();
 
 
         // ------------------Collect Aggregation messages + Backward messages(If not the first layer)
 
-        backwardGradients.get(1).divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1)); // Divide to get message gradiets
+        if(modelServer.getBlock().getAgg() == AggregatorVariant.MEAN)
+            backwardGradients.get(1).divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1));
 
         part2Vertices.forEach((part, list)->{
-            String[] vIds = list.intStream().mapToObj(pos -> collectedGradients.keys[pos]).toArray(String[]::new);
+            if(list.isEmpty()) return;
+            String[] vIds = list.intStream().mapToObj(pos -> keys[pos]).toArray(String[]::new);
             NDArray batchedAggGrads = backwardGradients.get(1).get(BaseNDManager.getManager().create(list.toIntArray()));
             Rmi.buildAndRun(getId(), getType(), "collect", part, OutputTags.ITERATE_OUTPUT_TAG, vIds, batchedAggGrads);
         });
@@ -158,45 +165,11 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * Previous layer updates are needed only if this is not First layer of GNN
      * </p>
      */
-    public void backwardSecondPhase() {
-            if(true) return;
-            if (!part2GradientAggregators.containsKey(getPart())) return;
-            NDArrayCollector<String> collectedAggregators = null;
-            if (collectedAggregators.isEmpty()) return;
+    public void backwardSecondPhaseMeanOrSum() {
+        NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
+        if(collectedGradients.isEmpty()) return;
+        collectedGradients.clear();
 
-            NDList features = new NDList(collectedAggregators.size());
-            NDList gradients = new NDList(collectedAggregators.size());
-            List<Vertex> vertices = new ArrayList<>(collectedAggregators.size());
-            for (Map.Entry<String, NDArray> stringNDArrayEntry : collectedAggregators.entrySet()) {
-                Vertex v = getRuntimeContext().getStorage().getVertex(stringNDArrayEntry.getKey());
-                vertices.add(v);
-                features.add((NDArray) v.getFeature("f").getValue());
-                gradients.add(stringNDArrayEntry.getValue());
-            }
-            NDList batchedFeatures = new NDList(NDArrays.stack(features));
-            batchedFeatures.get(0).setRequiresGradient(true);
-            NDList batchedMessageGradients = new NDList(NDArrays.stack(gradients));
-            NDList messages = MESSAGE(batchedFeatures, true);
-            JniUtils.backward((PtNDArray) messages.get(0), (PtNDArray) batchedMessageGradients.get(0), false, false);
-            NDArray batchedFeatureGradients = batchedFeatures.get(0).getGradient();
-            if (!getRuntimeContext().isFirst()) {
-                HashMap<Short, NDArrayCollector<String>> backwardGradsPerPart = new HashMap<>(); // per part aggregator with its gradient
-                for (int i = 0; i < vertices.size(); i++) {
-                    backwardGradsPerPart.computeIfAbsent(vertices.get(i).getMasterPart(), (key) -> new NDArrayCollector<>(false));
-                    backwardGradsPerPart.get(vertices.get(i).getMasterPart()).put(vertices.get(i).getId(), batchedFeatureGradients.get(i));
-                }
-                for (Map.Entry<Short, NDArrayCollector<String>> entry : backwardGradsPerPart.entrySet()) {
-                    Rmi.buildAndRun(
-                            getId(),
-                            getType(),
-                            "collect",
-                            entry.getKey(),
-                            OutputTags.BACKWARD_OUTPUT_TAG,
-                            entry.getValue()
-                    );
-                }
-            }
-            collectedAggregators.clear();
     }
 
     /**
@@ -205,7 +178,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      *     Simply reset the aggregator values in storage
      * </p>
      */
-    public void forwardZeroPhase(){
+    public void forwardResetPhase(){
         for (Feature agg : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "agg")) {
             ((Aggregator<?>) agg).reset();
         }
@@ -217,7 +190,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      * Reset local aggregators, Collect local vertices, batch messages going to a vertex and send RMI reduce messages
      * </p>
      */
-    public void forwardFirstPhase() {
+    public void forwardAggregatorPhase() {
         Object2IntOpenHashMap<String> srcVertex2PosMap = new Object2IntOpenHashMap<>();
         HashMap<Tuple2<String, Short>, IntArrayList> destVertex2SrcIndicesMap = new HashMap<>();
         NDList srcFeatures = new NDList();
@@ -257,7 +230,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     /**
      * Forward all local MASTER Vertices to the next layer
      */
-    public void forwardSecondPhase() {
+    public void forwardUpdatePhase() {
         NDList features = new NDList();
         NDList aggregators = new NDList();
         List<String> vertexIds = new ArrayList<>();
@@ -288,20 +261,20 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.BackwardPhaser){
             if(!((TrainingSubCoordinator.BackwardPhaser) evt).isSecondPhase){
-                try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardFirstPhaseWithMeanAggregator:null);}
+                try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardFirstPhaseMeanOrSum :null);}
             }
-            else getRuntimeContext().runForAllLocalParts(this::backwardSecondPhase);
+            else try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardSecondPhaseMeanOrSum :null);}
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
             switch (((TrainingSubCoordinator.ForwardPhaser) evt).iteration){
                 case 1:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardZeroPhase);}
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardResetPhase);}
                     break;
                 case 2:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardFirstPhase);}
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardAggregatorPhase);}
                     break;
                 case 3:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardSecondPhase);}
+                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardUpdatePhase);}
                     break;
             }
         }

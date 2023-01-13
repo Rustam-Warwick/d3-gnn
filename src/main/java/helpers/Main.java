@@ -3,7 +3,6 @@ package helpers;
 import ai.djl.BaseModel;
 import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
@@ -75,11 +74,6 @@ public class Main {
 
     public static void main(String[] args) throws Throwable {
         try {
-            NDArray v1 = BaseNDManager.getManager().randomInteger(1,100,new Shape(3,10), DataType.FLOAT32);
-            NDArray v2 = BaseNDManager.getManager().create(new int[]{1,0,10}).expandDims(1);
-            System.out.println(v1);
-            v1.divi(v2);
-            System.out.println(v1);
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<GraphOp>[] res = new GraphStream(env, args, false, true, false,

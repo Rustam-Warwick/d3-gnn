@@ -456,11 +456,11 @@ public final class DefaultStorage extends GraphStorage {
          */
         public class SmallElementsCache {
 
-            private Vertex vertex = new Vertex();
+            private final Vertex vertex = new Vertex();
 
-            private DirectedEdge directedEdge = new DirectedEdge();
+            private final DirectedEdge directedEdge = new DirectedEdge();
 
-            Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
+            private final Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
 
             public Vertex getVertex() {
                 return vertex;
