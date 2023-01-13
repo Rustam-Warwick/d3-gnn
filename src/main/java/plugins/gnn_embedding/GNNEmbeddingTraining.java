@@ -18,6 +18,7 @@ import elements.features.Tensor;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -35,6 +36,8 @@ import java.util.Map;
 /**
  * <p>
  *      Plugin that manages the training of {@link BaseGNNEmbeddings}
+ *      Currently only supports: <strong>MEAN and SUM</strong> aggregator
+ *
  * </p>
  */
 public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
@@ -53,7 +56,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     }
 
     /**
-     * Collect vertex -> dLoss/doutput, where vertices are masters in this part
+     * Collect gradients per vertex string, where vertices are masters in this part
      */
     @RemoteFunction(triggerUpdate = false)
     public void collect(String[] vertexIds, NDArray batchedGradients) {
@@ -81,7 +84,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
 
         NDList featuresList = new NDList(collectedGradients.keys.length);
         NDList aggregatorList = new NDList(collectedGradients.keys.length);
-        int[] meanAggregatorValues = new int[collectedGradients.keys.length];
+        int[] meanAggregatorValues = modelServer.getBlock().getAgg() == AggregatorVariant.MEAN ? new int[collectedGradients.keys.length]: null;
         Tuple3<ElementType, Object, String> featureReuseKey = new Tuple3<>(ElementType.VERTEX, null, "f");
         Tuple3<ElementType, Object, String> aggReuseKey = new Tuple3<>(ElementType.VERTEX, null, "agg");
         Tuple3<ElementType, Object, String> partsReuseKey = new Tuple3<>(ElementType.VERTEX, null, "p");
@@ -94,7 +97,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
             featuresList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(featureReuseKey).getValue());
             CountTensorHolder val = (CountTensorHolder) getRuntimeContext().getStorage().getAttachedFeature(aggReuseKey).value;
             aggregatorList.add(val.val);
-            meanAggregatorValues[i] = val.count;
+            if(meanAggregatorValues!=null) meanAggregatorValues[i] = val.count;
             if(val.count > 0) {
                     part2Vertices.get(getPart()).add(vertexIndex);
                     if(getRuntimeContext().getStorage().containsAttachedFeature(partsReuseKey)){
@@ -110,19 +113,17 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         }
 
         NDList batchedInputs = new NDList(NDArrays.stack(featuresList), NDArrays.stack(aggregatorList));
-        batchedInputs.get(0).setRequiresGradient(true);
+        if(!getRuntimeContext().isFirst()) batchedInputs.get(0).setRequiresGradient(true);
         batchedInputs.get(1).setRequiresGradient(true);
 
         // --------------- Backward pass
-
-        NDList batchedPredictions = ((GNNBlock) modelServer.getModel().getBlock()).update(modelServer.getParameterStore(), batchedInputs, true);
+        NDList updatesBatched = UPDATE(batchedInputs, true);
 
         synchronized (this){
             // Synchronize backward calls since TaskLocal
-            JniUtils.backward((PtNDArray) batchedPredictions.get(0), (PtNDArray) collectedGradients.batchedNDArray, false, false);
+            JniUtils.backward((PtNDArray) updatesBatched.get(0), (PtNDArray) collectedGradients.batchedNDArray, false, false);
         }
 
-        NDList backwardGradients = new NDList(batchedInputs.get(0).getGradient(), batchedInputs.get(1).getGradient());
 
         // -------------- Send backward messages if it exists and clear gradients
 
@@ -134,23 +135,24 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                     getPart(),
                     OutputTags.BACKWARD_OUTPUT_TAG,
                     collectedGradients.keys,
-                    backwardGradients.get(0)
+                    batchedInputs.get(0).getGradient()
             );
         }
 
         String[] keys = collectedGradients.keys; // Take this out since we will need it afterwards
         collectedGradients.clear();
 
+        NDArray aggGradients = batchedInputs.get(1).getGradient();
 
         // ------------------Collect Aggregation messages + Backward messages(If not the first layer)
 
-        if(modelServer.getBlock().getAgg() == AggregatorVariant.MEAN)
-            backwardGradients.get(1).divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1));
+        if(meanAggregatorValues != null)
+            aggGradients.divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1));
 
         part2Vertices.forEach((part, list)->{
             if(list.isEmpty()) return;
             String[] vIds = list.intStream().mapToObj(pos -> keys[pos]).toArray(String[]::new);
-            NDArray batchedAggGrads = backwardGradients.get(1).get(BaseNDManager.getManager().create(list.toIntArray()));
+            NDArray batchedAggGrads = aggGradients.get(BaseNDManager.getManager().create(list.toIntArray()));
             Rmi.buildAndRun(getId(), getType(), "collect", part, OutputTags.ITERATE_OUTPUT_TAG, vIds, batchedAggGrads);
         });
         
@@ -168,7 +170,62 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
     public void backwardSecondPhaseMeanOrSum() {
         NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
         if(collectedGradients.isEmpty()) return;
+        Tuple3<ElementType, Object, String> featureAccessKey = Tuple3.of(ElementType.VERTEX, null, "f");
+        Short2ObjectOpenHashMap<Tuple2<IntArrayList, ObjectArrayList<String>>> partIndices = new Short2ObjectOpenHashMap<>();
+        NDList inFeaturesList = new NDList();
+        NDArray repeatedGradient = null; // Resulting gradients from all in-vertices.
+        for (int i = 0; i < collectedGradients.keys.length; i++) {
+            int repeatSize = 0;
+            for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(getRuntimeContext().getStorage().getVertex(collectedGradients.keys[i]), EdgeType.IN)) {
+                featureAccessKey.f1 = incidentEdge.getSrcId();
+                if(getRuntimeContext().getStorage().containsAttachedFeature(featureAccessKey)){
+                    Tensor feature = (Tensor) getRuntimeContext().getStorage().getAttachedFeature(featureAccessKey);
+                    partIndices.compute(feature.getMasterPart(), (part, list)->{
+                        if(list == null) list = Tuple2.of(new IntArrayList(), new ObjectArrayList<>());
+                        list.f0.add(inFeaturesList.size());
+                        list.f1.add((String) feature.getAttachedElementId());
+                        return list;
+                    });
+                    inFeaturesList.add(feature.getValue());
+                    repeatSize++;
+                }
+            }
+            if(repeatSize > 0){
+                if(repeatedGradient == null) repeatedGradient = collectedGradients.batchedNDArray.get(i).expandDims(0).repeat(0, repeatSize);
+                else repeatedGradient = repeatedGradient.concat(collectedGradients.batchedNDArray.get(i).expandDims(0).repeat(0, repeatSize),0);
+            }
+        }
+
         collectedGradients.clear();
+        if(!inFeaturesList.isEmpty()){
+
+            NDList featuresBatched = new NDList(NDArrays.stack(inFeaturesList));
+            if(!getRuntimeContext().isFirst()) featuresBatched.get(0).setRequiresGradient(true);
+            NDList messagesBatched = MESSAGE(featuresBatched,true);
+
+            synchronized (this){
+                JniUtils.backward((PtNDArray) messagesBatched.get(0), (PtNDArray) repeatedGradient, false, false);
+            }
+            if(!getRuntimeContext().isFirst()){
+                NDArray gradient = featuresBatched.get(0).getGradient();
+                partIndices.forEach((part, list)->{
+                    String[] keys = list.f1.toArray(String[]::new);
+                    NDArray grad = gradient.get(BaseNDManager.getManager().create(list.f0.toIntArray()));
+                    Rmi.buildAndRun(
+                            getId(),
+                            getType(),
+                            "collect",
+                            getPart(),
+                            OutputTags.BACKWARD_OUTPUT_TAG,
+                            keys,
+                            grad
+                    );
+                });
+            }
+
+        }
+
+        BaseNDManager.getManager().resumeAndDelay();
 
     }
 
@@ -192,37 +249,47 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      */
     public void forwardAggregatorPhase() {
         Object2IntOpenHashMap<String> srcVertex2PosMap = new Object2IntOpenHashMap<>();
-        HashMap<Tuple2<String, Short>, IntArrayList> destVertex2SrcIndicesMap = new HashMap<>();
+        Short2ObjectOpenHashMap<ObjectArrayList<Tuple2<String, IntArrayList>>> part2AggregatingVertices = new Short2ObjectOpenHashMap<>();
         NDList srcFeatures = new NDList();
-        Tuple3<ElementType, Object, String> reuse = Tuple3.of(ElementType.VERTEX, null, "f");
-        IntArrayList reuse2 = new IntArrayList();
+        Tuple3<ElementType, Object, String> featureAccessKeyReuse = Tuple3.of(ElementType.VERTEX, null, "f");
+        IntArrayList reuseList = new IntArrayList();
         for (Feature f : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "f")) {
-            for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges((Vertex) f.getElement(), EdgeType.IN)) {
-                if (!srcVertex2PosMap.containsKey(incidentEdge.getSrcId())) {
-                    srcVertex2PosMap.put(incidentEdge.getSrcId(), srcFeatures.size());
-                    srcFeatures.add((NDArray) f.getValue());
+            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){
+                for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges((Vertex) f.getElement(), EdgeType.IN)) {
+                    // Add vertex in-edges to srcVertex2PosMap and add their id to reuse
+                    if (!srcVertex2PosMap.containsKey(incidentEdge.getSrcId())) {
+                        srcVertex2PosMap.put(incidentEdge.getSrcId(), srcFeatures.size());
+                        featureAccessKeyReuse.f1 = incidentEdge.getSrcId();
+                        srcFeatures.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(featureAccessKeyReuse).getValue());
+                    }
+                    reuseList.add(srcVertex2PosMap.getInt(incidentEdge.getSrcId()));
                 }
-                reuse2.add(srcVertex2PosMap.getInt(incidentEdge.getSrcId()));
             }
-            if(!reuse2.isEmpty()){
-                destVertex2SrcIndicesMap.put(Tuple2.of((String) f.getAttachedElementId(), f.getMasterPart()), reuse2.clone());
-                reuse2.clear();
+            if(!reuseList.isEmpty()){
+                part2AggregatingVertices.compute(f.getMasterPart(), (part, list)->{
+                    if(list == null) list = new ObjectArrayList<>();
+                    list.add(Tuple2.of((String) f.getAttachedElementId(), reuseList.clone()));
+                    return list;
+                });
+                reuseList.clear();
             }
         }
         if (srcFeatures.isEmpty()) return;
         NDList srcFeaturesBatched = new NDList(NDArrays.stack(srcFeatures));
         NDArray messages = MESSAGE(srcFeaturesBatched, false).get(0);
-        destVertex2SrcIndicesMap.forEach((vInfo, list) -> {
-            NDArray message = messages.get(BaseNDManager.getManager().create(list.elements())).sum(new int[]{0});
-            Rmi.buildAndRun(
-                    Tuple3.of(ElementType.VERTEX, vInfo.f0, "agg"),
-                    ElementType.ATTACHED_FEATURE,
-                    "reduce",
-                    vInfo.f1,
-                    OutputTags.ITERATE_OUTPUT_TAG,
-                    new NDList(message),
-                    list.size()
-            );
+        part2AggregatingVertices.forEach((part, vertices)->{
+            for (Tuple2<String, IntArrayList> vertex : vertices) {
+                NDArray message = messages.get(BaseNDManager.getManager().create(vertex.f1.elements())).sum(new int[]{0});
+                Rmi.buildAndRun(
+                        Tuple3.of(ElementType.VERTEX, vertex.f0, "agg"),
+                        ElementType.ATTACHED_FEATURE,
+                        "reduce",
+                        part,
+                        OutputTags.ITERATE_OUTPUT_TAG,
+                        new NDList(message),
+                        vertex.f1.size()
+                );
+            }
         });
         BaseNDManager.getManager().resumeAndDelay();
     }

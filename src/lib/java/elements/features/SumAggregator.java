@@ -62,14 +62,6 @@ public final class SumAggregator extends Aggregator<CountTensorHolder> {
      * {@inheritDoc}
      */
     @Override
-    public NDArray grad(NDArray aggGradient) {
-        return aggGradient.div(value.count);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public NDArray getValue() {
         return value.val;
     }

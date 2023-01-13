@@ -54,6 +54,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.FlushForTraining){
             getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize.get()));
+            trainingDataSize.set(0);
         }
     }
 }

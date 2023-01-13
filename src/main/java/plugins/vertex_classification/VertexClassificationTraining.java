@@ -78,8 +78,10 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     /**
      * For all the trainVertices compute the backward pass and send the collected gradients to previous layer
      * <p>
-     * Only works with Master vertices of this storage layer which have train labels.
-     * Because of flushing before training assumes that all vertices have their features in place here.
+     *     <ul>
+     *         <li>Assumes all the added vertices have their up-to-date features in place</li>
+     *         <li></li>
+     *     </ul>
      * </p>
      */
     public void startTraining() {
@@ -124,6 +126,13 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     }
 
     /**
+     * Clear all the buffers stored so far
+     */
+    protected void stopTraining(){
+        part2TrainingVertexMap.get(getPart()).clear();
+    }
+
+    /**
      * Controller based on EPOCH and Mini-Batch of training data
      */
     public static class EpochAndMiniBatchController {
@@ -162,13 +171,13 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         public boolean miniBatchFinishedCheckIfMore(){
           currentMiniBatch = (short) ((currentMiniBatch + 1) % miniBatches);
           if(currentMiniBatch == 0) currentEpoch++;
-          if(currentEpoch < epochs){
-              currentEpoch = 0;
-              return true;
-          }
-          return false;
+          return currentEpoch < epochs;
         }
 
+        public void clear(){
+            currentEpoch = 0;
+            currentMiniBatch = 0;
+        }
         /**
          * Returns the indices starting from 0 for this miniBatch iteration
          * [start_index, end_index)
@@ -205,7 +214,9 @@ public class VertexClassificationTraining extends BaseVertexOutput {
                 getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
             }else{
                 // Stop training
-                System.out.println("Finished Training");
+                epochAndMiniBatchControllers.get().clear();
+                getRuntimeContext().runForAllLocalParts(this::stopTraining);
+                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeInference());
             }
         }
     }

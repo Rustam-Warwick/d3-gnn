@@ -139,6 +139,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         else if(evt instanceof TrainingSubCoordinator.ResumeInference){
             // Back to running mode
             operationMode = OperationMode.RUNNING;
+            System.out.println("STARTING");
         }
     }
 
