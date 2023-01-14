@@ -4,7 +4,6 @@ import elements.Feature;
 import elements.GraphElement;
 import elements.Plugin;
 import elements.enums.ElementType;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import org.apache.flink.util.Preconditions;
@@ -25,7 +24,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
     /**
      * Count of available training data up till now
      */
-    protected static transient ThreadLocal<Integer> trainingDataSize = ThreadLocal.withInitial(()-> 0);
+    protected static ThreadLocal<Integer> trainingDataSize = ThreadLocal.withInitial(()-> 0);
 
     public BatchSizeTrainingScheduler(int batchSize){
         super("training_scheduler");

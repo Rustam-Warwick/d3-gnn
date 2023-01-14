@@ -27,7 +27,6 @@ import picocli.CommandLine;
 
 import java.util.Arrays;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 
 /**
  * Helper class for creating a pipeline
@@ -176,7 +175,7 @@ public class GraphStream {
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
         iterateStreams[position] = IterateStream.startIteration(storageOperator);
         iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
-        if (position > 1 && hasBackwardIteration)
+        if (hasBackwardIteration)
             iterateStreams[position - 1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         return storageOperator;
     }

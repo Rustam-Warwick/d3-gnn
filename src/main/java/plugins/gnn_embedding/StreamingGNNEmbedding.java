@@ -50,7 +50,9 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if(!running.get()) return;
+        if(!running.get()) {
+            return;
+        };
         if (element.getType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.getType() == ElementType.EDGE) {
@@ -83,7 +85,10 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if(!running.get()) return;
+        if(!running.get()) {
+            return;
+        };
+
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;

@@ -131,8 +131,10 @@ abstract public class BaseGNNEmbeddings extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+        if (evt instanceof TrainingSubCoordinator.FlushForTraining) {
             running.set(false);
+        }else if(evt instanceof TrainingSubCoordinator.ResumeInference){
+            running.set(true);
         }
     }
 }

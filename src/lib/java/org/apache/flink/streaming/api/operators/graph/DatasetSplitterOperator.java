@@ -87,6 +87,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected OperationMode operationMode = OperationMode.RUNNING;
 
+    /**
+     * GraphEvent pool
+     */
+    protected final GraphEventPool eventPool;
+
     public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
         this.processingTimeService = processingTimeService;
@@ -95,7 +100,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         this.mailboxExecutor = mailboxExecutor;
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        new GraphRuntimeContextImpl(); // Create so it is stored in ThreadLocal state
+        new GraphRuntimeContextImpl();
+        this.eventPool = new GraphEventPool(this);
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
@@ -110,7 +116,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
-        super.processElement(element);
+        if(element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
+        else super.processElement(element);
     }
 
     @Override

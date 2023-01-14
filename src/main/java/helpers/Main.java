@@ -16,6 +16,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
+import plugins.debugging.LogCallbacks;
 import plugins.gnn_embedding.GNNEmbeddingTraining;
 import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
 import plugins.scheduler.BatchSizeTrainingScheduler;
@@ -77,10 +78,10 @@ public class Main {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             DataStream<GraphOp>[] res = new GraphStream(env, args, false, true, false,
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new GNNEmbeddingTraining(models.get(0).getName(), false), new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), pos, layers),
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)),new GNNEmbeddingTraining(models.get(1).getName(), false),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new LogCallbacks(),new GNNEmbeddingTraining(models.get(0).getName(), false), new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), pos, layers),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new LogCallbacks(), new GNNEmbeddingTraining(models.get(1).getName(), false),
             new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), pos, layers),
-                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)),  new VertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss()),
+                    (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)),  new LogCallbacks(), new VertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss()),
             new BatchSizeTrainingScheduler(256)), pos, layers)
             ).build();
             env.execute();

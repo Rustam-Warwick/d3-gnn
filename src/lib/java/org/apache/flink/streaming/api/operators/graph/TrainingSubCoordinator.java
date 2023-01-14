@@ -21,15 +21,12 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
     protected transient RequestMiniBatchCountEventHandler requestMiniBatchCountEventHandler;
 
-    protected transient ResumeInferenceEventHandler resumeInferenceEventHandler;
-
     public TrainingSubCoordinator(GraphOperatorCoordinator mainCoordinator, float percentOfRequestToStart, int miniBatchSize){
         super(mainCoordinator);
         Preconditions.checkState(percentOfRequestToStart > 0 && percentOfRequestToStart <= 1, "Percent should be between (0 and 1]");
         Preconditions.checkState(miniBatchSize > 0, "Mini-batch should be more than 0");
         requestTrainingEventsHandler = new RequestTrainingEventsHandler(percentOfRequestToStart);
         requestMiniBatchCountEventHandler = new RequestMiniBatchCountEventHandler(miniBatchSize);
-        resumeInferenceEventHandler = new ResumeInferenceEventHandler();
     }
 
     public TrainingSubCoordinator(GraphOperatorCoordinator mainCoordinator) {
@@ -46,7 +43,6 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if((event instanceof RequestTraining)) requestTrainingEventsHandler.accept((RequestTraining) event);
         else if((event instanceof RequestMiniBatch)) requestMiniBatchCountEventHandler.accept((RequestMiniBatch) event);
-        else if((event instanceof ResumeInference)) resumeInferenceEventHandler.accept((ResumeInference) event);
     }
 
     @Override
@@ -138,24 +134,6 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     /**
-     * Handler for {@link ResumeInference} events
-     */
-    public class ResumeInferenceEventHandler implements Consumer<ResumeInference>{
-
-        protected short numReceived;
-
-        @Override
-        public void accept(ResumeInference resumeInference) {
-            if(++numReceived == mainCoordinator.context.currentParallelism()){
-                for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
-                    subTaskGateway.sendEvent(resumeInference);
-                }
-                numReceived = 0;
-            }
-        }
-    }
-
-    /**
      *  <p>
      *      Event sent from the last layer scheduler requesting to start training
      *      Event handled by the {@link RequestTrainingEventsHandler} which generates {@link FlushForTraining} events
@@ -210,7 +188,23 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
      *      And also from this to SPLITTER
      * </p>
      */
-    public static class ResumeInference extends GraphEvent {}
+    public static class ResumeInference extends GraphEvent {
+
+        protected transient short shouldReceive;
+
+        protected transient short numReceived;
+
+        @Override
+        public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
+            if(incoming == null){
+                shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels();
+            }
+            if(++numReceived == shouldReceive){
+                pool.evict(this);
+                if(pool.graphRuntimeContext.getPosition() > 0) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG);
+            }
+        }
+    }
 
     /**
      * <p>

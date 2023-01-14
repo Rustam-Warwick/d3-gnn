@@ -25,7 +25,6 @@ import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import storage.GraphStorage;
 
-import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -216,7 +215,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
                 // Stop training
                 epochAndMiniBatchControllers.get().clear();
                 getRuntimeContext().runForAllLocalParts(this::stopTraining);
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeInference());
+                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeInference()), OutputTags.BACKWARD_OUTPUT_TAG);
             }
         }
     }

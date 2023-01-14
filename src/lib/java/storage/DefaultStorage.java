@@ -253,6 +253,7 @@ public final class DefaultStorage extends GraphStorage {
                                 if (reusable.features != null) reusable.features.clear();
                                 reusable.src = null;
                                 reusable.dest = null;
+                                reusable.id.f0 = vertex.getId();
                                 reusable.id.f1 = dstatt.f0;
                                 reusable.id.f2 = dstatt.f1;
                                 return reusable;
@@ -271,6 +272,7 @@ public final class DefaultStorage extends GraphStorage {
                                 reusable.src = null;
                                 reusable.dest = null;
                                 reusable.id.f0 = srcAtt.f0;
+                                reusable.id.f1 = vertex.getId();
                                 reusable.id.f2 = srcAtt.f1;
                                 return reusable;
                             }).iterator();
