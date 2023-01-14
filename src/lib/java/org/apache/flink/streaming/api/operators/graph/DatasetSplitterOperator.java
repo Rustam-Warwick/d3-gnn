@@ -32,7 +32,7 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import java.io.Serializable;
 import java.util.List;
@@ -92,6 +92,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected final GraphEventPool eventPool;
 
+
     public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
         this.processingTimeService = processingTimeService;
@@ -146,7 +147,6 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         else if(evt instanceof TrainingSubCoordinator.ResumeInference){
             // Back to running mode
             operationMode = OperationMode.RUNNING;
-            System.out.println("STARTING");
         }
     }
 
@@ -161,7 +161,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public GraphStorage.GraphStorageView getStorage() {
+        public BaseStorage.Graph getStorage() {
             throw new IllegalStateException("No storage in SPLITTER");
         }
 

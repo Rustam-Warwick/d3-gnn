@@ -27,12 +27,13 @@ import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
 import storage.DefaultStorage;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -42,7 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Graph Storage operator that contains multiple {@link Plugin} and a {@link GraphStorage}
+ * Graph Storage operator that contains multiple {@link Plugin} and a {@link BaseStorage}
  * Assumes Partitioned {@link GraphOp} as input and output
  */
 public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler, ExposingInternalTimerService {
@@ -50,7 +51,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage constructor access for state creation
      */
-    protected final GraphStorage.GraphStorageProvider storageProvider;
+    protected final BaseStorage.GraphStorageProvider storageProvider;
 
     /**
      * This horizontal position of this pipeline
@@ -90,7 +91,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
      */
-    protected GraphStorage.GraphStorageView storage;
+    protected BaseStorage.Graph storage;
 
     /**
      * Internal Timer Service
@@ -102,7 +103,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected TimerService userTimerService;
 
-    public GraphStorageOperator(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
+    public GraphStorageOperator(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = processingTimeService;
         super.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.storageProvider = storageProvider;
@@ -173,6 +174,14 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     }
 
     @Override
+    public void processWatermark(Watermark mark) throws Exception {
+        super.processWatermark(mark);
+        for (Plugin value : plugins.values()) {
+            value.updateCurrentEffectiveWatermark(mark.getTimestamp());
+        }
+    }
+
+    @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         for (Plugin plugin : plugins.values()) {
             plugin.handleOperatorEvent(evt);
@@ -234,7 +243,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public GraphStorage.GraphStorageView getStorage() {
+        public BaseStorage.Graph getStorage() {
             return storage;
         }
 

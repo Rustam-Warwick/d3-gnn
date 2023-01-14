@@ -13,12 +13,13 @@ import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.Triggerable;
+import org.apache.flink.streaming.api.operators.source.TimestampsAndWatermarks;
 
 /**
  * Aggregated Interfaces for elements pertaining operator logic of graph
  * To be implemented by {@link elements.Plugin}
  */
-public interface RichGraphProcess extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace> {
+public interface RichGraphProcess extends CheckpointedFunction, RichFunction, OperatorEventHandler, Triggerable<PartNumber, VoidNamespace>, TimestampsAndWatermarks.WatermarkUpdateListener {
 
     @Override
     default void open(Configuration parameters) throws Exception {
@@ -51,6 +52,11 @@ public interface RichGraphProcess extends CheckpointedFunction, RichFunction, Op
 
     @Override
     default void initializeState(FunctionInitializationContext context) throws Exception {
+    }
+
+    @Override
+    default void updateCurrentEffectiveWatermark(long watermark) {
+
     }
 
     @Override

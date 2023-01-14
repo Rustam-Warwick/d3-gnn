@@ -43,6 +43,10 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if((event instanceof RequestTraining)) requestTrainingEventsHandler.accept((RequestTraining) event);
         else if((event instanceof RequestMiniBatch)) requestMiniBatchCountEventHandler.accept((RequestMiniBatch) event);
+        else if(event instanceof ResumeInference) {
+            requestMiniBatchCountEventHandler.clear();
+            requestTrainingEventsHandler.clear();
+        }
     }
 
     @Override
@@ -93,12 +97,15 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             this.numRequestEventsToStart = (short) (mainCoordinator.context.currentParallelism() * percentOfRequestToStart);
         }
 
+        public void clear(){
+            numReceivedRequestEvents = 0;
+        }
+
         public void accept(RequestTraining ignored){
             if(++numReceivedRequestEvents == numRequestEventsToStart) {
                 for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
                     subTaskGateway.sendEvent(new FlushForTraining());
                 }
-                numReceivedRequestEvents = 0;
             }
         }
     }
@@ -120,6 +127,10 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             this.dataSizeFromOperators = new IntArrayList(0);
         }
 
+        public void clear(){
+            dataSizeFromOperators.clear();
+        }
+
         public void accept(RequestMiniBatch requestMiniBatch){
             dataSizeFromOperators.add(requestMiniBatch.trainingDataSize);
             if(dataSizeFromOperators.size() == mainCoordinator.context.currentParallelism()){
@@ -127,7 +138,6 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                 for (SubtaskGateway subTaskGateway : mainCoordinator.subTaskGateways) {
                     subTaskGateway.sendEvent(new StartTraining(miniBatchCount));
                 }
-                dataSizeFromOperators.clear();
             }
         }
 
@@ -176,7 +186,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
         }
 
         public StartTraining(short miniBatches) {
-            this(miniBatches, (short) 4);
+            this(miniBatches, (short) 10);
         }
     }
 

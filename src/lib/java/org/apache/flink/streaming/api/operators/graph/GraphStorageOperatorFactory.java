@@ -8,7 +8,7 @@ import org.apache.flink.streaming.api.operators.*;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeServiceAware;
 import org.apache.flink.util.Preconditions;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import java.util.List;
 
@@ -36,7 +36,7 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
     /**
      * Class of storage to be used for storing elements
      */
-    final protected GraphStorage.GraphStorageProvider storageProvider;
+    final protected BaseStorage.GraphStorageProvider storageProvider;
 
     /**
      * Supplier for {@link GraphOperatorCoordinator.GraphOperatorSubCoordinator}
@@ -49,7 +49,7 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
     transient protected ProcessingTimeService processingTimeService;
 
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         Preconditions.checkState(position > 0, "Position should be greated than 0, 0 is for Splitter operator");
         Preconditions.checkNotNull(plugins, "Plugins cannot be null");
         Preconditions.checkState(plugins.stream().allMatch(plugin -> plugin.getId() != null), "Plugin ID should be non-null and unique");
@@ -60,16 +60,16 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
         this.graphOperatorSubCoordinatorsProvider = graphOperatorSubCoordinatorsProvider;
     }
 
-    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphStorage.GraphStorageProvider storageProvider) {
+    public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider) {
         this(plugins, position, layers, storageProvider, new GraphOperatorCoordinator.DefaultGraphOperatorSubCoordinatorsProvider());
     }
 
     public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
-        this(plugins, position,layers, new GraphStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
+        this(plugins, position,layers, new BaseStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
     }
 
     public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers) {
-        this(plugins, position, layers, new GraphStorage.DefaultGraphStorageProvider());
+        this(plugins, position, layers, new BaseStorage.DefaultGraphStorageProvider());
     }
 
     @Override

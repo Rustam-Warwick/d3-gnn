@@ -234,11 +234,13 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
             // Enter the termination loop
             if (bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0)
                 operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
+            oneInputBodyOperatorRef.processWatermark(mark);
             while (!readyToFinish) {
                 mailboxExecutor.yield();
             }
+        }else{
+            oneInputBodyOperatorRef.processWatermark(mark);
         }
-        oneInputBodyOperatorRef.processWatermark(mark);
     }
 
     @Override

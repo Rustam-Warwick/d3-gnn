@@ -23,7 +23,7 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import java.util.Map;
 
@@ -203,7 +203,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         if(evt instanceof TrainingSubCoordinator.StartTraining){
             // Adjust the minibatch and epoch count, do the backward pass
             epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
-            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
+            try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 2){
@@ -216,6 +216,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
                 epochAndMiniBatchControllers.get().clear();
                 getRuntimeContext().runForAllLocalParts(this::stopTraining);
                 getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeInference()), OutputTags.BACKWARD_OUTPUT_TAG);
+                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeInference());
             }
         }
     }

@@ -22,7 +22,7 @@ import org.apache.flink.runtime.state.metrics.LatencyTrackingStateConfig;
 import org.apache.flink.runtime.state.ttl.TtlTimeProvider;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.NotNull;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -43,7 +43,7 @@ import java.util.stream.Stream;
 public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
 
     /**
-     * Map table of the {@link GraphStorage} per task
+     * Map table of the {@link BaseStorage} per task
      * Key is [JobID, JobVertexID, State Name, NameSpace]. NameSpace for task shared state cannot be changed afterwards
      */
     final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new NonBlockingHashMap<>();

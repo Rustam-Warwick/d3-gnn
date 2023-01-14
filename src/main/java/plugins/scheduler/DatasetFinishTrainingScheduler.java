@@ -14,28 +14,22 @@ import org.apache.flink.util.Preconditions;
  *     Assumes that if label is received data is already here or will be once flushed
  * </p>
  */
-public class BatchSizeTrainingScheduler extends Plugin {
-
-    /**
-     * Once the batch size is filled send request to coordinator
-     */
-    protected final int batchSize;
+public class DatasetFinishTrainingScheduler extends Plugin {
 
     /**
      * Count of available training data up till now
      */
     protected static ThreadLocal<Integer> trainingDataSize = ThreadLocal.withInitial(()-> 0);
 
-    public BatchSizeTrainingScheduler(int batchSize){
+    public DatasetFinishTrainingScheduler(){
         super("training_scheduler");
-        Preconditions.checkState(batchSize > 0, "Batch size cannot be negative");
-        this.batchSize = batchSize;
     }
 
-    public BatchSizeTrainingScheduler(){
-        this( 512);
+    @Override
+    public void updateCurrentEffectiveWatermark(long watermark) {
+        super.updateCurrentEffectiveWatermark(watermark);
+        if(watermark == Long.MAX_VALUE) getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
     }
-
 
     @Override
     public void addElementCallback(GraphElement element) {
@@ -43,9 +37,6 @@ public class BatchSizeTrainingScheduler extends Plugin {
         if(element.getType() == ElementType.ATTACHED_FEATURE && ((Feature<?,?>)element).getName().equals("tl")){
             int dataCount = trainingDataSize.get() + 1;
             trainingDataSize.set(dataCount);
-            if(dataCount == batchSize){
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
-            }
         }
     }
 

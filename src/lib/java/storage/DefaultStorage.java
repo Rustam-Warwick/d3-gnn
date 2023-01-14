@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public final class DefaultStorage extends GraphStorage {
+public final class DefaultStorage extends BaseStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
@@ -58,20 +58,20 @@ public final class DefaultStorage extends GraphStorage {
     }
 
     @Override
-    public GraphStorageView getOrCreateView(GraphRuntimeContext runtimeContext) {
-        return new DefaultStorageView(runtimeContext);
+    public Graph getOrCreateView(GraphRuntimeContext runtimeContext) {
+        return new DefaultGraph(runtimeContext);
     }
 
     @Override
     public void clear() {}
 
-    public class DefaultStorageView extends GraphStorageView {
+    public class DefaultGraph extends Graph {
 
         private final Tuple2<String, String> reuse = new Tuple2<>();
 
         private final ScopeWithElements scope = new ScopeWithElements();
 
-        public DefaultStorageView(GraphRuntimeContext runtimeContext) {
+        public DefaultGraph(GraphRuntimeContext runtimeContext) {
             super(runtimeContext);
         }
 

@@ -23,15 +23,15 @@ import java.util.function.Supplier;
  * Base Class for all Graph Storage States
  * <p>
  *      This state is part of the TaskSharedState logic, as implementations might have overlaps between the versions
- *      To facilitate faster access across various shared operators a {@link GraphStorageView} should be created holding the {@link GraphRuntimeContext}
+ *      To facilitate faster access across various shared operators a {@link Graph} should be created holding the {@link GraphRuntimeContext}
  * </p>
  */
-abstract public class GraphStorage extends TaskSharedState {
+abstract public class BaseStorage extends TaskSharedState {
 
     /**
      * Logger
      */
-    protected static Logger LOG = LoggerFactory.getLogger(GraphStorage.class);
+    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
      * {@inheritDoc}
@@ -47,18 +47,18 @@ abstract public class GraphStorage extends TaskSharedState {
     }
 
     /**
-     * Create or get the {@link GraphStorageView}
+     * Create or get the {@link Graph}
      */
-    abstract public GraphStorageView getOrCreateView(GraphRuntimeContext runtimeContext);
+    abstract public Graph getOrCreateView(GraphRuntimeContext runtimeContext);
 
     /**
      * A thread local view of the graph object
      */
-    abstract public static class GraphStorageView implements RichGraphProcess {
+    abstract public static class Graph {
 
         protected final GraphRuntimeContext runtimeContext;
 
-        public GraphStorageView(GraphRuntimeContext runtimeContext){
+        public Graph(GraphRuntimeContext runtimeContext){
             this.runtimeContext = runtimeContext;
         }
 
@@ -391,16 +391,16 @@ abstract public class GraphStorage extends TaskSharedState {
     }
 
     /**
-     * Provider pattern for {@link GraphStorage}
+     * Provider pattern for {@link BaseStorage}
      */
-    public interface GraphStorageProvider extends Supplier<GraphStorage>, Serializable {}
+    public interface GraphStorageProvider extends Supplier<BaseStorage>, Serializable {}
 
     /**
      * Default provider using {@link DefaultStorage}
      */
     public static class DefaultGraphStorageProvider implements GraphStorageProvider {
         @Override
-        public GraphStorage get() {
+        public BaseStorage get() {
             return new DefaultStorage();
         }
     }

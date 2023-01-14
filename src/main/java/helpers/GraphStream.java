@@ -96,12 +96,6 @@ public class GraphStream {
     protected String partitionerName;
 
     /**
-     * Limit the number of elements streaming through the {@link Dataset}
-     */
-    @CommandLine.Option(names = {"--datasetLimit"}, defaultValue = "0", fallbackValue = "0", arity = "1", description = "Should the dataset be capped at some number of streamed elements")
-    protected long datasetLimit;
-
-    /**
      * Name of the dataset to be resolved to {@code this.datasetInstance}
      * <strong> You can leave it blank and populate {@code this.datasetInstance} manually </strong>
      */
@@ -230,7 +224,7 @@ public class GraphStream {
         Preconditions.checkNotNull(dataset);
         Preconditions.checkNotNull(partitioner);
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
-        layerOutputs[0] = datasetLimit > 0 ? dataset.build(env).filter(new Limiter<>(datasetLimit)).setParallelism(1).name(String.format("Limiter[%s]", datasetLimit)) : (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
+        layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
         layerOutputs[2] = addSplitterOperator(layerOutputs[1], dataset.getSplitter());
         return build(layerOutputs);

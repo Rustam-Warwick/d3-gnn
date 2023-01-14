@@ -25,7 +25,7 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import storage.GraphStorage;
+import storage.BaseStorage;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,7 +35,6 @@ import java.util.Map;
  * <p>
  *      Plugin that manages the training of {@link BaseGNNEmbeddings}
  *      Currently only supports: <strong>MEAN and SUM</strong> aggregator
- *
  * </p>
  */
 public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
@@ -74,10 +73,10 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
      */
     public void backwardFirstPhaseMeanOrSum() {
         // ------------- Fast return check
-
         NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
         if(collectedGradients.isEmpty()) return;
 
+        System.out.format("%s %s %s\n", getRuntimeContext().getPosition(),getPart(), collectedGradients.keys.length);
         // ---------- Prepare data
 
         NDList featuresList = new NDList(collectedGradients.keys.length);
@@ -185,7 +184,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                 if(index == -1){
                     // Src does not exist yet
                     featureAccessKey.f1 = incidentEdge.getSrcId();
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
+                    try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
                         if (getRuntimeContext().getStorage().containsAttachedFeature(featureAccessKey)) {
                             // Src has a feature in storage
                             Tensor srcFeature = (Tensor) getRuntimeContext().getStorage().getAttachedFeature(featureAccessKey);
@@ -226,6 +225,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                 part2SrcIndices.forEach((part, list) -> {
                     int[] srcIndices = new int[list.size()];
                     String[] srcIds = new String[srcIndices.length];
+                    System.out.format("AGG: %s %s %s\n", getRuntimeContext().getPosition(), getPart(), srcIds.length);
                     for (int i = 0; i < srcIndices.length; i++) {
                         srcIndices[i] = list.getInt(i);
                         srcIds[i] = srcVertexIds.get(srcIndices[i]);
@@ -273,7 +273,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         Tuple3<ElementType, Object, String> featureAccessKeyReuse = Tuple3.of(ElementType.VERTEX, null, "f");
         IntArrayList reuseList = new IntArrayList();
         for (Feature f : getRuntimeContext().getStorage().getAttachedFeatures(ElementType.VERTEX, "f")) {
-            try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){
+            try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){
                 for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges((Vertex) f.getElement(), EdgeType.IN)) {
                     // Add vertex in-edges to srcVertex2PosMap and add their id to reuse
                     if (!srcVertex2PosMap.containsKey(incidentEdge.getSrcId())) {
@@ -347,20 +347,20 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.BackwardPhaser){
             if(!((TrainingSubCoordinator.BackwardPhaser) evt).isSecondPhase){
-                try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardFirstPhaseMeanOrSum :null);}
+                try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardFirstPhaseMeanOrSum :null);}
             }
-            else try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardSecondPhaseMeanOrSum :null);}
+            else try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()){getRuntimeContext().runForAllLocalParts(modelServer.getBlock().getAgg() == AggregatorVariant.SUM || modelServer.getBlock().getAgg() == AggregatorVariant.MEAN?this::backwardSecondPhaseMeanOrSum :null);}
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser){
             switch (((TrainingSubCoordinator.ForwardPhaser) evt).iteration){
                 case 1:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardResetPhase);}
+                    try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardResetPhase);}
                     break;
                 case 2:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardAggregatorPhase);}
+                    try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardAggregatorPhase);}
                     break;
                 case 3:
-                    try(GraphStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardUpdatePhase);}
+                    try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::forwardUpdatePhase);}
                     break;
             }
         }
