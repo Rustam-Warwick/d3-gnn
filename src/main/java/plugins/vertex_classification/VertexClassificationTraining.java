@@ -79,7 +79,6 @@ public class VertexClassificationTraining extends BaseVertexOutput {
      * <p>
      *     <ul>
      *         <li>Assumes all the added vertices have their up-to-date features in place</li>
-     *         <li></li>
      *     </ul>
      * </p>
      */
@@ -105,7 +104,6 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
-        System.out.println(meanLoss);
         synchronized(this) {
             // Synchronize the backward call
             JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);

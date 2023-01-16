@@ -28,6 +28,5 @@ public class LogCallbacks extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        System.out.format("%s %s\n", getRuntimeContext().getPosition(), evt);
     }
 }

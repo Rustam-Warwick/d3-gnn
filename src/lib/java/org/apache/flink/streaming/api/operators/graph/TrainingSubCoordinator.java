@@ -240,7 +240,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                 shouldReceive = (short) Arrays.stream(pool.graphRuntimeContext.getInputGates()).mapToInt(InputGate::getNumberOfInputChannels).sum();
             }
             if(++numReceived == shouldReceive) {
-                if(pool.graphRuntimeContext.isLast() || iteration == 3 ){
+                if(iteration == 2){
                     // Evict first then send
                     pool.evict(this);
                     if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));

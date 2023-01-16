@@ -76,7 +76,6 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
         NDArraysAggregator collectedGradients = part2GradientAggregators.get(getPart());
         if(collectedGradients.isEmpty()) return;
 
-        System.out.format("%s %s %s\n", getRuntimeContext().getPosition(),getPart(), collectedGradients.keys.length);
         // ---------- Prepare data
 
         NDList featuresList = new NDList(collectedGradients.keys.length);
@@ -225,7 +224,6 @@ public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
                 part2SrcIndices.forEach((part, list) -> {
                     int[] srcIndices = new int[list.size()];
                     String[] srcIds = new String[srcIndices.length];
-                    System.out.format("AGG: %s %s %s\n", getRuntimeContext().getPosition(), getPart(), srcIds.length);
                     for (int i = 0; i < srcIndices.length; i++) {
                         srcIndices[i] = list.getInt(i);
                         srcIds[i] = srcVertexIds.get(srcIndices[i]);
