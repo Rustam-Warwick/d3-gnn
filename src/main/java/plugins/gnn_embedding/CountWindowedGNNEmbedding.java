@@ -16,6 +16,7 @@ import java.util.*;
 /**
  * GNN Embedding layer based on a certain buffer count
  */
+@Deprecated
 public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int BATCH_SIZE; // Batch size of the operator as a whole
@@ -58,7 +59,7 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
                 updateTensor.id.f0 = ElementType.VERTEX;
                 updateTensor.id.f1 = messageVertex.getId();
                 getRuntimeContext().output(new GraphOp(Op.UPDATE, updateTensor.getMasterPart(), updateTensor));
-                throughput.get().inc();
+                throughput.inc();
             }
             PART_BATCH.f0 = 0;
             PART_BATCH.f1.clear();

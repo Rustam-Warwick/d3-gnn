@@ -14,13 +14,15 @@ import elements.GraphOp;
 import elements.Rmi;
 import elements.enums.ElementType;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import storage.BaseStorage;
@@ -40,12 +42,12 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     /**
      * Epoch Throughput counter
      */
-    protected static transient ThreadLocal<Counter> epochThroughput = ThreadLocal.withInitial(SimpleCounter::new);
+    protected transient Counter epochThroughput;
 
     /**
      * Epoch and MiniBatch Counter
      */
-    protected static transient ThreadLocal<EpochAndMiniBatchController> epochAndMiniBatchControllers = ThreadLocal.withInitial(EpochAndMiniBatchController::new);
+    protected transient EpochAndMiniBatchController epochAndMiniBatchController;
 
     /**
      * Map of training vertex map 2 part
@@ -59,11 +61,13 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     }
 
     @Override
-    public synchronized void open(Configuration params) throws Exception {
+    public void open(Configuration params) throws Exception {
         super.open(params);
-        part2TrainingVertexMap = part2TrainingVertexMap == null?new Short2ObjectOpenHashMap<>():part2TrainingVertexMap;
+        part2TrainingVertexMap = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2TrainingVertexMap.put(part, new ObjectArrayList<>()));
-        getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput.get(), 30));
+        epochAndMiniBatchController = new EpochAndMiniBatchController();
+        epochThroughput = new SimpleCounter();
+        getRuntimeContext().getMetricGroup().meter("epochThroughput", new MeterView(epochThroughput, 30));
     }
 
     @Override
@@ -85,7 +89,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     public void startTraining() {
         // 1. Compute the gradients per each vertex output feature
         ObjectArrayList<String> vertexIds = part2TrainingVertexMap.get(getPart());
-        int[] startEndIndices = epochAndMiniBatchControllers.get().getStartEndIndices(vertexIds.size());
+        int[] startEndIndices = epochAndMiniBatchController.getStartEndIndices(vertexIds.size());
         if(startEndIndices[0] >= startEndIndices[1]) return; // No data available
         String[] miniBatchVertexIds = new String[startEndIndices[1] - startEndIndices[0]];
         System.arraycopy(vertexIds.elements(), startEndIndices[0], miniBatchVertexIds, 0, miniBatchVertexIds.length);
@@ -104,6 +108,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         NDList batchedLabels = new NDList(NDArrays.stack(labels));
         NDList predictions = output(batchedInputs, true);
         NDArray meanLoss = loss.evaluate(batchedLabels, predictions);
+        System.out.println(meanLoss);
         synchronized(this) {
             // Synchronize the backward call
             JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);
@@ -200,18 +205,18 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.StartTraining){
             // Adjust the minibatch and epoch count, do the backward pass
-            epochAndMiniBatchControllers.get().setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
+            epochAndMiniBatchController.setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
             try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 2){
-            if(epochAndMiniBatchControllers.get().miniBatchFinishedCheckIfMore()){
+            if(epochAndMiniBatchController.miniBatchFinishedCheckIfMore()){
                 // Has more
                 getRuntimeContext().runForAllLocalParts(this::startTraining);
                 getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
             }else{
                 // Stop training
-                epochAndMiniBatchControllers.get().clear();
+                epochAndMiniBatchController.clear();
                 getRuntimeContext().runForAllLocalParts(this::stopTraining);
                 getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeInference()), OutputTags.BACKWARD_OUTPUT_TAG);
                 getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeInference());

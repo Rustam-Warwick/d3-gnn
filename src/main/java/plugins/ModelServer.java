@@ -29,9 +29,12 @@ import elements.Plugin;
 import elements.Rmi;
 import elements.annotations.RemoteFunction;
 import elements.enums.Op;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
+import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.runtime.state.taskshared.TaskSharedValueState;
 import org.apache.flink.streaming.api.operators.graph.GraphEventPool;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
@@ -48,63 +51,53 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public Model model;
 
-    protected transient T block;
+    public transient ModelWrapper<T> modelWrapper;
 
-    protected transient Optimizer optimizer; // Optimizer
+    public transient Optimizer optimizer;
 
-    protected transient Shape[] inputShapes; // Input Shape of the model
-
-    protected transient Shape[] outputShapes; // Output Shape of the model
-
-    protected transient ParameterStore parameterStore;
+    public transient boolean isMaster;
 
     protected transient Tuple2<ParameterList, Short> syncParameters;
-
-    protected transient GraphRuntimeContext masterRuntimeContext; // First runtime context registered will be master
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
         this.model = m;
     }
 
-    public synchronized void open(Configuration params) throws Exception {
+    public void open(Configuration params) throws Exception {
         super.open(params);
-        if(block == null) {
-            masterRuntimeContext = getRuntimeContext();
-            inputShapes = model.getBlock().getInputShapes();
-            outputShapes = model.getBlock().getOutputShapes(inputShapes);
-            parameterStore = new ParameterStore();
-            block = (T) model.getBlock();
-            optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
-        }
+        modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), ()->new TaskSharedValueState(new ModelWrapper<>(model)))).getValue();
+        if(modelWrapper.model == model) isMaster = true;
+        model = null;
+        optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
     }
 
     public Model getModel() {
-        return model;
+        return modelWrapper.model;
     }
 
     public T getBlock() {
-        return block;
+        return modelWrapper.block;
     }
 
     public Shape[] getInputShapes() {
-        return inputShapes;
+        return modelWrapper.inputShapes;
     }
 
     public Shape[] getOutputShapes() {
-        return outputShapes;
+        return modelWrapper.outputShapes;
     }
 
     public ParameterStore getParameterStore() {
-        return parameterStore;
+        return modelWrapper.parameterStore;
     }
 
     /**
      * Train, stop gradients and broadcast new parameters
      */
     public void syncFirstPhase(){
-        if(getRuntimeContext() == masterRuntimeContext) {
-            for (Pair<String, Parameter> parameter : block.getParameters()) {
+        if(isMaster) {
+            for (Pair<String, Parameter> parameter : modelWrapper.block.getParameters()) {
                 if (parameter.getValue().getArray().hasGradient()) {
                     optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
                     parameter.getValue().getArray().setRequiresGradient(false);
@@ -115,7 +108,7 @@ public class ModelServer<T extends Block> extends Plugin {
                             new Rmi(getId(),
                                     "sync",
                                     getType(),
-                                    new Object[]{block.getParameters()})
+                                    new Object[]{modelWrapper.block.getParameters()})
                     ),
                     OutputTags.ITERATE_OUTPUT_TAG
             );
@@ -126,10 +119,10 @@ public class ModelServer<T extends Block> extends Plugin {
      * Update the current model with the average of other model parameters
      */
     public void syncSecondPhase(){
-        if(getRuntimeContext() == masterRuntimeContext){
-            for (int i = 0; i < block.getParameters().size(); i++) {
-                block.getParameters().get(i).getValue().getArray().setRequiresGradient(false);
-                block.getParameters().get(i).getValue().getArray().subi(block.getParameters().get(i).getValue().getArray()).addi(syncParameters.f0.get(i).getValue().getArray());
+        if(isMaster){
+            for (int i = 0; i < modelWrapper.block.getParameters().size(); i++) {
+                modelWrapper.block.getParameters().get(i).getValue().getArray().setRequiresGradient(false);
+                modelWrapper.block.getParameters().get(i).getValue().getArray().subi(modelWrapper.block.getParameters().get(i).getValue().getArray()).addi(syncParameters.f0.get(i).getValue().getArray());
                 syncParameters.f0.get(i).getValue().getArray().close();
             }
             syncParameters = null;
@@ -141,7 +134,7 @@ public class ModelServer<T extends Block> extends Plugin {
      */
     @RemoteFunction(triggerUpdate = false)
     public void sync(ParameterList parameterList){
-        if(getRuntimeContext() == masterRuntimeContext){
+        if(isMaster){
             if(syncParameters == null) syncParameters = Tuple2.of(parameterList, (short) 1);
             else{
                 syncParameters.f1++;
@@ -165,6 +158,28 @@ public class ModelServer<T extends Block> extends Plugin {
             else if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1) {
                 syncSecondPhase();
             }
+        }
+    }
+
+
+    static class ModelWrapper<T extends Block>{
+
+        T block;
+
+        Model model;
+
+        Shape[] inputShapes;
+
+        Shape[] outputShapes;
+
+        ParameterStore parameterStore;
+
+        public ModelWrapper(Model model){
+            this.model = model;
+            this.block = (T) model.getBlock();
+            this.inputShapes = block.getInputShapes();
+            this.outputShapes = block.getOutputShapes(inputShapes);
+            parameterStore = new ParameterStore();
         }
     }
 

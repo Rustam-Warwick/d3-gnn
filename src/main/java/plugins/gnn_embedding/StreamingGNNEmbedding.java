@@ -24,9 +24,9 @@ import java.util.Objects;
  */
 public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
 
-    protected transient ThreadLocal<Counter> throughput; // Throughput counter, only used for last layer
+    protected transient Counter throughput; // Throughput counter, only used for last layer
 
-    protected transient ThreadLocal<Counter> latency; // Throughput counter, only used for last layer
+    protected transient Counter latency; // Throughput counter, only used for last layer
 
     public StreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "inferencer", trainableVertexEmbeddings);
@@ -36,12 +36,12 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
      * {@inheritDoc}
      */
     @Override
-    public synchronized void open(Configuration params) throws Exception {
+    public void open(Configuration params) throws Exception {
         super.open(params);
-        throughput = throughput == null? ThreadLocal.withInitial(SimpleCounter::new):throughput;
-        latency = latency == null?ThreadLocal.withInitial(()->new MovingAverageCounter(1000)):latency;
-        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput.get()));
-        getRuntimeContext().getMetricGroup().counter("latency", latency.get());
+        throughput = new SimpleCounter();
+        latency = new MovingAverageCounter(5000);
+        getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
+        getRuntimeContext().getMetricGroup().counter("latency", latency);
     }
 
     /**
@@ -50,9 +50,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        if(!running.get()) {
-            return;
-        };
         if (element.getType() == ElementType.VERTEX) {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.getType() == ElementType.EDGE) {
@@ -85,10 +82,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        if(!running.get()) {
-            return;
-        };
-
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
@@ -116,8 +109,8 @@ public class StreamingGNNEmbedding extends BaseGNNEmbeddings {
         tmp.setElement(v, true);
         tmp.id.f0 = ElementType.VERTEX;
         tmp.id.f1 = v.getId();
-        throughput.get().inc();
-        latency.get().inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+        throughput.inc();
+        latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
         getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), tmp));
     }
 

@@ -2,9 +2,9 @@ package elements;
 
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPluginMap;
+import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphListener;
+import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.api.operators.graph.interfaces.RichGraphProcess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
  * Special type of {@link GraphElement} containing some kind of logic.
  * TAKE INTO ACCOUNT THE FOLLOWING LIMITATIONS WHEN CREATING SUCH PLUGINS !!!
  * <p>
- * It always lives in the <strong>{@link TaskSharedPluginMap}</strong>
+ * It always lives in the <strong>{@link TaskSharedPerPartMapState}</strong>
  * Furthermore, Plugins cam be thought of as extension of Storage, as they are allowed to created their own <strong>KeyedStates</strong>
  * Plugins are typically stateless, otherwise thread-safe, since they can be accessed through multiple task threads and keys at once
  * It can have state objects but make sure to have them wrapped around {@link ThreadLocal} or get through {@link org.apache.flink.runtime.state.KeyedStateBackend}
@@ -34,9 +34,14 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     final public String id;
 
     /**
-     * Is this Plugin currently running
+     * Is this Plugin currently listening to graph updates
      */
-    public transient ThreadLocal<Boolean> running;
+    public boolean listening = true;
+
+    /**
+     * Reference to {@link GraphRuntimeContext}
+     */
+    public transient GraphRuntimeContext runtimeContext;
 
     public Plugin() {
         this(null);
@@ -44,11 +49,6 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
 
     public Plugin(String id) {
         this.id = id;
-    }
-
-    @Override
-    public synchronized void open(Configuration parameters) throws Exception {
-        running = running == null ? ThreadLocal.withInitial(()->true): running;
     }
 
     /**
@@ -92,5 +92,28 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     @Override
     public ElementType getType() {
         return ElementType.PLUGIN;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public short getPart() {
+        return getRuntimeContext().getCurrentPart();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void setRuntimeContext(GraphRuntimeContext runtimeContext) {
+        this.runtimeContext = runtimeContext;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public GraphRuntimeContext getRuntimeContext() {
+        return runtimeContext;
     }
 }

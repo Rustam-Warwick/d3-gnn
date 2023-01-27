@@ -20,7 +20,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPluginMap;
+import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
@@ -84,7 +84,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final GraphEventPool eventPool;
 
     /**
-     * Map of ID -> Plugin. Actually {@link TaskSharedPluginMap}
+     * Map of ID -> Plugin. Actually {@link TaskSharedPerPartMapState}
      */
     protected Map<String, Plugin> plugins;
 
@@ -141,10 +141,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
         storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider)).getOrCreateView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
-        Map<String, Plugin> taskLocalPlugin = GraphRuntimeContextImpl.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("plugins", TypeInformation.of(TaskSharedPluginMap.class), TaskSharedPluginMap::new));
-        plugins.forEach(taskLocalPlugin::putIfAbsent);
-        plugins = taskLocalPlugin; // Make task local map our plugins map. Now model and other data is shared
         for (Plugin plugin : plugins.values()) {
+            plugin.setRuntimeContext(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
             plugin.initializeState(context);
         }
     }
@@ -359,17 +357,17 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void addElementCallback(GraphElement element) {
-            plugins.values().forEach(plugin -> plugin.addElementCallback(element));
+            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.addElementCallback(element);});
         }
 
         @Override
         public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-            plugins.values().forEach(plugin -> plugin.updateElementCallback(newElement, oldElement));
+            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.updateElementCallback(newElement, oldElement);});
         }
 
         @Override
         public void deleteElementCallback(GraphElement deletedElement) {
-            plugins.values().forEach(plugin -> plugin.deleteElementCallback(deletedElement));
+            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.deleteElementCallback(deletedElement);});
         }
 
         @Override

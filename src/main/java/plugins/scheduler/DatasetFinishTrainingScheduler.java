@@ -19,7 +19,7 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     /**
      * Count of available training data up till now
      */
-    protected static ThreadLocal<Integer> trainingDataSize = ThreadLocal.withInitial(()-> 0);
+    protected int trainingDataSize = 0;
 
     public DatasetFinishTrainingScheduler(){
         super("training_scheduler");
@@ -35,8 +35,7 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
         if(element.getType() == ElementType.ATTACHED_FEATURE && ((Feature<?,?>)element).getName().equals("tl")){
-            int dataCount = trainingDataSize.get() + 1;
-            trainingDataSize.set(dataCount);
+            trainingDataSize++;
         }
     }
 
@@ -44,8 +43,8 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
         if(evt instanceof TrainingSubCoordinator.FlushForTraining){
-            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize.get()));
-            trainingDataSize.set(0);
+            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
+            trainingDataSize = 0;
         }
     }
 }
