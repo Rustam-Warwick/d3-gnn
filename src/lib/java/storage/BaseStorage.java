@@ -414,6 +414,7 @@ abstract public class BaseStorage extends TaskSharedState {
      * </p>
      */
     public static class ReuseScope implements AutoCloseable {
+
         protected byte openCount;
 
         protected ReuseScope open(){
