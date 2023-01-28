@@ -21,7 +21,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import plugins.ModelServer;
 import plugins.debugging.LogCallbacks;
-import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbedding;
 import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
 import plugins.gnn_embedding.StreamingGNNEmbedding;
 
@@ -50,6 +49,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
             BiFunction<Short, Short, GraphStorageOperatorFactory>[] processFunctions = new BiFunction[layers];
             for (int i = 0; i < layers; i++) {
@@ -61,7 +61,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
                                 new LogCallbacks()
                         ), pos, layer);
             }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);
@@ -78,6 +78,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
             BiFunction<Short, Short, GraphStorageOperatorFactory>[] processFunctions = new BiFunction[layers];
             for (int i = 0; i < layers; i++) {
@@ -89,35 +90,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
                                         new LogCallbacks()
                                 ), pos, layer);
             }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
-            gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
-            env.execute();
-            verifyEmbeddings(meshSize, models);
-        } finally {
-            vertexEmbeddings.values().forEach(NDArray::resume);
-            vertexEmbeddings.clear();
-            BaseNDManager.getManager().resume();
-        }
-    }
-
-    @ParameterizedTest
-    @MethodSource("jobArguments")
-    void testPartOptimizedStreamingPlugin(String[] args, int layers, int meshSize) throws Exception {
-        try {
-            BaseNDManager.getManager().delay();
-            StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            BiFunction<Short, Short, GraphStorageOperatorFactory>[] processFunctions = new BiFunction[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] =
-                        (pos, layer) -> new GraphStorageOperatorFactory(
-                                List.of(
-                                        new ModelServer<>(models.get(pos-1)),
-                                        new PartOptimizedStreamingGNNEmbedding(models.get(pos-1).getName(), true),
-                                        new LogCallbacks()
-                                ), pos, layer);
-            }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);

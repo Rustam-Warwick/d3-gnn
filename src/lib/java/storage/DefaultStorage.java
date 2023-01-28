@@ -93,7 +93,7 @@ public final class DefaultStorage extends BaseStorage {
                 });
                 return true;
             }
-            return false;
+            throw new NotImplementedException("Attached Features only implemented for Vertices");
         }
 
         @Override
@@ -140,7 +140,7 @@ public final class DefaultStorage extends BaseStorage {
                 features[featureInfo.f2] = feature.value;
                 return true;
             }
-            return false;
+            throw new NotImplementedException("Attached Features only implemented for Vertices");
         }
 
         @Override
@@ -193,7 +193,6 @@ public final class DefaultStorage extends BaseStorage {
             short masterPart = vertexMasterTable.get(vertexId);
             if (scope.isOpen()) {
                 Vertex v = scope.getCache().getVertex();
-                if (v.features != null) v.features.clear();
                 v.id = vertexId;
                 v.masterPart = masterPart;
                 return v;
@@ -213,10 +212,7 @@ public final class DefaultStorage extends BaseStorage {
                         return reusable;
                     }).iterator();
                 }
-                return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> {
-                    short masterPart = vertexMasterTable.get(item);
-                    return new Vertex(item, masterPart);
-                }).iterator();
+                return () -> localVertexTable.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(item -> new Vertex(item, vertexMasterTable.get(item))).iterator();
             } catch (NullPointerException e) {
                 return Collections.emptyList();
             }
@@ -226,12 +222,9 @@ public final class DefaultStorage extends BaseStorage {
         public @Nullable DirectedEdge getEdge(Tuple3<String, String, String> ids) {
             if (scope.isOpen()) {
                 DirectedEdge edge = scope.getCache().getDirectedEdge();
-                if (edge.features != null) edge.features.clear();
                 edge.id.f0 = ids.f0;
                 edge.id.f1 = ids.f1;
                 edge.id.f2 = ids.f2;
-                edge.src = null;
-                edge.dest = null;
                 return edge;
             }
             return new DirectedEdge(ids.f0, ids.f1, ids.f2);
@@ -303,16 +296,14 @@ public final class DefaultStorage extends BaseStorage {
                 Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(ids.f2);
                 Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2[featureInfo.f2];
                 Feature feature = scope.isOpen() ? scope.getCache().getVertexFeature(ids.f2) : featureInfo.f1.newInstance();
-                if (feature.features != null) feature.features.clear();
                 feature.value = value;
-                feature.element = null;
                 feature.id.f0 = ids.f0;
                 feature.id.f1 = ids.f1;
                 feature.id.f2 = ids.f2;
                 feature.halo = featureInfo.f0;
                 return feature;
             }
-            return null;
+            throw new NotImplementedException("Attached Features only implemented for Vertices");
         }
 
         @Override
@@ -350,7 +341,9 @@ public final class DefaultStorage extends BaseStorage {
                 }
 
             }
-            return null;
+
+            throw new NotImplementedException("Attached Features only implemented for Vertices");
+
         }
 
         @Override
@@ -380,7 +373,7 @@ public final class DefaultStorage extends BaseStorage {
                     Object[] features = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) ids.f1).f2;
                     return features != null && features.length > index && features[index] != null;
                 }
-                return false;
+                throw new NotImplementedException("Attached Features only implemented for Vertices");
             } catch (NullPointerException ignored) {
                 return false;
             }
@@ -411,6 +404,11 @@ public final class DefaultStorage extends BaseStorage {
         @Override
         public ReuseScope openReuseScope() {
             return scope.open();
+        }
+
+        @Override
+        public byte getOpenedScopeCount() {
+            return scope.openCount;
         }
 
         @Override
@@ -447,8 +445,9 @@ public final class DefaultStorage extends BaseStorage {
                     SmallElementsCache[] tmpNew = new SmallElementsCache[openCount];
                     System.arraycopy(caches,0, tmpNew,0, caches.length);
                     caches = tmpNew;
+
                 }
-                if(caches[openCount - 1] == null) caches[openCount - 1] = new SmallElementsCache();
+                if(caches[openCount - 1]==null) caches[openCount - 1] = new SmallElementsCache();
                 return caches[openCount - 1];
             }
         }
@@ -465,16 +464,28 @@ public final class DefaultStorage extends BaseStorage {
             private final Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
 
             public Vertex getVertex() {
+                if(vertex.features != null) vertex.features.clear();
+                vertex.id = null;
+                vertex.masterPart = -1;
                 return vertex;
             }
 
             public DirectedEdge getDirectedEdge() {
+                if(directedEdge.features != null) directedEdge.features.clear();
+                directedEdge.src = null;
+                directedEdge.dest = null;
+                directedEdge.id.f0 = null;
+                directedEdge.id.f1 = null;
+                directedEdge.id.f2 = null;
                 return directedEdge;
             }
 
             public Feature getVertexFeature(String featureName) {
                 Feature feature = vertexFeatures.get(featureName);
-                if(feature != null) return feature;
+                if(feature != null){
+                    if(feature.features != null) feature.features.clear();
+                    feature.element = null;
+                }
                 Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean> info = vertexFeatureInfo.get(featureName);
                 feature = info.f1.newInstance();
                 feature.id.f2 = featureName;

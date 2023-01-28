@@ -6,7 +6,6 @@ import elements.*;
 import elements.features.MeanAggregator;
 import elements.features.Parts;
 import elements.features.Tensor;
-import functions.helpers.Limiter;
 import functions.selectors.PartKeySelector;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
@@ -50,14 +49,7 @@ public class GraphStream {
      * If the last storage layer should receive topology updates
      */
     protected final boolean hasLastLayerTopology;
-    /**
-     * If backward iterations should be added
-     */
-    protected final boolean hasBackwardIteration;
-    /**
-     * If last Storage layer and splitter should have a connection
-     */
-    protected final boolean hasFullLoopIteration;
+
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
      */
@@ -103,7 +95,7 @@ public class GraphStream {
     protected String datasetName;
 
     @SafeVarargs
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, boolean hasBackwardIteration, boolean hasFullLoopIteration, BiFunction<Short, Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, BiFunction<Short, Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
         Preconditions.checkNotNull(env);
         env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
         Arrays.sort(cmdArgs);
@@ -111,8 +103,6 @@ public class GraphStream {
         this.env = env;
         this.env.getConfig().enableObjectReuse();
         this.configureSerializers();
-        this.hasFullLoopIteration = hasFullLoopIteration;
-        this.hasBackwardIteration = hasBackwardIteration;
         this.hasLastLayerTopology = hasLastLayerTopology;
         this.operatorFactorySuppliers = operatorFactorySuppliers;
         this.layers = (short) operatorFactorySuppliers.length;
@@ -168,9 +158,7 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
         iterateStreams[position] = IterateStream.startIteration(storageOperator);
-        iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector())); // Add self loop
-        if (hasBackwardIteration)
-            iterateStreams[position - 1].closeIteration(storageOperator.getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+        iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()));
         return storageOperator;
     }
 
@@ -211,6 +199,8 @@ public class GraphStream {
             } else {
                 layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), operatorFactorySupplier, i); // Mid topology + previour
             }
+
+            iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         }
         return layerOutputs;
     }

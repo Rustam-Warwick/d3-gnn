@@ -36,11 +36,11 @@ import java.util.Map;
 
 /**
  * <p>
- *      Plugin that manages the training of {@link BaseGNNEmbeddings}
+ *      Plugin that manages the training of {@link BaseGNNEmbedding}
  *      Currently only supports: <strong>MEAN and SUM</strong> aggregator
  * </p>
  */
-public class GNNEmbeddingTraining extends BaseGNNEmbeddings {
+public class GNNEmbeddingTraining extends BaseGNNEmbedding {
 
     public transient Map<Short, NDArraysAggregator> part2GradientAggregators;
 

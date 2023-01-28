@@ -9,7 +9,6 @@ import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.apache.flink.streaming.api.operators.graph.interfaces.RichGraphProcess;
 import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -224,6 +223,12 @@ abstract public class BaseStorage extends TaskSharedState {
          * Return an instance of {@link ReuseScope} object and open that scope
          */
         public abstract ReuseScope openReuseScope();
+
+        /**
+         * Get opened {@link ReuseScope} counts
+         */
+        public abstract byte getOpenedScopeCount();
+
 
         /**
          * Add {@link GraphElement}

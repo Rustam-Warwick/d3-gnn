@@ -6,7 +6,6 @@ import elements.Plugin;
 import elements.enums.ElementType;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import org.apache.flink.util.Preconditions;
 
 /**
  * Plugin to Request training once the batch size is filled
@@ -42,7 +41,7 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+        if(evt instanceof TrainingSubCoordinator.StopStream){
             getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
             trainingDataSize = 0;
         }

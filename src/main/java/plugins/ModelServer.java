@@ -23,7 +23,6 @@ import ai.djl.training.ParameterStore;
 import ai.djl.training.optimizer.Optimizer;
 import ai.djl.training.tracker.Tracker;
 import ai.djl.util.Pair;
-import elements.GraphEvent;
 import elements.GraphOp;
 import elements.Plugin;
 import elements.Rmi;
@@ -35,33 +34,46 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.runtime.state.taskshared.TaskSharedValueState;
-import org.apache.flink.streaming.api.operators.graph.GraphEventPool;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.jetbrains.annotations.Nullable;
 
 /**
  * Plugin that stores a single model withing the GNN Pipeline
  * <p>
- *      Handles model synchronization through {@code allReduce}
+ *     Steps for synchronization:
+ *     1. Do the optimizer.update in the master
+ *     2. Broadcast the model parameters
+ *     3. Calculate the streaming average of the model parameters
+ *     4. Replace the local model with the average ones
  * </p>
  */
 public class ModelServer<T extends Block> extends Plugin {
 
+    /**
+     * The {@link Model} object that is passed on job creation time
+     */
     public Model model;
 
+    /**
+     * The Task local {@link ModelWrapper} object
+     */
     public transient ModelWrapper<T> modelWrapper;
 
-    public transient Optimizer optimizer;
-
+    /**
+     * If this task is the one which's model was used it is considered as the master
+     */
     public transient boolean isMaster;
 
+    /**
+     * Parameters that are gathered by this model. Actually created on {@code sync()}
+     */
     protected transient Tuple2<ParameterList, Short> syncParameters;
+
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
         this.model = m;
+        this.listening = false; // Never listens to graph callbacks
     }
 
     public void open(Configuration params) throws Exception {
@@ -69,7 +81,6 @@ public class ModelServer<T extends Block> extends Plugin {
         modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), ()->new TaskSharedValueState(new ModelWrapper<>(model)))).getValue();
         if(modelWrapper.model == model) isMaster = true;
         model = null;
-        optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
     }
 
     public Model getModel() {
@@ -99,7 +110,7 @@ public class ModelServer<T extends Block> extends Plugin {
         if(isMaster) {
             for (Pair<String, Parameter> parameter : modelWrapper.block.getParameters()) {
                 if (parameter.getValue().getArray().hasGradient()) {
-                    optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
+                    modelWrapper.optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
                     parameter.getValue().getArray().setRequiresGradient(false);
                 }
             }
@@ -141,8 +152,8 @@ public class ModelServer<T extends Block> extends Plugin {
                 for (int i = 0; i < syncParameters.f0.size(); i++) {
                     NDArray current = syncParameters.f0.get(i).getValue().getArray();
                     NDArray update = parameterList.get(i).getValue().getArray();
-                    current.addi(update.sub(current).divi(syncParameters.f1));
-                    update.close();
+                    current.addi(update.subi(current).divi(syncParameters.f1));
+                    update.close(); // Close prematurely
                 }
             }
         }
@@ -161,7 +172,12 @@ public class ModelServer<T extends Block> extends Plugin {
         }
     }
 
-
+    /**
+     * Simple Wrapper around the model object
+     * <p>
+     *     This object is going to be added to TaskLocalState
+     * </p>
+     */
     static class ModelWrapper<T extends Block>{
 
         T block;
@@ -174,12 +190,15 @@ public class ModelServer<T extends Block> extends Plugin {
 
         ParameterStore parameterStore;
 
+        Optimizer optimizer;
+
         public ModelWrapper(Model model){
             this.model = model;
             this.block = (T) model.getBlock();
             this.inputShapes = block.getInputShapes();
             this.outputShapes = block.getOutputShapes(inputShapes);
-            parameterStore = new ParameterStore();
+            this.optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
+            this.parameterStore = new ParameterStore();
         }
     }
 

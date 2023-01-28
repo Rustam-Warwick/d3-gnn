@@ -23,4 +23,9 @@ public class CountTensorHolder implements LifeCycleControl {
     public void resume() {
         val.resume();
     }
+
+    @Override
+    public String toString() {
+        return String.valueOf(count);
+    }
 }

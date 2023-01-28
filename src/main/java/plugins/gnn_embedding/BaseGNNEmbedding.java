@@ -19,7 +19,7 @@ import plugins.ModelServer;
 /**
  * Base class for all GNN Embedding Plugins
  */
-abstract public class BaseGNNEmbeddings extends Plugin {
+abstract public class BaseGNNEmbedding extends Plugin {
 
     /**
      * Name of the {@link ai.djl.Model} name to fetch the {@link ModelServer}
@@ -37,7 +37,7 @@ abstract public class BaseGNNEmbeddings extends Plugin {
     public transient ModelServer<GNNBlock> modelServer;
 
 
-    public BaseGNNEmbeddings(String modelName, String suffix, boolean trainableVertexEmbeddings) {
+    public BaseGNNEmbedding(String modelName, String suffix, boolean trainableVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
         this.trainableVertexEmbeddings = trainableVertexEmbeddings;
@@ -94,15 +94,6 @@ abstract public class BaseGNNEmbeddings extends Plugin {
     }
 
     /**
-     * Is the output batched or streaming
-     *
-     * @return is_batched
-     */
-    public boolean usingBatchingOutput() {
-        return false;
-    }
-
-    /**
      * Initialize the vertex aggregators and possible embeddings
      */
     public void initVertex(Vertex element) {
@@ -131,7 +122,7 @@ abstract public class BaseGNNEmbeddings extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if (evt instanceof TrainingSubCoordinator.FlushForTraining) {
+        if (evt instanceof TrainingSubCoordinator.StopStream) {
             listening = false;
         }else if(evt instanceof TrainingSubCoordinator.ResumeInference){
             listening = true;

@@ -50,7 +50,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+        if(evt instanceof TrainingSubCoordinator.StopStream){
             getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
             trainingDataSize = 0;
         }

@@ -20,7 +20,6 @@ import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +29,7 @@ import java.util.Map;
 /**
  * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
  */
-public class SessionWindowedGNNEmbedding extends PartOptimizedStreamingGNNEmbedding {
+public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int sessionInterval; // Window Interval for graph element updates in milliseconds
 
@@ -98,7 +97,7 @@ public class SessionWindowedGNNEmbedding extends PartOptimizedStreamingGNNEmbedd
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.FlushForTraining){
+        if(evt instanceof TrainingSubCoordinator.StopStream){
             getRuntimeContext().runForAllLocalParts(()-> {
                 if(BATCH.containsKey(getRuntimeContext().getCurrentPart())) evictUpUntil(Long.MAX_VALUE);
             });

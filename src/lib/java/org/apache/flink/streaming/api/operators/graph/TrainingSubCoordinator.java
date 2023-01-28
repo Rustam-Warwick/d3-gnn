@@ -84,7 +84,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
      * <p>
       *     Handler for {@link RequestTraining} type events
       *     Once {@code percentOfRequestsToStart * parallelism} operators have sent this event will trigger start training
-      *     Triggering start training means sending {@link FlushForTraining} to the Splitter operator
+      *     Triggering start training means sending {@link StopStream} to the Splitter operator
      * </p>
      */
     public class RequestTrainingEventsHandler implements Consumer<RequestTraining> {
@@ -104,7 +104,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
         public void accept(RequestTraining ignored){
             if(++numReceivedRequestEvents == numRequestEventsToStart) {
                 for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
-                    subTaskGateway.sendEvent(new FlushForTraining());
+                    subTaskGateway.sendEvent(new StopStream());
                 }
             }
         }
@@ -146,7 +146,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     /**
      *  <p>
      *      Event sent from the last layer scheduler requesting to start training
-     *      Event handled by the {@link RequestTrainingEventsHandler} which generates {@link FlushForTraining} events
+     *      Event handled by the {@link RequestTrainingEventsHandler} which generates {@link StopStream} events
      *      By default when a certain percent of operators have sent this event the training phase will begin
      *  </p>
      */
@@ -225,7 +225,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
      * Last layer -> evict
      * </p>
      */
-    public static class FlushForTraining extends GraphEvent{
+    public static class StopStream extends GraphEvent{
 
         protected transient byte iteration;
 
@@ -241,10 +241,9 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             }
             if(++numReceived == shouldReceive) {
                 if(iteration == 2){
-                    // Evict first then send
+                    // Evict first then send if not the last layer
                     pool.evict(this);
                     if(!pool.graphRuntimeContext.isLast()) pool.graphRuntimeContext.broadcast(new GraphOp(this));
-
                 }else{
                     iteration++;
                     numReceived = 0;

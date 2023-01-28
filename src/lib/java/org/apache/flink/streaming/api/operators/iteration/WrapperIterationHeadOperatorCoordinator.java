@@ -205,7 +205,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
                     if (terminationFound) {
                         coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
                     } else {
-                        Thread.sleep(7000);
+                        Thread.sleep(2000);
                         receivedFromIterationOperators = 0;
                     }
                 }

@@ -36,6 +36,12 @@ import java.util.stream.IntStream;
 
 /**
  * {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
+ * <p>
+ *     3 states of tensor execution
+ *     <strong>ATTACHED: NDManager is responsible for cleaning this tensor </strong>
+ *     <strong>POSTPONED: Detached but delayed counter is incremented, will be attaced once resumed </strong>
+ *     <strong>DETACHED: Added to reference tracker and will never be attached again </strong>
+ * </p>
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
 
