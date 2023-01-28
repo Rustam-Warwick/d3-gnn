@@ -22,7 +22,7 @@ public final class GraphOp implements LifeCycleControl {
     /**
      * {@link Op} represents the operation that is happening in the GraphElement
      */
-    public Op op = Op.UPDATE;
+    public Op op = Op.COMMIT;
 
     /**
      * The part number where this record should be sent to

@@ -338,7 +338,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         for (int i = 0; i < vertexIds.size(); i++) {
             reuse3.id.f1 = vertexIds.get(i);
             reuse3.value = updatesBatched.get(i);
-            getRuntimeContext().output(new GraphOp(Op.UPDATE, getRuntimeContext().getCurrentPart(), reuse3));
+            getRuntimeContext().output(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), reuse3));
         }
         BaseNDManager.getManager().resumeAndDelay();
     }

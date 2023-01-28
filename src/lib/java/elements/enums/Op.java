@@ -4,7 +4,7 @@ import org.apache.flink.api.common.typeinfo.TypeInfo;
 import typeinfo.byteinfo.ByteEnumTypeInfoFactory;
 
 /**
- * UPDATE -> Create if DNE or update
+ * COMMIT -> Create if DNE or update
  * ADD -> Assuming DNE simply create
  * REMOVE -> Remove
  * SYNC -> Sync to replica
@@ -14,7 +14,7 @@ import typeinfo.byteinfo.ByteEnumTypeInfoFactory;
  */
 @TypeInfo(ByteEnumTypeInfoFactory.class)
 public enum Op {
-    UPDATE,
+    COMMIT,
 
     ADD,
 

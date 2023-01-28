@@ -17,7 +17,6 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
-import storage.BaseStorage;
 
 import java.util.*;
 
@@ -82,7 +81,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             }
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
+            if ("f".equals(feature.getName()) && feature.getAttachedElementType() == ElementType.VERTEX) {
                 // Feature is always second in creation because aggregators get created immediately after VERTEX
                 reduceOutEdges((Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
@@ -99,11 +98,11 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
+            if (feature.getAttachedElementType() == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
-            if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.getAttachedElementType() == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
                     forward((Vertex) feature.getElement());
             }
@@ -124,9 +123,65 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         Tensor result = new Tensor("f", update, false);
         result.id.f0 = ElementType.VERTEX;
         result.id.f1 = v.getId();
-        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), result));
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), result));
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+    }
+
+
+    /**
+     * Given vertex reduce all of its out edges
+     *
+     * @param v Vertex
+     */
+    public void reduceOutEdges(Vertex v) {
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
+        final Object[] msg = new Object[]{null, 1};
+        for (DirectedEdge directedEdge : outEdges) {
+            if (messageReady(directedEdge)) {
+                if (Objects.isNull(msg[0])) {
+                    msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
+                }
+                Rmi.buildAndRun(
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        ElementType.ATTACHED_FEATURE,
+                        "reduce",
+                        directedEdge.getDest().getMasterPart(),
+                        OutputTags.ITERATE_OUTPUT_TAG,
+                        msg[0],
+                        msg[1]
+                );
+            }
+        }
+    }
+
+    /**
+     * Given oldFeature value and new Feature value triggerUpdate the Out Edged aggregators
+     *
+     * @param newFeature Updaated new Feature
+     * @param oldFeature Updated old Feature
+     */
+    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        NDList[] msgs = new NDList[2];
+        for (DirectedEdge directedEdge : outEdges) {
+            if (messageReady(directedEdge)) {
+                if (Objects.isNull(msgs[0])) {
+                    msgs[0] = MESSAGE(new NDList(newFeature.getValue()), false);
+                    msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
+                }
+                Rmi.buildAndRun(
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        ElementType.ATTACHED_FEATURE,
+                        "replace",
+                        directedEdge.getDest().getMasterPart(),
+                        OutputTags.ITERATE_OUTPUT_TAG,
+                        msgs[0],
+                        msgs[1]
+                );
+            }
+        }
+
     }
 
     /**
@@ -136,7 +191,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      *     Hence we can optimize by sending single tensor to the parts
      * </p>
      */
-    public void reduceOutEdges(Vertex v) {
+    public void reduceOutEdgesOptimized(Vertex v) {
         Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
         NDList result = null;
         reuseReduceMap.clear();
@@ -177,7 +232,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     /**
      * {@inheritDoc}
      */
-    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
+    public void updateOutEdgesOptimized(Tensor newFeature, Tensor oldFeature) {
         Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
         NDList msgOld = null;
         NDList msgNew = null;

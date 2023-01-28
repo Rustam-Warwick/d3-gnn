@@ -465,6 +465,7 @@ public final class DefaultStorage extends BaseStorage {
             private final Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
 
             public Vertex getVertex() {
+                System.out.println("WHY");
                 if(vertex.features != null){
                     vertex.features.forEach(feature -> feature.element = null);
                     vertex.features.clear();
@@ -475,6 +476,7 @@ public final class DefaultStorage extends BaseStorage {
             }
 
             public DirectedEdge getDirectedEdge() {
+                System.out.println("WHY");
                 if(directedEdge.features != null){
                     directedEdge.features.forEach(feature -> feature.element = null);
                     directedEdge.features.clear();
@@ -488,6 +490,7 @@ public final class DefaultStorage extends BaseStorage {
             }
 
             public Feature getVertexFeature(String featureName) {
+                System.out.println("WHY");
                 final Feature vertexFeature = vertexFeatures.get(featureName);
                 if(vertexFeature != null){
                     if(vertexFeature.features != null){

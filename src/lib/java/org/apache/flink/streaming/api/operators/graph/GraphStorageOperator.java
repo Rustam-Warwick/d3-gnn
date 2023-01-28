@@ -195,7 +195,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
             case ADD:
                 value.element.create();
                 break;
-            case UPDATE:
+            case COMMIT:
                 if (!storage.containsElement(value.element)) {
                     value.element.create();
                 } else {
