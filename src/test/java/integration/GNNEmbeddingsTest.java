@@ -36,10 +36,10 @@ public class GNNEmbeddingsTest extends IntegrationTest {
 
     private static Stream<Arguments> jobArguments() {
         return Stream.of(
-                Arguments.arguments(new String[]{"-p=hdrf", "-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=hdrf", "-l=2"}, 2, 10),
-                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 2, 10)
+                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 1, 10),
+                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 2, 10),
+                Arguments.arguments(new String[]{"-p=random", "-l=1.3"}, 1, 10),
+                Arguments.arguments(new String[]{"-p=random", "-l=1.3"}, 2, 10)
         );
     }
 

@@ -49,6 +49,7 @@ public final class DefaultStorage extends BaseStorage {
      */
     private final Map<Short, Map<String, Tuple3<ObjectOpenHashSet<Tuple2<String, String>>, ObjectOpenHashSet<Tuple2<String, String>>, Object[]>>> localVertexTable = new Short2ObjectOpenHashMap<>();
 
+
     @Override
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
         super.register(taskSharedStateBackend);
@@ -464,14 +465,20 @@ public final class DefaultStorage extends BaseStorage {
             private final Map<String, Feature> vertexFeatures = new Object2ObjectOpenHashMap<>(5);
 
             public Vertex getVertex() {
-                if(vertex.features != null) vertex.features.clear();
+                if(vertex.features != null){
+                    vertex.features.forEach(feature -> feature.element = null);
+                    vertex.features.clear();
+                }
                 vertex.id = null;
                 vertex.masterPart = -1;
                 return vertex;
             }
 
             public DirectedEdge getDirectedEdge() {
-                if(directedEdge.features != null) directedEdge.features.clear();
+                if(directedEdge.features != null){
+                    directedEdge.features.forEach(feature -> feature.element = null);
+                    directedEdge.features.clear();
+                }
                 directedEdge.src = null;
                 directedEdge.dest = null;
                 directedEdge.id.f0 = null;
@@ -481,17 +488,24 @@ public final class DefaultStorage extends BaseStorage {
             }
 
             public Feature getVertexFeature(String featureName) {
-                Feature feature = vertexFeatures.get(featureName);
-                if(feature != null){
-                    if(feature.features != null) feature.features.clear();
-                    feature.element = null;
+                final Feature vertexFeature = vertexFeatures.get(featureName);
+                if(vertexFeature != null){
+                    if(vertexFeature.features != null){
+                        vertexFeature.features.forEach(attached -> attached.element = null);
+                        vertexFeature.features.clear();
+                    }
+                    if(vertexFeature.element != null && vertexFeature.element.features != null){
+                        vertexFeature.element.features.removeIf(attached -> attached == vertexFeature);
+                    }
+                    vertexFeature.element = null;
+                    return vertexFeature;
                 }
                 Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, Boolean> info = vertexFeatureInfo.get(featureName);
-                feature = info.f1.newInstance();
-                feature.id.f2 = featureName;
-                feature.halo = info.f0;
-                vertexFeatures.put(featureName, feature);
-                return feature;
+                final Feature vertexFeatureNew = info.f1.newInstance();
+                vertexFeatureNew.id.f2 = featureName;
+                vertexFeatureNew.halo = info.f0;
+                vertexFeatures.put(featureName, vertexFeatureNew);
+                return vertexFeatureNew;
             }
         }
     }

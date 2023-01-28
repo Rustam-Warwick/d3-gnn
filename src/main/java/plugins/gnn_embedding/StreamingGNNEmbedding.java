@@ -34,8 +34,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     protected transient Tuple3<ElementType, Object, String> reuseFeatureId; // Reusable Feature id tuple
 
-    protected transient Tensor reuseTensor; // Reuse tensor for forward message
-
     protected transient Map<Short, List<String>> reuseReduceMap; // Reusable map for sending reduce, replace messages
 
     public StreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings) {
@@ -54,8 +52,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         getRuntimeContext().getMetricGroup().counter("latency", latency);
         reuseNDList = new NDList(2);
         reuseFeatureId = Tuple3.of(ElementType.VERTEX, null, "agg");
-        reuseTensor = new Tensor("f", null, false);
-        reuseTensor.id.f0 = ElementType.VERTEX;
         reuseReduceMap = new Short2ObjectOpenHashMap<>();
     }
 
@@ -65,33 +61,31 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            if (element.getType() == ElementType.VERTEX) {
-                initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
-            } else if (element.getType() == ElementType.EDGE) {
-                DirectedEdge directedEdge = (DirectedEdge) element;
-                if (messageReady(directedEdge)) {
-                    reuseNDList.add((NDArray) directedEdge.getSrc().getFeature("f").getValue());
-                    NDList msg = MESSAGE(reuseNDList, false);
-                    reuseNDList.clear();
-                    reuseFeatureId.f1 = directedEdge.getDestId();
-                    Rmi.buildAndRun(
-                            reuseFeatureId,
-                            ElementType.ATTACHED_FEATURE,
-                            "reduce",
-                            directedEdge.getDest().getMasterPart(),
-                            OutputTags.ITERATE_OUTPUT_TAG,
-                            msg,
-                            1
-                    );
-                }
-            } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
-                Feature<?, ?> feature = (Feature<?, ?>) element;
-                if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
-                    // Feature is always second in creation because aggregators get created immediately after VERTEX
-                    reduceOutEdges((Vertex) feature.getElement());
-                    if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
-                }
+        if (element.getType() == ElementType.VERTEX) {
+            initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
+        } else if (element.getType() == ElementType.EDGE) {
+            DirectedEdge directedEdge = (DirectedEdge) element;
+            if (messageReady(directedEdge)) {
+                reuseNDList.clear();
+                reuseNDList.add((NDArray) directedEdge.getSrc().getFeature("f").getValue());
+                NDList msg = MESSAGE(reuseNDList, false);
+                reuseFeatureId.f1 = directedEdge.getDestId();
+                Rmi.buildAndRun(
+                        reuseFeatureId,
+                        ElementType.ATTACHED_FEATURE,
+                        "reduce",
+                        directedEdge.getDest().getMasterPart(),
+                        OutputTags.ITERATE_OUTPUT_TAG,
+                        msg,
+                        1
+                );
+            }
+        } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) element;
+            if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
+                // Feature is always second in creation because aggregators get created immediately after VERTEX
+                reduceOutEdges((Vertex) feature.getElement());
+                if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
         }
     }
@@ -102,20 +96,16 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
-                Feature<?, ?> feature = (Feature<?, ?>) newElement;
-                Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-                if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                    updateOutEdges((Tensor) feature, (Tensor) oldFeature);
-                    if(!feature.getElement().getId().equals(feature.getAttachedElementId())) System.out.println("AAAA");
-                    if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
-                }
-                if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
-                    if(!feature.getElement().getId().equals(feature.getAttachedElementId())) System.out.println("AAAA");
-                    if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
-                        forward((Vertex) feature.getElement());
-                }
+        if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
+            Feature<?, ?> feature = (Feature<?, ?>) newElement;
+            Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
+            if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
+                updateOutEdges((Tensor) feature, (Tensor) oldFeature);
+                if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
+            }
+            if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
+                if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
+                    forward((Vertex) feature.getElement());
             }
         }
     }
@@ -125,15 +115,16 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
+        reuseNDList.clear();
         NDArray ft = (NDArray) (v.getFeature("f")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
         reuseNDList.add(ft);
         reuseNDList.add(agg);
         NDArray update = UPDATE(reuseNDList, false).get(0);
-        reuseNDList.clear();
-        reuseTensor.id.f1 = v.getId();
-        reuseTensor.value = update;
-        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), reuseTensor));
+        Tensor result = new Tensor("f", update, false);
+        result.id.f0 = ElementType.VERTEX;
+        result.id.f1 = v.getId();
+        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), result));
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
     }
@@ -146,41 +137,40 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      * </p>
      */
     public void reduceOutEdges(Vertex v) {
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
-            NDList result = null;
-            reuseReduceMap.clear();
-            for (DirectedEdge directedEdge : outEdges) {
-                if (result == null) {
-                    reuseNDList.add((NDArray) v.getFeature("f").getValue());
-                    result = MESSAGE(reuseNDList, false);
-                    reuseNDList.clear();
-                }
-                reuseReduceMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), item -> new ArrayList<>(4));
-                reuseReduceMap.get(directedEdge.getDest().getMasterPart()).add(directedEdge.getDest().getId());
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
+        NDList result = null;
+        reuseReduceMap.clear();
+        for (DirectedEdge directedEdge : outEdges) {
+            if (result == null) {
+                reuseNDList.clear();
+                reuseNDList.add((NDArray) v.getFeature("f").getValue());
+                result = MESSAGE(reuseNDList, false);
             }
-            if (reuseReduceMap.isEmpty()) return;
-            for (Map.Entry<Short, List<String>> shortTuple2Entry : reuseReduceMap.entrySet()) {
-                Rmi.buildAndRun(
-                        getId(),
-                        getType(),
-                        "receiveReduceOutEdges",
-                        shortTuple2Entry.getKey(),
-                        OutputTags.ITERATE_OUTPUT_TAG,
-                        shortTuple2Entry.getValue(),
-                        result
-                );
-            }
+            reuseReduceMap.compute(directedEdge.getDest().getMasterPart(), (key, item) -> {
+                if(item == null) item = new ArrayList<>();
+                item.add(directedEdge.getDestId());
+                return item;
+            });
+        }
+        if (reuseReduceMap.isEmpty()) return;
+        for (Map.Entry<Short, List<String>> shortTuple2Entry : reuseReduceMap.entrySet()) {
+            Rmi.buildAndRun(
+                    getId(),
+                    getType(),
+                    "receiveReduceOutEdges",
+                    shortTuple2Entry.getKey(),
+                    OutputTags.ITERATE_OUTPUT_TAG,
+                    shortTuple2Entry.getValue(),
+                    result
+            );
         }
     }
 
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            for (String vertexId : vertices) {
-                reuseFeatureId.f1 = vertexId;
-                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureId), "reduce", message, 1);
-            }
+        for (String vertexId : vertices) {
+            reuseFeatureId.f1 = vertexId;
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureId), "reduce", message, 1);
         }
     }
 
@@ -188,48 +178,47 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      * {@inheritDoc}
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-            NDList msgOld = null;
-            NDList msgNew = null;
-            reuseReduceMap.clear();
-            for (DirectedEdge directedEdge : outEdges) {
-                if (messageReady(directedEdge)) {
-                    if (msgOld == null) {
-                        reuseNDList.add(oldFeature.getValue());
-                        msgOld = MESSAGE(reuseNDList, false);
-                        reuseNDList.clear();
-                        reuseNDList.add(newFeature.getValue());
-                        msgNew = MESSAGE(reuseNDList, false);
-                        reuseNDList.clear();
-                    }
-                    reuseReduceMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), item -> new ArrayList<>());
-                    reuseReduceMap.get(directedEdge.getDest().getMasterPart()).add(directedEdge.getDest().getId());
-                }
+        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
+        NDList msgOld = null;
+        NDList msgNew = null;
+        reuseReduceMap.clear();
+        for (DirectedEdge directedEdge : outEdges) {
+            if (msgOld == null) {
+                reuseNDList.clear();
+                reuseNDList.add(oldFeature.getValue());
+                msgOld = MESSAGE(reuseNDList, false);
+                reuseNDList.clear();
+                reuseNDList.add(newFeature.getValue());
+                msgNew = MESSAGE(reuseNDList, false);
+                reuseNDList.clear();
             }
+            reuseReduceMap.compute(directedEdge.getDest().getMasterPart(), (key, item)->{
+                if(item == null) item = new ArrayList<>();
+                item.add(directedEdge.getDestId());
+                return item;
+            });
+        }
 
-            if (reuseReduceMap.isEmpty()) return;
-            for (Map.Entry<Short, List<String>> shortTuple2Entry : reuseReduceMap.entrySet()) {
-                Rmi.buildAndRun(
-                        getId(),
-                        getType(),
-                        "receiveReplaceOutEdges",
-                        shortTuple2Entry.getKey(),
-                        OutputTags.ITERATE_OUTPUT_TAG,
-                        shortTuple2Entry.getValue(),
-                        msgNew,
-                        msgOld
-                );
-            }
+        if (reuseReduceMap.isEmpty()) return;
+        for (Map.Entry<Short, List<String>> shortTuple2Entry : reuseReduceMap.entrySet()) {
+            Rmi.buildAndRun(
+                    getId(),
+                    getType(),
+                    "receiveReplaceOutEdges",
+                    shortTuple2Entry.getKey(),
+                    OutputTags.ITERATE_OUTPUT_TAG,
+                    shortTuple2Entry.getValue(),
+                    msgNew,
+                    msgOld
+            );
         }
     }
 
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-        try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {
-            for (String vertex : vertices) {
-                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(Tuple3.of(ElementType.VERTEX, vertex, "agg")), "replace", messageNew, messageOld);
-            }
+        for (String vertexId : vertices) {
+            reuseFeatureId.f1 = vertexId;
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureId), "replace", messageNew, messageOld);
         }
     }
 }

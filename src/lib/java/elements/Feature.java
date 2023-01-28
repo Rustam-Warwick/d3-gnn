@@ -260,7 +260,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public String toString() {
         return getType() + "{" +
                 "id='" + getId() + '\'' +
-                "master='" + getMasterPart() + '\'' +
+                "master='" + masterPart + '\'' +
                 "value='" + value + '\'' +
                 '}';
     }
