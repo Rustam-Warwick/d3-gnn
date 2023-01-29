@@ -385,7 +385,7 @@
 //    }
 //
 //    @Override
-//    public void cacheFeatures(GraphElement element, CacheFeatureContext context) {
+//    public void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context) {
 //        try {
 //            String elId = element.getId();
 //            for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<String, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {

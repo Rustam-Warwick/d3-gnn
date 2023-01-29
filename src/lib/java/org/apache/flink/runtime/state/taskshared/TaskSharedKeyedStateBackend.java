@@ -20,13 +20,13 @@ import org.apache.flink.runtime.state.heap.InternalKeyContext;
 import org.apache.flink.runtime.state.internal.InternalKvState;
 import org.apache.flink.runtime.state.metrics.LatencyTrackingStateConfig;
 import org.apache.flink.runtime.state.ttl.TtlTimeProvider;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.jetbrains.annotations.NotNull;
 import storage.BaseStorage;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RunnableFuture;
 import java.util.stream.Stream;
 
@@ -46,7 +46,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
      * Map table of the {@link BaseStorage} per task
      * Key is [JobID, JobVertexID, State Name, NameSpace]. NameSpace for task shared state cannot be changed afterwards
      */
-    final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new NonBlockingHashMap<>();
+    final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new ConcurrentHashMap<>(10);
 
     /**
      * Wrapped delegate state backend
@@ -146,7 +146,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     /**
      * Create or get {@link TaskSharedState} from backend
      */
-    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
+    public  <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
         TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val) -> (
                 val == null ? taskSharedStateDescriptor.getStateSupplier().get() : val
         ));

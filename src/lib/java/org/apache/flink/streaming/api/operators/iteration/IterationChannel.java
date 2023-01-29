@@ -32,14 +32,17 @@ public class IterationChannel<T> implements Closeable {
      * List of producers identified by their IDs
      */
     private final Map<OperatorID, IterationQueue<T>> producers = new HashMap<>(5);
+
     /**
      * ID of this channel
      */
     private final IterationChannelKey channelKey;
+
     /**
      * Consumer & Executor of this channel, changes are made entirely for volatile to take effect
      */
     private volatile Tuple2<Consumer<T>, MailboxExecutor> consumerAndExecutor = null;
+
 
     public IterationChannel(IterationChannelKey channelKey) {
         this.channelKey = channelKey;

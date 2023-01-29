@@ -56,7 +56,7 @@ public final class InPlaceSumAggregator extends Aggregator<CountTensorHolder> {
     @RemoteFunction
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        value.val.addi((newElement.get(0).sub(oldElement.get(0))));
+        value.val.addi(newElement.get(0)).subi(oldElement.get(0));
     }
 
     /**

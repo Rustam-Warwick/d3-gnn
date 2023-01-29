@@ -323,7 +323,7 @@
 //    }
 //
 //    @Override
-//    public void cacheFeatures(GraphElement element, CacheFeatureContext context) {
+//    public void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context) {
 //        try {
 //            for (Map.Entry<Tuple2<String, ElementType>, Tuple3<MapState<Object, Object>, Boolean, ConstructorAccess<? extends Feature>>> tuple2Tuple3Entry : attFeatureTable.entrySet()) {
 //                if ((!tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.HALO) || (tuple2Tuple3Entry.getValue().f1 && context == CacheFeatureContext.NON_HALO) || tuple2Tuple3Entry.getKey().f1 != element.getType() || !tuple2Tuple3Entry.getValue().f0.contains(element.getId()))

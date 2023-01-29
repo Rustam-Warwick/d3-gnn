@@ -148,6 +148,16 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
     }
 
     /**
+     * Simple Sub-coordinator provider with empty values
+     */
+    public static class EmptyGraphOperatorSubCoordinatorsProvider implements GraphOperatorSubCoordinatorsProvider{
+        @Override
+        public GraphOperatorSubCoordinator[] apply(GraphOperatorCoordinator graphOperatorCoordinator) {
+            return new GraphOperatorSubCoordinator[0];
+        }
+    }
+
+    /**
      * Default(no sub-coordinator) provider
      */
     public static class DefaultGraphOperatorSubCoordinatorsProvider implements GraphOperatorSubCoordinatorsProvider {

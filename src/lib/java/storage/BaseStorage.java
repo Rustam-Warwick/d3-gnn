@@ -22,7 +22,7 @@ import java.util.function.Supplier;
  * Base Class for all Graph Storage States
  * <p>
  *      This state is part of the TaskSharedState logic, as implementations might have overlaps between the versions
- *      To facilitate faster access across various shared operators a {@link Graph} should be created holding the {@link GraphRuntimeContext}
+ *      To facilitate faster access across various shared operators a {@link GraphView} should be created holding the {@link GraphRuntimeContext}
  * </p>
  */
 abstract public class BaseStorage extends TaskSharedState {
@@ -46,95 +46,95 @@ abstract public class BaseStorage extends TaskSharedState {
     }
 
     /**
-     * Create or get the {@link Graph}
+     * Create or get the {@link GraphView}
      */
-    abstract public Graph getOrCreateView(GraphRuntimeContext runtimeContext);
+    abstract public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext);
 
     /**
      * A thread local view of the graph object
      */
-    abstract public static class Graph {
+    abstract public static class GraphView {
 
         protected final GraphRuntimeContext runtimeContext;
 
-        public Graph(GraphRuntimeContext runtimeContext){
+        public GraphView(GraphRuntimeContext runtimeContext){
             this.runtimeContext = runtimeContext;
         }
 
         /**
          * Add {@link Feature} that is attached to element
          */
-        public abstract boolean addAttachedFeature(Feature feature);
+        public abstract void addAttachedFeature(Feature feature);
 
         /**
          * Add {@link Feature} that is not attached to any element
          */
-        public abstract boolean addStandaloneFeature(Feature feature);
+        public abstract void addStandaloneFeature(Feature feature);
 
         /**
          * Add {@link Vertex}
          */
-        public abstract boolean addVertex(Vertex vertex);
+        public abstract void addVertex(Vertex vertex);
 
         /**
          * Add {@link DirectedEdge}
          */
-        public abstract boolean addEdge(DirectedEdge directedEdge);
+        public abstract void addEdge(DirectedEdge directedEdge);
 
         /**
          * Add {@link HyperEdge}
          */
-        public abstract boolean addHyperEdge(HyperEdge hyperEdge);
+        public abstract void addHyperEdge(HyperEdge hyperEdge);
 
         /**
          * Update {@link Feature} that is attached to element
          */
-        public abstract boolean updateAttachedFeature(Feature feature, Feature memento);
+        public abstract void updateAttachedFeature(Feature feature, Feature memento);
 
         /**
          * Update {@link Feature} that is not attached to element
          */
-        public abstract boolean updateStandaloneFeature(Feature feature, Feature memento);
+        public abstract void updateStandaloneFeature(Feature feature, Feature memento);
 
         /**
          * Update {@link Vertex}
          */
-        public abstract boolean updateVertex(Vertex vertex, Vertex memento);
+        public abstract void updateVertex(Vertex vertex, Vertex memento);
 
         /**
          * Update {@link DirectedEdge}
          */
-        public abstract boolean updateEdge(DirectedEdge directedEdge, DirectedEdge memento);
+        public abstract void updateEdge(DirectedEdge directedEdge, DirectedEdge memento);
 
         /**
          * Update {@link HyperEdge}
          */
-        public abstract boolean updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento);
+        public abstract void updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento);
 
         /**
          * Delte {@link Feature} that is attached to element
          */
-        public abstract boolean deleteAttachedFeature(Feature feature);
+        public abstract void deleteAttachedFeature(Feature feature);
 
         /**
          * Update {@link Feature} that is not attached to any element
          */
-        public abstract boolean deleteStandaloneFeature(Feature feature);
+        public abstract void deleteStandaloneFeature(Feature feature);
 
         /**
          * Delete {@link Vertex}
          */
-        public abstract boolean deleteVertex(Vertex vertex);
+        public abstract void deleteVertex(Vertex vertex);
 
         /**
          * Delete {@link DirectedEdge}
          */
-        public abstract boolean deleteEdge(DirectedEdge directedEdge);
+        public abstract void deleteEdge(DirectedEdge directedEdge);
 
         /**
          * Delete {@link HyperEdge}
          */
-        public abstract boolean deleteHyperEdge(HyperEdge hyperEdge);
+        public abstract void deleteHyperEdge(HyperEdge hyperEdge);
 
         /**
          * Get {@link Vertex} by its String key
@@ -151,7 +151,7 @@ abstract public class BaseStorage extends TaskSharedState {
          * Get {@link DirectedEdge} by its full id
          */
         @Nullable
-        public abstract DirectedEdge getEdge(Tuple3<String, String, String> ids);
+        public abstract DirectedEdge getEdge(Tuple3<String, String, String> id);
 
         /**
          * Get incided edges of {@link Vertex}
@@ -172,7 +172,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Get attached {@link Feature} by its id
          */
-        public abstract @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> ids);
+        public abstract @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id);
 
         /**
          * Get all attached {@link Feature} of a given name
@@ -197,7 +197,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Does this storage contain {@link Feature} by its id
          */
-        public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> ids);
+        public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> id);
 
         /**
          * Does this storage contain {@link Feature} by its id
@@ -207,7 +207,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Does this storage contain {@link DirectedEdge} by its id
          */
-        public abstract boolean containsEdge(Tuple3<String, String, String> ids);
+        public abstract boolean containsEdge(Tuple3<String, String, String> id);
 
         /**
          * Does this torage contain {@link HyperEdge} by its id
@@ -217,7 +217,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Given a {@link GraphElement} cache all its available {@link Feature}
          */
-        public abstract void cacheFeatures(GraphElement element, CacheFeatureContext context);
+        public abstract void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context);
 
         /**
          * Return an instance of {@link ReuseScope} object and open that scope
@@ -229,64 +229,78 @@ abstract public class BaseStorage extends TaskSharedState {
          */
         public abstract byte getOpenedScopeCount();
 
-
         /**
          * Add {@link GraphElement}
          */
-        public boolean addElement(GraphElement element) {
+        public void addElement(GraphElement element) {
             switch (element.getType()) {
                 case VERTEX:
-                    return addVertex((Vertex) element);
+                    addVertex((Vertex) element);
+                    break;
                 case EDGE:
-                    return addEdge((DirectedEdge) element);
+                    addEdge((DirectedEdge) element);
+                    break;
                 case ATTACHED_FEATURE:
-                    return addAttachedFeature((Feature) element);
+                    addAttachedFeature((Feature) element);
+                    break;
                 case STANDALONE_FEATURE:
-                    return addStandaloneFeature((Feature) element);
+                    addStandaloneFeature((Feature) element);
+                    break;
                 case HYPEREDGE:
-                    return addHyperEdge((HyperEdge) element);
+                    addHyperEdge((HyperEdge) element);
+                    break;
                 default:
-                    return false;
+                    throw new IllegalStateException("Could not save this element type");
             }
         }
 
         /**
          * Delete {@link GraphElement}
          */
-        public boolean deleteElement(GraphElement element) {
+        public void deleteElement(GraphElement element) {
             switch (element.getType()) {
                 case VERTEX:
-                    return deleteVertex((Vertex) element);
+                    deleteVertex((Vertex) element);
+                    break;
                 case EDGE:
-                    return deleteEdge((DirectedEdge) element);
+                    deleteEdge((DirectedEdge) element);
+                    break;
                 case ATTACHED_FEATURE:
-                    return deleteAttachedFeature((Feature) element);
+                    deleteAttachedFeature((Feature) element);
+                    break;
                 case STANDALONE_FEATURE:
-                    return deleteStandaloneFeature((Feature) element);
+                    deleteStandaloneFeature((Feature) element);
+                    break;
                 case HYPEREDGE:
-                    return deleteHyperEdge((HyperEdge) element);
+                    deleteHyperEdge((HyperEdge) element);
+                    break;
                 default:
-                    return false;
+                    throw new IllegalStateException("Could not delete this element");
             }
         }
 
         /**
          * Update {@link GraphElement}
          */
-        public boolean updateElement(GraphElement element, GraphElement memento) {
+        public void updateElement(GraphElement element, GraphElement memento) {
             switch (element.getType()) {
                 case VERTEX:
-                    return updateVertex((Vertex) element, (Vertex) memento);
+                    updateVertex((Vertex) element, (Vertex) memento);
+                    break;
                 case EDGE:
-                    return updateEdge((DirectedEdge) element, (DirectedEdge) element);
+                    updateEdge((DirectedEdge) element, (DirectedEdge) element);
+                    break;
                 case ATTACHED_FEATURE:
-                    return updateAttachedFeature((Feature) element, (Feature) memento);
+                    updateAttachedFeature((Feature) element, (Feature) memento);
+                    break;
                 case STANDALONE_FEATURE:
-                    return updateStandaloneFeature((Feature) element, (Feature) memento);
+                    updateStandaloneFeature((Feature) element, (Feature) memento);
+                    break;
                 case HYPEREDGE:
-                    return updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
+                    updateHyperEdge((HyperEdge) element, (HyperEdge) memento);
+                    break;
                 default:
-                    return false;
+                    throw new IllegalStateException("Could not update this element");
             }
         }
 
@@ -401,12 +415,12 @@ abstract public class BaseStorage extends TaskSharedState {
     public interface GraphStorageProvider extends Supplier<BaseStorage>, Serializable {}
 
     /**
-     * Default provider using {@link DefaultStorage}
+     * Default provider using {@link ListGraphStorage}
      */
     public static class DefaultGraphStorageProvider implements GraphStorageProvider {
         @Override
         public BaseStorage get() {
-            return new DefaultStorage();
+            return new ListGraphStorage();
         }
     }
 
@@ -433,10 +447,6 @@ abstract public class BaseStorage extends TaskSharedState {
         }
 
         public boolean isOpen(){return openCount > 0;}
-
-        public byte getOpenCount(){
-             return openCount;
-        }
 
     }
 

@@ -53,7 +53,7 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     /**
      * Get the {@link BaseStorage}
      */
-    abstract public BaseStorage.Graph getStorage();
+    abstract public BaseStorage.GraphView getStorage();
 
     /**
      * Get the {@link Plugin} specified by the ID

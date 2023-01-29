@@ -20,6 +20,7 @@ import java.util.Objects;
  */
 @SuppressWarnings({"unused", "unchecked"})
 public class Feature<T, V> extends ReplicableGraphElement {
+
     /**
      * Actual value stored in this Feature object
      */

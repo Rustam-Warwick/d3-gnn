@@ -200,7 +200,7 @@ public class GraphStream {
                 layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), operatorFactorySupplier, i); // Mid topology + previour
             }
 
-            iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+//            iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         }
         return layerOutputs;
     }

@@ -3,8 +3,6 @@ package org.apache.flink.runtime.state.taskshared;
 import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import org.apache.flink.api.common.state.State;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  * Base class for all task-shared state used in {@link TaskSharedKeyedStateBackend}
  * This state does not actively scope to keys instead the state is shared and stored for all tasks
@@ -22,16 +20,16 @@ abstract public class TaskSharedState implements State {
     /**
      * Counter for each register() calls. Used to populate group-to-index map
      */
-    protected final AtomicInteger registrationCounter = new AtomicInteger(0);
+    protected int registrationCounter = 0;
 
     /**
      * Register sub-task to this shared state object
      */
     public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
-        int index = registrationCounter.getAndIncrement();
         for (int i = taskSharedStateBackend.getKeyGroupRange().getStartKeyGroup(); i <= taskSharedStateBackend.getKeyGroupRange().getEndKeyGroup(); i++) {
-            groupIdToIndex.put(i, index);
+            groupIdToIndex.put(i, registrationCounter);
         }
+        registrationCounter++;
     }
 
 

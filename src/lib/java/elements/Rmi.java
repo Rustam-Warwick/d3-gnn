@@ -117,7 +117,7 @@ public class Rmi extends GraphElement {
      */
     public static void buildAndRun(Object id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
         if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG) {
-            BaseStorage.Graph tmp = getGraphRuntimeContext().getStorage();
+            BaseStorage.GraphView tmp = getGraphRuntimeContext().getStorage();
             execute(tmp.getElement(id, elemType), methodName, args);
         } else {
             getGraphRuntimeContext().output(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);

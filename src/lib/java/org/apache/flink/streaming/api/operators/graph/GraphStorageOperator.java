@@ -32,7 +32,6 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
-import storage.DefaultStorage;
 import storage.BaseStorage;
 
 import java.io.Serializable;
@@ -91,7 +90,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
      */
-    protected BaseStorage.Graph storage;
+    protected BaseStorage.GraphView storage;
 
     /**
      * Internal Timer Service
@@ -140,7 +139,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(DefaultStorage.class), storageProvider)).getOrCreateView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
+        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(BaseStorage.class), storageProvider)).createGraphStorageView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
         for (Plugin plugin : plugins.values()) {
             plugin.setRuntimeContext(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
             plugin.initializeState(context);
@@ -241,7 +240,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public BaseStorage.Graph getStorage() {
+        public BaseStorage.GraphView getStorage() {
             return storage;
         }
 

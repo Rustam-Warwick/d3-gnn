@@ -46,7 +46,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     public void open(Configuration params) throws Exception {
         super.open(params);
         throughput = new SimpleCounter();
-        latency = new MovingAverageCounter(5000);
+        latency = new MovingAverageCounter(1000);
         getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
         getRuntimeContext().getMetricGroup().counter("latency", latency);
         reuseNDList = new NDList(2);
@@ -65,12 +65,9 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         } else if (element.getType() == ElementType.EDGE) {
             DirectedEdge directedEdge = (DirectedEdge) element;
             if (messageReady(directedEdge)) {
-                reuseNDList.clear();
-                reuseNDList.add((NDArray) directedEdge.getSrc().getFeature("f").getValue());
-                NDList msg = MESSAGE(reuseNDList, false);
-                reuseFeatureId.f1 = directedEdge.getDestId();
+                NDList msg = MESSAGE(new NDList((NDArray) directedEdge.getSrc().getFeature("f").getValue()), false);
                 Rmi.buildAndRun(
-                        reuseFeatureId,
+                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -81,7 +78,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             }
         } else if (element.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) element;
-            if ("f".equals(feature.getName()) && feature.getAttachedElementType() == ElementType.VERTEX) {
+            if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
                 // Feature is always second in creation because aggregators get created immediately after VERTEX
                 reduceOutEdges((Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
@@ -98,15 +95,16 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         if (newElement.getType() == ElementType.ATTACHED_FEATURE) {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
-            if (feature.getAttachedElementType() == ElementType.VERTEX && "f".equals(feature.getName())) {
+            if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
                 updateOutEdges((Tensor) feature, (Tensor) oldFeature);
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
-            if (feature.getAttachedElementType() == ElementType.VERTEX && "agg".equals(feature.getName())) {
+            if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
                 if (feature.state() == ReplicaState.MASTER && feature.getElement().containsFeature("f"))
                     forward((Vertex) feature.getElement());
             }
         }
+
     }
 
     /**
@@ -114,19 +112,18 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     @SuppressWarnings("all")
     public void forward(Vertex v) {
-        reuseNDList.clear();
         NDArray ft = (NDArray) (v.getFeature("f")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-        reuseNDList.add(ft);
-        reuseNDList.add(agg);
-        NDArray update = UPDATE(reuseNDList, false).get(0);
-        Tensor result = new Tensor("f", update, false);
-        result.id.f0 = ElementType.VERTEX;
-        result.id.f1 = v.getId();
-        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), result));
+        NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
+        Tensor tmp = new Tensor("f", update, false);
+        tmp.setElement(v, true);
+        tmp.id.f0 = ElementType.VERTEX;
+        tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
+
 
 
     /**

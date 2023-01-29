@@ -48,22 +48,23 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
     @Override
     public void start() throws Exception {
-        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.start();
         controller.addCoordinator(this);
+        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.start();
     }
 
     @Override
     public void close() throws Exception {
-        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.close();
         controller.removeCoordinator(this);
+        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.close();
     }
 
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
-        if (bodyOperatorCoordinator != null)
-            bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
         if (event instanceof StartTermination) controller.startTermination();
         if (event instanceof ResponseScan) controller.consumeResponse(((ResponseScan) event).terminateReady);
+        if (bodyOperatorCoordinator != null)
+            bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
+
     }
 
     @Override
@@ -88,18 +89,18 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
     @Override
     public void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason) {
-        if (bodyOperatorCoordinator != null)
-            bodyOperatorCoordinator.executionAttemptFailed(subtask, attemptNumber, reason);
         gateways[subtask] = null;
         controller.removeSubOperator();
+        if (bodyOperatorCoordinator != null)
+            bodyOperatorCoordinator.executionAttemptFailed(subtask, attemptNumber, reason);
     }
 
     @Override
     public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
-        if (bodyOperatorCoordinator != null)
-            bodyOperatorCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
         gateways[subtask] = gateway;
         controller.addSubOperator();
+        if (bodyOperatorCoordinator != null)
+            bodyOperatorCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
     }
 
     /**
@@ -137,15 +138,20 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         /**
          * Number of sub-operators with iteration HEAD logic
          */
-        int numIterationSubOperators;
+        int numIterationSubOperators = 0;
         /**
          * Number of messages received from HEAD sub-operators
          */
-        int receivedFromIterationOperators;
+        int receivedFromIterationOperators = 0;
         /**
          * Found termination point
          */
-        boolean terminationFound;
+        boolean terminationFound = false;
+
+        /**
+         * Running this Thread
+         */
+        boolean running = false;
 
         /**
          * Add newly created {@link WrapperIterationHeadOperatorCoordinator} object to the list
@@ -180,8 +186,9 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          * One head has reached finish block startTermination the distributed termination detection
          */
         synchronized public void startTermination() {
-            if (!isAlive()) {
+            if (!running) {
                 start();
+                running = true;
             }
         }
 

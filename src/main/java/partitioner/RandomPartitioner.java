@@ -88,6 +88,11 @@ public class RandomPartitioner extends Partitioner {
         }
 
         @Override
+        public void close() throws Exception {
+            super.close();
+        }
+
+        @Override
         public GraphOp map(GraphOp value) throws Exception {
             short part = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
             if (value.element.getType() == ElementType.EDGE) {
