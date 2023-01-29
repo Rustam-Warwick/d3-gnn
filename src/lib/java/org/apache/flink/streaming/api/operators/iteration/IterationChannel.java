@@ -104,6 +104,7 @@ public class IterationChannel<T> implements Closeable {
          * Is this channel closed
          */
         private final AtomicBoolean closed = new AtomicBoolean(false);
+
         /**
          * Reference to the same field in the {@link IterationChannel}
          */

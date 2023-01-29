@@ -1,6 +1,7 @@
 package benchmarks;
 
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.RepeatedTest;
 
 import java.util.concurrent.ExecutorService;
@@ -12,6 +13,7 @@ import java.util.concurrent.TimeUnit;
  * ThreadLocal has a very similar performance to non-thread local variant
  * Can be used in {@link elements.Plugin}
  */
+@Disabled
 public class ThreadLocalTest {
 
     @RepeatedTest(value = 20)

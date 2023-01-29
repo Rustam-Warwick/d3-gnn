@@ -199,6 +199,23 @@ public class ListGraphStorage extends BaseStorage {
 
         @Override
         public Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName) {
+            if(elementType == ElementType.VERTEX){
+                VertexFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(featureName);
+                return () -> vertexMap.get(getRuntimeContext().getCurrentPart()).entrySet()
+                        .stream()
+                        .filter(entrySet->entrySet.getValue().hasFeatureInPosition(vertexFeatureInfo.position))
+                        .map(entrySet->{
+                            Object value = entrySet.getValue().featureValues[vertexFeatureInfo.position];
+                            Feature feature = vertexFeatureInfo.constructorAccess.newInstance();
+                            feature.value = value;
+                            feature.id.f0 = ElementType.VERTEX;
+                            feature.id.f1 = entrySet.getKey();
+                            feature.id.f2 = featureName;
+                            feature.halo = vertexFeatureInfo.halo;
+                            return feature;
+                        }).iterator();
+
+            }
             throw new IllegalStateException("NOT IMPLEMENTED");
         }
 
@@ -260,7 +277,7 @@ public class ListGraphStorage extends BaseStorage {
 
         @Override
         public ReuseScope openReuseScope() {
-            throw new IllegalStateException("NOT IMPLEMENTED");
+            return new ReuseScope();
         }
 
         @Override

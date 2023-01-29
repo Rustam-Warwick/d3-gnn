@@ -103,6 +103,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
         public void accept(RequestTraining ignored){
             if(++numReceivedRequestEvents == numRequestEventsToStart) {
+                // Do not clear just now since erroneous multi requests might arrive
                 for (SubtaskGateway subTaskGateway : mainCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
                     subTaskGateway.sendEvent(new StopStream());
                 }

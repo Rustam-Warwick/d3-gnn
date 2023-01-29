@@ -5,9 +5,13 @@ import ai.djl.ndarray.LifeCycleControl;
 import ai.djl.ndarray.NDManager;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.metrics.Counter;
+import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
+import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
+import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
+import org.apache.flink.runtime.metrics.groups.TaskMetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
@@ -25,7 +29,14 @@ import java.util.function.Consumer;
 
 /**
  * HEAD logic wrapper around the main operator logic for {@link OneInputStreamOperator}
- * Currently only supports single input stream operator but can be extended to support many sources as well
+ * <p>
+ *     Currently only supports single input stream operator but can be extended to support many sources as well
+ *     When Long.MAX_VALUE watermark arrives enters into termination detection mode
+ *     In this mode only mailbox messages are processed since no external messages are assumed
+ *     To not block the subsequent iteration head operators in the pipeline while terminating it emits Long.MAX_VALUE - 1
+ *     This watermark notifies that the input is actually finished and currently the system is in termination detection mode
+ *     Once finished termination detection it emits the Long.MAX_VALUE watermark
+ * </p>
  *
  * @param <OUT> Output Type
  */
@@ -71,6 +82,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final AbstractStreamOperator<OUT> bodyOperator;
 
     /**
+     * Consumer for Request Scan events
+     */
+    protected final Consumer<WrapperIterationHeadOperatorCoordinator.RequestScan> requestScanConsumer;
+
+    /**
      * Consumer of {@link OperatorEvent} depending on weather body implements {@link OperatorEventHandler} or not
      */
     protected final Consumer<OperatorEvent> operatorEventConsumer;
@@ -93,7 +109,12 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Counter of number of incoming messages to increments with iteration inputs
      */
-    protected final Counter numRecordsInCounter;
+    protected final TaskIOMetricGroup taskIOMetricGroup;
+
+    /**
+     * Operator IO metric
+     */
+    protected final OperatorIOMetricGroup operatorIOMetricGroup;
 
     /**
      * Termination Detection point reached can close this operator
@@ -111,25 +132,28 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected NDManager manager = BaseNDManager.getManager();
 
     /**
-     * Used for termination detection
+     * Previous count used for termination detection
      */
-    protected long previousNumRecordsInValue;
+    protected long previousCount = 0;
+
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
         this.iterationID = iterationID;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
-        this.numRecordsInCounter = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter();
+        this.taskIOMetricGroup = ((InternalOperatorMetricGroup) getMetricGroup()).getTaskIOMetricGroup();
+        this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
-        operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
+        this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         try{
-            // Underlying operator is initialized first, so it may have declared a dispatcher already. Need to override
+            // Underlying operator is initialized first, so it may have declared a dispatcher already. Need to override the handler and redirect messages to the underlying operator
             Map<OperatorID, OperatorEventHandler> handlerMap = (Map<OperatorID, OperatorEventHandler>) eventDispatcherMapField.get(parameters.getOperatorEventDispatcher());
             this.operatorEventHandlerBodyOperatorRef = handlerMap.put(getOperatorID(), this);
         }catch (Exception e){throw new RuntimeException("Cannot access the field");}
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator) ? (OneInputStreamOperator<Object, OUT>) bodyOperator : null;
         this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService) ? (ExposingInternalTimerService) bodyOperator : null;
-        operatorEventConsumer = operatorEventHandlerBodyOperatorRef == null ? this::handleOperatorEventSelf : this::handleOperatorEventWithBody;
+        this.requestScanConsumer = exposingInternalTimerServiceOperatorRef == null ? this::handleRequestScanEventWithoutTimers : this::handleRequestScanEventWithTimers;
+        this.operatorEventConsumer = operatorEventHandlerBodyOperatorRef == null ? this::handleOperatorEventSelf : this::handleOperatorEventWithBody;
     }
 
     @Override
@@ -164,7 +188,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         try {
             if (isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
             if (isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
-            numRecordsInCounter.inc();
+            operatorIOMetricGroup.getNumRecordsInCounter().inc();
             setKeyContextElement(el);
             processElement(el);
         } catch (Exception e) {
@@ -177,10 +201,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void initializeState(StreamTaskStateInitializer streamTaskStateManager) throws Exception {
-        bodyOperator.initializeState(streamTaskStateManager);
         IterationChannel<StreamRecord<Object>> channel = IterationChannelBroker.getBroker().getIterationChannel(channelID);
         bodyOperator.getContainingTask().getCancelables().registerCloseable(channel);
         channel.setConsumer(this::processOneInputFeedback, mailboxExecutor);
+        bodyOperator.initializeState(streamTaskStateManager);
     }
 
     @Override
@@ -234,10 +258,11 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
             // Enter the termination loop
             if (bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0)
                 operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
-            oneInputBodyOperatorRef.processWatermark(mark);
+            oneInputBodyOperatorRef.processWatermark(new Watermark(Long.MAX_VALUE - 1));
             while (!readyToFinish) {
-                mailboxExecutor.yield();
+                mailboxExecutor.tryYield();
             }
+            oneInputBodyOperatorRef.processWatermark(mark); // Operators might depend on this watermark so send it
         }else{
             oneInputBodyOperatorRef.processWatermark(mark);
         }
@@ -249,25 +274,48 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    final public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
+        oneInputBodyOperatorRef.processLatencyMarker(latencyMarker);
+    }
+
+    /**
+     * Handle {@link WrapperIterationHeadOperatorCoordinator.RequestScan} events when there are no times in the body
+     */
+    final public void handleRequestScanEventWithoutTimers(WrapperIterationHeadOperatorCoordinator.RequestScan requestScan){
+        long tmp = taskIOMetricGroup.getNumRecordsInCounter().getCount() + taskIOMetricGroup.getNumRecordsOutCounter().getCount();
+        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
+                tmp == previousCount
+        ));
+        previousCount = tmp;
+    }
+
+    /**
+     * Handle {@link WrapperIterationHeadOperatorCoordinator.RequestScan} events when there are times in the body
+     */
+    final public void handleRequestScanEventWithTimers(WrapperIterationHeadOperatorCoordinator.RequestScan requestScan){
+        final boolean[] hasTimers = new boolean[]{false};
+        try {
+            exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
+                hasTimers[0] = true;
+                throw new Exception("Found, do not process rest");
+            });
+        } catch (Exception ignored) {}
+        long tmp = taskIOMetricGroup.getNumRecordsInCounter().getCount() + taskIOMetricGroup.getNumRecordsOutCounter().getCount();
+        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
+                !hasTimers[0] && tmp == previousCount));
+        previousCount = tmp;
+    }
+
+    /**
      * Handle operator event if body is NOT {@link OperatorEventHandler}
      */
-    public void handleOperatorEventSelf(OperatorEvent evt) {
+    final public void handleOperatorEventSelf(OperatorEvent evt) {
         if (evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan) {
             // Requested scan for termination detection
-            final boolean[] hasTimers = new boolean[]{false};
-            if (exposingInternalTimerServiceOperatorRef != null) {
-                // If exposing check for timers to be finished
-                try {
-                    exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
-                        hasTimers[0] = true;
-                        throw new Exception("Found, do not process rest");
-                    });
-                } catch (Exception ignored) {
-                }
-            }
-            operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
-                    !hasTimers[0] && numRecordsInCounter.getCount() == previousNumRecordsInValue));
-            previousNumRecordsInValue = numRecordsInCounter.getCount();
+            requestScanConsumer.accept((WrapperIterationHeadOperatorCoordinator.RequestScan) evt);
         } else if (evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate) {
             // Ready to Terminate
             readyToFinish = true;
@@ -277,19 +325,14 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Handle operator event if body IS {@link OperatorEventHandler}
      */
-    public void handleOperatorEventWithBody(OperatorEvent evt) {
+    final public void handleOperatorEventWithBody(OperatorEvent evt) {
         operatorEventHandlerBodyOperatorRef.handleOperatorEvent(evt);
         handleOperatorEventSelf(evt);
     }
 
     @Override
-    public void handleOperatorEvent(OperatorEvent evt) {
+    final public void handleOperatorEvent(OperatorEvent evt) {
         operatorEventConsumer.accept(evt);
-    }
-
-    @Override
-    public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        oneInputBodyOperatorRef.processLatencyMarker(latencyMarker);
     }
 
 }

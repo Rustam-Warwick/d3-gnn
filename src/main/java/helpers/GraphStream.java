@@ -190,7 +190,7 @@ public class GraphStream {
         for (short i = 1; i <= layers; i++) {
             BiFunction<Short,Short, GraphStorageOperatorFactory> operatorFactorySupplier = operatorFactorySuppliers[i - 1];
             if (i == 1) {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1], operatorFactorySupplier, i); // First directly from splitter
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[2], operatorFactorySupplier, i); // First directly from splitter
             } else if (i == layers) {
                 if (hasLastLayerTopology)
                     layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), operatorFactorySupplier, i); // last with topology
@@ -200,7 +200,7 @@ public class GraphStream {
                 layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), operatorFactorySupplier, i); // Mid topology + previour
             }
 
-//            iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+            iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         }
         return layerOutputs;
     }

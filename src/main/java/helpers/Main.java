@@ -18,6 +18,7 @@ import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactor
 import plugins.ModelServer;
 import plugins.gnn_embedding.GNNEmbeddingTraining;
 import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
+import plugins.scheduler.BatchSizeTrainingScheduler;
 import plugins.scheduler.DatasetFinishTrainingScheduler;
 import plugins.vertex_classification.VertexClassificationTraining;
 
@@ -81,7 +82,7 @@ public class Main {
                     (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
             new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), pos, layers),
                     (pos, layers) -> new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new VertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss()),
-            new DatasetFinishTrainingScheduler()), pos, layers)
+            new BatchSizeTrainingScheduler(100)), pos, layers)
             ).build();
             env.execute();
         } catch (Exception e) {
