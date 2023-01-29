@@ -2,6 +2,7 @@ package elements;
 
 import elements.enums.CopyContext;
 import elements.enums.ElementType;
+import org.apache.flink.api.common.functions.RuntimeContext;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphListener;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.streaming.api.operators.graph.interfaces.RichGraphProcess;
@@ -98,11 +99,10 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
         return getRuntimeContext().getCurrentPart();
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public void setRuntimeContext(GraphRuntimeContext runtimeContext) {
-        this.runtimeContext = runtimeContext;
+
+    @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        runtimeContext = (GraphRuntimeContext) t;
     }
 
     /**

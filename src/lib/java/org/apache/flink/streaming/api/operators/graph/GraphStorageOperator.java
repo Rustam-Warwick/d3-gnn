@@ -108,9 +108,10 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.storageProvider = storageProvider;
         this.position = position;
         this.layers = layers;
+        GraphRuntimeContext impl = new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p)));
+        this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(impl));
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
-        new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
         this.eventPool = new GraphEventPool(this);
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
@@ -141,7 +142,6 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         super.initializeState(context);
         storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(BaseStorage.class), storageProvider)).createGraphStorageView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
         for (Plugin plugin : plugins.values()) {
-            plugin.setRuntimeContext(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
             plugin.initializeState(context);
         }
     }
