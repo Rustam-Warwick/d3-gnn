@@ -206,7 +206,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
         if(evt instanceof TrainingSubCoordinator.StartTraining){
             // Adjust the minibatch and epoch count, do the backward pass
             epochAndMiniBatchController.setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
-            try(BaseStorage.ReuseScope ignored = getRuntimeContext().getStorage().openReuseScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
+            try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
         else if(evt instanceof TrainingSubCoordinator.ForwardPhaser && ((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 2){

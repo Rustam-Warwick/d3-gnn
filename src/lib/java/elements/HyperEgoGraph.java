@@ -103,6 +103,13 @@ public final class HyperEgoGraph extends GraphElement {
         hyperEdges.forEach(HyperEdge::delay);
     }
 
+    @Override
+    public void destroy() {
+        super.destroy();
+        centralVertex.destroy();
+        hyperEdges.forEach(HyperEdge::destroy);
+    }
+
     /**
      * {@inheritDoc}
      */

@@ -1,6 +1,5 @@
 package storage;
 
-import ai.djl.ndarray.LifeCycleControl;
 import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
 import elements.enums.CacheFeatureContext;
@@ -18,8 +17,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class ListGraphStorage extends BaseStorage {
+public class ListObjectPoolGraphStorage extends BaseStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
@@ -34,7 +34,7 @@ public class ListGraphStorage extends BaseStorage {
     /**
      * Unique Vertex Feature Counter
      */
-    private int uniqueVertexFeatureCounter = 0;
+    private AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
 
     /**
      * Vertex Map
@@ -43,25 +43,38 @@ public class ListGraphStorage extends BaseStorage {
 
     @Override
     public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext) {
-        runtimeContext.getThisOperatorParts().forEach(part -> {
-            vertexMap.putIfAbsent(part, new HashMap<>());
-        });
         return new ListGraphView(runtimeContext);
     }
 
     @Override
     public void clear() {}
 
+    /**
+     * {@inheritDoc}
+     */
     public class ListGraphView extends GraphView {
+
+        /**
+         * Scope pool object
+         */
+        protected final ObjectPool scopePool = new ObjectPool();
+
+        /**
+         * 3 tuple id for the edges
+         */
+        protected final Tuple3<String, String, String> reuseEdgeId = new Tuple3<>();
 
         public ListGraphView(GraphRuntimeContext runtimeContext) {
             super(runtimeContext);
+            runtimeContext.getThisOperatorParts().forEach(part -> {
+                vertexMap.putIfAbsent(part, new HashMap<>());
+            });
         }
 
         @Override
         public void addAttachedFeature(Feature feature) {
             if(feature.getAttachedElementType() == ElementType.VERTEX){
-                vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key)->new VertexFeatureInfo(feature, uniqueVertexFeatureCounter++));
+                vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key)->new VertexFeatureInfo(feature, uniqueVertexFeatureCounter.getAndIncrement()));
                 vertexMap.get(getRuntimeContext().getCurrentPart()).get(feature.getAttachedElementId()).addOrUpdateFeature(feature, vertexFeatureInfoTable.get(feature.getName()));
             }
             else{
@@ -143,6 +156,9 @@ public class ListGraphStorage extends BaseStorage {
 
         @Override
         public @Nullable Vertex getVertex(String vertexId) {
+            if(scopePool.isOpen()){
+                return scopePool.getVertex(vertexId, vertexMasterTable.get(vertexId));
+            }
             return new Vertex(vertexId, vertexMasterTable.get(vertexId));
         }
 
@@ -153,6 +169,9 @@ public class ListGraphStorage extends BaseStorage {
 
         @Override
         public @Nullable DirectedEdge getEdge(Tuple3<String, String, String> id) {
+            if(scopePool.isOpen()){
+                return scopePool.getEdge(id);
+            }
             return new DirectedEdge(id.f0, id.f1, id.f2);
         }
 
@@ -162,10 +181,20 @@ public class ListGraphStorage extends BaseStorage {
             Iterator<DirectedEdge> inEdgeIterable = IteratorUtils.emptyIterator();
             Iterator<DirectedEdge> outEdgeIterable = IteratorUtils.emptyIterator();
             if(vertexInfo.outEdges!=null && (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH)){
-                outEdgeIterable = vertexInfo.outEdges.stream().map(partialIds->new DirectedEdge(vertex.getId(), partialIds[0], partialIds[1])).iterator();
+                outEdgeIterable = vertexInfo.outEdges.stream().map(partialIds-> {
+                    reuseEdgeId.f0 = vertex.getId();
+                    reuseEdgeId.f1 = partialIds[0];
+                    reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
+                    return getEdge(reuseEdgeId);
+                }).iterator();
             }
             if(vertexInfo.inEdges!=null && (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH)){
-                inEdgeIterable = vertexInfo.inEdges.stream().map(partialIds->new DirectedEdge(partialIds[0], vertex.getId(), partialIds[1])).iterator();
+                inEdgeIterable = vertexInfo.inEdges.stream().map(partialIds->{
+                    reuseEdgeId.f0 = partialIds[0];
+                    reuseEdgeId.f1 = vertex.getId();
+                    reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
+                    return getEdge(reuseEdgeId);
+                }).iterator();
             }
             Iterator<DirectedEdge> res = IteratorUtils.chainedIterator(inEdgeIterable, outEdgeIterable);
             return () -> res;
@@ -276,14 +305,15 @@ public class ListGraphStorage extends BaseStorage {
         }
 
         @Override
-        public ReuseScope openReuseScope() {
-            return new ReuseScope();
+        public ObjectPoolScope openObjectPoolScope() {
+            return scopePool;
         }
 
         @Override
-        public byte getOpenedScopeCount() {
-            throw new IllegalStateException("NOT IMPLEMENTED");
+        public byte getOpenedObjectPoolScopeCount() {
+            return scopePool.openCount;
         }
+
     }
 
     /**
@@ -304,11 +334,25 @@ public class ListGraphStorage extends BaseStorage {
                 System.arraycopy(featureValues, 0, tmp, 0, featureValues.length);
                 featureValues = tmp;
             }
-            if(featureValues[featureInfo.position] != null && featureInfo.isLifeCycleEnabled){
-                ((LifeCycleControl) featureValues[featureInfo.position]).resume();
+            List<Feature<?,?>> subFeatures = feature.features;
+            feature.features = null;
+            if(featureValues[featureInfo.position] != null){
+                // Is update
+                Object oldFeatureValue = featureValues[featureInfo.position];
+                if(oldFeatureValue != feature.value){
+                    // Values are different (non-in-place). Delay resume add and return
+                    feature.delay();
+                    featureValues[featureInfo.position] = feature.value;
+                    feature.value = oldFeatureValue;
+                    feature.resume();
+                    feature.value = featureValues[featureInfo.position];
+                }
+            }else{
+                // Is create: Delay and add
+                feature.delay();
+                featureValues[featureInfo.position] = feature.value;
             }
-            featureValues[featureInfo.position] = feature.value;
-            if (featureInfo.isLifeCycleEnabled) ((LifeCycleControl) feature.value).delay();
+            feature.features = subFeatures;
         }
 
         protected boolean hasFeatureInPosition(int position){
@@ -317,12 +361,14 @@ public class ListGraphStorage extends BaseStorage {
 
         protected void addOutEdge(DirectedEdge edge){
             if(outEdges == null) outEdges = new ObjectArrayList<>(4);
-            outEdges.add(new String[]{edge.getDestId(), edge.getAttribute()});
+            if(edge.getAttribute() == null) outEdges.add(new String[]{edge.getDestId()});
+            else outEdges.add(new String[]{edge.getDestId(), edge.getAttribute()});
         }
 
         protected void addInEdge(DirectedEdge edge){
             if(inEdges == null) inEdges = new ObjectArrayList<>(4);
-            inEdges.add(new String[]{edge.getSrcId(), edge.getAttribute()});
+            if(edge.getAttribute() == null) inEdges.add(new String[]{edge.getSrcId()});
+            else inEdges.add(new String[]{edge.getSrcId(), edge.getAttribute()});
         }
 
     }
@@ -333,8 +379,6 @@ public class ListGraphStorage extends BaseStorage {
     public static class VertexFeatureInfo{
 
         boolean halo;
-
-        boolean isLifeCycleEnabled;
 
         int position;
 
@@ -347,7 +391,53 @@ public class ListGraphStorage extends BaseStorage {
             this.halo = feature.isHalo();
             this.clazz = feature.getClass();
             this.constructorAccess = ConstructorAccess.get(this.clazz);
-            this.isLifeCycleEnabled = feature.value instanceof LifeCycleControl;
+        }
+    }
+
+    /**
+     * Reuse scope with elements cache per block
+     */
+    public class ObjectPool extends ObjectPoolScope {
+
+        List<Vertex> vertices = new ObjectArrayList<>(10);
+
+        int usingVerticesUpTo = 0;
+
+        List<DirectedEdge> edges = new ObjectArrayList<>(10);
+
+        int usingEdgesUpTo = 0;
+
+        List<Feature>[] vertexFeatures = new List[0];
+
+        int[] vertexFeaturesUpTo = new int[0];
+
+        public Vertex getVertex(String id, short masterPart){
+            if(vertices.size() <= usingVerticesUpTo) vertices.add(new Vertex());
+            Vertex v = vertices.get(usingVerticesUpTo++);
+            v.id = id;
+            v.masterPart = masterPart;
+            if(v.features != null) v.features.clear();
+            return v;
+        }
+
+        public DirectedEdge getEdge(Tuple3<String, String, String> id){
+            if(edges.size() <= usingEdgesUpTo) edges.add(new DirectedEdge());
+            DirectedEdge edge = edges.get(usingEdgesUpTo++);
+            edge.src = null;
+            edge.dest = null;
+            edge.id.f0 = id.f0;
+            edge.id.f1 = id.f1;
+            edge.id.f2 = id.f2;
+            if(edge.features != null) edge.features.clear();
+            return edge;
+        }
+
+
+        @Override
+        public void close() {
+            super.close();
+            usingVerticesUpTo = 0;
+            usingEdgesUpTo = 0;
         }
     }
 

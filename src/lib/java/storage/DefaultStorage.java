@@ -407,12 +407,12 @@
 //        }
 //
 //        @Override
-//        public ReuseScope openReuseScope() {
+//        public ReuseScope openObjectPoolScope() {
 //            return scope.open();
 //        }
 //
 //        @Override
-//        public byte getOpenedScopeCount() {
+//        public byte getOpenedObjectPoolScopeCount() {
 //            return scope.openCount;
 //        }
 //

@@ -102,4 +102,9 @@ public final class MeanAggregator extends Aggregator<CountTensorHolder> {
         value.resume();
     }
 
+    @Override
+    public void destroy() {
+        super.destroy();
+        value.destroy();
+    }
 }

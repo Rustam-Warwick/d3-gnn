@@ -220,14 +220,14 @@ abstract public class BaseStorage extends TaskSharedState {
         public abstract void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context);
 
         /**
-         * Return an instance of {@link ReuseScope} object and open that scope
+         * Return an instance of {@link ObjectPoolScope} object and open that scope
          */
-        public abstract ReuseScope openReuseScope();
+        public abstract ObjectPoolScope openObjectPoolScope();
 
         /**
-         * Get opened {@link ReuseScope} counts
+         * Get opened {@link ObjectPoolScope} counts
          */
-        public abstract byte getOpenedScopeCount();
+        public abstract byte getOpenedObjectPoolScopeCount();
 
         /**
          * Add {@link GraphElement}
@@ -415,12 +415,12 @@ abstract public class BaseStorage extends TaskSharedState {
     public interface GraphStorageProvider extends Supplier<BaseStorage>, Serializable {}
 
     /**
-     * Default provider using {@link ListGraphStorage}
+     * Default provider using {@link ListObjectPoolGraphStorage}
      */
     public static class DefaultGraphStorageProvider implements GraphStorageProvider {
         @Override
         public BaseStorage get() {
-            return new ListGraphStorage();
+            return new ListObjectPoolGraphStorage();
         }
     }
 
@@ -432,11 +432,11 @@ abstract public class BaseStorage extends TaskSharedState {
      *     In such mode, UDF should not depend on storing the returned objects as they might change value later
      * </p>
      */
-    public static class ReuseScope implements AutoCloseable {
+    public static class ObjectPoolScope implements AutoCloseable {
 
         protected byte openCount;
 
-        protected ReuseScope open(){
+        protected ObjectPoolScope open(){
             openCount++;
             return this;
         }

@@ -291,6 +291,14 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        if (features != null) features.forEach(LifeCycleControl::destroy);
+    }
+
+    /**
+     * {@inheritDoc}
      * Attach all feature back to this element. Needed since they are <code>transient</code>
      */
     @Override

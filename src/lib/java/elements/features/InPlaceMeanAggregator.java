@@ -102,4 +102,10 @@ public final class InPlaceMeanAggregator extends Aggregator<CountTensorHolder> {
         super.resume();
         value.resume();
     }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        value.destroy();
+    }
 }

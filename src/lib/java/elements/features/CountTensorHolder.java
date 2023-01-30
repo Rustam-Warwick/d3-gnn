@@ -25,6 +25,11 @@ public class CountTensorHolder implements LifeCycleControl {
     }
 
     @Override
+    public void destroy() {
+        val.destroy();
+    }
+
+    @Override
     public String toString() {
         return String.valueOf(count);
     }

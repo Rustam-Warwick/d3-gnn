@@ -151,6 +151,15 @@ public class Rmi extends GraphElement {
             if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).resume();
         }
     }
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        for (Object arg : args) {
+            if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).destroy();
+        }
+    }
 
     /**
      * {@inheritDoc}

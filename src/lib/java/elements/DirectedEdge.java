@@ -173,6 +173,16 @@ public final class DirectedEdge extends GraphElement {
      * {@inheritDoc}
      */
     @Override
+    public void destroy() {
+        super.destroy();
+        if (src != null) src.destroy();
+        if (dest != null) dest.destroy();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public void onDeserialized() {
         super.onDeserialized();
         if (src != null) src.onDeserialized();

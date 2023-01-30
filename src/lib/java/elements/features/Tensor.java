@@ -70,4 +70,10 @@ public class Tensor extends Feature<NDArray, NDArray> {
         super.resume();
         value.resume();
     }
+
+    @Override
+    public void destroy() {
+        super.destroy();
+        value.destroy();
+    }
 }

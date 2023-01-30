@@ -80,7 +80,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) element;
             if ("f".equals(feature.getName()) && feature.id.f0 == ElementType.VERTEX) {
                 // Feature is always second in creation because aggregators get created immediately after VERTEX
-                reduceOutEdges((Vertex) feature.getElement());
+                reduceOutEdgesOptimized((Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
         }
@@ -96,7 +96,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                updateOutEdges((Tensor) feature, (Tensor) oldFeature);
+                updateOutEdgesOptimized((Tensor) feature, (Tensor) oldFeature);
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {

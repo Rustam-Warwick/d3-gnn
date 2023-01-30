@@ -126,6 +126,11 @@ public final class GraphOp implements LifeCycleControl {
     }
 
     @Override
+    public void destroy() {
+        if(element != null) element.destroy();
+    }
+
+    @Override
     public String toString() {
         return "GraphOp{" +
                 "op=" + op +
