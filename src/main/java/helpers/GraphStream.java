@@ -44,35 +44,33 @@ public class GraphStream {
     /**
      * List of storage and plugins where each one corresponds to single layer in GNN pipeline
      */
-    protected final BiFunction<Short,Short, GraphStorageOperatorFactory>[] operatorFactorySuppliers;
-    /**
-     * If the last storage layer should receive topology updates
-     */
-    protected final boolean hasLastLayerTopology;
+    protected final BiFunction<Short,Short, GraphStorageOperatorFactory> operatorFactorySupplier;
 
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
      */
     protected final short layers;
+
     /**
      * List of {@link IterateStream} for processFunctions + the splitter
      */
-    protected IterateStream<GraphOp, GraphOp>[] iterateStreams;
+    protected final IterateStream<GraphOp, GraphOp>[] iterateStreams;
+
     /**
      * {@link Partitioner} to be used
      */
     protected Partitioner partitioner;
+
+     /**
+     * {@link Dataset} to be used
+     */
+    protected Dataset dataset;
 
     /**
      * Explosion coefficient across the Storage layers
      */
     @CommandLine.Option(names = {"-l", "--lambda"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = "explosion coefficient")
     protected double lambda; // GNN operator explosion coefficient. 1 means no explosion
-
-    /**
-     * {@link Dataset} to be used
-     */
-    protected Dataset dataset;
 
     /**
      * Should the resources be fineGrained, adding slotSharingGroups and etc.
@@ -94,18 +92,18 @@ public class GraphStream {
     @CommandLine.Option(names = {"-d", "--dataset"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Dataset to be used")
     protected String datasetName;
 
-    @SafeVarargs
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, boolean hasLastLayerTopology, BiFunction<Short, Short, GraphStorageOperatorFactory>... operatorFactorySuppliers) {
+
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, short layers, BiFunction<Short, Short, GraphStorageOperatorFactory> operatorFactorySupplier) {
         Preconditions.checkNotNull(env);
-        env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
+        Preconditions.checkState(layers >= 1);
         Arrays.sort(cmdArgs);
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
         this.env = env;
         this.env.getConfig().enableObjectReuse();
+        this.env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
         this.configureSerializers();
-        this.hasLastLayerTopology = hasLastLayerTopology;
-        this.operatorFactorySuppliers = operatorFactorySuppliers;
-        this.layers = (short) operatorFactorySuppliers.length;
+        this.layers = layers;
+        this.operatorFactorySupplier = operatorFactorySupplier;
         this.iterateStreams = new IterateStream[this.layers + 1]; // SPLITTER + Storage operator
         this.dataset = Dataset.getDataset(datasetName, cmdArgs);
         this.partitioner = Partitioner.getPartitioner(partitionerName, cmdArgs);
@@ -149,11 +147,10 @@ public class GraphStream {
      * Add Storage operator
      *
      * @param inputStream incoming GraphOp for this layer, not partitioned yet
-     * @param operatorFactorySupplier     List of Plugins to be used
      * @param position       position of the storage layer [1...layers]
      * @return Output of this storage operator not partitioned
      */
-    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, BiFunction<Short, Short, GraphStorageOperatorFactory> operatorFactorySupplier, short position) {
+    protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, short position) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, position - 1));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
@@ -181,23 +178,18 @@ public class GraphStream {
     /**
      * Second part of build responsible for storage operators, this part is modifiable(extensible)
      *
-     * @param layerOutputs [datsset, partitioner, splitter, ... empty]
+     * @param layerOutputs [dataset, partitioner, splitter, ... empty]
      */
     public DataStream<GraphOp>[] build(SingleOutputStreamOperator<GraphOp>[] layerOutputs) {
         DataStream<GraphOp> topologyUpdates = layerOutputs[2].getSideOutput(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT);
         DataStream<GraphOp> trainTestSplit = layerOutputs[2].getSideOutput(OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
-
         for (short i = 1; i <= layers; i++) {
-            BiFunction<Short,Short, GraphStorageOperatorFactory> operatorFactorySupplier = operatorFactorySuppliers[i - 1];
             if (i == 1) {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[2], operatorFactorySupplier, i); // First directly from splitter
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[2], i); // First directly from splitter
             } else if (i == layers) {
-                if (hasLastLayerTopology)
-                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates, trainTestSplit), operatorFactorySupplier, i); // last with topology
-                else
-                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), operatorFactorySupplier, i); // Last without topology
+                    layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(trainTestSplit), i); // Last without topology
             } else {
-                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), operatorFactorySupplier, i); // Mid topology + previour
+                layerOutputs[i + 2] = addStorageOperator(layerOutputs[i + 1].union(topologyUpdates), i); // Mid-topology + previour
             }
 
             iterateStreams[i-1].closeIteration(layerOutputs[i+2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));

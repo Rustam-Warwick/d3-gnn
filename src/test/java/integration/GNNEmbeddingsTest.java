@@ -52,17 +52,15 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            BiFunction<Short, Short, GraphStorageOperatorFactory>[] processFunctions = new BiFunction[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] =
-                        (pos, layer) -> new GraphStorageOperatorFactory(
-                        List.of(
-                                new ModelServer<>(models.get(pos-1)),
-                                new StreamingGNNEmbedding(models.get(pos-1).getName(), true),
-                                new LogCallbacks()
-                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
-            }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+            BiFunction<Short, Short, GraphStorageOperatorFactory> processFunction;
+            processFunction =
+                    (pos, layer) -> new GraphStorageOperatorFactory(
+                    List.of(
+                            new ModelServer<>(models.get(pos-1)),
+                            new StreamingGNNEmbedding(models.get(pos-1).getName(), true),
+                            new LogCallbacks()
+                    ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);
@@ -81,17 +79,15 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            BiFunction<Short, Short, GraphStorageOperatorFactory>[] processFunctions = new BiFunction[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] =
-                        (pos, layer) -> new GraphStorageOperatorFactory(
-                                List.of(
-                                        new ModelServer<>(models.get(pos-1)),
-                                        new SessionWindowedGNNEmbedding(models.get(pos-1).getName(), true, 150),
-                                        new LogCallbacks()
-                                ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
-            }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+            BiFunction<Short, Short, GraphStorageOperatorFactory> processFunction;
+            processFunction =
+                    (pos, layer) -> new GraphStorageOperatorFactory(
+                            List.of(
+                                    new ModelServer<>(models.get(pos-1)),
+                                    new SessionWindowedGNNEmbedding(models.get(pos-1).getName(), true, 150),
+                                    new LogCallbacks()
+                            ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);

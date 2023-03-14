@@ -92,16 +92,21 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected final GraphEventPool eventPool;
 
+    /**
+     * Graph Runtime Context
+     */
+    protected final GraphRuntimeContext graphRuntimeContext;
+
 
     public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
         this.processingTimeService = processingTimeService;
-        setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.layers = layers;
         this.mailboxExecutor = mailboxExecutor;
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        new GraphRuntimeContextImpl();
+        this.graphRuntimeContext = new GraphRuntimeContextImpl();
         this.eventPool = new GraphEventPool(this);
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }

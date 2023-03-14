@@ -98,6 +98,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected InternalTimerService<VoidNamespace> internalTimerService;
 
     /**
+     * Graph Runtime context
+     */
+    protected final GraphRuntimeContext graphRuntimeContext;
+
+    /**
      * User time service that {@link GraphElement} interact with
      */
     protected TimerService userTimerService;
@@ -108,9 +113,9 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.storageProvider = storageProvider;
         this.position = position;
         this.layers = layers;
-        GraphRuntimeContext impl = new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
+        this.graphRuntimeContext = new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p)));
-        this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(impl));
+        this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(this.graphRuntimeContext));
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.eventPool = new GraphEventPool(this);
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
@@ -140,7 +145,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        storage = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(BaseStorage.class), storageProvider)).createGraphStorageView(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get());
+        this.storage = graphRuntimeContext.getTaskSharedState(new TaskSharedStateDescriptor<>("storage", TypeInformation.of(BaseStorage.class), storageProvider)).createGraphStorageView(this.graphRuntimeContext);
         for (Plugin plugin : plugins.values()) {
             plugin.initializeState(context);
         }
