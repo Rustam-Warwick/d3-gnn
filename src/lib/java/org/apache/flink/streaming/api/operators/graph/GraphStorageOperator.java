@@ -85,7 +85,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Map of ID -> Plugin. Actually {@link TaskSharedPerPartMapState}
      */
-    protected Map<String, Plugin> plugins;
+    protected final Map<String, Plugin> plugins;
+
+     /**
+     * Graph Runtime context
+     */
+    protected final GraphRuntimeContext graphRuntimeContext;
 
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
@@ -98,14 +103,14 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected InternalTimerService<VoidNamespace> internalTimerService;
 
     /**
-     * Graph Runtime context
-     */
-    protected final GraphRuntimeContext graphRuntimeContext;
-
-    /**
      * User time service that {@link GraphElement} interact with
      */
     protected TimerService userTimerService;
+
+    /**
+     * Counter for flush detection
+     */
+    protected long previousCount = 0;
 
     public GraphStorageOperator(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = processingTimeService;
@@ -117,7 +122,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p)));
         this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(this.graphRuntimeContext));
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
-        this.eventPool = new GraphEventPool(this);
+        this.eventPool = new GraphEventPool(this, this.graphRuntimeContext);
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
@@ -185,6 +190,18 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
+        if(evt instanceof TrainingSubCoordinator.RequestScan){
+            long tmp = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter().getCount() + getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount();
+            final boolean[] hasTimers = new boolean[]{false};
+            try {
+                getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
+                    hasTimers[0] = true;
+                    throw new Exception("Found, do not process rest");
+                });
+            } catch (Exception ignored) {}
+            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.ResponseScan(!hasTimers[0] && tmp == previousCount));
+            previousCount = tmp;
+        }
         for (Plugin plugin : plugins.values()) {
             plugin.handleOperatorEvent(evt);
         }

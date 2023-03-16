@@ -10,12 +10,17 @@ import elements.GraphOp;
 import elements.features.Tensor;
 import helpers.GraphStream;
 import helpers.datasets.MeshGraphGenerator;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.function.TriFunction;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -29,7 +34,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 public class GNNEmbeddingsTest extends IntegrationTest {
@@ -52,14 +56,16 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            BiFunction<Short, Short, GraphStorageOperatorFactory> processFunction;
-            processFunction =
-                    (pos, layer) -> new GraphStorageOperatorFactory(
-                    List.of(
-                            new ModelServer<>(models.get(pos-1)),
-                            new StreamingGNNEmbedding(models.get(pos-1).getName(), true),
-                            new LogCallbacks()
-                    ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            TriFunction<Short, Short,Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                        if(pos == 0) return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                        return new GraphStorageOperatorFactory(
+                                List.of(
+                                        new ModelServer<>(models.get(pos - 1)),
+                                        new StreamingGNNEmbedding(models.get(pos - 1).getName(), true),
+                                        new LogCallbacks()
+                                ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    };
             DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
@@ -79,14 +85,16 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
             env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            BiFunction<Short, Short, GraphStorageOperatorFactory> processFunction;
-            processFunction =
-                    (pos, layer) -> new GraphStorageOperatorFactory(
-                            List.of(
-                                    new ModelServer<>(models.get(pos-1)),
-                                    new SessionWindowedGNNEmbedding(models.get(pos-1).getName(), true, 150),
-                                    new LogCallbacks()
-                            ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            TriFunction<Short, Short,Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                if(pos == 0) return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                return new GraphStorageOperatorFactory(
+                        List.of(
+                                new ModelServer<>(models.get(pos-1)),
+                                new SessionWindowedGNNEmbedding(models.get(pos-1).getName(), true, 150),
+                                new LogCallbacks()
+                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            };
             DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();

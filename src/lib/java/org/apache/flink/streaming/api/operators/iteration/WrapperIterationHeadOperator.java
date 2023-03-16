@@ -115,14 +115,14 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final OperatorIOMetricGroup operatorIOMetricGroup;
 
     /**
+     * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
+     */
+    protected final boolean hasLifeCycleControl;
+
+    /**
      * Termination Detection point reached can close this operator
      */
     protected boolean readyToFinish = false;
-
-    /**
-     * If the elements in this channel are instances of {@link ai.djl.ndarray.LifeCycleControl}. If it is the case, need to resume on taking from buffer
-     */
-    protected Boolean isLifeCycle;
 
     /**
      * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
@@ -135,8 +135,9 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected long previousCount = 0;
 
 
-    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters) {
+    public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters, boolean hasLifeCycleControl) {
         this.iterationID = iterationID;
+        this.hasLifeCycleControl = hasLifeCycleControl;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
         this.taskIOMetricGroup = ((InternalOperatorMetricGroup) getMetricGroup()).getTaskIOMetricGroup();
@@ -184,8 +185,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
      */
     public void processOneInputFeedback(StreamRecord<Object> el) {
         try {
-            if (isLifeCycle == null) isLifeCycle = el.getValue() instanceof LifeCycleControl;
-            if (isLifeCycle) ((LifeCycleControl) el.getValue()).resume();
+            if (hasLifeCycleControl) ((LifeCycleControl) el.getValue()).resume();
             operatorIOMetricGroup.getNumRecordsInCounter().inc();
             setKeyContextElement(el);
             processElement(el);
@@ -254,9 +254,9 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     public void processWatermark(Watermark mark) throws Exception {
         if (mark.getTimestamp() == Long.MAX_VALUE && !readyToFinish) {
             // Enter the termination loop
+            oneInputBodyOperatorRef.processWatermark(new Watermark(Long.MAX_VALUE - 1));
             if (bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0)
                 operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
-            oneInputBodyOperatorRef.processWatermark(new Watermark(Long.MAX_VALUE - 1));
             while (!readyToFinish) {
                 mailboxExecutor.tryYield();
             }

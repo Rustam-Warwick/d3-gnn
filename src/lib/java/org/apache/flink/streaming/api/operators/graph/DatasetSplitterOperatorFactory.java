@@ -52,7 +52,7 @@ public class DatasetSplitterOperatorFactory extends AbstractStreamOperatorFactor
 
     @Override
     public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
-        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider((short) 0, operatorID, graphOperatorSubCoordinatorsProvider);
+        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider((short) 0, layers, operatorID, graphOperatorSubCoordinatorsProvider);
     }
 
     @Override

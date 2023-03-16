@@ -30,11 +30,11 @@ public class GraphEventPool implements Serializable {
      */
     public final GraphRuntimeContext graphRuntimeContext;
 
-    public GraphEventPool(OperatorEventHandler streamOperator) {
-        this.graphRuntimeContext = GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
+    public GraphEventPool(OperatorEventHandler eventHandler, GraphRuntimeContext graphRuntimeContext) {
+        this.graphRuntimeContext = graphRuntimeContext;
         Preconditions.checkNotNull(graphRuntimeContext, "Cannot find graph runtime context");
         this.events = new Object2ObjectOpenHashMap<>(4);
-        this.eventHandler = streamOperator;
+        this.eventHandler = eventHandler;
     }
 
     /**

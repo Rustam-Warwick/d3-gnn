@@ -218,8 +218,8 @@ public class VertexClassificationTraining extends BaseVertexOutput {
                 // Stop training
                 epochAndMiniBatchController.clear();
                 getRuntimeContext().runForAllLocalParts(this::stopTraining);
-                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeInference()), OutputTags.BACKWARD_OUTPUT_TAG);
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeInference());
+                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeIngress()), OutputTags.BACKWARD_OUTPUT_TAG);
+                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeIngress());
             }
         }
     }

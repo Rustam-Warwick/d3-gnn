@@ -1,6 +1,6 @@
 package org.apache.flink.streaming.runtime.translators;
 
-import org.apache.flink.api.common.ExecutionConfig;
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.api.dag.Transformation;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.streaming.api.graph.SimpleTransformationTranslator;
@@ -60,7 +60,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
             // Easy Access
             final StreamGraph streamGraph = context.getStreamGraph();
             final int iterationHeadId = transformation.getId();
-            final ExecutionConfig executionConfig = streamGraph.getExecutionConfig();
+            final boolean hasLifeCycleControl = LifeCycleControl.class.isAssignableFrom(transformation.getIterationBodyTransformation().getInputs().get(0).getOutputType().getTypeClass());
             final List<Integer> results = new ArrayList<>();
 
             // Configuration of SlotSharingGroup And transforming body first
@@ -72,7 +72,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
             bodyStreamNode.setCoLocationGroup(coLocationGroupKey);
             // Wrap body operator around with HEAD Logic
             StreamOperatorFactory<?> bodyOperatorFactory = (StreamOperatorFactory<?>) operatorFactoryField.get(bodyStreamNode);
-            operatorFactoryField.set(bodyStreamNode, new WrapperIterationHeadOperatorFactory<>(iterationHeadId, bodyOperatorFactory));
+            operatorFactoryField.set(bodyStreamNode, new WrapperIterationHeadOperatorFactory<>(iterationHeadId, bodyOperatorFactory, hasLifeCycleControl));
             // Add the Iteration TAIL Operators
             for (Transformation<OUT> iterationFeedbackTransformation : transformation.getIterationFeedbackTransformations()) {
                 Collection<Integer> feedbackVertexIds = context.transform(iterationFeedbackTransformation); // Create feedback transformations first
@@ -82,7 +82,7 @@ public class IterateTransformationTranslator<OUT> extends SimpleTransformationTr
                         iterationTailId,
                         slotSharingGroup,
                         coLocationGroupKey,
-                        new IterationTailOperatorFactory<>(iterationHeadId),
+                        new IterationTailOperatorFactory<>(iterationHeadId, hasLifeCycleControl),
                         transformation.getOutputType(), // This is actually the input type of the iteration
                         TypeExtractor.createTypeInfo(Void.class),
                         String.format("[TAIL]%s", bodyStreamNode.getOperatorName()));

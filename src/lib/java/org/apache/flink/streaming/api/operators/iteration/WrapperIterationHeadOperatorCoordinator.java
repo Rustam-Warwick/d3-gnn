@@ -8,6 +8,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Coordinator for {@link WrapperIterationHeadOperator}
@@ -16,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordinator {
 
     /**
-     * Coordinator for the internal operator
+     * Coordinator for the internal operator. All the events are also directed to this body operator coordinator if it exists
      */
     @Nullable
     protected final OperatorCoordinator bodyOperatorCoordinator;
@@ -135,23 +137,26 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          * List of all Coordinators
          */
         protected final List<WrapperIterationHeadOperatorCoordinator> coordinators = new ArrayList<>(4);
+
         /**
          * Number of sub-operators with iteration HEAD logic
          */
-        int numIterationSubOperators = 0;
+        protected final AtomicInteger numIterationSubOperators = new AtomicInteger(0);
+
         /**
          * Number of messages received from HEAD sub-operators
          */
-        int receivedFromIterationOperators = 0;
+        protected final AtomicInteger receivedFromIterationOperators = new AtomicInteger(0);
+
         /**
          * Found termination point
          */
-        boolean terminationFound = false;
+        protected final AtomicBoolean terminationFound = new AtomicBoolean(false);
 
         /**
          * Running this Thread
          */
-        boolean running = false;
+        protected final AtomicBoolean startedOnce = new AtomicBoolean(false);
 
         /**
          * Add newly created {@link WrapperIterationHeadOperatorCoordinator} object to the list
@@ -171,57 +176,58 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         /**
          * New Sub-Operator added increment counter
          */
-        synchronized void addSubOperator() {
-            numIterationSubOperators++;
+        void addSubOperator() {
+            numIterationSubOperators.incrementAndGet();
         }
 
         /**
          * Sub-Operator failed increment counter
          */
-        synchronized void removeSubOperator() {
-            numIterationSubOperators--;
+        void removeSubOperator() {
+            numIterationSubOperators.decrementAndGet();
         }
 
         /**
-         * One head has reached finish block startTermination the distributed termination detection
+         * One head has reached finish block startFlushing the distributed termination detection
          */
-        synchronized public void startTermination() {
-            if (!running) {
-                start();
-                running = true;
-            }
+        void startTermination() {
+            if (!startedOnce.getAndSet(true)) start();
         }
 
         /**
          * Consume Scan response
          */
-        synchronized void consumeResponse(boolean response) {
-            terminationFound &= response;
-            receivedFromIterationOperators++;
+        void consumeResponse(boolean response) {
+            terminationFound.compareAndExchange(true, response);
+            if(receivedFromIterationOperators.incrementAndGet() == numIterationSubOperators.get()) {
+                synchronized (this) {
+                    notify();
+                }
+            };
         }
 
         @Override
         public void run() {
             try {
-                while (!terminationFound) {
-                    terminationFound = true; // Assume found if not negated by sub-operator
+                while (!terminationFound.get()) {
+                    terminationFound.set(true); // Assume found if not negated by sub-operator
+                    receivedFromIterationOperators.set(0);
                     coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doScan);
-                    while (receivedFromIterationOperators < numIterationSubOperators) {
-                        Thread.onSpinWait();
+                    synchronized (this) {
+                        while (receivedFromIterationOperators.get() < numIterationSubOperators.get()) {
+                            wait();
+                        }
                     }
-                    if (terminationFound) {
+                    if (terminationFound.get()) {
                         coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
                     } else {
                         Thread.sleep(1000);
-                        receivedFromIterationOperators = 0;
                     }
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
-
-
     }
 
     /**
@@ -279,10 +285,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
         @Override
         public OperatorCoordinator create(Context context) throws Exception {
-            if (bodyOperatorCoordinatorProvider == null)
-                return new WrapperIterationHeadOperatorCoordinator(null, context);
-            else
-                return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider.create(context), context);
+            return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider == null ? null : bodyOperatorCoordinatorProvider.create(context), context);
         }
     }
 }

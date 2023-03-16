@@ -225,11 +225,6 @@ abstract public class BaseStorage extends TaskSharedState {
         public abstract ObjectPoolScope openObjectPoolScope();
 
         /**
-         * Get opened {@link ObjectPoolScope} counts
-         */
-        public abstract byte getOpenedObjectPoolScopeCount();
-
-        /**
          * Add {@link GraphElement}
          */
         public void addElement(GraphElement element) {

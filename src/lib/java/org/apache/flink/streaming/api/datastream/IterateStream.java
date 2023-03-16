@@ -64,7 +64,7 @@ public class IterateStream<T, IT> extends DataStream<T> {
     }
 
     /**
-     * Add Iteration Tail to the startTermination element that was created
+     * Add Iteration Tail to the startFlushing element that was created
      */
     public void closeIteration(DataStream<IT> feedbackStream) {
         headTransformation.addFeedbackEdge(feedbackStream.getTransformation());

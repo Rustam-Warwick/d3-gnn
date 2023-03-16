@@ -2,14 +2,13 @@ package benchmarks;
 
 import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.queues.SpscLinkedQueue;
 import org.junit.Test;
-import org.junit.jupiter.api.Disabled;
 
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.Phaser;
 
-@Disabled
+
 public class BufferPerformanceTests {
 
     public long testLinkedTransferQueue() {

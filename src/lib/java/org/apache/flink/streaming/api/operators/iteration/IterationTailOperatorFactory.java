@@ -14,13 +14,19 @@ public class IterationTailOperatorFactory<IN> extends AbstractStreamOperatorFact
      */
     protected final int iterationID;
 
-    public IterationTailOperatorFactory(int iterationID) {
+    /**
+     * Are element with {@link ai.djl.ndarray.LifeCycleControl}
+     */
+    protected final boolean hasLifeCycleControl;
+
+    public IterationTailOperatorFactory(int iterationID, boolean hasLifeCycleControl) {
         this.iterationID = iterationID;
+        this.hasLifeCycleControl = hasLifeCycleControl;
     }
 
     @Override
     public <T extends StreamOperator<Void>> T createStreamOperator(StreamOperatorParameters<Void> parameters) {
-        return (T) new IterationTailOperator<IN>(iterationID, parameters);
+        return (T) new IterationTailOperator<IN>(iterationID, parameters, hasLifeCycleControl);
     }
 
     @Override

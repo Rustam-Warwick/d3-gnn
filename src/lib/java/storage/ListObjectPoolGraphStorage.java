@@ -309,11 +309,6 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             return scopePool;
         }
 
-        @Override
-        public byte getOpenedObjectPoolScopeCount() {
-            return scopePool.openCount;
-        }
-
     }
 
     /**

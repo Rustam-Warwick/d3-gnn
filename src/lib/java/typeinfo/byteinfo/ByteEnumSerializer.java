@@ -28,7 +28,7 @@ public final class ByteEnumSerializer<T extends Enum<T>> extends TypeSerializer<
      * Enum#ordinal()}. This allows us to maintain backwards compatibility for previous serialized
      * data in the case that the order of enum constants was changed or new constants were added.
      *
-     * <p>On a fresh startTermination with no reconfiguration, the ordinals would simply be identical to the
+     * <p>On a fresh startFlushing with no reconfiguration, the ordinals would simply be identical to the
      * enum constants actual ordinals. Ordinals may change after reconfiguration.
      */
     private Map<T, Integer> valueToOrdinal;

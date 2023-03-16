@@ -11,7 +11,11 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.training.loss.Loss;
+import elements.GraphOp;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
 import plugins.gnn_embedding.GNNEmbeddingTraining;
@@ -74,7 +78,8 @@ public class Main {
         try {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            new GraphStream(env, args, (short) 3, (position, layers) -> {
+            new GraphStream(env, args, (short) 3, (position, layers, extra) -> {
+                if(position == 0) return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0]);
                 if(position == 1) return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new GNNEmbeddingTraining(models.get(0).getName(), false), new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), position, layers);
                 if(position == 2) return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
                         new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), position, layers);

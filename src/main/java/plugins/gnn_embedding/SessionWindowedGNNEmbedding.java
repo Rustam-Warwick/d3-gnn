@@ -97,7 +97,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.StopStream){
+        if(evt instanceof TrainingSubCoordinator.StopIngress){
             getRuntimeContext().runForAllLocalParts(()-> {
                 if(BATCH.containsKey(getRuntimeContext().getCurrentPart())) evictUpUntil(Long.MAX_VALUE);
             });

@@ -1,7 +1,6 @@
 package org.apache.flink.streaming.api.operators.graph;
 
 import elements.GraphElement;
-import elements.GraphEvent;
 import elements.GraphOp;
 import elements.Plugin;
 import elements.enums.Op;
@@ -43,9 +42,9 @@ import java.util.Set;
  * <p>
  * Apart from taking in the {@link KeyedProcessFunction} for splitting the {@link datasets.Dataset}
  * also handles the training and flushing the input stream.
- * On reception of {@link TrainingSubCoordinator.StopStream} it stops the operator from consuming messages
+ * On reception of {@link TrainingSubCoordinator.StopIngress} it stops the operator from consuming messages
  * This causes a backpressure which also hold the checkpoints. Note that iteration messages will still flow normally only topological messages will stop
- * On reception of {@link org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator.ResumeInference} it will resume the computation and continue streaming
+ * On reception of {@link TrainingSubCoordinator.ResumeIngress} it will resume the computation and continue streaming
  * </p>
  *
  * @implNote Always located at position 0, hence no explicit position passed in here
@@ -97,6 +96,10 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
      */
     protected final GraphRuntimeContext graphRuntimeContext;
 
+    /**
+     * Counter for flush detection
+     */
+    protected long previousCount = 0;
 
     public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
@@ -107,7 +110,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         this.graphRuntimeContext = new GraphRuntimeContextImpl();
-        this.eventPool = new GraphEventPool(this);
+        this.eventPool = new GraphEventPool(this, this.graphRuntimeContext);
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
     }
 
@@ -138,8 +141,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.StopStream){
-            thisOutput.broadcastAll(reuse.replace(new GraphOp((GraphEvent) evt)));
+        if(evt instanceof TrainingSubCoordinator.StopIngress){
             operationMode = OperationMode.TRAINING;
             try{
                 while(operationMode == OperationMode.TRAINING){
@@ -148,11 +150,22 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
             }catch (InterruptedException ignored){
                 // Can be interrupted to close prematurely
             }
-        }
-        else if(evt instanceof TrainingSubCoordinator.ResumeInference){
+        }else if(evt instanceof TrainingSubCoordinator.ResumeIngress){
             // Back to running mode
             operationMode = OperationMode.RUNNING;
+        }else if(evt instanceof TrainingSubCoordinator.RequestScan){
+            long tmp = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter().getCount() + getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount();
+            final boolean[] hasTimers = new boolean[]{false};
+            try {
+                getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
+                    hasTimers[0] = true;
+                    throw new Exception("Found, do not process rest");
+                });
+            } catch (Exception ignored) {}
+            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.ResponseScan(!hasTimers[0] && tmp == previousCount));
+            previousCount = tmp;
         }
+
     }
 
     /**

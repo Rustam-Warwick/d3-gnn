@@ -89,7 +89,7 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
 
     @Override
     public OperatorCoordinator.Provider getCoordinatorProvider(String operatorName, OperatorID operatorID) {
-        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider(position, operatorID, graphOperatorSubCoordinatorsProvider);
+        return new GraphOperatorCoordinator.GraphOperatorCoordinatorProvider(position, layers, operatorID, graphOperatorSubCoordinatorsProvider);
     }
 
     @Override

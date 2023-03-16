@@ -17,15 +17,14 @@ import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
-import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Preconditions;
+import org.apache.flink.util.function.TriFunction;
 import partitioner.Partitioner;
 import picocli.CommandLine;
 
 import java.util.Arrays;
-import java.util.function.BiFunction;
 
 /**
  * Helper class for creating a pipeline
@@ -44,7 +43,7 @@ public class GraphStream {
     /**
      * List of storage and plugins where each one corresponds to single layer in GNN pipeline
      */
-    protected final BiFunction<Short,Short, GraphStorageOperatorFactory> operatorFactorySupplier;
+    protected final TriFunction<Short,Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> operatorFactorySupplier;
 
     /**
      * Number of Storage layers in the pipeline {@code processFunctions.length}
@@ -93,7 +92,7 @@ public class GraphStream {
     protected String datasetName;
 
 
-    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, short layers, BiFunction<Short, Short, GraphStorageOperatorFactory> operatorFactorySupplier) {
+    public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, short layers, TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> operatorFactorySupplier) {
         Preconditions.checkNotNull(env);
         Preconditions.checkState(layers >= 1);
         Arrays.sort(cmdArgs);
@@ -152,7 +151,7 @@ public class GraphStream {
      */
     protected final SingleOutputStreamOperator<GraphOp> addStorageOperator(DataStream<GraphOp> inputStream, short position) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, position - 1));
-        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers)).setParallelism(thisParallelism);
+        SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers, null)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + position);
         iterateStreams[position] = IterateStream.startIteration(storageOperator);
         iterateStreams[position].closeIteration(storageOperator.getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()));
@@ -168,7 +167,7 @@ public class GraphStream {
      */
     protected final SingleOutputStreamOperator<GraphOp> addSplitterOperator(DataStream<GraphOp> inputStream, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> splitter) {
         int thisParallelism = env.getParallelism();
-        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), new DatasetSplitterOperatorFactory(layers,splitter)).setParallelism(thisParallelism).name("Splitter");
+        SingleOutputStreamOperator<GraphOp> splitterOperator = inputStream.keyBy(new PartKeySelector()).transform("Splitter", TypeInformation.of(GraphOp.class), operatorFactorySupplier.apply((short)0, layers, new Object[]{splitter})).setParallelism(thisParallelism).name("Splitter");
         if (fineGrainedResourceManagementEnabled) splitterOperator.slotSharingGroup("GNN-1");
         iterateStreams[0] = IterateStream.startIteration(splitterOperator);
         return splitterOperator;

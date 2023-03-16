@@ -24,6 +24,12 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      * Full ID of {@link IterationChannel}
      */
     protected final IterationChannelKey channelID;
+
+    /**
+     * If the elements in this channel are instances of {@link LifeCycleControl}. If it is the case, need to delay on adding to buffer
+     */
+    protected final boolean hasLifeCycleControl;
+
     /**
      * Consumer for the incoming elements
      */
@@ -32,13 +38,11 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      * {@link org.apache.flink.streaming.api.operators.iteration.IterationChannel.IterationQueue} for sending iterative messages
      */
     protected IterationChannel.IterationQueue<StreamRecord<IN>> iterationQueue;
-    /**
-     * If the elements in this channel are instances of {@link LifeCycleControl}. If it is the case, need to delay on adding to buffer
-     */
-    protected Boolean isLifeCycle;
 
-    public IterationTailOperator(int iterationID, StreamOperatorParameters<Void> parameters) {
+
+    public IterationTailOperator(int iterationID, StreamOperatorParameters<Void> parameters, boolean hasLifeCycleControl) {
         this.iterationID = iterationID;
+        this.hasLifeCycleControl = hasLifeCycleControl;
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         this.processingTimeService = parameters.getProcessingTimeService();
         setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
@@ -72,8 +76,7 @@ public class IterationTailOperator<IN> extends AbstractStreamOperator<Void> impl
      */
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        if (isLifeCycle == null) isLifeCycle = element.getValue() instanceof LifeCycleControl;
-        if (isLifeCycle) ((LifeCycleControl) element.getValue()).delay(); // Should be resumed on HEAD
+        if (hasLifeCycleControl) ((LifeCycleControl) element.getValue()).delay(); // Should be resumed on HEAD
         handler.accept(element);
     }
 }

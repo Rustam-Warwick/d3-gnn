@@ -41,7 +41,7 @@ public class IterationChannel<T> implements Closeable {
     /**
      * Consumer & Executor of this channel, changes are made entirely for volatile to take effect
      */
-    private volatile Tuple2<Consumer<T>, MailboxExecutor> consumerAndExecutor = null;
+    private final Tuple2<Consumer<T>, MailboxExecutor> consumerAndExecutor = Tuple2.of(null, null);
 
 
     public IterationChannel(IterationChannelKey channelKey) {
@@ -51,26 +51,20 @@ public class IterationChannel<T> implements Closeable {
     /**
      * Add Producer to this iteration Channel
      */
-    public IterationQueue<T> addProducer(OperatorID operatorID) {
-        long processingTime = System.currentTimeMillis();
-        while (consumerAndExecutor == null) {
-            Thread.onSpinWait(); // Wait for consumer to appear
-            Preconditions.checkState(System.currentTimeMillis() - processingTime < 20000, "Cannot find a consumer in Iteration Channel, somethings wrong");
-        }
-        synchronized (this) {
-            Preconditions.checkState(!producers.containsKey(operatorID), "Duplicate Producers in queue");
-            IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
-            producers.put(operatorID, queue);
-            return queue;
-        }
+    public synchronized IterationQueue<T> addProducer(OperatorID operatorID) {
+        Preconditions.checkState(!producers.containsKey(operatorID), "Duplicate Producers in queue");
+        IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
+        producers.put(operatorID, queue);
+        return queue;
     }
 
     /**
      * Set the consumer for this iteration Channel
      */
     public void setConsumer(Consumer<T> consumer, MailboxExecutor consumerExecutor) {
-        Preconditions.checkState(consumerAndExecutor == null, "A IterationQueue cannot have multiple Consumers");
-        this.consumerAndExecutor = Tuple2.of(consumer, consumerExecutor);
+        Preconditions.checkState(consumerAndExecutor.f0 == null, "Cannot have 2 consumers for iteration channel");
+        consumerAndExecutor.f0 = consumer;
+        consumerAndExecutor.f1 = consumerExecutor;
     }
 
     /**
@@ -141,7 +135,7 @@ public class IterationChannel<T> implements Closeable {
         }
 
         /**
-         * Starting iterating element from the startTermination of this queue
+         * Starting iterating element from the startFlushing of this queue
          * Note that by entering this output HEAD can be closed but during the execution never
          */
         @Override

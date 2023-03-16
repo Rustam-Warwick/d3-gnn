@@ -41,7 +41,7 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.StopStream){
+        if(evt instanceof TrainingSubCoordinator.IngressStopped){
             getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
             trainingDataSize = 0;
         }

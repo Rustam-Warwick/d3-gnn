@@ -25,9 +25,14 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
     protected final Context context;
 
     /**
-     * Position of this coordinator operator
+     * Position of this coordinator operator in the pipeline
      */
     protected final short position;
+
+    /**
+     * Number of layers
+     */
+    protected final short layers;
 
     /**
      * Position -> Coordinator. Linking all the coordinators
@@ -44,9 +49,11 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
      */
     protected final SubtaskGateway[] subTaskGateways;
 
-    public GraphOperatorCoordinator(Context context, short position, GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+
+    public GraphOperatorCoordinator(Context context, short position, short layers, GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
         this.context = context;
         this.position = position;
+        this.layers = layers;
         this.subTaskGateways = new SubtaskGateway[context.currentParallelism()];
         this.positionToCoordinators = (Short2ObjectOpenHashMap<GraphOperatorCoordinator>) context.getCoordinatorStore().compute("graph_coordinators", (key, val) -> {
             if (val == null) val = new Short2ObjectOpenHashMap<>();
@@ -140,10 +147,10 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
      */
     abstract public static class GraphOperatorSubCoordinator implements OperatorCoordinator {
 
-        protected final GraphOperatorCoordinator mainCoordinator;
+        protected final GraphOperatorCoordinator baseCoordinator;
 
-        public GraphOperatorSubCoordinator(GraphOperatorCoordinator mainCoordinator) {
-            this.mainCoordinator = mainCoordinator;
+        public GraphOperatorSubCoordinator(GraphOperatorCoordinator baseCoordinator) {
+            this.baseCoordinator = baseCoordinator;
         }
     }
 
@@ -158,7 +165,7 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
     }
 
     /**
-     * Default(no sub-coordinator) provider
+     * Default one with {@link TrainingSubCoordinator}
      */
     public static class DefaultGraphOperatorSubCoordinatorsProvider implements GraphOperatorSubCoordinatorsProvider {
         @Override
@@ -174,12 +181,15 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
 
         final protected short position;
 
+        final protected short layers;
+
         final protected OperatorID operatorID;
 
         final protected GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider;
 
-        public GraphOperatorCoordinatorProvider(short position, OperatorID operatorID, GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
+        public GraphOperatorCoordinatorProvider(short position, short layers, OperatorID operatorID, GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
             this.position = position;
+            this.layers = layers;
             this.operatorID = operatorID;
             this.graphOperatorSubCoordinatorsProvider = graphOperatorSubCoordinatorsProvider;
         }
@@ -191,7 +201,7 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
 
         @Override
         public OperatorCoordinator create(Context context) throws Exception {
-            return new GraphOperatorCoordinator(context, position, graphOperatorSubCoordinatorsProvider);
+            return new GraphOperatorCoordinator(context, position, layers, graphOperatorSubCoordinatorsProvider);
         }
     }
 
