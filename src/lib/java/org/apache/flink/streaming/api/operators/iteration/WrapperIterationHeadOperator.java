@@ -8,8 +8,6 @@ import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.checkpoint.CheckpointOptions;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.flink.runtime.metrics.groups.InternalOperatorMetricGroup;
-import org.apache.flink.runtime.metrics.groups.TaskIOMetricGroup;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
@@ -82,7 +80,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Consumer for Request Scan events
      */
-    protected final Consumer<WrapperIterationHeadOperatorCoordinator.RequestScan> requestScanConsumer;
+    protected final Consumer<WrapperIterationHeadOperatorCoordinator.TerminationScanRequest> requestScanConsumer;
 
     /**
      * Consumer of {@link OperatorEvent} depending on weather body implements {@link OperatorEventHandler} or not
@@ -105,11 +103,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final ExposingInternalTimerService exposingInternalTimerServiceOperatorRef;
 
     /**
-     * Counter of number of incoming messages to increments with iteration inputs
-     */
-    protected final TaskIOMetricGroup taskIOMetricGroup;
-
-    /**
      * Operator IO metric
      */
     protected final OperatorIOMetricGroup operatorIOMetricGroup;
@@ -120,19 +113,19 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     protected final boolean hasLifeCycleControl;
 
     /**
-     * Termination Detection point reached can close this operator
-     */
-    protected boolean readyToFinish = false;
-
-    /**
      * Link to {@link NDManager} to avoid constant access to {@link ThreadLocal}
      */
-    protected NDManager manager = BaseNDManager.getManager();
+    protected final NDManager manager = BaseNDManager.getManager();
+
+    /**
+     * Termination Detection point reached can close this operator
+     */
+    protected boolean isTerminationReady;
 
     /**
      * Previous count used for termination detection
      */
-    protected long previousCount = 0;
+    protected long terminationDetectionCounter;
 
 
     public WrapperIterationHeadOperator(int iterationID, MailboxExecutor mailboxExecutor, AbstractStreamOperator<OUT> bodyOperator, StreamOperatorParameters<OUT> parameters, boolean hasLifeCycleControl) {
@@ -140,7 +133,6 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.hasLifeCycleControl = hasLifeCycleControl;
         this.mailboxExecutor = mailboxExecutor;
         this.bodyOperator = bodyOperator;
-        this.taskIOMetricGroup = ((InternalOperatorMetricGroup) getMetricGroup()).getTaskIOMetricGroup();
         this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
@@ -252,13 +244,13 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if (mark.getTimestamp() == Long.MAX_VALUE && !readyToFinish) {
+        if (mark.getTimestamp() == Long.MAX_VALUE && !isTerminationReady) {
             // Enter the termination loop
             oneInputBodyOperatorRef.processWatermark(new Watermark(Long.MAX_VALUE - 1));
             if (bodyOperator.getRuntimeContext().getIndexOfThisSubtask() == 0)
                 operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.StartTermination());
-            while (!readyToFinish) {
-                mailboxExecutor.tryYield();
+            while (!isTerminationReady) {
+                mailboxExecutor.yield();
             }
             oneInputBodyOperatorRef.processWatermark(mark); // Operators might depend on this watermark so send it
         }else{
@@ -280,20 +272,20 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     }
 
     /**
-     * Handle {@link WrapperIterationHeadOperatorCoordinator.RequestScan} events when there are no times in the body
+     * Handle {@link WrapperIterationHeadOperatorCoordinator.TerminationScanRequest} events when there are no times in the body
      */
-    final public void handleRequestScanEventWithoutTimers(WrapperIterationHeadOperatorCoordinator.RequestScan requestScan){
-        long tmp = taskIOMetricGroup.getNumRecordsInCounter().getCount() + taskIOMetricGroup.getNumRecordsOutCounter().getCount();
-        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
-                tmp == previousCount
+    final public void handleRequestScanEventWithoutTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest){
+        long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
+        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.TerminationScanResponse(
+                tmp == terminationDetectionCounter
         ));
-        previousCount = tmp;
+        terminationDetectionCounter = tmp;
     }
 
     /**
-     * Handle {@link WrapperIterationHeadOperatorCoordinator.RequestScan} events when there are times in the body
+     * Handle {@link WrapperIterationHeadOperatorCoordinator.TerminationScanRequest} events when there are times in the body
      */
-    final public void handleRequestScanEventWithTimers(WrapperIterationHeadOperatorCoordinator.RequestScan requestScan){
+    final public void handleRequestScanEventWithTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest){
         final boolean[] hasTimers = new boolean[]{false};
         try {
             exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
@@ -301,22 +293,22 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
                 throw new Exception("Found, do not process rest");
             });
         } catch (Exception ignored) {}
-        long tmp = taskIOMetricGroup.getNumRecordsInCounter().getCount() + taskIOMetricGroup.getNumRecordsOutCounter().getCount();
-        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.ResponseScan(
-                !hasTimers[0] && tmp == previousCount));
-        previousCount = tmp;
+        long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
+        operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.TerminationScanResponse(
+                !hasTimers[0] && tmp == terminationDetectionCounter));
+        terminationDetectionCounter = tmp;
     }
 
     /**
      * Handle operator event if body is NOT {@link OperatorEventHandler}
      */
     final public void handleOperatorEventSelf(OperatorEvent evt) {
-        if (evt instanceof WrapperIterationHeadOperatorCoordinator.RequestScan) {
+        if (evt instanceof WrapperIterationHeadOperatorCoordinator.TerminationScanRequest) {
             // Requested scan for termination detection
-            requestScanConsumer.accept((WrapperIterationHeadOperatorCoordinator.RequestScan) evt);
-        } else if (evt instanceof WrapperIterationHeadOperatorCoordinator.Terminate) {
+            requestScanConsumer.accept((WrapperIterationHeadOperatorCoordinator.TerminationScanRequest) evt);
+        } else if (evt instanceof WrapperIterationHeadOperatorCoordinator.TerminationReady) {
             // Ready to Terminate
-            readyToFinish = true;
+            isTerminationReady = true;
         }
     }
 

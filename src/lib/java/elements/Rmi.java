@@ -13,7 +13,6 @@ import org.apache.flink.util.OutputTag;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import storage.BaseStorage;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -117,8 +116,7 @@ public class Rmi extends GraphElement {
      */
     public static void buildAndRun(Object id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
         if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG) {
-            BaseStorage.GraphView tmp = getGraphRuntimeContext().getStorage();
-            execute(tmp.getElement(id, elemType), methodName, args);
+            execute(getGraphRuntimeContext().getStorage().getElement(id, elemType), methodName, args);
         } else {
             getGraphRuntimeContext().output(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
         }

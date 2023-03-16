@@ -203,9 +203,9 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.StartTraining){
+        if(evt instanceof TrainingSubCoordinator.StartTrainingWithSettings){
             // Adjust the minibatch and epoch count, do the backward pass
-            epochAndMiniBatchController.setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTraining) evt).miniBatches, ((TrainingSubCoordinator.StartTraining) evt).epochs);
+            epochAndMiniBatchController.setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTrainingWithSettings) evt).miniBatches, ((TrainingSubCoordinator.StartTrainingWithSettings) evt).epochs);
             try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {getRuntimeContext().runForAllLocalParts(this::startTraining);}
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);
         }
@@ -218,8 +218,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
                 // Stop training
                 epochAndMiniBatchController.clear();
                 getRuntimeContext().runForAllLocalParts(this::stopTraining);
-                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ResumeIngress()), OutputTags.BACKWARD_OUTPUT_TAG);
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.ResumeIngress());
+                getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ExitedTraining()), OutputTags.BACKWARD_OUTPUT_TAG);
             }
         }
     }

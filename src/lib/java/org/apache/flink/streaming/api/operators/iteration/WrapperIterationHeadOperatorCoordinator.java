@@ -63,7 +63,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if (event instanceof StartTermination) controller.startTermination();
-        if (event instanceof ResponseScan) controller.consumeResponse(((ResponseScan) event).terminateReady);
+        if (event instanceof TerminationScanResponse) controller.consumeResponse(((TerminationScanResponse) event).terminateReady);
         if (bodyOperatorCoordinator != null)
             bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
 
@@ -110,9 +110,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      */
     public void doScan() {
         for (SubtaskGateway gateway : gateways) {
-            if (gateway != null) {
-                gateway.sendEvent(new RequestScan());
-            }
+            if (gateway != null) gateway.sendEvent(new TerminationScanRequest());
         }
     }
 
@@ -121,17 +119,25 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      */
     public void doTerminate() {
         for (SubtaskGateway gateway : gateways) {
-            if (gateway != null) {
-                gateway.sendEvent(new Terminate());
-            }
+            if (gateway != null) gateway.sendEvent(new TerminationReady());
         }
     }
 
     /**
      * Helper class instance of which is shared amongst {@link WrapperIterationHeadOperatorCoordinator} in one job
+     *
      * Counts the number of messages from each sub-operator and detects when to terminate the operator
+     * <p>
+     *     It can happen that termination is started before other operators are joined to the thread
+     *     Assumptions:
+     *     - Streaming mode only
+     *     - All coordinates are joined before the start termination
+     *     - All iteration channels are closed at the same time. No partial termination of dataflow graph
+     * </p>
      */
     private static class TerminationDetectionController extends Thread {
+
+        static private final long SLEEP_TIME_MS = 2000;
 
         /**
          * List of all Coordinators
@@ -139,14 +145,19 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         protected final List<WrapperIterationHeadOperatorCoordinator> coordinators = new ArrayList<>(4);
 
         /**
+         * Total number of suboperators
+         */
+        protected int numSubOperators;
+
+        /**
          * Number of sub-operators with iteration HEAD logic
          */
-        protected final AtomicInteger numIterationSubOperators = new AtomicInteger(0);
+        protected final AtomicInteger joinedSubOperators = new AtomicInteger(0);
 
         /**
          * Number of messages received from HEAD sub-operators
          */
-        protected final AtomicInteger receivedFromIterationOperators = new AtomicInteger(0);
+        protected final AtomicInteger receivedFromSubOperators = new AtomicInteger(0);
 
         /**
          * Found termination point
@@ -163,6 +174,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          */
         synchronized void addCoordinator(WrapperIterationHeadOperatorCoordinator coordinator) {
             coordinators.add(coordinator);
+            numSubOperators += coordinator.context.currentParallelism();
         }
 
         /**
@@ -170,6 +182,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          */
         synchronized void removeCoordinator(WrapperIterationHeadOperatorCoordinator coordinator) {
             coordinators.remove(coordinator);
+            numSubOperators -= coordinator.context.currentParallelism();
             if (coordinators.isEmpty() && isAlive()) interrupt();
         }
 
@@ -177,14 +190,18 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          * New Sub-Operator added increment counter
          */
         void addSubOperator() {
-            numIterationSubOperators.incrementAndGet();
+            if(joinedSubOperators.incrementAndGet() == numSubOperators){
+                synchronized (this){
+                    notify();
+                }
+            };
         }
 
         /**
          * Sub-Operator failed increment counter
          */
         void removeSubOperator() {
-            numIterationSubOperators.decrementAndGet();
+            joinedSubOperators.decrementAndGet();
         }
 
         /**
@@ -199,7 +216,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          */
         void consumeResponse(boolean response) {
             terminationFound.compareAndExchange(true, response);
-            if(receivedFromIterationOperators.incrementAndGet() == numIterationSubOperators.get()) {
+            if(receivedFromSubOperators.incrementAndGet() == joinedSubOperators.get()) {
                 synchronized (this) {
                     notify();
                 }
@@ -209,23 +226,26 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         @Override
         public void run() {
             try {
+                synchronized (this) {
+                    while (numSubOperators != joinedSubOperators.get()) {
+                        wait();
+                    }
+                }
                 while (!terminationFound.get()) {
                     terminationFound.set(true); // Assume found if not negated by sub-operator
-                    receivedFromIterationOperators.set(0);
+                    receivedFromSubOperators.set(0);
                     coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doScan);
                     synchronized (this) {
-                        while (receivedFromIterationOperators.get() < numIterationSubOperators.get()) {
+                        while (receivedFromSubOperators.get() < joinedSubOperators.get()) {
                             wait();
                         }
                     }
-                    if (terminationFound.get()) {
-                        coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
-                    } else {
-                        Thread.sleep(1000);
-                    }
+                    if (!terminationFound.get()) Thread.sleep(SLEEP_TIME_MS);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+            }finally {
+                coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
             }
         }
     }
@@ -241,17 +261,17 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Message for Requesting Scanning of HEAD operator
      * Should be sent from {@link WrapperIterationHeadOperatorCoordinator} to {@link WrapperIterationHeadOperator}
      */
-    public static class RequestScan implements OperatorEvent {
+    public static class TerminationScanRequest implements OperatorEvent {
     }
 
     /**
      * Scan Response Result from operators
      * Should be sent from {@link WrapperIterationHeadOperator} to {@link WrapperIterationHeadOperatorCoordinator}
      */
-    public static class ResponseScan implements OperatorEvent {
+    public static class TerminationScanResponse implements OperatorEvent {
         public final boolean terminateReady;
 
-        public ResponseScan(boolean terminateReady) {
+        public TerminationScanResponse(boolean terminateReady) {
             this.terminateReady = terminateReady;
         }
     }
@@ -260,7 +280,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Terminate the operator
      * Should be sent from {@link WrapperIterationHeadOperatorCoordinator} to {@link WrapperIterationHeadOperator}
      */
-    public static class Terminate implements OperatorEvent {
+    public static class TerminationReady implements OperatorEvent {
     }
 
     /**

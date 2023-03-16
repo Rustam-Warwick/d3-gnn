@@ -42,7 +42,7 @@ public class BatchSizeTrainingScheduler extends Plugin {
         super.addElementCallback(element);
         if(element.getType() == ElementType.ATTACHED_FEATURE && ((Feature<?,?>)element).getName().equals("tl")){
             if(++trainingDataSize == batchSize){
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
+                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingRequest());
             }
         }
     }
@@ -50,8 +50,8 @@ public class BatchSizeTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.IngressStopped){
-            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
+        if(evt instanceof TrainingSubCoordinator.EnteredTraining){
+            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingSettingsRequest(trainingDataSize));
             trainingDataSize = 0;
         }
     }

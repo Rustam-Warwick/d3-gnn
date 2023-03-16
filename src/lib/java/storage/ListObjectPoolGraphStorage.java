@@ -306,7 +306,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public ObjectPoolScope openObjectPoolScope() {
-            return scopePool;
+            return scopePool.open();
         }
 
     }

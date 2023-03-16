@@ -13,6 +13,7 @@ import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.state.*;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -93,6 +94,11 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final GraphRuntimeContext graphRuntimeContext;
 
     /**
+     * Operator IO metric
+     */
+    protected final OperatorIOMetricGroup operatorIOMetricGroup;
+
+    /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
      */
     protected BaseStorage.GraphView storage;
@@ -110,11 +116,12 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Counter for flush detection
      */
-    protected long previousCount = 0;
+    protected long pipelineFlushingCounter = 0;
 
     public GraphStorageOperator(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = processingTimeService;
         super.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
         this.storageProvider = storageProvider;
         this.position = position;
         this.layers = layers;
@@ -190,8 +197,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.RequestScan){
-            long tmp = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter().getCount() + getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount();
+        if(evt instanceof TrainingSubCoordinator.FlushingScanRequest){
+            long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
             final boolean[] hasTimers = new boolean[]{false};
             try {
                 getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
@@ -199,8 +206,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                     throw new Exception("Found, do not process rest");
                 });
             } catch (Exception ignored) {}
-            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.ResponseScan(!hasTimers[0] && tmp == previousCount));
-            previousCount = tmp;
+            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.FlushingScanResponse(!hasTimers[0] && tmp == pipelineFlushingCounter));
+            pipelineFlushingCounter = tmp;
         }
         for (Plugin plugin : plugins.values()) {
             plugin.handleOperatorEvent(evt);
@@ -212,42 +219,40 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
         GraphOp value = element.getValue();
-        try(BaseStorage.ObjectPoolScope ignored = storage.openObjectPoolScope()) {
-            switch (value.op) {
-                case ADD:
+        switch (value.op) {
+            case ADD:
+                value.element.create();
+                break;
+            case COMMIT:
+                if (!storage.containsElement(value.element)) {
                     value.element.create();
-                    break;
-                case COMMIT:
-                    if (!storage.containsElement(value.element)) {
-                        value.element.create();
-                    } else {
-                        storage.getElement(value.element).update(value.element);
-                    }
-                    break;
-                case SYNC_REQUEST:
-                    if (!storage.containsElement(value.element.getId(), value.element.getType())) {
-                        // This can only occur if master is not here yet
-                        GraphElement el = storage.getDummyElement(value.element.getId(), value.element.getType());
-                        el.create();
-                        el.syncRequest(value.element);
-                    } else {
-                        GraphElement el = storage.getElement(value.element.getId(), value.element.getType());
-                        el.syncRequest(value.element);
-                    }
-                    break;
-                case SYNC:
-                    GraphElement el = storage.getElement(value.element);
-                    el.sync(value.element);
-                    break;
-                case RMI:
-                    GraphElement rpcElement = storage.getElement(value.element.getId(), value.element.getType());
-                    Rmi rmi = (Rmi) value.element;
-                    Rmi.execute(rpcElement, rmi.methodName, rmi.args);
-                    break;
-                case OPERATOR_EVENT:
-                    eventPool.addEvent(element.getValue().graphEvent);
-                    break;
-            }
+                } else {
+                    storage.getElement(value.element).update(value.element);
+                }
+                break;
+            case SYNC_REQUEST:
+                if (!storage.containsElement(value.element.getId(), value.element.getType())) {
+                    // This can only occur if master is not here yet
+                    GraphElement el = storage.getDummyElement(value.element.getId(), value.element.getType());
+                    el.create();
+                    el.syncRequest(value.element);
+                } else {
+                    GraphElement el = storage.getElement(value.element.getId(), value.element.getType());
+                    el.syncRequest(value.element);
+                }
+                break;
+            case SYNC:
+                GraphElement el = storage.getElement(value.element);
+                el.sync(value.element);
+                break;
+            case RMI:
+                GraphElement rpcElement = storage.getElement(value.element.getId(), value.element.getType());
+                Rmi rmi = (Rmi) value.element;
+                Rmi.execute(rpcElement, rmi.methodName, rmi.args);
+                break;
+            case OPERATOR_EVENT:
+                eventPool.addEvent(element.getValue().graphEvent);
+                break;
         }
     }
 

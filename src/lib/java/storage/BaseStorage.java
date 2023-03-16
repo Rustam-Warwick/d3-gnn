@@ -422,7 +422,7 @@ abstract public class BaseStorage extends TaskSharedState {
     /**
      * <p>
      *     A special {@link AutoCloseable} object that should be opened when you want to access storage with reuse semantics
-     *     reuse semantics depends to the implementation of storage (Some of not might not have such semantics whatsoever)
+     *     reuse semantics depends to the implementation of storage (Some of which might not have any effect whatsoever)
      *     However, generally reuse semantics makes use of shared objects to reduce allocation costs
      *     In such mode, UDF should not depend on storing the returned objects as they might change value later
      * </p>

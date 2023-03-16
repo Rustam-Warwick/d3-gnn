@@ -4,7 +4,6 @@ import elements.GraphEvent;
 import elements.GraphOp;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.streaming.api.operators.iteration.WrapperIterationHeadOperator;
 import org.apache.flink.streaming.api.operators.iteration.WrapperIterationHeadOperatorCoordinator;
 import org.apache.flink.util.Preconditions;
 
@@ -17,22 +16,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * SubCoordinator for handling the start and stop of the training loop
+ * SubCoordinator for handling the start and stop of the training loop. Mini-batching and epochs
+ * <p>
+ *     Assumes that triggered only once sub-operators are successfully registered
+ * </p>
  */
 public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperatorSubCoordinator {
 
-    protected final RequestTrainingEventsHandler requestTrainingEventsHandler;
+    protected final TrainingRequestEventsHandler trainingRequestEventsHandler;
 
-    protected final RequestMiniBatchCountEventHandler requestMiniBatchCountEventHandler;
+    protected final TrainingSettingsRequestEventHandler trainingSettingsRequestEventHandler;
 
     protected final PipelineFlusherController pipelineFlusherController;
 
-    public TrainingSubCoordinator(GraphOperatorCoordinator baseCoordinator, float percentOfRequestToStart, int miniBatchSize){
+    public TrainingSubCoordinator(GraphOperatorCoordinator baseCoordinator, float percentOfRequestToStart, int miniBatchSize, short epochs){
         super(baseCoordinator);
         Preconditions.checkState(percentOfRequestToStart > 0 && percentOfRequestToStart <= 1, "Percent should be between (0 and 1]");
         Preconditions.checkState(miniBatchSize > 0, "Mini-batch should be more than 0");
-        requestTrainingEventsHandler = new RequestTrainingEventsHandler(percentOfRequestToStart);
-        requestMiniBatchCountEventHandler = new RequestMiniBatchCountEventHandler(miniBatchSize);
+        Preconditions.checkState(epochs > 0, "Epochs should be non-negative");
+        trainingRequestEventsHandler = new TrainingRequestEventsHandler(percentOfRequestToStart);
+        trainingSettingsRequestEventHandler = new TrainingSettingsRequestEventHandler(miniBatchSize, epochs);
         pipelineFlusherController = (PipelineFlusherController) baseCoordinator.context.getCoordinatorStore().compute("pipeline_flusher_controller", (key, val) -> {
            if(val != null) return val;
            return new PipelineFlusherController();
@@ -40,7 +43,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     public TrainingSubCoordinator(GraphOperatorCoordinator mainCoordinator) {
-        this(mainCoordinator, 1f, 4096);
+        this(mainCoordinator, 1f, 4096, (short) 1);
     }
 
     @Override
@@ -55,13 +58,9 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
-        if(event instanceof RequestTraining) requestTrainingEventsHandler.accept((RequestTraining) event);
-        else if(event instanceof ResponseScan) pipelineFlusherController.consumeResponse(((ResponseScan) event).terminateReady);
-//        else if((event instanceof RequestMiniBatch)) requestMiniBatchCountEventHandler.accept((RequestMiniBatch) event);
-//        else if(event instanceof ResumeInference) {
-//            requestMiniBatchCountEventHandler.clear();
-//            requestTrainingEventsHandler.clear();
-//        }
+        if(event instanceof TrainingRequest) trainingRequestEventsHandler.accept((TrainingRequest) event);
+        else if(event instanceof FlushingScanResponse) pipelineFlusherController.consumeResponse(((FlushingScanResponse) event).terminateReady);
+        else if((event instanceof TrainingSettingsRequest)) trainingSettingsRequestEventHandler.accept((TrainingSettingsRequest) event);
     }
 
     @Override
@@ -95,37 +94,47 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     /**
-     * Start a scan for {@link WrapperIterationHeadOperator}
+     * Reset Request Handlers for all coordinators
+     */
+    public void resetAllReqHandlers(){
+       pipelineFlusherController.coordinators.forEach(trainingSubCoordinator -> {
+           trainingSubCoordinator.trainingRequestEventsHandler.clear();
+           trainingSubCoordinator.trainingSettingsRequestEventHandler.clear();
+       });
+    }
+
+    /**
+     * Start a scan for flushing point
      */
     public void doScan() {
         for (SubtaskGateway subTaskGateway : baseCoordinator.subTaskGateways) {
-            if (subTaskGateway != null) subTaskGateway.sendEvent(new RequestScan());
+            if (subTaskGateway != null) subTaskGateway.sendEvent(new FlushingScanRequest());
         }
     }
 
     /**
-     * Start the training
+     * Entered the training mode and flushed notify
      */
-    public void startTraining(){
+    public void flushed(){
         for (SubtaskGateway subTaskGateway : baseCoordinator.subTaskGateways) {
-            if(subTaskGateway != null) subTaskGateway.sendEvent(new IngressStopped());
+            if(subTaskGateway != null) subTaskGateway.sendEvent(new EnteredTraining());
         }
     }
 
     /**
      * <p>
-      *     Handler for {@link RequestTraining} type events
+      *     Handler for {@link TrainingRequest} type events
       *     Once {@code percentOfRequestsToStart * parallelism} operators have sent this event will trigger start training
-      *     Triggering start training means sending {@link StopIngress} to the Splitter operator and entering termination detection mode
+      *     Triggering start training means sending {@link EnterTraining} to the Splitter operator and entering termination detection mode
      * </p>
      */
-    public class RequestTrainingEventsHandler implements Consumer<RequestTraining> {
+    public class TrainingRequestEventsHandler implements Consumer<TrainingRequest> {
 
         private final short numRequestEventsToStart;
 
         private short numReceivedRequestEvents;
 
-        public RequestTrainingEventsHandler(float percentOfRequestToStart) {
+        public TrainingRequestEventsHandler(float percentOfRequestToStart) {
             this.numRequestEventsToStart = (short) (baseCoordinator.context.currentParallelism() * percentOfRequestToStart);
         }
 
@@ -133,11 +142,11 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             numReceivedRequestEvents = 0;
         }
 
-        public void accept(RequestTraining ignored){
+        public void accept(TrainingRequest ignored){
             if(++numReceivedRequestEvents == numRequestEventsToStart) {
                 // Clear only after completing training
                 for (SubtaskGateway subTaskGateway : baseCoordinator.positionToCoordinators.get((short) 0).subTaskGateways) {
-                    subTaskGateway.sendEvent(new StopIngress());
+                    subTaskGateway.sendEvent(new EnterTraining());
                 }
                 synchronized (pipelineFlusherController){
                     pipelineFlusherController.notify();
@@ -148,18 +157,21 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
     /**
      * <p>
-     *     Handler encapsulating the reception of {@link RequestMiniBatch} events
+     *     Handler encapsulating the reception of {@link TrainingSettingsRequest} events
      *     Sums the number of data items in each operator and then sends batch the number of mini-batches during the training
      * </p>
      */
-    public class RequestMiniBatchCountEventHandler implements Consumer<RequestMiniBatch>{
+    public class TrainingSettingsRequestEventHandler implements Consumer<TrainingSettingsRequest>{
 
         protected final int miniBatchSize;
 
+        protected final short epochs;
+
         protected final IntArrayList dataSizeFromOperators;
 
-        public RequestMiniBatchCountEventHandler(int miniBatchSize) {
+        public TrainingSettingsRequestEventHandler(int miniBatchSize, short epochs) {
             this.miniBatchSize = miniBatchSize;
+            this.epochs = epochs;
             this.dataSizeFromOperators = new IntArrayList(0);
         }
 
@@ -167,14 +179,15 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             dataSizeFromOperators.clear();
         }
 
-        public void accept(RequestMiniBatch requestMiniBatch){
-            dataSizeFromOperators.add(requestMiniBatch.trainingDataSize);
+        public void accept(TrainingSettingsRequest trainingSettingsRequest){
+            dataSizeFromOperators.add(trainingSettingsRequest.trainingDataSize);
             if(dataSizeFromOperators.size() == baseCoordinator.context.currentParallelism()){
                 // Clear after training is done
                 short miniBatchCount = (short) Math.ceil((double) dataSizeFromOperators.intStream().sum() / miniBatchSize);
                 for (SubtaskGateway subTaskGateway : baseCoordinator.subTaskGateways) {
-                    subTaskGateway.sendEvent(new StartTraining(miniBatchCount));
+                    subTaskGateway.sendEvent(new StartTrainingWithSettings(miniBatchCount, epochs));
                 }
+                resetAllReqHandlers();
             }
         }
 
@@ -182,22 +195,32 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
 
     /**
      * Helper class instance of which is shared amongst {@link TrainingSubCoordinator} in one job
-     * Counts the number of messages from each sub-operator and detects when to terminate the operator
+     * Idea very similar to Termination Detection Controller. @todo would be cool to merge those 2 termination detectors into one class at least
+     * Counts the number of messages from each sub-operator and detects when the pipeline is flushed
+     * <p>
+     *     Assuming all sub-operators joined when training is started
+     * </p>
      */
     private static class PipelineFlusherController extends Thread {
+
+        static private final long SLEEP_TIME_MS = 500;
 
         /**
          * List of all Coordinators
          */
         protected final List<TrainingSubCoordinator> coordinators = new ArrayList<>(4);
+
+
         /**
          * Number of sub-operators with iteration HEAD logic
          */
-        protected final AtomicInteger numSubOperators = new AtomicInteger(0);
+        protected final AtomicInteger joinedSubOperators = new AtomicInteger(0);
+
         /**
          * Number of messages received from HEAD sub-operators
          */
         protected final AtomicInteger receivedFromSubOperators = new AtomicInteger(0);
+
         /**
          * Found termination point
          */
@@ -224,14 +247,14 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
          * New Sub-Operator added increment counter
          */
         void addSubOperator() {
-            numSubOperators.incrementAndGet();
+           joinedSubOperators.incrementAndGet();
         }
 
         /**
          * Sub-Operator failed increment counter
          */
         void removeSubOperator() {
-            numSubOperators.decrementAndGet();
+            joinedSubOperators.decrementAndGet();
         }
 
         /**
@@ -239,7 +262,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
          */
         void consumeResponse(boolean response) {
             flushed.compareAndExchange(true, response);
-            if(receivedFromSubOperators.incrementAndGet() == numSubOperators.get()) {
+            if(receivedFromSubOperators.incrementAndGet() == joinedSubOperators.get()) {
                 synchronized (this) {
                     notify();
                 }
@@ -259,57 +282,94 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                         receivedFromSubOperators.set(0);
                         coordinators.forEach(TrainingSubCoordinator::doScan);
                         synchronized (this){
-                            while(receivedFromSubOperators.get() < numSubOperators.get()){
+                            while(receivedFromSubOperators.get() < joinedSubOperators.get()){
                                 wait();
                             }
                         }
-                        if(flushed.get()){
-                            coordinators.forEach(TrainingSubCoordinator::startTraining);
-                        }else{
-                            Thread.sleep(1000);
-                        }
+                        if(!flushed.get()) Thread.sleep(SLEEP_TIME_MS);
                     }
+                    coordinators.forEach(TrainingSubCoordinator::flushed);
                 }
+            } catch (InterruptedException e){
+                System.out.println("Normally closed");
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
 
+    // ----- EVENTS
+
     /**
      *  <p>
      *      Event sent from some layer scheduler requesting to start training
-     *      Event handled by the {@link RequestTrainingEventsHandler} which generates {@link StopIngress} events
+     *      Event handled by the {@link TrainingRequestEventsHandler} which generates {@link EnterTraining} events
      *      By default when a certain percent of operators have sent this event the training phase will begin
      *  </p>
      */
-    public static class RequestTraining implements OperatorEvent{}
+    public static class TrainingRequest implements OperatorEvent{}
+
+    /**
+     * Event that is sent to the {@link DatasetSplitterOperator} indicating that state is entering to training phase and ingress is stopped
+     */
+    public static class EnterTraining implements OperatorEvent{}
 
     /**
      * Scan to get termination for flushing
      */
-    public static class RequestScan implements OperatorEvent{}
+    public static class FlushingScanRequest implements OperatorEvent{}
 
     /**
      * Scan Response Result from operators
      */
-    public static class ResponseScan implements OperatorEvent {
+    public static class FlushingScanResponse implements OperatorEvent {
         public final boolean terminateReady;
 
-        public ResponseScan(boolean terminateReady) {
+        public FlushingScanResponse(boolean terminateReady) {
             this.terminateReady = terminateReady;
         }
     }
 
     /**
-     * Event that is sent to the {@link DatasetSplitterOperator} indicating that training is entering to training phase and ingress is stopped
+     * Marking the stoppage of the ingress after the pipeline has been flushed meaning the Training mode is successfully entered
      */
-    public static class StopIngress implements OperatorEvent{}
+    public static class EnteredTraining implements OperatorEvent{}
 
     /**
-     * Marking the stoppage of the ingress
+     * <p>
+     *     Event sent from the last layer training plugin to gather mini-batch count and epoch count
+     *     Responded with {@link StartTrainingWithSettings}
+     * </p>
      */
-    public static class IngressStopped implements OperatorEvent{}
+    public static class TrainingSettingsRequest implements OperatorEvent{
+        protected int trainingDataSize;
+
+        public TrainingSettingsRequest(int trainingDataSize) {
+            this.trainingDataSize = trainingDataSize;
+        }
+    }
+
+    /**
+     * <p>
+     *     Response of the {@link TrainingSettingsRequestEventHandler} to {@link TrainingSettingsRequest} events
+     *     Once the quantity of data items have been received send the number of minibatches and epochs to start the training
+     *     Only sent to the last operator
+     * </p>
+     */
+    public static class StartTrainingWithSettings implements OperatorEvent{
+
+        public short miniBatches;
+
+        public short epochs;
+
+        public StartTrainingWithSettings(short miniBatches, short epochs) {
+            this.miniBatches = miniBatches;
+            this.epochs = epochs;
+        }
+
+    }
+
+    // ------ Do not come to coordinator happening in the pipeline
 
      /**
      * <p>
@@ -319,7 +379,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
      *      And also from this to SPLITTER
      * </p>
      */
-    public static class ResumeIngress extends GraphEvent {
+    public static class ExitedTraining extends GraphEvent {
 
         protected transient short shouldReceive;
 
@@ -332,45 +392,8 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
             }
             if(++numReceived == shouldReceive){
                 pool.evict(this);
-                if(pool.graphRuntimeContext.getPosition() > 0) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG);
+                if(!pool.graphRuntimeContext.isSplitter()) pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG);
             }
-        }
-    }
-
-    /**
-     * <p>
-     *     Event sent from the last layer training plugin to gather mini-batch count and epoch count
-     *     Responded with {@link StartTraining}
-     * </p>
-     */
-    public static class RequestMiniBatch implements OperatorEvent{
-        protected int trainingDataSize;
-
-        public RequestMiniBatch(int trainingDataSize) {
-            this.trainingDataSize = trainingDataSize;
-        }
-    }
-
-    /**
-     * <p>
-     *     Response of the {@link RequestMiniBatchCountEventHandler} to {@link RequestMiniBatch} events
-     *     Once the quantity of data items have been received send the number of minibatches and epochs to start the training
-     *     Only sent to the last operator
-     * </p>
-     */
-    public static class StartTraining implements OperatorEvent{
-
-        public short miniBatches;
-
-        public short epochs;
-
-        public StartTraining(short miniBatches, short epochs) {
-            this.miniBatches = miniBatches;
-            this.epochs = epochs;
-        }
-
-        public StartTraining(short miniBatches) {
-            this(miniBatches, (short) 10);
         }
     }
 

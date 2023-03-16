@@ -194,6 +194,13 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
      * Is this Graph Storage the first in the pipeline: First is either SPLITTER and First Storage layer
      */
     public final boolean isFirst() {
-        return getPosition() <= 1;
+        return getPosition() == 1;
+    }
+
+    /**
+     * Is this Graph Splitter operator
+     */
+    public final boolean isSplitter(){
+        return getPosition() == 0;
     }
 }

@@ -24,7 +24,8 @@ import java.util.List;
  * Special Counting Output Collector for {@link GraphOp}.
  * <ul>
  *     <li> Counting Output Metrics </li>
- *     <li> Handling broadcast & selective broadcast messages for output channels with graphOp type</li>
+ *     <li> Handling broadcast & selective broadcast messages for output channels with graphOp types </li>
+ *     <li> Methods for analysing the r-ty of the individual output gates </li>
  * </ul>
  *
  * @implNote Assumes the underlying serializer is {@link typeinfo.graphopinfo.GraphOpSerializer} joined with {@link org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer}

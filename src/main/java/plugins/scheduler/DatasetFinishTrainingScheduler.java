@@ -27,7 +27,7 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     @Override
     public void updateCurrentEffectiveWatermark(long watermark) {
         super.updateCurrentEffectiveWatermark(watermark);
-        if(watermark == Long.MAX_VALUE) getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestTraining());
+        if(watermark == Long.MAX_VALUE) getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingRequest());
     }
 
     @Override
@@ -41,8 +41,8 @@ public class DatasetFinishTrainingScheduler extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.IngressStopped){
-            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.RequestMiniBatch(trainingDataSize));
+        if(evt instanceof TrainingSubCoordinator.EnteredTraining){
+            getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingSettingsRequest(trainingDataSize));
             trainingDataSize = 0;
         }
     }

@@ -12,6 +12,7 @@ import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.state.*;
+import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
 import org.apache.flink.runtime.io.network.partition.consumer.IndexedInputGate;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -42,9 +43,9 @@ import java.util.Set;
  * <p>
  * Apart from taking in the {@link KeyedProcessFunction} for splitting the {@link datasets.Dataset}
  * also handles the training and flushing the input stream.
- * On reception of {@link TrainingSubCoordinator.StopIngress} it stops the operator from consuming messages
+ * On reception of {@link TrainingSubCoordinator.EnterTraining} it stops the operator from consuming messages
  * This causes a backpressure which also hold the checkpoints. Note that iteration messages will still flow normally only topological messages will stop
- * On reception of {@link TrainingSubCoordinator.ResumeIngress} it will resume the computation and continue streaming
+ * On reception of {@link TrainingSubCoordinator.ExitedTraining} it will resume the computation and continue streaming
  * </p>
  *
  * @implNote Always located at position 0, hence no explicit position passed in here
@@ -72,19 +73,9 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     protected final OperatorEventGateway operatorEventGateway;
 
     /**
-     * Internal Timer Service
-     */
-    protected InternalTimerService<VoidNamespace> internalTimerService;
-
-    /**
      * Mailbox executor for handling operator events in case training mod
      */
     protected final MailboxExecutor mailboxExecutor;
-
-    /**
-     * Operation mode of the splitter
-     */
-    protected OperationMode operationMode = OperationMode.RUNNING;
 
     /**
      * GraphEvent pool
@@ -97,14 +88,30 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     protected final GraphRuntimeContext graphRuntimeContext;
 
     /**
+     * Operator IO metric
+     */
+    protected final OperatorIOMetricGroup operatorIOMetricGroup;
+
+    /**
+     * Internal Timer Service
+     */
+    protected InternalTimerService<VoidNamespace> internalTimerService;
+
+    /**
+     * Operation mode of the splitter
+     */
+    protected OperationMode operationMode = OperationMode.RUNNING;
+
+    /**
      * Counter for flush detection
      */
-    protected long previousCount = 0;
+    protected long pipelineFlushingCounter = 0;
 
     public DatasetSplitterOperator(short layers, KeyedProcessFunction<PartNumber, GraphOp, GraphOp> function, ProcessingTimeService processingTimeService, MailboxExecutor mailboxExecutor, StreamOperatorParameters<GraphOp> parameters) {
         super(function);
         this.processingTimeService = processingTimeService;
         this.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
+        this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
         this.layers = layers;
         this.mailboxExecutor = mailboxExecutor;
         this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
@@ -141,7 +148,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.StopIngress){
+        if(evt instanceof TrainingSubCoordinator.EnterTraining && operationMode == OperationMode.RUNNING){
             operationMode = OperationMode.TRAINING;
             try{
                 while(operationMode == OperationMode.TRAINING){
@@ -150,11 +157,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
             }catch (InterruptedException ignored){
                 // Can be interrupted to close prematurely
             }
-        }else if(evt instanceof TrainingSubCoordinator.ResumeIngress){
+        }else if(evt instanceof TrainingSubCoordinator.ExitedTraining && operationMode == OperationMode.TRAINING){
             // Back to running mode
             operationMode = OperationMode.RUNNING;
-        }else if(evt instanceof TrainingSubCoordinator.RequestScan){
-            long tmp = getMetricGroup().getIOMetricGroup().getNumRecordsInCounter().getCount() + getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter().getCount();
+        }else if(evt instanceof TrainingSubCoordinator.FlushingScanRequest){
+            long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
             final boolean[] hasTimers = new boolean[]{false};
             try {
                 getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
@@ -162,8 +169,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
                     throw new Exception("Found, do not process rest");
                 });
             } catch (Exception ignored) {}
-            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.ResponseScan(!hasTimers[0] && tmp == previousCount));
-            previousCount = tmp;
+            operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.FlushingScanResponse(!hasTimers[0] && tmp == pipelineFlushingCounter));
+            pipelineFlushingCounter = tmp;
         }
 
     }

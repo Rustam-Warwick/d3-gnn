@@ -124,63 +124,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
-
-
-    /**
-     * Given vertex reduce all of its out edges
-     *
-     * @param v Vertex
-     */
-    public void reduceOutEdges(Vertex v) {
-        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
-        final Object[] msg = new Object[]{null, 1};
-        for (DirectedEdge directedEdge : outEdges) {
-            if (messageReady(directedEdge)) {
-                if (Objects.isNull(msg[0])) {
-                    msg[0] = MESSAGE(new NDList((NDArray) v.getFeature("f").getValue()), false);
-                }
-                Rmi.buildAndRun(
-                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
-                        ElementType.ATTACHED_FEATURE,
-                        "reduce",
-                        directedEdge.getDest().getMasterPart(),
-                        OutputTags.ITERATE_OUTPUT_TAG,
-                        msg[0],
-                        msg[1]
-                );
-            }
-        }
-    }
-
-    /**
-     * Given oldFeature value and new Feature value triggerUpdate the Out Edged aggregators
-     *
-     * @param newFeature Updaated new Feature
-     * @param oldFeature Updated old Feature
-     */
-    public void updateOutEdges(Tensor newFeature, Tensor oldFeature) {
-        Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges((Vertex) newFeature.getElement(), EdgeType.OUT);
-        NDList[] msgs = new NDList[2];
-        for (DirectedEdge directedEdge : outEdges) {
-            if (messageReady(directedEdge)) {
-                if (Objects.isNull(msgs[0])) {
-                    msgs[0] = MESSAGE(new NDList(newFeature.getValue()), false);
-                    msgs[1] = MESSAGE(new NDList(oldFeature.getValue()), false);
-                }
-                Rmi.buildAndRun(
-                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
-                        ElementType.ATTACHED_FEATURE,
-                        "replace",
-                        directedEdge.getDest().getMasterPart(),
-                        OutputTags.ITERATE_OUTPUT_TAG,
-                        msgs[0],
-                        msgs[1]
-                );
-            }
-        }
-
-    }
-
     /**
      * Given vertex reduce all of its out edges
      * <p>

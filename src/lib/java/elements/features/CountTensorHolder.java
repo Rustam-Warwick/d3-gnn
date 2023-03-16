@@ -3,6 +3,9 @@ package elements.features;
 import ai.djl.ndarray.LifeCycleControl;
 import ai.djl.ndarray.NDArray;
 
+/**
+ * Tensor with count holder for aggregators
+ */
 public class CountTensorHolder implements LifeCycleControl {
 
     public NDArray val;

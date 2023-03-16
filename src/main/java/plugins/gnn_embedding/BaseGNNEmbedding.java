@@ -122,9 +122,9 @@ abstract public class BaseGNNEmbedding extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if (evt instanceof TrainingSubCoordinator.IngressStopped) {
+        if (evt instanceof TrainingSubCoordinator.EnteredTraining) {
             listening = false;
-        }else if(evt instanceof TrainingSubCoordinator.ResumeIngress){
+        }else if(evt instanceof TrainingSubCoordinator.ExitedTraining){
             listening = true;
         }
     }
