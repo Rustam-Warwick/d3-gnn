@@ -4,6 +4,7 @@ import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.jetbrains.annotations.Nullable;
+import picocli.CommandLine;
 
 import java.util.ServiceLoader;
 
@@ -12,6 +13,12 @@ import java.util.ServiceLoader;
  * Follows {@link ServiceLoader} pattern and can be extended
  */
 abstract public class Partitioner {
+
+    /**
+     * Has no effect just make sure one command var exists in Partitioner to not throw error
+     */
+    @CommandLine.Option(names = {"--dataset:processOnce"}, defaultValue = "true", fallbackValue = "true", arity = "1", description = "Dataset: Process once or continuously")
+    protected boolean processOnce;
 
     /**
      * Number of logical parts the partitioner sees, usually set to {@code env.getMaxParallelism()}
@@ -48,7 +55,8 @@ abstract public class Partitioner {
     /**
      * Process command line arguments
      */
-    public void parseCmdArgs(String[] cmdArgs) {
+    public final void parseCmdArgs(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
     /**

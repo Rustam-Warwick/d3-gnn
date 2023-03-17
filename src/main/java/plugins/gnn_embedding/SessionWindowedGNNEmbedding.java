@@ -16,7 +16,7 @@ import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
@@ -31,21 +31,21 @@ import java.util.Map;
  */
 public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
-    public final int sessionInterval; // Window Interval for graph element updates in milliseconds
+    public final int sessionIntervalMs; // Window Interval for graph element updates in milliseconds
 
     public transient Map<Short, HashMap<String, Long>> BATCH; // Map for storing processingTimes
 
     private transient Counter windowThroughput; // Throughput counter, only used for last layer
 
-    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionInterval) {
+    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionIntervalMs) {
         super(modelName, trainableVertexEmbeddings);
-        this.sessionInterval = sessionInterval;
+        this.sessionIntervalMs = sessionIntervalMs;
     }
 
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
-        BATCH = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("BATCH", Types.GENERIC(Map.class), TaskSharedPerPartMapState::new));
+        BATCH = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("BATCH", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> BATCH.put(part, new HashMap<>()));
         windowThroughput = new SimpleCounter();
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
@@ -53,7 +53,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public void forward(Vertex v) {
         long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
-        long thisElementUpdateTime = currentProcessingTime + sessionInterval;
+        long thisElementUpdateTime = currentProcessingTime + sessionIntervalMs;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
         HashMap<String, Long> PART_BATCH = BATCH.get(getRuntimeContext().getCurrentPart());
         PART_BATCH.put(v.getId(), thisElementUpdateTime);

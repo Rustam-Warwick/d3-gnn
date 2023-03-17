@@ -1,9 +1,8 @@
 package org.apache.flink.runtime.state.taskshared;
 
-import elements.Plugin;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
@@ -18,15 +17,15 @@ import java.util.function.Function;
  * Map state per part
  * Only use it when the state is partitioned according to {@link org.apache.flink.runtime.state.PartNumber}
  */
-public class TaskSharedPerPartMapState<V> extends TaskSharedState implements Map<Short,V> {
+public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implements Map<Short,V> {
 
     protected Map<Short, V> wrappedMap = new Short2ObjectOpenHashMap<>();
 
     @Override
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
-        super.register(taskSharedStateBackend);
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
+        Preconditions.checkNotNull(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
+        super.register(taskSharedKeyedStateBackend);
         GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getThisOperatorParts().forEach(part -> wrappedMap.put(part, null));
-        // Populate so that no .put() operations do not reshuffle the map
     }
 
     @Override
@@ -71,7 +70,7 @@ public class TaskSharedPerPartMapState<V> extends TaskSharedState implements Map
     }
 
     @Override
-    public  void clear() {
+    public void clear() {
         wrappedMap.clear();
     }
 

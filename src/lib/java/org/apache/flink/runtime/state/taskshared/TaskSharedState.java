@@ -1,6 +1,5 @@
 package org.apache.flink.runtime.state.taskshared;
 
-import it.unimi.dsi.fastutil.ints.Int2IntOpenHashMap;
 import org.apache.flink.api.common.state.State;
 
 /**
@@ -12,24 +11,25 @@ import org.apache.flink.api.common.state.State;
  * </p>
  */
 abstract public class TaskSharedState implements State {
-    /**
-     * Group ID to index. Index represents a logical index(order) of registration for this group ID
-     */
-    protected final Int2IntOpenHashMap groupIdToIndex = new Int2IntOpenHashMap();
 
     /**
-     * Counter for each register() calls. Used to populate group-to-index map
+     * Counter for each register() calls. Used to clear the state in correct time
      */
     protected int registrationCounter = 0;
 
     /**
      * Register sub-task to this shared state object
      */
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
-        for (int i = taskSharedStateBackend.getKeyGroupRange().getStartKeyGroup(); i <= taskSharedStateBackend.getKeyGroupRange().getEndKeyGroup(); i++) {
-            groupIdToIndex.put(i, registrationCounter);
-        }
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
         registrationCounter++;
+    }
+
+    /**
+     * Deregister sub-task from this shared state object
+     * Used for closing
+     */
+    public synchronized void deregister(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend){
+        if(--registrationCounter == 0) clear();
     }
 
 

@@ -160,6 +160,9 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     public void close() throws IOException {
+        TASK_LOCAL_STATE_MAP.forEach((key, value) -> {
+            if(key.f0.equals(taskIdentifier.f0) && key.f1.equals(taskIdentifier.f1)) value.deregister(this);
+        });
         wrappedKeyedStateBackend.close();
     }
 

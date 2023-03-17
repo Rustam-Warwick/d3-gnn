@@ -21,7 +21,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
@@ -84,7 +84,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     protected final GraphEventPool eventPool;
 
     /**
-     * Map of ID -> Plugin. Actually {@link TaskSharedPerPartMapState}
+     * Map of ID -> Plugin. Actually {@link TaskSharedGraphPerPartMapState}
      */
     protected final Map<String, Plugin> plugins;
 
@@ -233,7 +233,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
             case SYNC_REQUEST:
                 if (!storage.containsElement(value.element.getId(), value.element.getType())) {
                     // This can only occur if master is not here yet
-                    GraphElement el = storage.getDummyElement(value.element.getId(), value.element.getType());
+                    GraphElement el = storage.getDummyElementAsMaster(value.element.getId(), value.element.getType());
                     el.create();
                     el.syncRequest(value.element);
                 } else {

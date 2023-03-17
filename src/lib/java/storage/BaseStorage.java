@@ -30,7 +30,7 @@ abstract public class BaseStorage extends TaskSharedState {
     /**
      * Logger
      */
-    protected static Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(BaseStorage.class);
 
     /**
      * {@inheritDoc}
@@ -39,10 +39,10 @@ abstract public class BaseStorage extends TaskSharedState {
      * </p>
      */
     @Override
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedStateBackend) {
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
         Preconditions.checkNotNull(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
-        Preconditions.checkState(taskSharedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
-        super.register(taskSharedStateBackend);
+        Preconditions.checkState(taskSharedKeyedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
+        super.register(taskSharedKeyedStateBackend);
     }
 
     /**
@@ -385,8 +385,9 @@ abstract public class BaseStorage extends TaskSharedState {
 
         /**
          * Method that create a <strong>dummy</strong> {@link GraphElement} if possible
+         * Assuming that this is the master part
          */
-        public final GraphElement getDummyElement(Object id, ElementType elementType) {
+        public final GraphElement getDummyElementAsMaster(Object id, ElementType elementType) {
             switch (elementType) {
                 case VERTEX:
                     return new Vertex((String) id, getRuntimeContext().getCurrentPart());

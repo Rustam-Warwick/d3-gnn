@@ -24,7 +24,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
@@ -51,7 +51,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
-        part2GradientAggregators = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedPerPartMapState::new));
+        part2GradientAggregators = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2GradientAggregators.put(part, new NDArraysAggregator()));
     }
 

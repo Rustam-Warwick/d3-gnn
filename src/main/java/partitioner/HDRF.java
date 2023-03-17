@@ -68,14 +68,6 @@ public class HDRF extends Partitioner {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
-    }
-
-    /**
      * Actual HDRF Processing Function
      */
     public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {

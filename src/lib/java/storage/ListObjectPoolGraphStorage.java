@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class ListObjectPoolGraphStorage extends BaseStorage {
 
@@ -34,20 +35,42 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
     /**
      * Unique Vertex Feature Counter
      */
-    private AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
+    private final AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
 
     /**
      * Vertex Map
      */
-    private Map<Short, Map<String, VertexInfo>> vertexMap = new NonBlockingHashMap<>();
+    private final Map<Short, Map<String, VertexInfo>> vertexMap = new NonBlockingHashMap<>();
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext) {
         return new ListGraphView(runtimeContext);
     }
 
     @Override
-    public void clear() {}
+    public void clear() {
+        Map<Integer, Feature> featureTmpMap = vertexFeatureInfoTable.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
+        vertexMap.forEach((part, vertexMapInternal) -> {
+            vertexMapInternal.forEach((vertexId, vertexInfo) -> {
+                if(vertexInfo.featureValues != null){
+                    for (int i = 0; i < vertexInfo.featureValues.length; i++) {
+                        if(vertexInfo.featureValues[i] != null) {
+                            Feature tmp = featureTmpMap.get(i);
+                            tmp.value = vertexInfo.featureValues[i];
+                            tmp.destroy();
+                        }
+                    }
+                }
+            });
+            vertexMapInternal.clear();
+        });
+        vertexMap.clear();
+        vertexFeatureInfoTable.clear();
+        vertexMasterTable.clear();
+    }
 
     /**
      * {@inheritDoc}

@@ -21,7 +21,7 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.taskshared.TaskSharedPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
@@ -63,7 +63,7 @@ public class VertexClassificationTraining extends BaseVertexOutput {
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
-        part2TrainingVertexMap = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedPerPartMapState::new));
+        part2TrainingVertexMap = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2TrainingVertexMap.put(part, new ObjectArrayList<>()));
         epochAndMiniBatchController = new EpochAndMiniBatchController();
         epochThroughput = new SimpleCounter();

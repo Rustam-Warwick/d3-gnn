@@ -49,14 +49,6 @@ public class HyperGraphMinMax extends Partitioner {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
-    }
-
-    /**
      * Actual Min-Max partitioning function
      */
     public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {

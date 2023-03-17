@@ -105,7 +105,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void create() {
         if (getType() == ElementType.STANDALONE_FEATURE) super.create();
         else if (!getGraphRuntimeContext().getStorage().containsElement(id.f1, id.f0)) {
-            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElement(id.f1, id.f0);
+            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElementAsMaster(id.f1, id.f0);
             setElement(el, false);
             el.create();
         } else {
@@ -240,6 +240,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      *
      * @param testIfExistsInElement If we should check for existence of duplicated {@link Feature} in {@link GraphElement}
      *                              <p> If test is true, this Feature will not be added to GraphElement if there is a feature with that name already </p>
+     * <p>
+     *   Does not handle the duplication of the feature in multiple Graph Elements
+     * </p>
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;

@@ -18,7 +18,7 @@ public class TaskSharedValueState<V> extends TaskSharedState {
 
     @Override
     public void clear() {
-
+        // pass
     }
 
 }

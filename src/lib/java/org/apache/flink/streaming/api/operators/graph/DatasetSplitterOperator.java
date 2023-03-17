@@ -24,6 +24,7 @@ import org.apache.flink.runtime.state.VoidNamespaceSerializer;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.*;
@@ -98,6 +99,11 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     protected InternalTimerService<VoidNamespace> internalTimerService;
 
     /**
+     * User time service that {@link GraphElement} interact with
+     */
+    protected TimerService userTimerService;
+
+    /**
      * Operation mode of the splitter
      */
     protected OperationMode operationMode = OperationMode.RUNNING;
@@ -126,6 +132,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         super.open();
         internalTimerService =
                 getInternalTimerService("user-timers", VoidNamespaceSerializer.INSTANCE, this);
+        userTimerService = new SimpleTimerService(internalTimerService);
     }
 
     @Override
@@ -183,6 +190,9 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         TRAINING
     }
 
+    /**
+     * Implementation without the storage and plugins, since they are not part of splitter
+     */
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
@@ -260,7 +270,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
         @Override
         public TimerService getTimerService() {
-            throw new IllegalStateException("Not in SPLITTER");
+            return userTimerService;
         }
 
         @Override
