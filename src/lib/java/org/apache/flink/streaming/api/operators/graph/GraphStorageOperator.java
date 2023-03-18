@@ -20,8 +20,8 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
-import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.taskshared.TaskSharedState;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
@@ -219,40 +219,42 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
         GraphOp value = element.getValue();
-        switch (value.op) {
-            case ADD:
-                value.element.create();
-                break;
-            case COMMIT:
-                if (!storage.containsElement(value.element)) {
+        try(BaseStorage.ObjectPoolScope ignored = storage.openObjectPoolScope()) {
+            switch (value.op) {
+                case ADD:
                     value.element.create();
-                } else {
-                    storage.getElement(value.element).update(value.element);
-                }
-                break;
-            case SYNC_REQUEST:
-                if (!storage.containsElement(value.element.getId(), value.element.getType())) {
-                    // This can only occur if master is not here yet
-                    GraphElement el = storage.getDummyElementAsMaster(value.element.getId(), value.element.getType());
-                    el.create();
-                    el.syncRequest(value.element);
-                } else {
-                    GraphElement el = storage.getElement(value.element.getId(), value.element.getType());
-                    el.syncRequest(value.element);
-                }
-                break;
-            case SYNC:
-                GraphElement el = storage.getElement(value.element);
-                el.sync(value.element);
-                break;
-            case RMI:
-                GraphElement rpcElement = storage.getElement(value.element.getId(), value.element.getType());
-                Rmi rmi = (Rmi) value.element;
-                Rmi.execute(rpcElement, rmi.methodName, rmi.args);
-                break;
-            case OPERATOR_EVENT:
-                eventPool.addEvent(element.getValue().graphEvent);
-                break;
+                    break;
+                case COMMIT:
+                    if (!storage.containsElement(value.element)) {
+                        value.element.create();
+                    } else {
+                        storage.getElement(value.element).update(value.element);
+                    }
+                    break;
+                case SYNC_REQUEST:
+                    if (!storage.containsElement(value.element.getId(), value.element.getType())) {
+                        // This can only occur if master is not here yet
+                        GraphElement el = storage.getDummyElementAsMaster(value.element.getId(), value.element.getType());
+                        el.create();
+                        el.syncRequest(value.element);
+                    } else {
+                        GraphElement el = storage.getElement(value.element.getId(), value.element.getType());
+                        el.syncRequest(value.element);
+                    }
+                    break;
+                case SYNC:
+                    GraphElement el = storage.getElement(value.element);
+                    el.sync(value.element);
+                    break;
+                case RMI:
+                    GraphElement rpcElement = storage.getElement(value.element.getId(), value.element.getType());
+                    Rmi rmi = (Rmi) value.element;
+                    Rmi.execute(rpcElement, rmi.methodName, rmi.args);
+                    break;
+                case OPERATOR_EVENT:
+                    eventPool.addEvent(element.getValue().graphEvent);
+                    break;
+            }
         }
     }
 

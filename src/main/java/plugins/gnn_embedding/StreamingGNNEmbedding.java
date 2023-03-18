@@ -18,7 +18,9 @@ import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * {@inheritDoc}
@@ -31,7 +33,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     protected transient NDList reuseNDList; // Reusable NDList object for performance
 
-    protected transient Tuple3<ElementType, Object, String> reuseFeatureId; // Reusable Feature id tuple
+    protected transient Tuple3<ElementType, Object, String> reuseAggId; // Reusable Feature id tuple
 
     protected transient Map<Short, List<String>> reuseReduceMap; // Reusable map for sending reduce, replace messages
 
@@ -50,7 +52,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         getRuntimeContext().getMetricGroup().meter("throughput", new MeterView(throughput));
         getRuntimeContext().getMetricGroup().counter("latency", latency);
         reuseNDList = new NDList(2);
-        reuseFeatureId = Tuple3.of(ElementType.VERTEX, null, "agg");
+        reuseAggId = Tuple3.of(ElementType.VERTEX, null, "agg");
         reuseReduceMap = new Short2ObjectOpenHashMap<>();
     }
 
@@ -65,9 +67,12 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         } else if (element.getType() == ElementType.EDGE) {
             DirectedEdge directedEdge = (DirectedEdge) element;
             if (messageReady(directedEdge)) {
-                NDList msg = MESSAGE(new NDList((NDArray) directedEdge.getSrc().getFeature("f").getValue()), false);
+                reuseNDList.clear();
+                reuseNDList.add((NDArray) directedEdge.getSrc().getFeature("f").getValue());
+                NDList msg = MESSAGE(reuseNDList, false);
+                reuseAggId.f1 = directedEdge.getDestId();
                 Rmi.buildAndRun(
-                        Tuple3.of(ElementType.VERTEX, directedEdge.getDestId(), "agg"),
+                        reuseAggId,
                         ElementType.ATTACHED_FEATURE,
                         "reduce",
                         directedEdge.getDest().getMasterPart(),
@@ -114,14 +119,16 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     public void forward(Vertex v) {
         NDArray ft = (NDArray) (v.getFeature("f")).getValue();
         NDArray agg = (NDArray) (v.getFeature("agg")).getValue();
-        NDArray update = UPDATE(new NDList(ft, agg), false).get(0);
+        reuseNDList.clear();
+        reuseNDList.add(ft);
+        reuseNDList.add(agg);
+        NDArray update = UPDATE(reuseNDList, false).get(0);
         Tensor tmp = new Tensor("f", update, false);
-        tmp.setElement(v, true);
         tmp.id.f0 = ElementType.VERTEX;
         tmp.id.f1 = v.getId();
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**
@@ -164,8 +171,8 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         for (String vertexId : vertices) {
-            reuseFeatureId.f1 = vertexId;
-            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureId), "reduce", message, 1);
+            reuseAggId.f1 = vertexId;
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "reduce", message, 1);
         }
     }
 
@@ -212,8 +219,8 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
         for (String vertexId : vertices) {
-            reuseFeatureId.f1 = vertexId;
-            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureId), "replace", messageNew, messageOld);
+            reuseAggId.f1 = vertexId;
+            Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "replace", messageNew, messageOld);
         }
     }
 }

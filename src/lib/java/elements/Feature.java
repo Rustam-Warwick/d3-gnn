@@ -29,7 +29,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * If this Feature is halo
      */
-    public boolean halo = false;
+    public boolean halo;
 
     /**
      * Attached {@link  GraphElement} if it exists
@@ -49,22 +49,22 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public Feature(String name, T value) {
         super();
-        this.value = value;
         this.id = Tuple3.of(ElementType.NONE, null, name);
+        this.value = value;
     }
 
     public Feature(String name, T value, boolean halo) {
         super();
-        this.value = value;
         this.id = Tuple3.of(ElementType.NONE, null, name);
+        this.value = value;
         this.halo = halo;
     }
 
     public Feature(String name, T value, boolean halo, short master) {
         super(master);
+        this.id = Tuple3.of(ElementType.NONE, null, name);
         this.halo = halo;
         this.value = value;
-        this.id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(Feature<T, V> feature, CopyContext context) {

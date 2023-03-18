@@ -169,7 +169,7 @@ public class GraphStream {
             if (i == 1) {
                 layerOutputs[i + 2] = addGraphOperator(layerOutputs[2], i, null); // First directly from splitter
             } else if (i == layers) {
-                    layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(trainTestSplit), i, null); // Last without topology
+                    layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(topologyUpdates), i, null); // Last without topology
             } else {
                 layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(topologyUpdates), i, null); // Mid-topology + previous
             }

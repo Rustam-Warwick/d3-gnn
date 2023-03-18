@@ -49,7 +49,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     public GraphElement(GraphElement element, CopyContext context) {
         if (context == CopyContext.SYNC) {
             // Copy all the non-halo features
-            if (element.features != null && !element.features.isEmpty()) {
+            if (element.features != null) {
                 for (Feature<?, ?> feature : element.features) {
                     if (!feature.isHalo()) {
                         // Don't use setElement here since this.getId() might be null at this point

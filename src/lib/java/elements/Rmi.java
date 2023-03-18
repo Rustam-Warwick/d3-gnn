@@ -164,7 +164,7 @@ public class Rmi extends GraphElement {
      */
     @Override
     public ElementType getType() {
-        return this.elemType;
+        return elemType;
     }
 
     /**

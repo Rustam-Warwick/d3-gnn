@@ -27,7 +27,7 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     /**
      * ID of this plugin, should be unique per storage
      */
-    final public String id;
+    public final String id;
 
     /**
      * Is this Plugin currently listening to graph updates

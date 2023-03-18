@@ -43,7 +43,7 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
      * {@link RemoteFunction} to aggregate a new part to the collection
      */
     @RemoteFunction
-    public void add(Short element) {
+    public void add(short element) {
         if (this.value.contains(element)) return;
         this.value.add(element);
     }
@@ -52,7 +52,7 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
      * {@link RemoteFunction} to remove a new part to the collection
      */
     @RemoteFunction
-    public void remove(Short element) {
+    public void remove(short element) {
         if (!this.value.contains(element)) return;
         this.value.remove(element);
     }

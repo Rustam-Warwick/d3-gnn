@@ -210,7 +210,6 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
          */
         protected final List<TrainingSubCoordinator> coordinators = new ArrayList<>(4);
 
-
         /**
          * Number of sub-operators with iteration HEAD logic
          */
