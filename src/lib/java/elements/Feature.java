@@ -240,9 +240,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      *
      * @param testIfExistsInElement If we should check for existence of duplicated {@link Feature} in {@link GraphElement}
      *                              <p> If test is true, this Feature will not be added to GraphElement if there is a feature with that name already </p>
-     * <p>
-     *   Does not handle the duplication of the feature in multiple Graph Elements
-     * </p>
+     *                              <p>
+     *                              Does not handle the duplication of the feature in multiple Graph Elements
+     *                              </p>
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;

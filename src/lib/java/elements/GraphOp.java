@@ -51,7 +51,8 @@ public final class GraphOp implements LifeCycleControl {
      */
     public Long ts;
 
-    public GraphOp() {}
+    public GraphOp() {
+    }
 
     public GraphOp(Op op, GraphElement element) {
         this.op = op;
@@ -127,7 +128,7 @@ public final class GraphOp implements LifeCycleControl {
 
     @Override
     public void destroy() {
-        if(element != null) element.destroy();
+        if (element != null) element.destroy();
     }
 
     @Override

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 /**
  * Simple storage implementation with small data structures, base on list edges
  * <p>
- *     Only support {@link Vertex} {@link Feature} for now
+ * Only support {@link Vertex} {@link Feature} for now
  * </p>
  */
 public class ListObjectPoolGraphStorage extends BaseStorage {
@@ -63,9 +63,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         Map<Integer, Feature> featureTmpMap = vertexFeatureInfoTable.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
         vertexMap.forEach((part, vertexMapInternal) -> {
             vertexMapInternal.forEach((vertexId, vertexInfo) -> {
-                if(vertexInfo.featureValues != null){
+                if (vertexInfo.featureValues != null) {
                     for (int i = 0; i < vertexInfo.featureValues.length; i++) {
-                        if(vertexInfo.featureValues[i] != null) {
+                        if (vertexInfo.featureValues[i] != null) {
                             Feature tmp = featureTmpMap.get(i);
                             tmp.value = vertexInfo.featureValues[i];
                             tmp.destroy();
@@ -78,6 +78,156 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         vertexMap.clear();
         vertexFeatureInfoTable.clear();
         vertexMasterTable.clear();
+    }
+
+    /**
+     * Information stored per Vertex
+     */
+    public static class VertexInfo {
+
+        protected Object[] featureValues;
+
+        protected List<String[]> outEdges;
+
+        protected List<String[]> inEdges;
+
+        protected void addOrUpdateFeature(Feature feature, VertexFeatureInfo featureInfo) {
+            if (featureValues == null) featureValues = new Object[featureInfo.position + 1];
+            if (featureInfo.position >= featureValues.length) {
+                Object[] tmp = new Object[featureInfo.position + 1];
+                System.arraycopy(featureValues, 0, tmp, 0, featureValues.length);
+                featureValues = tmp;
+            }
+            List<Feature<?, ?>> subFeatures = feature.features;
+            feature.features = null;
+            if (featureValues[featureInfo.position] != null) {
+                // Is update
+                Object oldFeatureValue = featureValues[featureInfo.position];
+                if (oldFeatureValue != feature.value) {
+                    // Values are different (non-in-place). Delay resume add and return
+                    feature.delay();
+                    featureValues[featureInfo.position] = feature.value;
+                    feature.value = oldFeatureValue;
+                    feature.resume();
+                    feature.value = featureValues[featureInfo.position];
+                }
+            } else {
+                // Is create: Delay and add
+                feature.delay();
+                featureValues[featureInfo.position] = feature.value;
+            }
+            feature.features = subFeatures;
+        }
+
+        protected boolean hasFeatureInPosition(int position) {
+            return featureValues != null && featureValues.length > position && featureValues[position] != null;
+        }
+
+        protected void addOutEdge(DirectedEdge edge) {
+            if (outEdges == null) outEdges = new ObjectArrayList<>(4);
+            if (edge.getAttribute() == null) outEdges.add(new String[]{edge.getDestId()});
+            else outEdges.add(new String[]{edge.getDestId(), edge.getAttribute()});
+        }
+
+        protected void addInEdge(DirectedEdge edge) {
+            if (inEdges == null) inEdges = new ObjectArrayList<>(4);
+            if (edge.getAttribute() == null) inEdges.add(new String[]{edge.getSrcId()});
+            else inEdges.add(new String[]{edge.getSrcId(), edge.getAttribute()});
+        }
+
+    }
+
+    /**
+     * Information about the Vertex Feature storing halo state constructor and etc.
+     */
+    public static class VertexFeatureInfo {
+
+        boolean halo;
+
+        int position;
+
+        Class<? extends Feature> clazz;
+
+        ConstructorAccess<? extends Feature> constructorAccess;
+
+        protected VertexFeatureInfo(Feature<?, ?> feature, int position) {
+            this.position = position;
+            this.halo = feature.isHalo();
+            this.clazz = feature.getClass();
+            this.constructorAccess = ConstructorAccess.get(this.clazz);
+        }
+    }
+
+    /**
+     * Reuse scope with elements cache per block
+     */
+    public static class ObjectPool extends ObjectPoolScope {
+
+        List<Vertex> vertices = new ObjectArrayList<>(10);
+
+        IntList usingVerticesUpTo = new IntArrayList(List.of(0));
+
+        List<DirectedEdge> edges = new ObjectArrayList<>(10);
+
+        IntList usingEdgesUpTo = new IntArrayList(List.of(0));
+
+        Int2ObjectMap<Tuple2<List<Feature>, IntList>> vertexFeaturesMap = new Int2ObjectOpenHashMap<>();
+
+        public Vertex getVertex(String id, short masterPart) {
+            if (vertices.size() <= usingVerticesUpTo.getInt(openCount)) vertices.add(new Vertex());
+            Vertex v = vertices.get(usingVerticesUpTo.getInt(openCount));
+            usingVerticesUpTo.set(openCount, usingVerticesUpTo.getInt(openCount) + 1);
+            v.id = id;
+            v.masterPart = masterPart;
+            if (v.features != null) v.features.clear();
+            return v;
+        }
+
+        public DirectedEdge getEdge(Tuple3<String, String, String> id) {
+            if (edges.size() <= usingEdgesUpTo.getInt(openCount)) edges.add(new DirectedEdge());
+            DirectedEdge edge = edges.get(usingEdgesUpTo.getInt(openCount));
+            usingEdgesUpTo.set(openCount, usingEdgesUpTo.getInt(openCount) + 1);
+            edge.src = null;
+            edge.dest = null;
+            edge.id.f0 = id.f0;
+            edge.id.f1 = id.f1;
+            edge.id.f2 = id.f2;
+            if (edge.features != null) edge.features.clear();
+            return edge;
+        }
+
+        public Feature getVertexFeature(Object value, Tuple3<ElementType, Object, String> id, VertexFeatureInfo vertexFeatureInfo) {
+            vertexFeaturesMap.computeIfAbsent(vertexFeatureInfo.position, (position) -> Tuple2.of(new ObjectArrayList<>(), new IntArrayList(Collections.nCopies(openCount + 1, 0))));
+            Tuple2<List<Feature>, IntList> vertexFeatureTuple = vertexFeaturesMap.get(vertexFeatureInfo.position);
+            if (vertexFeatureTuple.f0.size() <= vertexFeatureTuple.f1.getInt(openCount))
+                vertexFeatureTuple.f0.add(vertexFeatureInfo.constructorAccess.newInstance());
+            Feature feature = vertexFeatureTuple.f0.get(vertexFeatureTuple.f1.getInt(openCount));
+            vertexFeatureTuple.f1.set(openCount, vertexFeatureTuple.f1.getInt(openCount) + 1);
+            feature.element = null;
+            feature.halo = vertexFeatureInfo.halo;
+            feature.value = value;
+            feature.id.f0 = id.f0;
+            feature.id.f1 = id.f1;
+            feature.id.f2 = id.f2;
+            if (feature.features != null) feature.features.clear();
+            return feature;
+        }
+
+        @Override
+        protected ObjectPoolScope open() {
+            usingVerticesUpTo.add(usingVerticesUpTo.getInt(openCount));
+            usingEdgesUpTo.add(usingEdgesUpTo.getInt(openCount));
+            vertexFeaturesMap.forEach((key, val) -> val.f1.add(val.f1.getInt(openCount)));
+            return super.open();
+        }
+
+        @Override
+        public void close() {
+            usingVerticesUpTo.removeInt(openCount);
+            usingEdgesUpTo.removeInt(openCount);
+            vertexFeaturesMap.forEach((key, val) -> val.f1.removeInt(openCount));
+            super.close();
+        }
     }
 
     /**
@@ -109,8 +259,8 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void addAttachedFeature(Feature feature) {
-            if(feature.getAttachedElementType() == ElementType.VERTEX){
-                vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key)-> new VertexFeatureInfo(feature, uniqueVertexFeatureCounter.getAndIncrement()));
+            if (feature.getAttachedElementType() == ElementType.VERTEX) {
+                vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key) -> new VertexFeatureInfo(feature, uniqueVertexFeatureCounter.getAndIncrement()));
                 vertexMap.get(getRuntimeContext().getCurrentPart()).get(feature.getAttachedElementId()).addOrUpdateFeature(feature, vertexFeatureInfoTable.get(feature.getName()));
                 return;
             }
@@ -191,7 +341,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public @Nullable Vertex getVertex(String vertexId) {
-            if(scopePool.isOpen()){
+            if (scopePool.isOpen()) {
                 return scopePool.getVertex(vertexId, vertexMasterTable.get(vertexId));
             }
             return new Vertex(vertexId, vertexMasterTable.get(vertexId));
@@ -204,7 +354,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public @Nullable DirectedEdge getEdge(Tuple3<String, String, String> id) {
-            if(scopePool.isOpen()){
+            if (scopePool.isOpen()) {
                 return scopePool.getEdge(id);
             }
             return new DirectedEdge(id.f0, id.f1, id.f2);
@@ -215,16 +365,16 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             VertexInfo vertexInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> inEdgeIterable = IteratorUtils.emptyIterator();
             Iterator<DirectedEdge> outEdgeIterable = IteratorUtils.emptyIterator();
-            if(vertexInfo.outEdges!=null && (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH)){
-                outEdgeIterable = vertexInfo.outEdges.stream().map(partialIds-> {
+            if (vertexInfo.outEdges != null && (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH)) {
+                outEdgeIterable = vertexInfo.outEdges.stream().map(partialIds -> {
                     reuseEdgeId.f0 = vertex.getId();
                     reuseEdgeId.f1 = partialIds[0];
                     reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
                     return getEdge(reuseEdgeId);
                 }).iterator();
             }
-            if(vertexInfo.inEdges!=null && (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH)){
-                inEdgeIterable = vertexInfo.inEdges.stream().map(partialIds->{
+            if (vertexInfo.inEdges != null && (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH)) {
+                inEdgeIterable = vertexInfo.inEdges.stream().map(partialIds -> {
                     reuseEdgeId.f0 = partialIds[0];
                     reuseEdgeId.f1 = vertex.getId();
                     reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
@@ -246,12 +396,13 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         }
 
         public @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id, @Nullable VertexFeatureInfo featureInfo, @Nullable Object value) {
-            if(id.f0 == ElementType.VERTEX){
-                if(featureInfo == null) featureInfo = vertexFeatureInfoTable.get(id.f2);
-                if(value == null) value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
-                if(scopePool.isOpen()){
+            if (id.f0 == ElementType.VERTEX) {
+                if (featureInfo == null) featureInfo = vertexFeatureInfoTable.get(id.f2);
+                if (value == null)
+                    value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
+                if (scopePool.isOpen()) {
                     return scopePool.getVertexFeature(value, id, featureInfo);
-                }else {
+                } else {
                     Feature feature = featureInfo.constructorAccess.newInstance();
                     feature.value = value;
                     feature.id.f0 = id.f0;
@@ -271,12 +422,12 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName) {
-            if(elementType == ElementType.VERTEX){
+            if (elementType == ElementType.VERTEX) {
                 VertexFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(featureName);
                 return () -> vertexMap.get(getRuntimeContext().getCurrentPart()).entrySet()
                         .stream()
-                        .filter(entrySet->entrySet.getValue().hasFeatureInPosition(vertexFeatureInfo.position))
-                        .map(entrySet->{
+                        .filter(entrySet -> entrySet.getValue().hasFeatureInPosition(vertexFeatureInfo.position))
+                        .map(entrySet -> {
                             Object value = entrySet.getValue().featureValues[vertexFeatureInfo.position];
                             reuseFeatureId.f0 = ElementType.VERTEX;
                             reuseFeatureId.f1 = entrySet.getKey();
@@ -305,8 +456,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public boolean containsAttachedFeature(Tuple3<ElementType, Object, String> id) {
-            if(id.f0 == ElementType.VERTEX){
-                if(!vertexFeatureInfoTable.containsKey(id.f2) || !vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(id.f1)) return false;
+            if (id.f0 == ElementType.VERTEX) {
+                if (!vertexFeatureInfoTable.containsKey(id.f2) || !vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(id.f1))
+                    return false;
                 return vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).hasFeatureInPosition(vertexFeatureInfoTable.get(id.f2).position);
             }
             throw new IllegalStateException("NOT IMPLEMENTED");
@@ -329,9 +481,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context) {
-            if(element.getType() == ElementType.VERTEX){
+            if (element.getType() == ElementType.VERTEX) {
                 VertexInfo vertexFeatureInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(element.getId());
-                vertexFeatureInfoTable.forEach((featureName, featureInfo)->{
+                vertexFeatureInfoTable.forEach((featureName, featureInfo) -> {
                     if ((!featureInfo.halo && context == CacheFeatureContext.HALO)
                             || (featureInfo.halo && context == CacheFeatureContext.NON_HALO)
                             || !vertexFeatureInfo.hasFeatureInPosition(featureInfo.position))
@@ -349,155 +501,6 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             return scopePool.open();
         }
 
-    }
-
-    /**
-     * Information stored per Vertex
-     */
-    public static class VertexInfo{
-
-        protected Object[] featureValues;
-
-        protected List<String[]> outEdges;
-
-        protected List<String[]> inEdges;
-
-        protected void addOrUpdateFeature(Feature feature, VertexFeatureInfo featureInfo){
-            if(featureValues == null) featureValues = new Object[featureInfo.position + 1];
-            if (featureInfo.position >= featureValues.length) {
-                Object[] tmp = new Object[featureInfo.position + 1];
-                System.arraycopy(featureValues, 0, tmp, 0, featureValues.length);
-                featureValues = tmp;
-            }
-            List<Feature<?,?>> subFeatures = feature.features;
-            feature.features = null;
-            if(featureValues[featureInfo.position] != null){
-                // Is update
-                Object oldFeatureValue = featureValues[featureInfo.position];
-                if(oldFeatureValue != feature.value){
-                    // Values are different (non-in-place). Delay resume add and return
-                    feature.delay();
-                    featureValues[featureInfo.position] = feature.value;
-                    feature.value = oldFeatureValue;
-                    feature.resume();
-                    feature.value = featureValues[featureInfo.position];
-                }
-            }else{
-                // Is create: Delay and add
-                feature.delay();
-                featureValues[featureInfo.position] = feature.value;
-            }
-            feature.features = subFeatures;
-        }
-
-        protected boolean hasFeatureInPosition(int position){
-            return featureValues != null && featureValues.length > position && featureValues[position] != null;
-        }
-
-        protected void addOutEdge(DirectedEdge edge){
-            if(outEdges == null) outEdges = new ObjectArrayList<>(4);
-            if(edge.getAttribute() == null) outEdges.add(new String[]{edge.getDestId()});
-            else outEdges.add(new String[]{edge.getDestId(), edge.getAttribute()});
-        }
-
-        protected void addInEdge(DirectedEdge edge){
-            if(inEdges == null) inEdges = new ObjectArrayList<>(4);
-            if(edge.getAttribute() == null) inEdges.add(new String[]{edge.getSrcId()});
-            else inEdges.add(new String[]{edge.getSrcId(), edge.getAttribute()});
-        }
-
-    }
-
-    /**
-     * Information about the Vertex Feature storing halo state constructor and etc.
-     */
-    public static class VertexFeatureInfo{
-
-        boolean halo;
-
-        int position;
-
-        Class<? extends Feature> clazz;
-
-        ConstructorAccess<? extends Feature> constructorAccess;
-
-        protected VertexFeatureInfo(Feature<?,?> feature, int position){
-            this.position = position;
-            this.halo = feature.isHalo();
-            this.clazz = feature.getClass();
-            this.constructorAccess = ConstructorAccess.get(this.clazz);
-        }
-    }
-
-    /**
-     * Reuse scope with elements cache per block
-     */
-    public static class ObjectPool extends ObjectPoolScope {
-
-        List<Vertex> vertices = new ObjectArrayList<>(10);
-
-        IntList usingVerticesUpTo = new IntArrayList(List.of(0));
-
-        List<DirectedEdge> edges = new ObjectArrayList<>(10);
-
-        IntList usingEdgesUpTo = new IntArrayList(List.of(0));
-
-        Int2ObjectMap<Tuple2<List<Feature>, IntList>> vertexFeaturesMap = new Int2ObjectOpenHashMap<>();
-
-        public Vertex getVertex(String id, short masterPart){
-            if(vertices.size() <= usingVerticesUpTo.getInt(openCount)) vertices.add(new Vertex());
-            Vertex v = vertices.get(usingVerticesUpTo.getInt(openCount));
-            usingVerticesUpTo.set(openCount, usingVerticesUpTo.getInt(openCount) + 1);
-            v.id = id;
-            v.masterPart = masterPart;
-            if(v.features != null) v.features.clear();
-            return v;
-        }
-
-        public DirectedEdge getEdge(Tuple3<String, String, String> id){
-            if(edges.size() <= usingEdgesUpTo.getInt(openCount)) edges.add(new DirectedEdge());
-            DirectedEdge edge = edges.get(usingEdgesUpTo.getInt(openCount));
-            usingEdgesUpTo.set(openCount, usingEdgesUpTo.getInt(openCount) + 1);
-            edge.src = null;
-            edge.dest = null;
-            edge.id.f0 = id.f0;
-            edge.id.f1 = id.f1;
-            edge.id.f2 = id.f2;
-            if(edge.features != null) edge.features.clear();
-            return edge;
-        }
-
-       public Feature getVertexFeature(Object value, Tuple3<ElementType, Object, String> id, VertexFeatureInfo vertexFeatureInfo){
-            vertexFeaturesMap.computeIfAbsent(vertexFeatureInfo.position, (position) -> Tuple2.of(new ObjectArrayList<>(), new IntArrayList(Collections.nCopies(openCount + 1, 0))));
-            Tuple2<List<Feature>, IntList> vertexFeatureTuple = vertexFeaturesMap.get(vertexFeatureInfo.position);
-            if(vertexFeatureTuple.f0.size() <= vertexFeatureTuple.f1.getInt(openCount)) vertexFeatureTuple.f0.add(vertexFeatureInfo.constructorAccess.newInstance());
-            Feature feature = vertexFeatureTuple.f0.get(vertexFeatureTuple.f1.getInt(openCount));
-            vertexFeatureTuple.f1.set(openCount, vertexFeatureTuple.f1.getInt(openCount) + 1);
-            feature.element = null;
-            feature.halo = vertexFeatureInfo.halo;
-            feature.value = value;
-            feature.id.f0 = id.f0;
-            feature.id.f1 = id.f1;
-            feature.id.f2 = id.f2;
-            if(feature.features != null) feature.features.clear();
-            return feature;
-       }
-
-        @Override
-        protected ObjectPoolScope open() {
-            usingVerticesUpTo.add(usingVerticesUpTo.getInt(openCount));
-            usingEdgesUpTo.add(usingEdgesUpTo.getInt(openCount));
-            vertexFeaturesMap.forEach((key, val) -> val.f1.add(val.f1.getInt(openCount)));
-            return super.open();
-        }
-
-        @Override
-        public void close() {
-            usingVerticesUpTo.removeInt(openCount);
-            usingEdgesUpTo.removeInt(openCount);
-            vertexFeaturesMap.forEach((key, val) -> val.f1.removeInt(openCount));
-            super.close();
-        }
     }
 
 }

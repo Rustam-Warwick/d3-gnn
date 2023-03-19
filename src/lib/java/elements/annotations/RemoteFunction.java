@@ -7,7 +7,7 @@ import java.lang.annotation.RetentionPolicy;
  * Functions decorated such way can execute {@link elements.Rmi} messages
  */
 @Retention(RetentionPolicy.RUNTIME)
-public @interface RemoteFunction {
+public @interface RemoteFunction{
 
     /**
      * Should we trigger a new {@link elements.GraphElement} update after this RMI

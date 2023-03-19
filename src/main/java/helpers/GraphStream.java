@@ -43,7 +43,7 @@ public class GraphStream {
      * either {@link org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory}
      * or {@link org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory}
      */
-    protected final TriFunction<Short,Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> operatorFactorySupplier;
+    protected final TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> operatorFactorySupplier;
 
     /**
      * Number of GNN layers in the pipeline {@code processFunctions.length}
@@ -60,7 +60,7 @@ public class GraphStream {
      */
     protected Partitioner partitioner;
 
-     /**
+    /**
      * {@link Dataset} to be used
      */
     protected Dataset dataset;
@@ -146,10 +146,10 @@ public class GraphStream {
      * Add Storage operator
      *
      * @param inputStream incoming GraphOp for this layer, not partitioned yet
-     * @param position       position of the storage layer [1...layers]
+     * @param position    position of the storage layer [1...layers]
      * @return Output of this storage operator not partitioned
      */
-    protected final SingleOutputStreamOperator<GraphOp> addGraphOperator(DataStream<GraphOp> inputStream, short position, Object[] extra){
+    protected final SingleOutputStreamOperator<GraphOp> addGraphOperator(DataStream<GraphOp> inputStream, short position, Object[] extra) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position - 1, 0)));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers, extra)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + Math.max(position, 1));
@@ -169,12 +169,12 @@ public class GraphStream {
             if (i == 1) {
                 layerOutputs[i + 2] = addGraphOperator(layerOutputs[2], i, null); // First directly from splitter
             } else if (i == layers) {
-                    layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(topologyUpdates), i, null); // Last without topology
+                layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(trainTestSplit), i, null); // Last without topology
             } else {
                 layerOutputs[i + 2] = addGraphOperator(layerOutputs[i + 1].union(topologyUpdates), i, null); // Mid-topology + previous
             }
             iterateStreams[i].closeIteration(layerOutputs[i + 2].getSideOutput(OutputTags.ITERATE_OUTPUT_TAG).keyBy(new PartKeySelector()));
-            iterateStreams[i-1].closeIteration(layerOutputs[i + 2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
+            iterateStreams[i - 1].closeIteration(layerOutputs[i + 2].getSideOutput(OutputTags.BACKWARD_OUTPUT_TAG).keyBy(new PartKeySelector()));
         }
         return layerOutputs;
     }

@@ -28,10 +28,9 @@ abstract public class TaskSharedState implements State {
      * Deregister sub-task from this shared state object
      * Used for closing
      */
-    public synchronized void deregister(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend){
-        if(--registrationCounter == 0) clear();
+    public synchronized void deregister(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
+        if (--registrationCounter == 0) clear();
     }
-
 
 
 }

@@ -146,7 +146,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     /**
      * Create or get {@link TaskSharedState} from backend
      */
-    public  <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
+    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
         TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val) -> (
                 val == null ? taskSharedStateDescriptor.getStateSupplier().get() : val
         ));
@@ -161,7 +161,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
 
     public void close() throws IOException {
         TASK_LOCAL_STATE_MAP.forEach((key, value) -> {
-            if(key.f0.equals(taskIdentifier.f0) && key.f1.equals(taskIdentifier.f1)) value.deregister(this);
+            if (key.f0.equals(taskIdentifier.f0) && key.f1.equals(taskIdentifier.f1)) value.deregister(this);
         });
         wrappedKeyedStateBackend.close();
     }

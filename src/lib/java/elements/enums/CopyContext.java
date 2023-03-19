@@ -19,6 +19,7 @@ public enum CopyContext {
      * Also, recursively copy the non-halo features of the given element
      */
     SYNC,
+
     /**
      * Simple shallow copy. All the fields are directly copied except the nested features
      * It is left null

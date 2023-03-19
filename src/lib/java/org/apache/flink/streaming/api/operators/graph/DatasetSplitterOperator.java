@@ -139,7 +139,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
-        if(element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
+        if (element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
         else super.processElement(element);
     }
 
@@ -155,19 +155,19 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.EnterTraining && operationMode == OperationMode.RUNNING){
+        if (evt instanceof TrainingSubCoordinator.EnterTraining && operationMode == OperationMode.RUNNING) {
             operationMode = OperationMode.TRAINING;
-            try{
-                while(operationMode == OperationMode.TRAINING){
+            try {
+                while (operationMode == OperationMode.TRAINING) {
                     mailboxExecutor.yield();
                 }
-            }catch (InterruptedException ignored){
+            } catch (InterruptedException ignored) {
                 // Can be interrupted to close prematurely
             }
-        }else if(evt instanceof TrainingSubCoordinator.ExitedTraining && operationMode == OperationMode.TRAINING){
+        } else if (evt instanceof TrainingSubCoordinator.ExitedTraining && operationMode == OperationMode.TRAINING) {
             // Back to running mode
             operationMode = OperationMode.RUNNING;
-        }else if(evt instanceof TrainingSubCoordinator.FlushingScanRequest){
+        } else if (evt instanceof TrainingSubCoordinator.FlushingScanRequest) {
             long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
             final boolean[] hasTimers = new boolean[]{false};
             try {
@@ -175,7 +175,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
                     hasTimers[0] = true;
                     throw new Exception("Found, do not process rest");
                 });
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.FlushingScanResponse(!hasTimers[0] && tmp == pipelineFlushingCounter));
             pipelineFlushingCounter = tmp;
         }
@@ -185,7 +186,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     /**
      * Mode of operation of this operator
      */
-    enum OperationMode{
+    enum OperationMode {
         RUNNING,
         TRAINING
     }
@@ -227,7 +228,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
         @Override
         public void broadcast(GraphOp op) {
-            thisOutput.broadcast(null,reuse.replace(op));
+            thisOutput.broadcast(null, reuse.replace(op));
         }
 
         @Override
@@ -258,12 +259,12 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         @Override
         public void runForAllLocalParts(Runnable run) {
             PartNumber initialKey = (PartNumber) getCurrentKey();
-            try{
+            try {
                 for (short thisOperatorPart : getThisOperatorParts()) {
                     setCurrentKey(PartNumber.of(thisOperatorPart));
                     run.run();
                 }
-            }finally {
+            } finally {
                 setCurrentKey(initialKey);
             }
         }

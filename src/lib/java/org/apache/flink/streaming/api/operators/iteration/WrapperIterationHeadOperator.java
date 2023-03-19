@@ -26,12 +26,12 @@ import java.util.function.Consumer;
 /**
  * HEAD logic wrapper around the main operator logic for {@link OneInputStreamOperator}
  * <p>
- *     Currently only supports single input stream operator but can be extended to support many sources as well
- *     When Long.MAX_VALUE watermark arrives enters into termination detection mode
- *     In this mode only mailbox messages are processed since no external messages are assumed
- *     To not block the subsequent iteration head operators in the pipeline while terminating it emits Long.MAX_VALUE - 1
- *     This watermark notifies that the input is actually finished and currently the system is in termination detection mode
- *     Once finished termination detection it emits the Long.MAX_VALUE watermark
+ * Currently only supports single input stream operator but can be extended to support many sources as well
+ * When Long.MAX_VALUE watermark arrives enters into termination detection mode
+ * In this mode only mailbox messages are processed since no external messages are assumed
+ * To not block the subsequent iteration head operators in the pipeline while terminating it emits Long.MAX_VALUE - 1
+ * This watermark notifies that the input is actually finished and currently the system is in termination detection mode
+ * Once finished termination detection it emits the Long.MAX_VALUE watermark
  * </p>
  *
  * @param <OUT> Output Type
@@ -44,10 +44,10 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     static final Field eventDispatcherMapField;
 
     static {
-        try{
+        try {
             eventDispatcherMapField = OperatorEventDispatcherImpl.class.getDeclaredField("handlers");
             eventDispatcherMapField.setAccessible(true);
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException("Run off security mananger, need to access reflection");
         }
     }
@@ -136,11 +136,13 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
         this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
         this.channelID = new IterationChannelKey(parameters.getContainingTask().getEnvironment().getJobID(), iterationID, parameters.getContainingTask().getEnvironment().getTaskInfo().getAttemptNumber(), parameters.getContainingTask().getEnvironment().getTaskInfo().getIndexOfThisSubtask());
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
-        try{
+        try {
             // Underlying operator is initialized first, so it may have declared a dispatcher already. Need to override the handler and redirect messages to the underlying operator
             Map<OperatorID, OperatorEventHandler> handlerMap = (Map<OperatorID, OperatorEventHandler>) eventDispatcherMapField.get(parameters.getOperatorEventDispatcher());
             this.operatorEventHandlerBodyOperatorRef = handlerMap.put(getOperatorID(), this);
-        }catch (Exception e){throw new RuntimeException("Cannot access the field");}
+        } catch (Exception e) {
+            throw new RuntimeException("Cannot access the field");
+        }
         this.oneInputBodyOperatorRef = (bodyOperator instanceof OneInputStreamOperator) ? (OneInputStreamOperator<Object, OUT>) bodyOperator : null;
         this.exposingInternalTimerServiceOperatorRef = (bodyOperator instanceof ExposingInternalTimerService) ? (ExposingInternalTimerService) bodyOperator : null;
         this.requestScanConsumer = exposingInternalTimerServiceOperatorRef == null ? this::handleRequestScanEventWithoutTimers : this::handleRequestScanEventWithTimers;
@@ -253,7 +255,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
                 mailboxExecutor.yield();
             }
             oneInputBodyOperatorRef.processWatermark(mark); // Operators might depend on this watermark so send it
-        }else{
+        } else {
             oneInputBodyOperatorRef.processWatermark(mark);
         }
     }
@@ -274,7 +276,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Handle {@link WrapperIterationHeadOperatorCoordinator.TerminationScanRequest} events when there are no times in the body
      */
-    final public void handleRequestScanEventWithoutTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest){
+    final public void handleRequestScanEventWithoutTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest) {
         long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
         operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.TerminationScanResponse(
                 tmp == terminationDetectionCounter
@@ -285,14 +287,15 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
     /**
      * Handle {@link WrapperIterationHeadOperatorCoordinator.TerminationScanRequest} events when there are times in the body
      */
-    final public void handleRequestScanEventWithTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest){
+    final public void handleRequestScanEventWithTimers(WrapperIterationHeadOperatorCoordinator.TerminationScanRequest terminationScanRequest) {
         final boolean[] hasTimers = new boolean[]{false};
         try {
             exposingInternalTimerServiceOperatorRef.getInternalTimerService().forEachProcessingTimeTimer((ns, timer) -> {
                 hasTimers[0] = true;
                 throw new Exception("Found, do not process rest");
             });
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
         long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
         operatorEventGateway.sendEventToCoordinator(new WrapperIterationHeadOperatorCoordinator.TerminationScanResponse(
                 !hasTimers[0] && tmp == terminationDetectionCounter));

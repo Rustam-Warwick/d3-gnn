@@ -21,7 +21,10 @@ abstract public class GraphEvent implements OperatorEvent {
      * Everytime such event arrives we call the merge method to merge old event with new one
      * At some point the event will decide to evict itself by calling {@code pool.evict}
      */
-    public void merge(GraphEventPool pool, @Nullable GraphEvent incoming){};
+    public void merge(GraphEventPool pool, @Nullable GraphEvent incoming) {
+    }
+
+    ;
 
     @Override
     public int hashCode() {

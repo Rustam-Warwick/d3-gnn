@@ -2,7 +2,6 @@ package org.apache.flink.runtime.state.taskshared;
 
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nullable;
@@ -17,147 +16,9 @@ import java.util.function.Function;
  * Map state per part
  * Only use it when the state is partitioned according to {@link org.apache.flink.runtime.state.PartNumber}
  */
-public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implements Map<Short,V> {
+public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implements Map<Short, V> {
 
     protected Map<Short, V> wrappedMap = new Short2ObjectOpenHashMap<>();
-
-    @Override
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
-        Preconditions.checkNotNull(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
-        super.register(taskSharedKeyedStateBackend);
-        GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getThisOperatorParts().forEach(part -> wrappedMap.put(part, null));
-    }
-
-    @Override
-    public int size() {
-        return wrappedMap.size();
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return wrappedMap.isEmpty();
-    }
-
-    @Override
-    public boolean containsKey(Object key) {
-        return wrappedMap.containsKey(key);
-    }
-
-    @Override
-    public boolean containsValue(Object value) {
-        return wrappedMap.containsValue(value);
-    }
-
-    @Override
-    public V get(Object key) {
-        return wrappedMap.get(key);
-    }
-
-    @Nullable
-    @Override
-    public  V put(Short key, V value) {
-        return wrappedMap.put(key, value);
-    }
-
-    @Override
-    public  V remove(Object key) {
-        return wrappedMap.remove(key);
-    }
-
-    @Override
-    public  void putAll(@NotNull Map<? extends Short, ? extends V> m) {
-        wrappedMap.putAll(m);
-    }
-
-    @Override
-    public void clear() {
-        wrappedMap.clear();
-    }
-
-    @NotNull
-    @Override
-    public Set<Short> keySet() {
-        return wrappedMap.keySet();
-    }
-
-    @NotNull
-    @Override
-    public Collection<V> values() {
-        return wrappedMap.values();
-    }
-
-    @NotNull
-    @Override
-    public Set<Entry<Short, V>> entrySet() {
-        return wrappedMap.entrySet();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return wrappedMap.equals(o);
-    }
-
-    @Override
-    public int hashCode() {
-        return wrappedMap.hashCode();
-    }
-
-    @Override
-    public V getOrDefault(Object key, V defaultValue) {
-        return wrappedMap.getOrDefault(key, defaultValue);
-    }
-
-    @Override
-    public void forEach(BiConsumer<? super Short, ? super V> action) {
-        wrappedMap.forEach(action);
-    }
-
-    @Override
-    public void replaceAll(BiFunction<? super Short, ? super V, ? extends V> function) {
-        wrappedMap.replaceAll(function);
-    }
-
-    @Nullable
-    @Override
-    public  V putIfAbsent(Short key, V value) {
-        return wrappedMap.putIfAbsent(key, value);
-    }
-
-    @Override
-    public  boolean remove(Object key, Object value) {
-        return wrappedMap.remove(key, value);
-    }
-
-    @Override
-    public  boolean replace(Short key, V oldValue, V newValue) {
-        return wrappedMap.replace(key, oldValue, newValue);
-    }
-
-    @Nullable
-    @Override
-    public  V replace(Short key, V value) {
-        return wrappedMap.replace(key, value);
-    }
-
-    @Override
-    public  V computeIfAbsent(Short key, @NotNull Function<? super Short, ? extends V> mappingFunction) {
-        return wrappedMap.computeIfAbsent(key, mappingFunction);
-    }
-
-    @Override
-    public  V computeIfPresent(Short key, @NotNull BiFunction<? super Short, ? super V, ? extends V> remappingFunction) {
-        return wrappedMap.computeIfPresent(key, remappingFunction);
-    }
-
-    @Override
-    public  V compute(Short key, @NotNull BiFunction<? super Short, ? super V, ? extends V> remappingFunction) {
-        return wrappedMap.compute(key, remappingFunction);
-    }
-
-    @Override
-    public  V merge(Short key, @NotNull V value, @NotNull BiFunction<? super V, ? super V, ? extends V> remappingFunction) {
-        return wrappedMap.merge(key, value, remappingFunction);
-    }
 
     public static <K, V1> Map<K, V1> of() {
         return Map.of();
@@ -214,5 +75,142 @@ public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implement
 
     public static <K, V1> Map<K, V1> copyOf(Map<? extends K, ? extends V1> map) {
         return Map.copyOf(map);
+    }
+
+    @Override
+    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
+        super.register(taskSharedKeyedStateBackend);
+        GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getThisOperatorParts().forEach(part -> wrappedMap.put(part, null));
+    }
+
+    @Override
+    public int size() {
+        return wrappedMap.size();
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return wrappedMap.isEmpty();
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        return wrappedMap.containsKey(key);
+    }
+
+    @Override
+    public boolean containsValue(Object value) {
+        return wrappedMap.containsValue(value);
+    }
+
+    @Override
+    public V get(Object key) {
+        return wrappedMap.get(key);
+    }
+
+    @Nullable
+    @Override
+    public V put(Short key, V value) {
+        return wrappedMap.put(key, value);
+    }
+
+    @Override
+    public V remove(Object key) {
+        return wrappedMap.remove(key);
+    }
+
+    @Override
+    public void putAll(@NotNull Map<? extends Short, ? extends V> m) {
+        wrappedMap.putAll(m);
+    }
+
+    @Override
+    public void clear() {
+        wrappedMap.clear();
+    }
+
+    @NotNull
+    @Override
+    public Set<Short> keySet() {
+        return wrappedMap.keySet();
+    }
+
+    @NotNull
+    @Override
+    public Collection<V> values() {
+        return wrappedMap.values();
+    }
+
+    @NotNull
+    @Override
+    public Set<Entry<Short, V>> entrySet() {
+        return wrappedMap.entrySet();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return wrappedMap.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        return wrappedMap.hashCode();
+    }
+
+    @Override
+    public V getOrDefault(Object key, V defaultValue) {
+        return wrappedMap.getOrDefault(key, defaultValue);
+    }
+
+    @Override
+    public void forEach(BiConsumer<? super Short, ? super V> action) {
+        wrappedMap.forEach(action);
+    }
+
+    @Override
+    public void replaceAll(BiFunction<? super Short, ? super V, ? extends V> function) {
+        wrappedMap.replaceAll(function);
+    }
+
+    @Nullable
+    @Override
+    public V putIfAbsent(Short key, V value) {
+        return wrappedMap.putIfAbsent(key, value);
+    }
+
+    @Override
+    public boolean remove(Object key, Object value) {
+        return wrappedMap.remove(key, value);
+    }
+
+    @Override
+    public boolean replace(Short key, V oldValue, V newValue) {
+        return wrappedMap.replace(key, oldValue, newValue);
+    }
+
+    @Nullable
+    @Override
+    public V replace(Short key, V value) {
+        return wrappedMap.replace(key, value);
+    }
+
+    @Override
+    public V computeIfAbsent(Short key, @NotNull Function<? super Short, ? extends V> mappingFunction) {
+        return wrappedMap.computeIfAbsent(key, mappingFunction);
+    }
+
+    @Override
+    public V computeIfPresent(Short key, @NotNull BiFunction<? super Short, ? super V, ? extends V> remappingFunction) {
+        return wrappedMap.computeIfPresent(key, remappingFunction);
+    }
+
+    @Override
+    public V compute(Short key, @NotNull BiFunction<? super Short, ? super V, ? extends V> remappingFunction) {
+        return wrappedMap.compute(key, remappingFunction);
+    }
+
+    @Override
+    public V merge(Short key, @NotNull V value, @NotNull BiFunction<? super V, ? super V, ? extends V> remappingFunction) {
+        return wrappedMap.merge(key, value, remappingFunction);
     }
 }

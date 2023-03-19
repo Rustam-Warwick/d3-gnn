@@ -2,6 +2,7 @@ package org.apache.flink.runtime.state.taskshared;
 
 /**
  * Task Shared State that stores a single value
+ *
  * @param <V> Type of the value stored
  */
 public class TaskSharedValueState<V> extends TaskSharedState {

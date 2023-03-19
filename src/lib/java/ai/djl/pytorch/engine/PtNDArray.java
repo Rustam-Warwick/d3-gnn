@@ -37,10 +37,10 @@ import java.util.stream.IntStream;
 /**
  * {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
  * <p>
- *     3 states of tensor execution
- *     <strong>ATTACHED: NDManager is responsible for cleaning this tensor </strong>
- *     <strong>POSTPONED: Detached but delayed counter is incremented, will be attaced once resumed </strong>
- *     <strong>DETACHED: Added to reference tracker and will never be attached again </strong>
+ * 3 states of tensor execution
+ * <strong>ATTACHED: NDManager is responsible for cleaning this tensor </strong>
+ * <strong>POSTPONED: Detached but delayed counter is incremented, will be attaced once resumed </strong>
+ * <strong>DETACHED: Added to reference tracker and will never be attached again </strong>
  * </p>
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
@@ -1919,7 +1919,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         if (cleanable != null) {
             cleanable.clean();
             return;
-        };
+        }
+        ;
         if (delayed == 0) getManager().detachInternal(null, this);
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
@@ -1939,7 +1940,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         if (cleanable != null) {
             cleanable.clean();
             return;
-        };
+        }
+        ;
         Long pointer = handle.getAndSet(null);
         if (pointer != null) {
             JniUtils.deleteNDArray(pointer);

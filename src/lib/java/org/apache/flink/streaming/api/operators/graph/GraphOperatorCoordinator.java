@@ -13,8 +13,8 @@ import java.util.function.Function;
 /**
  * Operator Coordinator for {@link GraphStorageOperator} and {@link DatasetSplitterOperator}
  * <p>
- *     It only contains the linkage logic that allows one to access all coordinators across different positional operators
- *     Actual computation logic is flexible and can be adjusted by passing {@link GraphOperatorSubCoordinator} and its providers
+ * It only contains the linkage logic that allows one to access all coordinators across different positional operators
+ * Actual computation logic is flexible and can be adjusted by passing {@link GraphOperatorSubCoordinator} and its providers
  * </p>
  */
 public class GraphOperatorCoordinator implements OperatorCoordinator {
@@ -157,7 +157,7 @@ public class GraphOperatorCoordinator implements OperatorCoordinator {
     /**
      * Simple Sub-coordinator provider with empty values
      */
-    public static class EmptyGraphOperatorSubCoordinatorsProvider implements GraphOperatorSubCoordinatorsProvider{
+    public static class EmptyGraphOperatorSubCoordinatorsProvider implements GraphOperatorSubCoordinatorsProvider {
         @Override
         public GraphOperatorSubCoordinator[] apply(GraphOperatorCoordinator graphOperatorCoordinator) {
             return new GraphOperatorSubCoordinator[0];

@@ -32,7 +32,6 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.FunctionInitializationContext;
 import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.runtime.state.taskshared.TaskSharedValueState;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
@@ -41,11 +40,11 @@ import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 /**
  * Plugin that stores a single model withing the GNN Pipeline
  * <p>
- *     Steps for synchronization:
- *     1. Do the optimizer.update in the master
- *     2. Broadcast the model parameters
- *     3. Calculate the streaming average of the model parameters
- *     4. Replace the local model with the average ones
+ * Steps for synchronization:
+ * 1. Do the optimizer.update in the master
+ * 2. Broadcast the model parameters
+ * 3. Calculate the streaming average of the model parameters
+ * 4. Replace the local model with the average ones
  * </p>
  */
 public class ModelServer<T extends Block> extends Plugin {
@@ -79,8 +78,8 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public void open(Configuration params) throws Exception {
         super.open(params);
-        modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), ()->new TaskSharedValueState(new ModelWrapper<>(model)))).getValue();
-        if(modelWrapper.model == model) isMaster = true;
+        modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), () -> new TaskSharedValueState(new ModelWrapper<>(model)))).getValue();
+        if (modelWrapper.model == model) isMaster = true;
         model = null;
     }
 
@@ -107,8 +106,8 @@ public class ModelServer<T extends Block> extends Plugin {
     /**
      * Train, stop gradients and broadcast new parameters
      */
-    public void syncFirstPhase(){
-        if(isMaster) {
+    public void syncFirstPhase() {
+        if (isMaster) {
             for (Pair<String, Parameter> parameter : modelWrapper.block.getParameters()) {
                 if (parameter.getValue().getArray().hasGradient()) {
                     modelWrapper.optimizer.update(parameter.getValue().getId(), parameter.getValue().getArray(), parameter.getValue().getArray().getGradient());
@@ -130,8 +129,8 @@ public class ModelServer<T extends Block> extends Plugin {
     /**
      * Update the current model with the average of other model parameters
      */
-    public void syncSecondPhase(){
-        if(isMaster){
+    public void syncSecondPhase() {
+        if (isMaster) {
             for (int i = 0; i < modelWrapper.block.getParameters().size(); i++) {
                 modelWrapper.block.getParameters().get(i).getValue().getArray().setRequiresGradient(false);
                 modelWrapper.block.getParameters().get(i).getValue().getArray().subi(modelWrapper.block.getParameters().get(i).getValue().getArray()).addi(syncParameters.f0.get(i).getValue().getArray());
@@ -145,10 +144,10 @@ public class ModelServer<T extends Block> extends Plugin {
      * Calculate the running average of the model parameters
      */
     @RemoteFunction(triggerUpdate = false)
-    public void sync(ParameterList parameterList){
-        if(isMaster){
-            if(syncParameters == null) syncParameters = Tuple2.of(parameterList, (short) 1);
-            else{
+    public void sync(ParameterList parameterList) {
+        if (isMaster) {
+            if (syncParameters == null) syncParameters = Tuple2.of(parameterList, (short) 1);
+            else {
                 syncParameters.f1++;
                 for (int i = 0; i < syncParameters.f0.size(); i++) {
                     NDArray current = syncParameters.f0.get(i).getValue().getArray();
@@ -163,11 +162,10 @@ public class ModelServer<T extends Block> extends Plugin {
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
-        if(evt instanceof TrainingSubCoordinator.ForwardPhaser) {
+        if (evt instanceof TrainingSubCoordinator.ForwardPhaser) {
             if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 0) {
                 syncFirstPhase();
-            }
-            else if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1) {
+            } else if (((TrainingSubCoordinator.ForwardPhaser) evt).iteration == 1) {
                 syncSecondPhase();
             }
         }
@@ -176,10 +174,10 @@ public class ModelServer<T extends Block> extends Plugin {
     /**
      * Simple Wrapper around the model object
      * <p>
-     *     This object is going to be added to TaskLocalState
+     * This object is going to be added to TaskLocalState
      * </p>
      */
-    static class ModelWrapper<T extends Block>{
+    static class ModelWrapper<T extends Block> {
 
         T block;
 
@@ -193,7 +191,7 @@ public class ModelServer<T extends Block> extends Plugin {
 
         Optimizer optimizer;
 
-        public ModelWrapper(Model model){
+        public ModelWrapper(Model model) {
             this.model = model;
             this.block = (T) model.getBlock();
             this.inputShapes = block.getInputShapes();

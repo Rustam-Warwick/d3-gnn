@@ -186,7 +186,7 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     /**
      * Is this operator the last one in the pipeline
      */
-    public final boolean isLast(){
+    public final boolean isLast() {
         return getPosition() == getLayers();
     }
 
@@ -200,7 +200,7 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     /**
      * Is this Graph Splitter operator
      */
-    public final boolean isSplitter(){
+    public final boolean isSplitter() {
         return getPosition() == 0;
     }
 }

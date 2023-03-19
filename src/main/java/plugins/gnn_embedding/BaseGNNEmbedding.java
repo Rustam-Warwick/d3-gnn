@@ -123,7 +123,7 @@ abstract public class BaseGNNEmbedding extends Plugin {
         super.handleOperatorEvent(evt);
         if (evt instanceof TrainingSubCoordinator.EnteredTraining) {
             listening = false;
-        }else if(evt instanceof TrainingSubCoordinator.ExitedTraining){
+        } else if (evt instanceof TrainingSubCoordinator.ExitedTraining) {
             listening = true;
         }
     }

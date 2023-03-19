@@ -11,6 +11,7 @@ import java.util.Map;
 
 /**
  * Event pool that stores the incoming flowing {@link GraphEvent} and optionally evicts them on merge
+ *
  * @implNote Only events streamed from withing the dataflow graph are entering this pool
  */
 public class GraphEventPool implements Serializable {

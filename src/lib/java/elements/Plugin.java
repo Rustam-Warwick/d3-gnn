@@ -99,17 +99,16 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
         return getRuntimeContext().getCurrentPart();
     }
 
-
-    @Override
-    public void setRuntimeContext(RuntimeContext t) {
-        runtimeContext = (GraphRuntimeContext) t;
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
     public GraphRuntimeContext getRuntimeContext() {
         return runtimeContext;
+    }
+
+    @Override
+    public void setRuntimeContext(RuntimeContext t) {
+        runtimeContext = (GraphRuntimeContext) t;
     }
 }

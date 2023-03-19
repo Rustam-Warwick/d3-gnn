@@ -11,8 +11,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class IterationTest extends IntegrationTest {
     private static AtomicInteger sum = new AtomicInteger(0);
+
     @Test
-    public void testIteration() throws Exception{
+    public void testIteration() throws Exception {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         sum.set(0);
         env.setParallelism(1);

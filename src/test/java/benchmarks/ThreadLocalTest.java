@@ -17,11 +17,11 @@ import java.util.concurrent.TimeUnit;
 public class ThreadLocalTest {
 
     @RepeatedTest(value = 20)
-    public void testThreadLocal() throws Exception{
+    public void testThreadLocal() throws Exception {
         long msStart = System.currentTimeMillis();
         ExecutorService executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(50);
         for (int i = 0; i < 50; i++) {
-           executorService.submit(new WithThreadLocal());
+            executorService.submit(new WithThreadLocal());
         }
         executorService.shutdown();
         executorService.awaitTermination(1, TimeUnit.MINUTES);
@@ -29,7 +29,7 @@ public class ThreadLocalTest {
     }
 
     @RepeatedTest(value = 20)
-    public void testNonThreadLocal() throws Exception{
+    public void testNonThreadLocal() throws Exception {
         long msStart = System.currentTimeMillis();
         ExecutorService executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(50);
         for (int i = 0; i < 50; i++) {
@@ -40,7 +40,7 @@ public class ThreadLocalTest {
         System.out.format("Non-Thread Local took %s \n", System.currentTimeMillis() - msStart);
     }
 
-    static class WithThreadLocal implements Runnable{
+    static class WithThreadLocal implements Runnable {
         static ThreadLocal<Integer> counter;
 
         @Override
@@ -52,7 +52,7 @@ public class ThreadLocalTest {
         }
     }
 
-    static class NoThreadLocal implements Runnable{
+    static class NoThreadLocal implements Runnable {
         int counter;
 
         @Override

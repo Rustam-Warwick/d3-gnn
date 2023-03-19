@@ -30,7 +30,7 @@ public class NDHelper {
             VOID = c.newInstance();
             c.setAccessible(false);
         } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
-                IllegalAccessException e) {
+                 IllegalAccessException e) {
             e.printStackTrace();
         }
     }

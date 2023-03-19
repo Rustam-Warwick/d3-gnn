@@ -88,7 +88,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected final Map<String, Plugin> plugins;
 
-     /**
+    /**
      * Graph Runtime context
      */
     protected final GraphRuntimeContext graphRuntimeContext;
@@ -197,7 +197,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
     @Override
     public void handleOperatorEvent(OperatorEvent evt) {
-        if(evt instanceof TrainingSubCoordinator.FlushingScanRequest){
+        if (evt instanceof TrainingSubCoordinator.FlushingScanRequest) {
             long tmp = operatorIOMetricGroup.getNumRecordsInCounter().getCount() + operatorIOMetricGroup.getNumRecordsOutCounter().getCount();
             final boolean[] hasTimers = new boolean[]{false};
             try {
@@ -205,7 +205,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                     hasTimers[0] = true;
                     throw new Exception("Found, do not process rest");
                 });
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
             operatorEventGateway.sendEventToCoordinator(new TrainingSubCoordinator.FlushingScanResponse(!hasTimers[0] && tmp == pipelineFlushingCounter));
             pipelineFlushingCounter = tmp;
         }
@@ -219,7 +220,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
         GraphOp value = element.getValue();
-        try(BaseStorage.ObjectPoolScope ignored = storage.openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope ignored = storage.openObjectPoolScope()) {
             switch (value.op) {
                 case ADD:
                     value.element.create();
@@ -333,14 +334,14 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public void runForAllLocalParts(Runnable run) {
             PartNumber initialKey = (PartNumber) getCurrentKey();
-            try{
+            try {
                 for (short thisOperatorPart : getThisOperatorParts()) {
                     setCurrentKey(PartNumber.of(thisOperatorPart));
                     run.run();
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
-            } finally{
+            } finally {
                 setCurrentKey(initialKey);
             }
         }
@@ -387,17 +388,23 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
 
         @Override
         public void addElementCallback(GraphElement element) {
-            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.addElementCallback(element);});
+            plugins.values().forEach(plugin -> {
+                if (plugin.listening) plugin.addElementCallback(element);
+            });
         }
 
         @Override
         public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
-            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.updateElementCallback(newElement, oldElement);});
+            plugins.values().forEach(plugin -> {
+                if (plugin.listening) plugin.updateElementCallback(newElement, oldElement);
+            });
         }
 
         @Override
         public void deleteElementCallback(GraphElement deletedElement) {
-            plugins.values().forEach(plugin -> {if(plugin.listening) plugin.deleteElementCallback(deletedElement);});
+            plugins.values().forEach(plugin -> {
+                if (plugin.listening) plugin.deleteElementCallback(deletedElement);
+            });
         }
 
         @Override

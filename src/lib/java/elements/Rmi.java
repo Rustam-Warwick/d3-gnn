@@ -149,6 +149,7 @@ public class Rmi extends GraphElement {
             if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).resume();
         }
     }
+
     /**
      * {@inheritDoc}
      */

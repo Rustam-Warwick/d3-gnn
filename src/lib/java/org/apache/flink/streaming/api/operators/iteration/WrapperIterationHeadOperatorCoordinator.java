@@ -63,7 +63,8 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
         if (event instanceof StartTermination) controller.startTermination();
-        if (event instanceof TerminationScanResponse) controller.consumeResponse(((TerminationScanResponse) event).terminateReady);
+        if (event instanceof TerminationScanResponse)
+            controller.consumeResponse(((TerminationScanResponse) event).terminateReady);
         if (bodyOperatorCoordinator != null)
             bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
 
@@ -125,14 +126,14 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
     /**
      * Helper class instance of which is shared amongst {@link WrapperIterationHeadOperatorCoordinator} in one job
-     *
+     * <p>
      * Counts the number of messages from each sub-operator and detects when to terminate the operator
      * <p>
-     *     It can happen that termination is started before other operators are joined to the thread
-     *     Assumptions:
-     *     - Streaming mode only
-     *     - All coordinates are joined before the start termination
-     *     - All iteration channels are closed at the same time. No partial termination of dataflow graph
+     * It can happen that termination is started before other operators are joined to the thread
+     * Assumptions:
+     * - Streaming mode only
+     * - All coordinates are joined before the start termination
+     * - All iteration channels are closed at the same time. No partial termination of dataflow graph
      * </p>
      */
     private static class TerminationDetectionController extends Thread {
@@ -143,31 +144,26 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          * List of all Coordinators
          */
         protected final List<WrapperIterationHeadOperatorCoordinator> coordinators = new ArrayList<>(4);
-
-        /**
-         * Total number of suboperators
-         */
-        protected int numSubOperators;
-
         /**
          * Number of sub-operators with iteration HEAD logic
          */
         protected final AtomicInteger joinedSubOperators = new AtomicInteger(0);
-
         /**
          * Number of messages received from HEAD sub-operators
          */
         protected final AtomicInteger receivedFromSubOperators = new AtomicInteger(0);
-
         /**
          * Found termination point
          */
         protected final AtomicBoolean terminationFound = new AtomicBoolean(false);
-
         /**
          * Running this Thread
          */
         protected final AtomicBoolean startedOnce = new AtomicBoolean(false);
+        /**
+         * Total number of suboperators
+         */
+        protected int numSubOperators;
 
         /**
          * Add newly created {@link WrapperIterationHeadOperatorCoordinator} object to the list
@@ -190,11 +186,12 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          * New Sub-Operator added increment counter
          */
         void addSubOperator() {
-            if(joinedSubOperators.incrementAndGet() == numSubOperators){
-                synchronized (this){
+            if (joinedSubOperators.incrementAndGet() == numSubOperators) {
+                synchronized (this) {
                     notify();
                 }
-            };
+            }
+            ;
         }
 
         /**
@@ -216,11 +213,12 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          */
         void consumeResponse(boolean response) {
             terminationFound.compareAndExchange(true, response);
-            if(receivedFromSubOperators.incrementAndGet() == joinedSubOperators.get()) {
+            if (receivedFromSubOperators.incrementAndGet() == joinedSubOperators.get()) {
                 synchronized (this) {
                     notify();
                 }
-            };
+            }
+            ;
         }
 
         @Override
@@ -244,7 +242,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
             }
         }

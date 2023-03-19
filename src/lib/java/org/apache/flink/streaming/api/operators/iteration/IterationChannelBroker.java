@@ -25,7 +25,7 @@ public class IterationChannelBroker {
      * Get {@link IterationChannel} or create and get
      */
     public <T> IterationChannel<T> getIterationChannel(IterationChannelKey iterationChannelKey) {
-        return (IterationChannel<T>) channels.compute(iterationChannelKey, (ignored, channel) -> channel == null?new IterationChannel<T>(iterationChannelKey):channel);
+        return (IterationChannel<T>) channels.compute(iterationChannelKey, (ignored, channel) -> channel == null ? new IterationChannel<T>(iterationChannelKey) : channel);
     }
 
     /**

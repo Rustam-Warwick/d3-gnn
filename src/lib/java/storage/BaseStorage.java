@@ -21,8 +21,8 @@ import java.util.function.Supplier;
 /**
  * Base Class for all Graph Storage States
  * <p>
- *      This state is part of the TaskSharedState logic, as implementations might have overlaps between the versions
- *      To facilitate faster access across various shared operators a {@link GraphView} should be created holding the {@link GraphRuntimeContext}
+ * This state is part of the TaskSharedState logic, as implementations might have overlaps between the versions
+ * To facilitate faster access across various shared operators a {@link GraphView} should be created holding the {@link GraphRuntimeContext}
  * </p>
  */
 abstract public class BaseStorage extends TaskSharedState {
@@ -35,7 +35,7 @@ abstract public class BaseStorage extends TaskSharedState {
     /**
      * {@inheritDoc}
      * <p>
-     *     Will fail if the storage object is created outside of {@link GraphRuntimeContext} and non-part-number part
+     * Will fail if the storage object is created outside of {@link GraphRuntimeContext} and non-part-number part
      * </p>
      */
     @Override
@@ -51,13 +51,19 @@ abstract public class BaseStorage extends TaskSharedState {
     abstract public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext);
 
     /**
+     * Provider pattern for {@link BaseStorage}
+     */
+    public interface GraphStorageProvider extends Supplier<BaseStorage>, Serializable {
+    }
+
+    /**
      * A thread local view of the graph object
      */
     abstract public static class GraphView {
 
         protected final GraphRuntimeContext runtimeContext;
 
-        public GraphView(GraphRuntimeContext runtimeContext){
+        public GraphView(GraphRuntimeContext runtimeContext) {
             this.runtimeContext = runtimeContext;
         }
 
@@ -406,11 +412,6 @@ abstract public class BaseStorage extends TaskSharedState {
     }
 
     /**
-     * Provider pattern for {@link BaseStorage}
-     */
-    public interface GraphStorageProvider extends Supplier<BaseStorage>, Serializable {}
-
-    /**
      * Default provider using {@link ListObjectPoolGraphStorage}
      */
     public static class DefaultGraphStorageProvider implements GraphStorageProvider {
@@ -422,17 +423,17 @@ abstract public class BaseStorage extends TaskSharedState {
 
     /**
      * <p>
-     *     A special {@link AutoCloseable} object that should be opened when you want to access storage with reuse semantics
-     *     reuse semantics depends to the implementation of storage (Some of which might not have any effect whatsoever)
-     *     However, generally reuse semantics makes use of shared objects to reduce allocation costs
-     *     In such mode, UDF should not depend on storing the returned objects as they might change value later
+     * A special {@link AutoCloseable} object that should be opened when you want to access storage with reuse semantics
+     * reuse semantics depends to the implementation of storage (Some of which might not have any effect whatsoever)
+     * However, generally reuse semantics makes use of shared objects to reduce allocation costs
+     * In such mode, UDF should not depend on storing the returned objects as they might change value later
      * </p>
      */
     public static class ObjectPoolScope implements AutoCloseable {
 
         protected byte openCount;
 
-        protected ObjectPoolScope open(){
+        protected ObjectPoolScope open() {
             openCount++;
             return this;
         }
@@ -442,7 +443,17 @@ abstract public class BaseStorage extends TaskSharedState {
             openCount--;
         }
 
-        public boolean isOpen(){return openCount > 0;}
+        /**
+         * Refresh the pool scope by closing and opening the scope thus resetting all the elements
+         */
+        public final void refresh(){
+            close();
+            open();
+        }
+
+        public boolean isOpen() {
+            return openCount > 0;
+        }
 
     }
 

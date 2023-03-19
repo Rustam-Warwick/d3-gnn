@@ -65,7 +65,7 @@ public class GraphStorageOperatorFactory extends AbstractStreamOperatorFactory<G
     }
 
     public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers, GraphOperatorCoordinator.GraphOperatorSubCoordinatorsProvider graphOperatorSubCoordinatorsProvider) {
-        this(plugins, position,layers, new BaseStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
+        this(plugins, position, layers, new BaseStorage.DefaultGraphStorageProvider(), graphOperatorSubCoordinatorsProvider);
     }
 
     public GraphStorageOperatorFactory(List<Plugin> plugins, short position, short layers) {
