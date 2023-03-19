@@ -118,7 +118,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         // --------------- Backward pass
         NDList updatesBatched = UPDATE(batchedInputs, true);
 
-        synchronized (this) {
+        synchronized (modelServer.getModel()) {
             // Synchronize backward calls since TaskLocal
             JniUtils.backward((PtNDArray) updatesBatched.get(0), (PtNDArray) collectedGradients.batchedNDArray, false, false);
         }
@@ -218,7 +218,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             if (!getRuntimeContext().isFirst()) srcFeaturesBatched.get(0).setRequiresGradient(true);
             NDList messagesBatched = MESSAGE(srcFeaturesBatched, true);
 
-            synchronized (this) {
+            synchronized (modelServer.getModel()) {
                 JniUtils.backward((PtNDArray) messagesBatched.get(0), (PtNDArray) resultingGradient, false, false);
             }
 

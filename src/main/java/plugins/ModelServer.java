@@ -196,7 +196,7 @@ public class ModelServer<T extends Block> extends Plugin {
             this.block = (T) model.getBlock();
             this.inputShapes = block.getInputShapes();
             this.outputShapes = block.getOutputShapes(inputShapes);
-            this.optimizer = Optimizer.sgd().setLearningRateTracker(Tracker.fixed(0.01f)).optClipGrad(1).build();
+            this.optimizer = Optimizer.adam().optLearningRateTracker(Tracker.fixed(0.01f)).build();
             this.parameterStore = new ParameterStore();
         }
     }

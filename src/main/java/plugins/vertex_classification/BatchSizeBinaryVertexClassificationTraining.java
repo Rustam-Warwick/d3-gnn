@@ -150,7 +150,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         reuseLabelsNDList.add(batchedLabels);
         NDList predictions = output(reuseFeaturesNDList, true);
         NDArray meanLoss = loss.evaluate(reuseLabelsNDList, predictions);
-        System.out.println(meanLoss);
+        System.out.format("Accuracy %s\n", batchedLabels.eq(predictions.get(0).flatten().gt(0.5)).sum().getLong() / (double) batchedLabels.size());
         synchronized (modelServer.getModel()) {
             // Synchronize the backward call
             JniUtils.backward((PtNDArray) meanLoss, (PtNDArray) BaseNDManager.getManager().ones(new Shape()), false, false);

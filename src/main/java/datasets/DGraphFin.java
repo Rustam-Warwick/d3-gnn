@@ -207,7 +207,7 @@ public class DGraphFin extends Dataset {
 
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
-            if (++count > 50000) return;
+            if (++count > 200000) return;
             String[] srcDestTs = value.split(",");
             out.collect(new GraphOp(Op.ADD, new DirectedEdge(new Vertex(srcDestTs[0]), new Vertex(srcDestTs[1]), srcDestTs[2])));
         }
