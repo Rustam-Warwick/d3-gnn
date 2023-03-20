@@ -50,5 +50,5 @@ public abstract class Aggregator<T> extends Feature<T, NDArray> {
     /**
      * Return the number of reduced connections to this aggregator
      */
-    public abstract int reducedCount();
+    public abstract int getReducedCount();
 }

@@ -79,7 +79,7 @@ public final class SumAggregator extends Aggregator<CountTensorHolder> {
      * {@inheritDoc}
      */
     @Override
-    public int reducedCount() {
+    public int getReducedCount() {
         return value.count;
     }
 

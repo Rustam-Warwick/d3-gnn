@@ -11,7 +11,6 @@ import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
 import elements.features.Aggregator;
-import elements.features.CountTensorHolder;
 import elements.features.Parts;
 import elements.features.Tensor;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
@@ -44,6 +43,18 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
 
     public transient Map<Short, NDArraysAggregator> part2GradientAggregators;
 
+    protected transient NDList reuseFeaturesNDList;
+
+    protected transient NDList reuseAggregatorNDList;
+
+    protected transient Tuple3<ElementType, Object, String> reuseFeatureKey;
+
+    protected transient Tuple3<ElementType, Object, String> reuseAggregatorKey;
+
+    protected transient Tuple3<ElementType, Object, String> reusePartsKey;
+
+    protected transient Short2ObjectOpenHashMap<IntList> reusePart2Vertices;
+
     public GNNEmbeddingTraining(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "trainer", trainableVertexEmbeddings);
     }
@@ -51,6 +62,12 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
     @Override
     public void open(Configuration parameters) throws Exception {
         super.open(parameters);
+        reuseFeatureKey = new Tuple3<>(ElementType.VERTEX, null, "f");
+        reusePartsKey = new Tuple3<>(ElementType.VERTEX, null, "p");
+        reuseAggregatorKey = new Tuple3<>(ElementType.VERTEX, null, "agg");
+        reusePart2Vertices = new Short2ObjectOpenHashMap<>();
+        reuseFeaturesNDList = new NDList();
+        reuseAggregatorNDList = new NDList();
         part2GradientAggregators = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2GradientAggregators.put(part, new NDArraysAggregator()));
     }
@@ -81,37 +98,29 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
 
         // ---------- Prepare data
 
-        NDList featuresList = new NDList(collectedGradients.keys.length);
-        NDList aggregatorList = new NDList(collectedGradients.keys.length);
+        reuseFeaturesNDList.clear();
+        reuseAggregatorNDList.clear();
+        reusePart2Vertices.clear();
         int[] meanAggregatorValues = modelServer.getBlock().getAgg() == AggregatorVariant.MEAN ? new int[collectedGradients.keys.length] : null;
-        Tuple3<ElementType, Object, String> featureReuseKey = new Tuple3<>(ElementType.VERTEX, null, "f");
-        Tuple3<ElementType, Object, String> aggReuseKey = new Tuple3<>(ElementType.VERTEX, null, "agg");
-        Tuple3<ElementType, Object, String> partsReuseKey = new Tuple3<>(ElementType.VERTEX, null, "p");
-        Short2ObjectOpenHashMap<IntList> part2Vertices = new Short2ObjectOpenHashMap<>(new short[]{getPart()}, new IntList[]{new IntArrayList()});
         for (int i = 0; i < collectedGradients.keys.length; i++) {
-            final int vertexIndex = i;
-            featureReuseKey.f1 = collectedGradients.keys[i];
-            aggReuseKey.f1 = collectedGradients.keys[i];
-            partsReuseKey.f1 = collectedGradients.keys[i];
-            featuresList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(featureReuseKey).getValue());
-            CountTensorHolder val = (CountTensorHolder) getRuntimeContext().getStorage().getAttachedFeature(aggReuseKey).value;
-            aggregatorList.add(val.val);
-            if (meanAggregatorValues != null) meanAggregatorValues[i] = val.count;
-            if (val.count > 0) {
-                part2Vertices.get(getPart()).add(vertexIndex);
-                if (getRuntimeContext().getStorage().containsAttachedFeature(partsReuseKey)) {
-                    for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(partsReuseKey)).getValue()) {
-                        part2Vertices.compute(replicaPart, (key, vertexIndices) -> {
-                            if (vertexIndices == null) vertexIndices = new IntArrayList();
-                            vertexIndices.add(vertexIndex);
-                            return vertexIndices;
-                        });
+            try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+                reuseFeatureKey.f1 = reusePartsKey.f1 = reuseAggregatorKey.f1 = collectedGradients.keys[i];
+                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureKey).getValue());
+                Aggregator<?> val = (Aggregator<?>) getRuntimeContext().getStorage().getAttachedFeature(reuseAggregatorKey);
+                reuseAggregatorNDList.add(val.getValue());
+                if (meanAggregatorValues != null) meanAggregatorValues[i] = val.getReducedCount();
+                if (val.getReducedCount() > 0) {
+                    reusePart2Vertices.computeIfAbsent(getPart(), (ignore) -> new IntArrayList()).add(i);
+                    if (getRuntimeContext().getStorage().containsAttachedFeature(reusePartsKey)) {
+                        for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(reusePartsKey)).getValue()) {
+                            reusePart2Vertices.computeIfAbsent(replicaPart, (ignore) -> new IntArrayList()).add(i);
+                        }
                     }
                 }
             }
         }
 
-        NDList batchedInputs = new NDList(NDArrays.stack(featuresList), NDArrays.stack(aggregatorList));
+        NDList batchedInputs = new NDList(NDArrays.stack(reuseFeaturesNDList), NDArrays.stack(reuseAggregatorNDList));
         if (!getRuntimeContext().isFirst()) batchedInputs.get(0).setRequiresGradient(true);
         batchedInputs.get(1).setRequiresGradient(true);
 
@@ -148,7 +157,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         if (meanAggregatorValues != null)
             aggGradients.divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1));
 
-        part2Vertices.forEach((part, list) -> {
+        reusePart2Vertices.forEach((part, list) -> {
             if (list.isEmpty()) return;
             int[] intList = new int[list.size()];
             String[] vIds = new String[intList.length];

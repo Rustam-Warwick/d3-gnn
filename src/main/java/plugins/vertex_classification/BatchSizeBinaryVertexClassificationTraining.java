@@ -135,8 +135,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         reuseLabelsNDList.clear();
         for (String vertexId : miniBatchVertexIds) {
             try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                reuseFeaturesId.f1 = vertexId;
-                reuseLabelsId.f1 = vertexId;
+                reuseFeaturesId.f1 = reuseLabelsId.f1= vertexId;
                 reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeaturesId).getValue());
                 reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseLabelsId).getValue());
             }

@@ -80,7 +80,7 @@ public final class InPlaceSumAggregator extends Aggregator<CountTensorHolder> {
      * {@inheritDoc}
      */
     @Override
-    public int reducedCount() {
+    public int getReducedCount() {
         return value.count;
     }
 
