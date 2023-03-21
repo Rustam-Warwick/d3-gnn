@@ -174,10 +174,11 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
-        for (String vertexId : vertices) {
-            try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+            for (String vertexId : vertices) {
                 reuseAggId.f1 = vertexId;
                 Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "reduce", message, 1);
+                objectPoolScope.refresh();
             }
         }
     }
@@ -227,10 +228,11 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-        for (String vertexId : vertices) {
-            try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+            for (String vertexId : vertices) {
                 reuseAggId.f1 = vertexId;
                 Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "replace", messageNew, messageOld);
+                objectPoolScope.refresh();
             }
         }
     }

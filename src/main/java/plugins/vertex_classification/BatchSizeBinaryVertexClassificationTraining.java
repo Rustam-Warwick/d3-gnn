@@ -133,11 +133,12 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         System.arraycopy(vertexIds.elements(), startEndIndices[0], miniBatchVertexIds, 0, miniBatchVertexIds.length);
         reuseFeaturesNDList.clear();
         reuseLabelsNDList.clear();
-        for (String vertexId : miniBatchVertexIds) {
-            try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                reuseFeaturesId.f1 = reuseLabelsId.f1= vertexId;
+        try(BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+            for (String vertexId : miniBatchVertexIds) {
+                reuseFeaturesId.f1 = reuseLabelsId.f1 = vertexId;
                 reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeaturesId).getValue());
                 reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseLabelsId).getValue());
+                scope.refresh();
             }
         }
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);

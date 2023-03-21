@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.Arrays;
 import it.unimi.dsi.fastutil.Swapper;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntComparator;
+import org.apache.flink.util.Preconditions;
 
 /**
  * A special class that Aggregates the {@link NDArray} that are identified by a specific String key
@@ -24,7 +25,7 @@ public class NDArraysAggregator {
      * Add newKeys and a newBatchedNDArray which is going to sum overlapping keys
      */
     public void aggregate(String[] newKeys, NDArray newBatchedNDArray) {
-        if (newKeys.length == 0) throw new RuntimeException("WHY ARRAY IS EMPTY ");
+        Preconditions.checkState(newKeys.length > 0, "Should contain at least 1 tensor");
         if (keys == null) {
             // First time is sorted
             keys = newKeys;
@@ -63,7 +64,7 @@ public class NDArraysAggregator {
      * Check if this is empty
      */
     public boolean isEmpty() {
-        return keys == null || keys.length == 0;
+        return keys == null;
     }
 
     /**

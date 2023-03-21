@@ -398,8 +398,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         public @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id, @Nullable VertexFeatureInfo featureInfo, @Nullable Object value) {
             if (id.f0 == ElementType.VERTEX) {
                 if (featureInfo == null) featureInfo = vertexFeatureInfoTable.get(id.f2);
-                if (value == null)
-                    value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
+                if (value == null) value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
                 if (scopePool.isOpen()) {
                     return scopePool.getVertexFeature(value, id, featureInfo);
                 } else {
