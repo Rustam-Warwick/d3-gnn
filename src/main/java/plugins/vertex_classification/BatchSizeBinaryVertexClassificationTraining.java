@@ -164,6 +164,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
                 miniBatchVertexIds,
                 batchedGradients
         );
+        BaseNDManager.getManager().resumeAndDelay(); // Refresh
     }
 
     /**
