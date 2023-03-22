@@ -35,10 +35,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * difficult.
  *
  * <p>For more details about the class internals, see {@link Evaluator}.
+ * @author rustambaku13
+ * <p>
+ *     Added {@link KryoExternalizable}
+ * </p>
  */
 public abstract class Loss extends Evaluator implements KryoExternalizable {
 
-    private final Map<String, Float> totalLoss;
+    private Map<String, Float> totalLoss;
 
     /**
      * Base class for metric with abstract update methods.
@@ -72,7 +76,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L1Loss} with given weight.
      *
-     * @param name   the name of the loss
+     * @param name the name of the loss
      * @param weight the weight to apply on loss value, default 1
      * @return a new instance of {@link L1Loss}
      */
@@ -93,7 +97,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link QuantileL1Loss} with given quantile.
      *
-     * @param name     the name of the loss
+     * @param name the name of the loss
      * @param quantile the quantile position of the data to focus on
      * @return a new instance of {@link QuantileL1Loss}
      */
@@ -123,7 +127,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L2Loss} with given weight and batch axis.
      *
-     * @param name   the name of the loss
+     * @param name the name of the loss
      * @param weight the weight to apply on loss value, default 1
      * @return a new instance of {@link L2Loss}
      */
@@ -153,8 +157,8 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link SigmoidBinaryCrossEntropyLoss} with the given arguments.
      *
-     * @param name        the name of the loss
-     * @param weight      the weight to apply on the loss value, default 1
+     * @param name the name of the loss
+     * @param weight the weight to apply on the loss value, default 1
      * @param fromSigmoid whether the input is from the output of sigmoid, default false
      * @return a new instance of {@link SigmoidBinaryCrossEntropyLoss}
      */
@@ -185,11 +189,11 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link SoftmaxCrossEntropyLoss} with the given arguments.
      *
-     * @param name        the name of the loss
-     * @param weight      the weight to apply on the loss value, default 1
-     * @param classAxis   the axis that represents the class probabilities, default -1
+     * @param name the name of the loss
+     * @param weight the weight to apply on the loss value, default 1
+     * @param classAxis the axis that represents the class probabilities, default -1
      * @param sparseLabel whether labels are integer array or probabilities, default true
-     * @param fromLogit   whether labels are log probabilities or un-normalized numbers
+     * @param fromLogit whether labels are log probabilities or un-normalized numbers
      * @return a new instance of {@link SoftmaxCrossEntropyLoss}
      */
     public static SoftmaxCrossEntropyLoss softmaxCrossEntropyLoss(
@@ -219,11 +223,11 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link MaskedSoftmaxCrossEntropyLoss} with the given arguments.
      *
-     * @param name        the name of the loss
-     * @param weight      the weight to apply on the loss value, default 1
-     * @param classAxis   the axis that represents the class probabilities, default -1
+     * @param name the name of the loss
+     * @param weight the weight to apply on the loss value, default 1
+     * @param classAxis the axis that represents the class probabilities, default -1
      * @param sparseLabel whether labels are integer array or probabilities, default true
-     * @param fromLogit   whether labels are log probabilities or un-normalized numbers
+     * @param fromLogit whether labels are log probabilities or un-normalized numbers
      * @return a new instance of {@link MaskedSoftmaxCrossEntropyLoss}
      */
     public static MaskedSoftmaxCrossEntropyLoss maskedSoftmaxCrossEntropyLoss(
@@ -253,7 +257,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link HingeLoss} with the given arguments.
      *
-     * @param name   the name of the loss
+     * @param name the name of the loss
      * @param margin the margin in hinge loss. Defaults to 1.0
      * @param weight the weight to apply on loss value, default 1
      * @return a new instance of {@link HingeLoss}
@@ -275,7 +279,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L1WeightDecay} with default weight.
      *
-     * @param name       the name of the weight decay
+     * @param name the name of the weight decay
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link L1WeightDecay}
      */
@@ -286,8 +290,8 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L1WeightDecay}.
      *
-     * @param name       the name of the weight decay
-     * @param weight     the weight to apply on weight decay value, default 1
+     * @param name the name of the weight decay
+     * @param weight the weight to apply on weight decay value, default 1
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link L1WeightDecay}
      */
@@ -308,7 +312,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L2WeightDecay} with default weight.
      *
-     * @param name       the name of the weight decay
+     * @param name the name of the weight decay
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link L2WeightDecay}
      */
@@ -319,8 +323,8 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link L2WeightDecay}.
      *
-     * @param name       the name of the weight decay
-     * @param weight     the weight to apply on weight decay value, default 1
+     * @param name the name of the weight decay
+     * @param weight the weight to apply on weight decay value, default 1
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link L2WeightDecay}
      */
@@ -341,7 +345,7 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link ElasticNetWeightDecay} with default weight.
      *
-     * @param name       the name of the weight decay
+     * @param name the name of the weight decay
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link ElasticNetWeightDecay}
      */
@@ -352,8 +356,8 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link ElasticNetWeightDecay}.
      *
-     * @param name       the name of the weight decay
-     * @param weight     the weight to apply on weight decay values, default 1
+     * @param name the name of the weight decay
+     * @param weight the weight to apply on weight decay values, default 1
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link ElasticNetWeightDecay}
      */
@@ -365,9 +369,9 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
     /**
      * Returns a new instance of {@link ElasticNetWeightDecay}.
      *
-     * @param name       the name of the weight decay
-     * @param weight1    the weight to apply on weight decay L1 value, default 1
-     * @param weight2    the weight to apply on weight decay L2 value, default 1
+     * @param name the name of the weight decay
+     * @param weight1 the weight to apply on weight decay L1 value, default 1
+     * @param weight2 the weight to apply on weight decay L2 value, default 1
      * @param parameters holds the model weights that will be penalized
      * @return a new instance of {@link ElasticNetWeightDecay}
      */
@@ -376,18 +380,14 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
         return new ElasticNetWeightDecay(name, parameters, weight1, weight2);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void addAccumulator(String key) {
         totalInstances.put(key, 0L);
         totalLoss.put(key, 0f);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void updateAccumulator(String key, NDList labels, NDList predictions) {
         // this is a synchronized operation, only call it at end of batch or epoch
@@ -396,18 +396,14 @@ public abstract class Loss extends Evaluator implements KryoExternalizable {
         totalLoss.compute(key, (k, v) -> v + update);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public void resetAccumulator(String key) {
         totalInstances.compute(key, (k, v) -> 0L);
         totalLoss.compute(key, (k, v) -> 0f);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public float getAccumulator(String key) {
         Long total = totalInstances.get(key);

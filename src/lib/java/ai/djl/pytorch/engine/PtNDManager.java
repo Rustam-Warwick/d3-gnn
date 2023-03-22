@@ -27,14 +27,17 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 
-/**
- * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
- */
+/** {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
+ * @author rustambaku13
+ * <p>
+ *     getSubManager is now ThreadLocal
+ * </p>
+ * */
 public class PtNDManager extends BaseNDManager {
 
     private static final PtNDManager SYSTEM_MANAGER = new SystemManager();
 
-    protected PtNDManager(NDManager parent, Device device) {
+    private PtNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
@@ -42,36 +45,30 @@ public class PtNDManager extends BaseNDManager {
         return SYSTEM_MANAGER;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public ByteBuffer allocateDirect(int capacity) {
         return ByteBuffer.allocateDirect(capacity).order(ByteOrder.nativeOrder());
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public PtNDArray from(NDArray array) {
         if (array == null || array instanceof PtNDArray) {
             return (PtNDArray) array;
         }
-        return create(array.toByteBuffer(), array.getShape(), array.getDataType());
+        PtNDArray result = create(array.toByteBuffer(), array.getShape(), array.getDataType());
+        result.setName(array.getName());
+        return result;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public PtNDArray create(Shape shape, DataType dataType) {
         return JniUtils.createEmptyNdArray(this, shape, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public PtNDArray create(Buffer data, Shape shape, DataType dataType) {
         int size = Math.toIntExact(shape.size());
@@ -86,17 +83,13 @@ public class PtNDManager extends BaseNDManager {
                 this, buf, shape, dataType, SparseFormat.DENSE, device);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray create(String[] data, Charset charset, Shape shape) {
         return new PtNDArray(this, data, shape);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray createCoo(Buffer data, long[][] indices, Shape shape) {
         // length should be the same as indices dim 1
@@ -107,41 +100,31 @@ public class PtNDManager extends BaseNDManager {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray zeros(Shape shape, DataType dataType) {
         return JniUtils.createZerosNdArray(this, shape, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray ones(Shape shape, DataType dataType) {
         return JniUtils.createOnesNdArray(this, shape, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray full(Shape shape, float value, DataType dataType) {
         return JniUtils.full(this, shape, value, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray arange(int start, int stop, int step, DataType dataType) {
         return arange((float) start, (float) stop, (float) step, dataType, device);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray arange(float start, float stop, float step, DataType dataType) {
         if (Math.signum(stop - start) != Math.signum(step)) {
@@ -150,9 +133,7 @@ public class PtNDManager extends BaseNDManager {
         return JniUtils.arange(this, start, stop, step, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray eye(int rows, int cols, int k, DataType dataType) {
         if (k != 0) {
@@ -162,9 +143,7 @@ public class PtNDManager extends BaseNDManager {
         return JniUtils.eye(this, rows, cols, dataType, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray linspace(float start, float stop, int num, boolean endpoint) {
         if (!endpoint) {
@@ -174,36 +153,34 @@ public class PtNDManager extends BaseNDManager {
                 this, start, stop, num, DataType.FLOAT32, device, SparseFormat.DENSE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray randomInteger(long low, long high, Shape shape, DataType dataType) {
         return JniUtils.randint(this, low, high, shape, dataType, device);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray randomPermutation(long n) {
         return JniUtils.randperm(this, n, DataType.INT64, device);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray randomUniform(float low, float high, Shape shape, DataType dataType) {
         return JniUtils.uniform(this, low, high, shape, dataType, device);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public NDArray randomNormal(float loc, float scale, Shape shape, DataType dataType) {
         return JniUtils.normal(this, loc, scale, shape, dataType, device);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public NDArray hanningWindow(long numPoints) {
+        return JniUtils.hannWindow(this, numPoints, true, device);
     }
 
     /**
@@ -219,22 +196,17 @@ public class PtNDManager extends BaseNDManager {
         return (PtNDManager) manager;
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    /** {@inheritDoc} */
     @Override
     public final Engine getEngine() {
         return Engine.getEngine(PtEngine.ENGINE_NAME);
     }
 
-    /**
-     * The SystemManager is the root {@link PtNDManager} of which all others are children.
-     */
+    /** The SystemManager is the root {@link PtNDManager} of which all others are children. */
     private static final class SystemManager extends PtNDManager implements SystemNDManager {
 
         SystemManager() {
             super(null, null);
         }
     }
-
 }
