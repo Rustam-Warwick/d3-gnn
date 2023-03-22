@@ -141,14 +141,14 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     public void reduceOutEdges(Vertex v) {
         Iterable<DirectedEdge> outEdges = getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT);
-        NDList result = null;
+        NDList message = null;
         reuseReduceMap.clear();
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (DirectedEdge directedEdge : outEdges) {
-                if (result == null) {
+                if (message == null) {
                     reuseNDList.clear();
                     reuseNDList.add((NDArray) v.getFeature("f").getValue());
-                    result = MESSAGE(reuseNDList, false);
+                    message = MESSAGE(reuseNDList, false);
                 }
                 reuseReduceMap.compute(directedEdge.getDest().getMasterPart(), (key, item) -> {
                     if (item == null) item = new ArrayList<>();
@@ -167,7 +167,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
                     shortTuple2Entry.getKey(),
                     OutputTags.ITERATE_OUTPUT_TAG,
                     shortTuple2Entry.getValue(),
-                    result
+                    message
             );
         }
     }

@@ -103,7 +103,7 @@ public class GraphStream {
         this.configureSerializers();
         this.layers = layers;
         this.operatorFactorySupplier = operatorFactorySupplier;
-        this.iterateStreams = new IterateStream[this.layers + 1]; // SPLITTER + Storage operator
+        this.iterateStreams = new IterateStream[this.layers + 1];
         this.dataset = Dataset.getDataset(datasetName, cmdArgs);
         this.partitioner = Partitioner.getPartitioner(partitionerName, cmdArgs);
         env.setMaxParallelism((int) (env.getParallelism() * Math.pow(lambda, layers - 1)));

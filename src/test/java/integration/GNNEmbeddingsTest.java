@@ -44,7 +44,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
 //                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 1, 10),
 //                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 2, 10),
 //                Arguments.arguments(new String[]{"-p=random", "-l=1.3"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=hdrf", "-l=1"}, 3, 40)
+                Arguments.arguments(new String[]{"-p=hdrf", "-l=1"}, 2, 40)
         );
     }
 

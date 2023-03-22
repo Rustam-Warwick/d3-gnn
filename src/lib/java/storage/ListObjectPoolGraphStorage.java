@@ -370,7 +370,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
                     reuseEdgeId.f0 = vertex.getId();
                     reuseEdgeId.f1 = partialIds[0];
                     reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
-                    return getEdge(reuseEdgeId);
+                    DirectedEdge e = getEdge(reuseEdgeId);
+                    e.src = vertex;
+                    return e;
                 }).iterator();
             }
             if (vertexInfo.inEdges != null && (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH)) {
@@ -378,7 +380,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
                     reuseEdgeId.f0 = partialIds[0];
                     reuseEdgeId.f1 = vertex.getId();
                     reuseEdgeId.f2 = partialIds.length == 2 ? partialIds[1] : null;
-                    return getEdge(reuseEdgeId);
+                    DirectedEdge e = getEdge(reuseEdgeId);
+                    e.dest = vertex;
+                    return e;
                 }).iterator();
             }
             Iterator<DirectedEdge> res = IteratorUtils.chainedIterator(inEdgeIterable, outEdgeIterable);
@@ -422,7 +426,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName) {
             if (elementType == ElementType.VERTEX) {
-                VertexFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(featureName);
+                final VertexFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(featureName);
                 return () -> vertexMap.get(getRuntimeContext().getCurrentPart()).entrySet()
                         .stream()
                         .filter(entrySet -> entrySet.getValue().hasFeatureInPosition(vertexFeatureInfo.position))

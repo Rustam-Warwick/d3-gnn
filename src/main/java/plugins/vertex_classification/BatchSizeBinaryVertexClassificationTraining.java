@@ -125,7 +125,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
      * </p>
      */
     public void startTraining() {
-        // 1. Compute the gradients per each vertex output feature
+        // 1. Prepare data
         ObjectArrayList<String> vertexIds = part2TrainingVertexMap.get(getPart());
         int[] startEndIndices = miniBatchEpochController.getStartEndIndices(vertexIds.size());
         if (startEndIndices[0] >= startEndIndices[1]) return; // No data available for this part.
@@ -133,6 +133,8 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         System.arraycopy(vertexIds.elements(), startEndIndices[0], miniBatchVertexIds, 0, miniBatchVertexIds.length);
         reuseFeaturesNDList.clear();
         reuseLabelsNDList.clear();
+
+        // 2. Collect data from storage
         try(BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : miniBatchVertexIds) {
                 reuseFeaturesId.f1 = reuseLabelsId.f1 = vertexId;
@@ -141,6 +143,8 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
                 scope.refresh();
             }
         }
+
+        // 3. Bakward pass
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
         NDArray batchedLabels = NDArrays.stack(reuseLabelsNDList);
         batchedFeatures.setRequiresGradient(true);
