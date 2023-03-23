@@ -43,7 +43,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     public TrainingSubCoordinator(GraphOperatorCoordinator mainCoordinator) {
-        this(mainCoordinator, 1f, 4096, (short) 1);
+        this(mainCoordinator, 1f, 1024, (short) 5);
     }
 
     @Override

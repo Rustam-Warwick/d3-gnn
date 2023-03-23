@@ -5,9 +5,8 @@ import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
 import elements.GraphOp;
 import elements.Vertex;
-import elements.enums.ElementType;
 import elements.enums.Op;
-import elements.features.Tensor;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.configuration.Configuration;
@@ -21,8 +20,6 @@ import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import storage.BaseStorage;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -32,15 +29,13 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int sessionIntervalMs;
 
-    protected transient Map<Short, HashMap<String, Long>> BATCH;
+    protected transient Map<Short, Object2LongOpenHashMap<String>> part2VertexTimers;
 
     protected transient Counter windowThroughput;
 
-    protected transient NDList reuseFeaturesNDList;
-
     protected transient NDList reuseAggregatorsNDList;
 
-    protected transient List<String> reuseVertexIdList;
+    protected transient ObjectArrayList<String> reuseVertexIdList;
 
     public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionIntervalMs) {
         super(modelName, trainableVertexEmbeddings);
@@ -54,24 +49,23 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
     public void open(Configuration params) throws Exception {
         super.open(params);
         reuseAggregatorsNDList = new NDList();
-        reuseFeaturesNDList = new NDList();
         reuseVertexIdList = new ObjectArrayList<>();
-        BATCH = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("BATCH", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
-        getRuntimeContext().getThisOperatorParts().forEach(part -> BATCH.put(part, new HashMap<>()));
+        part2VertexTimers = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2VertexTimers", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
+        getRuntimeContext().getThisOperatorParts().forEach(part -> part2VertexTimers.put(part, new Object2LongOpenHashMap<>()));
         windowThroughput = new SimpleCounter();
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
     }
 
     /**
      * {@inheritDoc}
-     * Adds the forward messages to timer queue
+     * Adds the forward messages to timer queue and does not immediately forward it to the next layer
      */
     public void forward(Vertex v) {
         long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionIntervalMs;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        HashMap<String, Long> PART_BATCH = BATCH.get(getPart());
-        PART_BATCH.put(v.getId(), thisElementUpdateTime);
+        Object2LongOpenHashMap<String> vertexTimers = part2VertexTimers.get(getPart());
+        vertexTimers.put(v.getId(), thisElementUpdateTime);
         getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }
@@ -81,32 +75,32 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
      */
     public void evictUpUntil(long timestamp) {
         short currentPart = getPart();
-        HashMap<String, Long> PART_BATCH = BATCH.get(currentPart);
+        Object2LongOpenHashMap<String> vertexTimers = part2VertexTimers.get(currentPart);
         reuseFeaturesNDList.clear();
         reuseAggregatorsNDList.clear();
-        reuseNDList.clear();
         reuseVertexIdList.clear();
-        PART_BATCH.forEach((key, val) -> {
-            if (val <= timestamp) {
-                try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+            vertexTimers.forEach((key, val) -> {
+                if (val <= timestamp) {
                     Vertex v = getRuntimeContext().getStorage().getVertex(key);
                     reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
                     reuseAggregatorsNDList.add((NDArray) (v.getFeature("agg")).getValue());
                     reuseVertexIdList.add(v.getId());
+                    ignored.refresh();
                 }
-            }
-        });
+            });
+        }
         if (reuseVertexIdList.isEmpty()) return;
-        reuseNDList.add(NDArrays.stack(reuseFeaturesNDList));
-        reuseNDList.add(NDArrays.stack(reuseAggregatorsNDList));
-        NDArray batchedUpdates = UPDATE(reuseNDList, false).get(0);
-        Tensor tmpTensor = new Tensor("f", null, false);
+        NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
+        NDArray batchedAggregators = NDArrays.stack(reuseAggregatorsNDList);
+        reuseFeaturesNDList.clear();
+        reuseFeaturesNDList.add(batchedFeatures);reuseFeaturesNDList.add(batchedAggregators);
+        NDArray batchedUpdates = UPDATE(reuseFeaturesNDList, false).get(0);
         for (int i = 0; i < reuseVertexIdList.size(); i++) {
-            PART_BATCH.remove(reuseVertexIdList.get(i));
-            tmpTensor.value = batchedUpdates.get(i);
-            tmpTensor.id.f0 = ElementType.VERTEX;
-            tmpTensor.id.f1 = reuseVertexIdList.get(i);
-            getRuntimeContext().output(new GraphOp(Op.COMMIT, currentPart, tmpTensor));
+            vertexTimers.removeLong(reuseVertexIdList.get(i));
+            reuseTensor.value = batchedUpdates.get(i);
+            reuseTensor.id.f1 = reuseVertexIdList.get(i);
+            getRuntimeContext().output(new GraphOp(Op.COMMIT, currentPart, reuseTensor));
             throughput.inc();
         }
     }

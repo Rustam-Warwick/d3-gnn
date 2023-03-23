@@ -182,7 +182,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
     public void handleOperatorEvent(OperatorEvent evt) {
         super.handleOperatorEvent(evt);
         if (evt instanceof TrainingSubCoordinator.StartTrainingWithSettings) {
-            // Adjust the minibatch and epoch count, do the backward pass
+            LOG.error(String.format("Start training batch %s epoch %s", ((TrainingSubCoordinator.StartTrainingWithSettings) evt).miniBatches, ((TrainingSubCoordinator.StartTrainingWithSettings) evt).epochs));
             miniBatchEpochController.setMiniBatchAndEpochs(((TrainingSubCoordinator.StartTrainingWithSettings) evt).miniBatches, ((TrainingSubCoordinator.StartTrainingWithSettings) evt).epochs);
             getRuntimeContext().runForAllLocalParts(this::startTraining);
             getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.BackwardPhaser()), OutputTags.BACKWARD_OUTPUT_TAG);

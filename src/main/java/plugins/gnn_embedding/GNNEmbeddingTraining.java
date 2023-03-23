@@ -1,7 +1,6 @@
 package plugins.gnn_embedding;
 
 import ai.djl.ndarray.*;
-import ai.djl.ndarray.types.Shape;
 import ai.djl.nn.gnn.AggregatorVariant;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.jni.JniUtils;
@@ -15,12 +14,9 @@ import elements.features.Aggregator;
 import elements.features.Parts;
 import elements.features.Tensor;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
-import it.unimi.dsi.fastutil.ints.IntList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
@@ -101,17 +97,17 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
     }
 
     /**
-     * First part of training responsible for getting triggerUpdate gradients and output gradients
      * <p>
-     * Assumptions:
-     *      <ul>
-     *          <li>All vertices here are in their master parts</li>
-     *          <li>All master vertices participating in train have their features </li>
-     *          <li>All master vertices here have their aggregators</li>
-     *      </ul>
+     * First part of training for UPDATE
+     *  <ul>
+     *     <li>All vertices here are in their master parts</li>
+     *      <li>All master vertices participating in train have their features. No need to double check existence </li>
+     *      <li>All master vertices here have their aggregators</li>
+     *  </ul>
      * </p>
      */
     public void backwardFirstPhaseMeanOrSum() {
+
         // 1. Check early termination and cleanup reuse objects
 
         NDArraysAggregator gradientAggregator = part2FeatureGradientAgg.get(getPart());
@@ -121,6 +117,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reusePart2Indices.forEach((key, val) -> val.clear());
 
         // 2. Populate data
+
         int[] meanAggregatorValues = modelServer.getBlock().getAgg() == AggregatorVariant.MEAN ? new int[gradientAggregator.keys.length] : null;
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (int i = 0; i < gradientAggregator.keys.length; i++) {
@@ -142,6 +139,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         }
 
         // 3. Backward pass
+
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
         NDArray batchedAggregators = NDArrays.stack(reuseAggregatorNDList);
         reuseFeaturesNDList.clear(); // Reuse for input
@@ -149,7 +147,6 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reuseFeaturesNDList.add(batchedAggregators);
         if (!getRuntimeContext().isFirst()) batchedFeatures.setRequiresGradient(true);
         batchedAggregators.setRequiresGradient(true);
-
         NDList updatesBatched = UPDATE(reuseFeaturesNDList, true);
         synchronized (modelServer.getModel()) {
             // Synchronize backward calls since TaskLocal
@@ -157,6 +154,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         }
 
         // 4. Send dl/dm(l-1) if not the last layer already
+
         if (!getRuntimeContext().isFirst()) {
             Rmi.buildAndRun(
                     getId(),
@@ -170,6 +168,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         }
 
         // 5. Collect and send aggregation messages
+
         final String[] keys = gradientAggregator.keys; // Take this out since we will need it afterwards
         final NDArray aggGradients = batchedAggregators.getGradient();
         if (meanAggregatorValues != null) aggGradients.divi(BaseNDManager.getManager().create(meanAggregatorValues).expandDims(1)); // Divide for message gradients
@@ -186,19 +185,17 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         });
 
         //6. Cleanup
+
         gradientAggregator.clear();
         BaseNDManager.getManager().resumeAndDelay();
 
     }
 
     /**
-     * Second part of training responsible for getting output gradients
-     * <p>
-     * Batch compute gradients for output function as well as previous layer updates
-     * Previous layer updates are needed only if this is not First layer of GNN
-     * </p>
+     * Second part of training responsible for MESSAGE & AGGREGATOR gradients
      */
     public void backwardSecondPhaseMeanOrSum() {
+
         // 1. Check early termination and clear the reuse objects
 
         NDArraysAggregator gradientAggregator = part2AggregatorGradientAgg.get(getPart());
@@ -211,6 +208,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reuseVertexIdList.clear();
 
         //2. Collect data
+
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (int i = 0; i < gradientAggregator.keys.length; i++) {
                 Vertex v = getRuntimeContext().getStorage().getVertex(gradientAggregator.keys[i]);
@@ -236,6 +234,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         }
 
         // 3. Backward pass
+
         if (!reuseVertexIdList.isEmpty()) {
             NDArray gradientPerEdge = gradientAggregator.batchedNDArray.get(BaseNDManager.getManager().create(reuseDestIndexList.toIntArray()));
             NDArray srcFeaturesBatched = NDArrays.stack(reuseFeaturesNDList);
@@ -272,16 +271,15 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         }
 
         // 4. Cleanup
+
         gradientAggregator.clear();
         BaseNDManager.getManager().resumeAndDelay();
 
     }
 
     /**
-     * <p>
-     * Zero phase that overlaps with mode sync
+     * Zero phase that overlaps with model sync
      * Simply reset the aggregator values in storage
-     * </p>
      */
     public void forwardResetPhase() {
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
@@ -293,12 +291,22 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         BaseNDManager.getManager().resumeAndDelay();
     }
 
+    /**
+     * First phase that computes and sends reduce messages to aggregators
+     */
     public void forwardAggregatorPhase(){
+
+        // 1. Clean the reuse data
+
         reuseFeaturesNDList.clear();
         reuseVertexToIndexMap.clear();
         reuseSrcIndexList.clear();
+        reuseDestIndexList.clear(); // To be used as counts of aggregators
         reuseVertexIdList.clear();
         reusePart2Indices.forEach((key, val) -> val.clear());
+
+        // 2. Collect data
+
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
                 boolean hasInEdges = false;
@@ -325,11 +333,16 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             }
         }
 
+        // 3. Compute the messages
+
         if(reuseFeaturesNDList.isEmpty()) return;
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
-        reuseFeaturesNDList.clear();
-        reuseFeaturesNDList.add(batchedFeatures);
+        reuseFeaturesNDList.clear(); reuseFeaturesNDList.add(batchedFeatures);
         NDArray batchedSrcMessages = MESSAGE(reuseFeaturesNDList, false).get(0);
+        reuseFeaturesNDList.clear();
+
+        // 4. Partial aggregate and collect this data
+
         int start = 0;
         final int[] dim = new int[]{0};
         for (int i = 0; i < reuseSrcIndexList.size(); i++) {
@@ -337,56 +350,62 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
                 int[] indices = new int[i - start];
                 System.arraycopy(reuseSrcIndexList.elements(), start, indices, 0, indices.length);
                 NDArray result = batchedSrcMessages.get(BaseNDManager.getManager().create(indices)).sum(dim);
-
+                reuseFeaturesNDList.add(result);
+                reuseDestIndexList.add(indices.length);
+                start = i + 1;
             }
         }
+        NDArray batchPartialAggregators = NDArrays.stack(reuseFeaturesNDList);
+
+        // 5. Send messages
+
+        reusePart2Indices.forEach((part, list) -> {
+            if(list.isEmpty()) return;
+            int[] indices = new int[list.size()];
+            int[] counts = new int[list.size()];
+            String[] vertexIds = new String[list.size()];
+            for (int i = 0; i < indices.length; i++) {
+                indices[i] = list.getInt(i);
+                counts[i] = reuseDestIndexList.getInt(indices[i]);
+                vertexIds[i] = reuseVertexIdList.get(indices[i]);
+            }
+            NDArray partBatchedPartialAggregators = batchPartialAggregators.get(BaseNDManager.getManager().create(indices));
+            Rmi.buildAndRun(
+                    getId(),
+                    getType(),
+                    "receiveBatchedReduceMessages",
+                    part,
+                    OutputTags.ITERATE_OUTPUT_TAG,
+                    vertexIds,
+                    counts,
+                    partBatchedPartialAggregators
+            );
+        });
+
+        // 6. Cleanup
+
         BaseNDManager.getManager().resumeAndDelay();
 
     }
 
     /**
-     * Aggregator part of forward
+     * Paired with first forward phase to reduce the vertices
      */
-    public void forwardAggregatorPhasen(){
+    @RemoteFunction(triggerUpdate = false)
+    public void receiveBatchedReduceMessages(String[] vertexIds, int[] counts, NDArray batchedPartialAggregators){
         try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
-                reuseFeaturesNDList.clear();
-                try(BaseStorage.ObjectPoolScope innerObjetPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN)) {
-                        reuseFeatureKey.f1 = incidentEdge.getSrcId();
-                        if (getRuntimeContext().getStorage().containsAttachedFeature(reuseFeatureKey)) {
-                            reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureKey).getValue());
-                        }
-                        innerObjetPoolScope.refresh();
-                    }
-                }
-                if(!reuseFeaturesNDList.isEmpty()){
-                    int count = reuseFeaturesNDList.size();
-                    NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
-                    reuseFeaturesNDList.clear();
-                    reuseFeaturesNDList.add(batchedFeatures);
-                    NDArray result = MESSAGE(reuseFeaturesNDList, false).get(0).sum(new int[]{0});
-                    reuseAggregatorNDList.clear();
-                    reuseAggregatorNDList.add(result);
-                    reuseAggregatorKey.f1 = vertex.getId();
-                    Rmi.buildAndRun(
-                            reuseAggregatorKey,
-                            ElementType.ATTACHED_FEATURE,
-                            "reduce",
-                            vertex.getMasterPart(),
-                            OutputTags.ITERATE_OUTPUT_TAG,
-                            reuseAggregatorNDList,
-                            count
-                    );
-                }
+            for (int i = 0; i < vertexIds.length; i++) {
+                reuseAggregatorKey.f1 = vertexIds[i];
+                reuseAggregatorNDList.clear();
+                reuseAggregatorNDList.add(batchedPartialAggregators.get(i));
+                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggregatorKey), "reduce", reuseAggregatorNDList, counts[i]);
                 objectPoolScope.refresh();
             }
         }
-        BaseNDManager.getManager().resumeAndDelay();
     }
 
     /**
-     * Forward all local MASTER Vertices to the next layer
+     * Second phase that UPDATES the MASTER vertices and sends to the next layer
      */
     public void forwardUpdatePhase() {
         reuseFeaturesNDList.clear();

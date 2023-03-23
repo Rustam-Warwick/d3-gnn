@@ -47,6 +47,14 @@ public class MiniBatchEpochController {
         currentMiniBatch = 0;
     }
 
+    public short getCurrentMiniBatch() {
+        return currentMiniBatch;
+    }
+
+    public short getCurrentEpoch() {
+        return currentEpoch;
+    }
+
     /**
      * Returns the indices starting from 0 for this miniBatch iteration
      * [start_index, end_index)

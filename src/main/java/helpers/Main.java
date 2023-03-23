@@ -3,8 +3,6 @@ package helpers;
 import ai.djl.BaseModel;
 import ai.djl.Model;
 import ai.djl.ndarray.BaseNDManager;
-import ai.djl.ndarray.NDArray;
-import ai.djl.ndarray.NDArrays;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
@@ -12,7 +10,6 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
-import ai.djl.pytorch.jni.JniUtils;
 import ai.djl.training.loss.Loss;
 import elements.GraphOp;
 import org.apache.flink.runtime.state.PartNumber;
@@ -88,7 +85,7 @@ public class Main {
                 if (position == 2)
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
                             new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), position, layers);
-                return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 100)), position, layers);
+                return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             }).build();
             env.execute();
         } catch (Exception e) {
