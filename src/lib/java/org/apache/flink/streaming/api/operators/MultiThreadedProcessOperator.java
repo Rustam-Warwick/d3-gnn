@@ -11,7 +11,6 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Collection;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -50,9 +49,8 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         super.open();
         collector = ThreadLocal.withInitial(() -> new SynchronousCollector(output));
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
-        workQueue = new LimitedBlockingQueue<>((int) (nThreads * 1.2));
+        workQueue = new LimitedBlockingQueue<>((int) (nThreads * 2));
         executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
-        Thread.sleep(1000);
     }
 
     @Override
@@ -127,15 +125,8 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
     }
 
     private static class LimitedBlockingQueue<E> extends LinkedBlockingQueue<E> {
-        public LimitedBlockingQueue() {
-        }
-
         public LimitedBlockingQueue(int capacity) {
             super(capacity);
-        }
-
-        public LimitedBlockingQueue(Collection<? extends E> c) {
-            super(c);
         }
 
         @Override

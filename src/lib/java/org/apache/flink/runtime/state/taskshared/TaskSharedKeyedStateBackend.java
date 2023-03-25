@@ -49,6 +49,11 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new ConcurrentHashMap<>(10);
 
     /**
+     * Access to state backend
+     */
+    final protected static ThreadLocal<TaskSharedKeyedStateBackend<?>> TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL = new ThreadLocal<>();
+
+    /**
      * Wrapped delegate state backend
      */
     final protected AbstractKeyedStateBackend<K> wrappedKeyedStateBackend;
@@ -72,6 +77,11 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
         super(kvStateRegistry, keySerializer, userCodeClassLoader, executionConfig, ttlTimeProvider, latencyTrackingStateConfig, cancelStreamRegistry, keyContext);
         this.wrappedKeyedStateBackend = wrappedKeyedStateBackend;
         this.taskIdentifier = taskIdentifier;
+        TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.set(this);
+    }
+
+    public static TaskSharedKeyedStateBackend<?> getBackend(){
+        return TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.get();
     }
 
     public void notifyCheckpointSubsumed(long checkpointId) throws Exception {

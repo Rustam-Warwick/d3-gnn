@@ -18,7 +18,6 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
-import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -52,8 +51,15 @@ public class DGraphFin extends Dataset {
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
         String edgeListFileName = Path.of(System.getenv("DATASET_DIR"), "DGraphFin", "edge-list.csv").toString();
-        SingleOutputStreamOperator<GraphOp> edgeList = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgeListFileName)), edgeListFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name("DGraphFin Edges").setParallelism(1).flatMap(new ParseEdges()).setParallelism(1);
-        return edgeList.process(new Joiner()).name("DGraphFin Joiner").setParallelism(1);
+        return env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(edgeListFileName)), edgeListFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000)
+                .name("DGraphFin Edges")
+                .setParallelism(1)
+                .flatMap(new ParseEdges())
+                .name("DGraphFin Parser")
+                .setParallelism(1)
+                .process(new Joiner())
+                .name("DGraphFin Joiner")
+                .setParallelism(1);
     }
 
     @Override
@@ -207,7 +213,6 @@ public class DGraphFin extends Dataset {
 
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {
-            if (++count > 200000) return;
             String[] srcDestTs = value.split(",");
             out.collect(new GraphOp(Op.ADD, new DirectedEdge(new Vertex(srcDestTs[0]), new Vertex(srcDestTs[1]), srcDestTs[2])));
         }

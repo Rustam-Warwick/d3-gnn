@@ -78,6 +78,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         vertexMap.clear();
         vertexFeatureInfoTable.clear();
         vertexMasterTable.clear();
+        LOG.info("CLEARED Storage");
     }
 
     /**

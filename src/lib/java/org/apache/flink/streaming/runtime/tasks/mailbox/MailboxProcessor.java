@@ -140,6 +140,8 @@ public class MailboxProcessor implements Closeable {
         this.mailboxLoopRunning = true;
         this.suspendedDefaultAction = null;
         this.mailboxMetricsControl = mailboxMetricsControl;
+        System.gc();
+        System.runFinalization();
     }
 
     public MailboxExecutor getMainMailboxExecutor() {

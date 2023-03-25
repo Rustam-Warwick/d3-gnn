@@ -2,7 +2,6 @@ package partitioner;
 
 import elements.*;
 import elements.enums.ElementType;
-import it.unimi.dsi.fastutil.shorts.ShortArrayList;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
@@ -56,7 +55,9 @@ public class HDRF extends Partitioner {
         String opName = String.format("HDRF[l=%s,eps=%s,threads=%s]", lambda, epsilon, numThreads);
         return inputDataStream.transform(opName,
                 TypeInformation.of(GraphOp.class),
-                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads)).setParallelism(1);
+                new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads))
+                .slotSharingGroup(fineGrainedResourceManagementEnabled ? "HDRF": "default")
+                .setParallelism(1);
     }
 
     /**
@@ -156,7 +157,7 @@ public class HDRF extends Partitioner {
                     // This is the first part of this vertex hence the master
                     vertex.masterPart = part;
                     totalNumberOfVertices.incrementAndGet();
-                    return Collections.synchronizedList(new ShortArrayList(List.of(part)));
+                    return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
                 } else {
                     if (!val.contains(part)) {
                         // Seocond or more part hence the replica
@@ -183,8 +184,8 @@ public class HDRF extends Partitioner {
                 }
                 case VERTEX: {
                     Vertex v = (Vertex) value.element;
-                    v.masterPart = partitionTable.get(v.getId()).get(0);
-                    out.collect(value.setPartId(v.getMasterPart()));
+                    v.masterPart = partitionTable.get(value.element.getId()).get(0);
+                    out.collect(value.setPartId(partitionTable.get(value.element.getId()).get(0)));
                     break;
                 }
                 case ATTACHED_FEATURE: {

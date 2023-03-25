@@ -15,10 +15,10 @@ import java.util.ServiceLoader;
 abstract public class Partitioner {
 
     /**
-     * Has no effect just make sure one command var exists in Partitioner to not throw error
+     * Is fine grained resource management enabled
      */
-    @CommandLine.Option(names = {"--dataset:processOnce"}, defaultValue = "true", fallbackValue = "true", arity = "1", description = "Dataset: Process once or continuously")
-    protected boolean processOnce;
+    @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
+    protected boolean fineGrainedResourceManagementEnabled;
 
     /**
      * Number of logical parts the partitioner sees, usually set to {@code env.getMaxParallelism()}

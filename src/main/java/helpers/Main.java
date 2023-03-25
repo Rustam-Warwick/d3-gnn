@@ -19,10 +19,11 @@ import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFac
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
 import plugins.gnn_embedding.GNNEmbeddingTraining;
-import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
+import plugins.gnn_embedding.StreamingGNNEmbedding;
 import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
 
@@ -77,17 +78,17 @@ public class Main {
         try {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            new GraphStream(env, args, (short) 3, (position, layers, extra) -> {
+            new GraphStream(env, args, (short) 2, (position, layers, extra) -> {
                 if (position == 0)
                     return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0]);
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new GNNEmbeddingTraining(models.get(0).getName(), false), new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), position, layers);
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new GNNEmbeddingTraining(models.get(0).getName(), false), new StreamingGNNEmbedding(models.get(0).getName(), false)), position, layers);
                 if (position == 2)
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
-                            new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), position, layers);
+                            new StreamingGNNEmbedding(models.get(1).getName(), false)), position, layers);
                 return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             }).build();
-            env.execute();
+            env.execute(String.format("%s (%s) [%s]", new Date().toString(), env.getParallelism(), String.join(",", args)));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
