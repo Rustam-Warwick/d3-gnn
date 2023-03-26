@@ -16,10 +16,10 @@ import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
+import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
-import plugins.gnn_embedding.GNNEmbeddingTraining;
-import plugins.gnn_embedding.StreamingGNNEmbedding;
+import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
 import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
 import java.util.ArrayList;
@@ -78,16 +78,17 @@ public class Main {
         try {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            new GraphStream(env, args, (short) 2, (position, layers, extra) -> {
+            GraphStream gs = new GraphStream(env, args, (short) 2, (position, layers, extra) -> {
                 if (position == 0)
-                    return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0]);
+                    return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new GNNEmbeddingTraining(models.get(0).getName(), false), new StreamingGNNEmbedding(models.get(0).getName(), false)), position, layers);
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 100)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 2)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new GNNEmbeddingTraining(models.get(1).getName(), false),
-                            new StreamingGNNEmbedding(models.get(1).getName(), false)), position, layers);
-                return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
-            }).build();
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 100)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                else
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
+            });
+            gs.build();
             env.execute(String.format("%s (%s) [%s]", new Date().toString(), env.getParallelism(), String.join(",", args)));
         } catch (Exception e) {
             e.printStackTrace();

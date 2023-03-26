@@ -112,16 +112,18 @@ public class DGraphFin extends Dataset {
          * Add this label to queue for further delayed propagation
          */
         public void addLabelToQueue(Tensor label) {
-            if (label.value.gt(1).getBoolean()) return; // Only retrain Fraud and non-fraud labels
-            if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
-                label.id.f2 = "tl"; // Mark label as training label
-            GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
-            labelOp.delay();
-            int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
-            long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
-            long coalescedTime = (long) (Math.ceil((updateTime) / (double) coalescingIntervalMs) * coalescingIntervalMs);
-            labelsTimer.enqueue(Tuple2.of(labelOp, updateTime));
-            graphRuntimeContext.getTimerService().registerProcessingTimeTimer(coalescedTime);
+            if(false) {
+                if (label.value.gt(1).getBoolean()) return; // Only retrain Fraud and non-fraud labels
+                if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
+                    label.id.f2 = "tl"; // Mark label as training label
+                GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
+                labelOp.delay();
+                int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
+                long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
+                long coalescedTime = (long) (Math.ceil((updateTime) / (double) coalescingIntervalMs) * coalescingIntervalMs);
+                labelsTimer.enqueue(Tuple2.of(labelOp, updateTime));
+                graphRuntimeContext.getTimerService().registerProcessingTimeTimer(coalescedTime);
+            }
         }
 
         @Override

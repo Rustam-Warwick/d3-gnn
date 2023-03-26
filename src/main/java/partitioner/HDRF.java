@@ -9,6 +9,7 @@ import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.operators.FullBufferOperator;
 import org.apache.flink.streaming.api.operators.MultiThreadedProcessOperator;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.Preconditions;
@@ -42,7 +43,7 @@ public class HDRF extends Partitioner {
     /**
      * Number of threads to use for partitioning
      */
-    @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Number of threads to distribute HDRF"})
+    @CommandLine.Option(names = {"--hdrf:numThreads"}, defaultValue = "2", fallbackValue = "2", arity = "1", description = {"Number of threads to distribute HDRF"})
     public int numThreads;
 
     /**
@@ -51,13 +52,13 @@ public class HDRF extends Partitioner {
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         Preconditions.checkState(partitions > 0);
-        Preconditions.checkNotNull(inputDataStream);
-        String opName = String.format("HDRF[l=%s,eps=%s,threads=%s]", lambda, epsilon, numThreads);
-        return inputDataStream.transform(opName,
+        SingleOutputStreamOperator<GraphOp> result = inputDataStream.transform(String.format("HDRF[l=%s,eps=%s,threads=%s]", lambda, epsilon, numThreads),
                 TypeInformation.of(GraphOp.class),
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads))
-                .slotSharingGroup(fineGrainedResourceManagementEnabled ? "HDRF": "default")
                 .setParallelism(1);
+        if(fineGrainedResourceManagementEnabled) result.slotSharingGroup("HDRF");
+        return result.transform("Buffer", TypeInformation.of(GraphOp.class), new FullBufferOperator<>());
+
     }
 
     /**
@@ -67,7 +68,6 @@ public class HDRF extends Partitioner {
     public boolean isResponsibleFor(String partitionerName) {
         return partitionerName.equals("hdrf");
     }
-
     /**
      * Actual HDRF Processing Function
      */

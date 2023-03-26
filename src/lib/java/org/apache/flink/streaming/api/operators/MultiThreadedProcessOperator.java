@@ -1,5 +1,6 @@
 package org.apache.flink.streaming.api.operators;
 
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
@@ -26,7 +27,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @param <OUT>
  * @implNote It is thread-safe until the userFunction is Thread Safe!!!
  */
-public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, OUT> {
+public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT extends LifeCycleControl> extends ProcessOperator<IN, OUT> {
 
     private final int nThreads;
 
@@ -49,68 +50,46 @@ public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, O
         super.open();
         collector = ThreadLocal.withInitial(() -> new SynchronousCollector(output));
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
-        workQueue = new LimitedBlockingQueue<>((int) (nThreads * 2));
+        workQueue = new LimitedBlockingQueue<>((int) (3 * nThreads));
         executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
     }
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
+        element.getValue().delay();
         executorService.submit(() -> {
             try {
-                this.threadSafeProcessElement(element);
+                collector.get().getInnerCollector().setTimestamp(element);
+                context.get().element = element;
+                userFunction.processElement(element.getValue(), context.get(), collector.get());
+                context.get().element = null;
             } catch (Exception e) {
                 e.printStackTrace();
+            }finally {
+                element.getValue().resume();
             }
         }); // Waiting if the buffer is full
     }
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        if (executorService.isShutdown()) super.processWatermark(mark);
-        executorService.submit(() -> {
-            try {
-                synchronized (this) {
-                    super.processWatermark(mark);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        synchronized (this){
+            super.processWatermark(mark);
+        }
     }
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        if (executorService.isShutdown()) super.processLatencyMarker(latencyMarker);
-        executorService.submit(() -> {
-            try {
-                synchronized (this) {
-                    super.processLatencyMarker(latencyMarker);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+        synchronized (this){
+            super.processLatencyMarker(latencyMarker);
+        }
     }
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        if (executorService.isShutdown()) super.processWatermarkStatus(watermarkStatus);
-        executorService.submit(() -> {
-            try {
-                synchronized (this) {
-                    super.processWatermarkStatus(watermarkStatus);
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
-    }
-
-    private void threadSafeProcessElement(StreamRecord<IN> element) throws Exception {
-        collector.get().getInnerCollector().setTimestamp(element);
-        context.get().element = element;
-        userFunction.processElement(element.getValue(), context.get(), collector.get());
-        context.get().element = null;
+        synchronized (this){
+            super.processWatermarkStatus(watermarkStatus);
+        }
     }
 
     @Override

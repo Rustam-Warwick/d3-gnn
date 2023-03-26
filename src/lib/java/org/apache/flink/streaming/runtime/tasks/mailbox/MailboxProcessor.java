@@ -198,6 +198,8 @@ public class MailboxProcessor implements Closeable {
                         throw e;
                     });
         }
+        System.gc();
+        System.runFinalization();
     }
 
     /**

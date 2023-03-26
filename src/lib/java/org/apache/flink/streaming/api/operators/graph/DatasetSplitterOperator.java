@@ -137,8 +137,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
 
     @Override
     public void processElement(StreamRecord<GraphOp> element) throws Exception {
-        if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
-        else reuse.eraseTimestamp();
+        if(!element.hasTimestamp())element.setTimestamp(internalTimerService.currentProcessingTime());
+        reuse.setTimestamp(element.getTimestamp());
         if (element.getValue().op == Op.OPERATOR_EVENT) eventPool.addEvent(element.getValue().graphEvent);
         else super.processElement(element);
     }
