@@ -1,6 +1,6 @@
 package org.apache.flink.streaming.api.operators;
 
-import ai.djl.ndarray.BaseNDManager;
+import ai.djl.ndarray.LifeCycleControl;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 
@@ -12,17 +12,12 @@ import java.util.Queue;
  *
  * @param <IN> Type of element both to input and output
  */
-public class FullBufferOperator<IN> extends AbstractStreamOperator<IN> implements OneInputStreamOperator<IN, IN> {
+public class FullBufferOperator<IN extends LifeCycleControl> extends AbstractStreamOperator<IN> implements OneInputStreamOperator<IN, IN> {
     private final Queue<StreamRecord<IN>> buffer = new ArrayDeque<>();
 
     @Override
-    public void open() throws Exception {
-        super.open();
-        BaseNDManager.getManager().delay(); // Delay
-    }
-
-    @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
+        element.getValue().delay();
         buffer.add(element);
     }
 
@@ -30,8 +25,8 @@ public class FullBufferOperator<IN> extends AbstractStreamOperator<IN> implement
         StreamRecord<IN> tmpEl;
         while ((tmpEl = buffer.poll()) != null) {
             output.collect(tmpEl);
+            tmpEl.getValue().resume();
         }
-        BaseNDManager.getManager().resume();
     }
 
     @Override

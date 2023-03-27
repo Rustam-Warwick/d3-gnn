@@ -170,9 +170,10 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     public void close() throws IOException {
-        TASK_LOCAL_STATE_MAP.forEach((key, value) -> {
-            if (key.f0.equals(taskIdentifier.f0) && key.f1.equals(taskIdentifier.f1)) value.deregister(this);
-        });
+        for (Map.Entry<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> taskLocalState: TASK_LOCAL_STATE_MAP.entrySet()) {
+            if (taskLocalState.getKey().f0.equals(taskIdentifier.f0) && taskLocalState.getKey().f1.equals(taskIdentifier.f1) && taskLocalState.getValue().deregister(this))
+                TASK_LOCAL_STATE_MAP.remove(taskLocalState.getKey());
+        }
         wrappedKeyedStateBackend.close();
     }
 

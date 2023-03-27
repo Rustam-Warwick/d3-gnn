@@ -3,7 +3,6 @@ package plugins.gnn_embedding;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
-import elements.DirectedEdge;
 import elements.Feature;
 import elements.Plugin;
 import elements.Vertex;
@@ -71,16 +70,6 @@ abstract public class BaseGNNEmbedding extends Plugin {
      */
     public final NDList MESSAGE(NDList features, boolean training) {
         return (modelServer.getBlock()).message(modelServer.getParameterStore(), features, training);
-    }
-
-    /**
-     * Is Edge ready for output passing
-     *
-     * @param directedEdge Edge
-     * @return edge_ready
-     */
-    public final boolean messageReady(DirectedEdge directedEdge) {
-        return directedEdge.getSrc().containsFeature("f");
     }
 
     /**

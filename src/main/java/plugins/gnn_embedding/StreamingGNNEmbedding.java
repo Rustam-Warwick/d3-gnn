@@ -69,7 +69,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             initVertex((Vertex) element); // Initialize the agg and the Feature if it is the first layer
         } else if (element.getType() == ElementType.EDGE) {
             DirectedEdge directedEdge = (DirectedEdge) element;
-            if (messageReady(directedEdge)) {
+            if (directedEdge.getSrc().containsFeature("f")) {
                 reuseFeaturesNDList.clear();
                 reuseFeaturesNDList.add((NDArray) directedEdge.getSrc().getFeature("f").getValue());
                 NDList msg = MESSAGE(reuseFeaturesNDList, false);

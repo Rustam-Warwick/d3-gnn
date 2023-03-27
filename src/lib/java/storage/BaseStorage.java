@@ -39,7 +39,7 @@ abstract public class BaseStorage extends TaskSharedState {
      * </p>
      */
     @Override
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
+    public void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
         Preconditions.checkNotNull(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
         Preconditions.checkState(taskSharedKeyedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
         super.register(taskSharedKeyedStateBackend);
