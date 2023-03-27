@@ -82,9 +82,9 @@ public class Main {
                 if (position == 0)
                     return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 500)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new SessionWindowedGNNEmbedding(models.get(0).getName(), false, 1000)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 2)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 1000)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowedGNNEmbedding(models.get(1).getName(), false, 1500)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 else
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             });
