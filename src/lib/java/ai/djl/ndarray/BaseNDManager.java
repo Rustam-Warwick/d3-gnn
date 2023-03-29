@@ -566,7 +566,6 @@ public abstract class BaseNDManager implements NDManager {
             attached.asMap().forEach((key, value) -> {
                 ((LifeCycleControl) key).destroy();
             });
-            attached.invalidateAll();
         }
     }
 }

@@ -6,9 +6,9 @@ import ai.djl.ndarray.NDList;
 import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
-import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import it.unimi.dsi.fastutil.objects.*;
 import org.apache.flink.api.common.typeinfo.Types;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
@@ -29,7 +29,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int sessionIntervalMs;
 
-    protected transient Map<Short, Object2LongOpenHashMap<String>> part2VertexTimers;
+    protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> part2VertexMaps;
 
     protected transient Counter windowThroughput;
 
@@ -50,8 +50,8 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         super.open(params);
         reuseAggregatorsNDList = new NDList();
         reuseVertexIdList = new ObjectArrayList<>();
-        part2VertexTimers = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2VertexTimers", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
-        getRuntimeContext().getThisOperatorParts().forEach(part -> part2VertexTimers.put(part, new Object2LongOpenHashMap<>()));
+        part2VertexMaps = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("window_part2VertexMaps", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
+        getRuntimeContext().getThisOperatorParts().forEach(part -> part2VertexMaps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(),new Object2LongOpenHashMap<>())));
         windowThroughput = new SimpleCounter();
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
     }
@@ -64,8 +64,10 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionIntervalMs;
         long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 100.0) * 100);
-        Object2LongOpenHashMap<String> vertexTimers = part2VertexTimers.get(getPart());
-        vertexTimers.put(v.getId(), thisElementUpdateTime);
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2VertexMaps.get(getPart());
+        maps.f0.removeLong(v.getId());
+        maps.f0.put(v.getId(), thisElementUpdateTime);
+        maps.f1.put(v.getId(), getRuntimeContext().currentTimestamp());
         getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
     }
@@ -74,34 +76,49 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
      * Evict the waiting forward messages less than the current timestamp
      */
     public void evictUpUntil(long timestamp) {
-        short currentPart = getPart();
-        Object2LongOpenHashMap<String> vertexTimers = part2VertexTimers.get(currentPart);
+
+        // 1. Set placeholders
+        final short currentPart = getPart();
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2VertexMaps.get(getPart());
         reuseFeaturesNDList.clear();
         reuseAggregatorsNDList.clear();
         reuseVertexIdList.clear();
+
+        // 2. Collect data
         try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            vertexTimers.forEach((key, val) -> {
-                if (val <= timestamp) {
-                    Vertex v = getRuntimeContext().getStorage().getVertex(key);
-                    reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
-                    reuseAggregatorsNDList.add((NDArray) (v.getFeature("agg")).getValue());
-                    reuseVertexIdList.add(v.getId());
-                    ignored.refresh();
+            ObjectBidirectionalIterator<Object2LongMap.Entry<String>> iterator = maps.f0.object2LongEntrySet().iterator();
+            while(iterator.hasNext()){
+                Object2LongMap.Entry<String> vertexTimerEntry = iterator.next();
+                if(vertexTimerEntry.getLongValue() > timestamp){
+                    break;
                 }
-            });
+                Vertex v = getRuntimeContext().getStorage().getVertex(vertexTimerEntry.getKey());
+                reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
+                reuseAggregatorsNDList.add((NDArray) (v.getFeature("agg")).getValue());
+                reuseVertexIdList.add(v.getId());
+                iterator.remove();
+                ignored.refresh();
+            }
         }
+
+        // 3. Forward
         if (reuseVertexIdList.isEmpty()) return;
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
         NDArray batchedAggregators = NDArrays.stack(reuseAggregatorsNDList);
         reuseFeaturesNDList.clear();
         reuseFeaturesNDList.add(batchedFeatures);reuseFeaturesNDList.add(batchedAggregators);
         NDArray batchedUpdates = UPDATE(reuseFeaturesNDList, false).get(0);
+
+        // 4. Send messages
+        throughput.inc(reuseVertexIdList.size());
         for (int i = 0; i < reuseVertexIdList.size(); i++) {
-            vertexTimers.removeLong(reuseVertexIdList.get(i));
             reuseTensor.value = batchedUpdates.get(i);
             reuseTensor.id.f1 = reuseVertexIdList.get(i);
-            getRuntimeContext().output(new GraphOp(Op.COMMIT, currentPart, reuseTensor));
-            throughput.inc();
+            getRuntimeContext().runWithTimestamp(() -> {
+                    getRuntimeContext().output(new GraphOp(Op.COMMIT, currentPart, reuseTensor));
+                    latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
+                    },
+                    maps.f1.removeLong(reuseVertexIdList.get(i)));
         }
     }
 

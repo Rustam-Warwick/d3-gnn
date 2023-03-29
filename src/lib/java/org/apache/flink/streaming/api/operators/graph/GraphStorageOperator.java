@@ -334,15 +334,25 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public void runForAllLocalParts(Runnable run) {
             PartNumber initialKey = (PartNumber) getCurrentKey();
-            try {
+            try{
                 for (short thisOperatorPart : getThisOperatorParts()) {
                     setCurrentKey(PartNumber.of(thisOperatorPart));
                     run.run();
                 }
-            } catch (Exception e) {
-                e.printStackTrace();
             } finally {
                 setCurrentKey(initialKey);
+            }
+        }
+
+        @Override
+        public void runWithTimestamp(Runnable run, long ts) {
+            Long oldTs = reuse.hasTimestamp() ? reuse.getTimestamp() : null;
+            reuse.setTimestamp(ts);
+            try {
+                run.run();
+            } finally {
+                if(oldTs == null) reuse.eraseTimestamp();
+                else reuse.setTimestamp(oldTs);
             }
         }
 

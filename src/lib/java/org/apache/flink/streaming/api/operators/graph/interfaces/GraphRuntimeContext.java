@@ -135,6 +135,11 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public void runForAllLocalParts(Runnable run);
 
     /**
+     * Execute the runnable with context of particular timestamp
+     */
+    abstract public void runWithTimestamp(Runnable run, long ts);
+
+    /**
      * Return the {@link TimerService}
      */
     abstract public TimerService getTimerService();

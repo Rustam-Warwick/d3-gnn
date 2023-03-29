@@ -270,6 +270,18 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         }
 
         @Override
+        public void runWithTimestamp(Runnable run, long ts) {
+            Long oldTs = reuse.hasTimestamp() ? reuse.getTimestamp() : null;
+            reuse.setTimestamp(ts);
+            try {
+                run.run();
+            } finally {
+                if(oldTs == null) reuse.eraseTimestamp();
+                else reuse.setTimestamp(oldTs);
+            }
+        }
+
+        @Override
         public TimerService getTimerService() {
             return userTimerService;
         }
