@@ -49,7 +49,7 @@ public abstract class Dataset implements Serializable {
      * Process command line arguments.
      * Made final since base class already has cmd arguments
      */
-    public final void parseCmdArgs(String[] cmdArgs) {
+    public void parseCmdArgs(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 

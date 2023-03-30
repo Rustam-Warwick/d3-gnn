@@ -37,11 +37,11 @@ public class DGraphFin extends Dataset {
     @CommandLine.Option(names = {"--dGraphFin:trainSplitProb"}, defaultValue = "0.2", fallbackValue = "0.2", arity = "1", description = {"Probability of train labels [0, 1]"})
     protected float trainSplitProb;
 
-    @CommandLine.Option(names = {"--dGraphFin:deltaBoundMs"}, defaultValue = "3000", fallbackValue = "3000", arity = "1", description = {"Bound of milliseconds to wait before emitting labels"})
+    @CommandLine.Option(names = {"--dGraphFin:deltaBoundMs"}, defaultValue = "3000", fallbackValue = "3000", arity = "1", description = {"Bound of milliseconds to wait before emitting labels. Coalesed by 100ms intervals"})
     protected int deltaBoundMs;
 
-    @CommandLine.Option(names = {"--dGraphFin:coalescingIntervalMs"}, defaultValue = "300", fallbackValue = "300", arity = "1", description = {"Timer coalescing interval in ms"})
-    protected int coalescingIntervalMs;
+    @CommandLine.Option(names = {"--dGraphFin:withLabels"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Stream the labels as well"})
+    protected boolean withLabels;
 
     @Override
     public boolean isResponsibleFor(String datasetName) {
@@ -57,14 +57,14 @@ public class DGraphFin extends Dataset {
                 .flatMap(new ParseEdges())
                 .name("DGraphFin Parser")
                 .setParallelism(1)
-                .process(new Joiner())
+                .process(new Joiner(withLabels))
                 .name("DGraphFin Joiner")
                 .setParallelism(1);
     }
 
     @Override
     public KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter() {
-        return new Splitter(trainSplitProb, deltaBoundMs, coalescingIntervalMs);
+        return new Splitter(trainSplitProb, deltaBoundMs, withLabels);
     }
 
     protected static class Splitter extends KeyedProcessFunction<PartNumber, GraphOp, GraphOp> {
@@ -73,27 +73,31 @@ public class DGraphFin extends Dataset {
          * Probability of splitting train and test labels
          */
         protected final float trainSplitProb;
+
         /**
          * Upper bound on waiting before emitting the labels in ms
          */
         protected final int deltaBoundMs;
+
         /**
-         * Timer coalescing interval in ms
+         * Include the labels
          */
-        protected final int coalescingIntervalMs;
+        protected final boolean withLabels;
+
         /**
          * Queue of timers for emitting the labels
          */
         transient PriorityQueue<Tuple2<GraphOp, Long>> labelsTimer;
+
         /**
          * Runtime context of Splitter Operator
          */
         transient GraphRuntimeContext graphRuntimeContext;
 
-        public Splitter(float trainSplitProb, int deltaBound, int coalescingIntervalMs) {
+        public Splitter(float trainSplitProb, int deltaBound, boolean withLabels) {
             this.trainSplitProb = trainSplitProb;
             this.deltaBoundMs = deltaBound;
-            this.coalescingIntervalMs = coalescingIntervalMs;
+            this.withLabels = withLabels;
         }
 
         @Override
@@ -112,18 +116,16 @@ public class DGraphFin extends Dataset {
          * Add this label to queue for further delayed propagation
          */
         public void addLabelToQueue(Tensor label) {
-            if(false) {
-                if (label.value.gt(1).getBoolean()) return; // Only retrain Fraud and non-fraud labels
-                if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
-                    label.id.f2 = "tl"; // Mark label as training label
-                GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
-                labelOp.delay();
-                int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
-                long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
-                long coalescedTime = (long) (Math.ceil((updateTime) / (double) coalescingIntervalMs) * coalescingIntervalMs);
-                labelsTimer.enqueue(Tuple2.of(labelOp, updateTime));
-                graphRuntimeContext.getTimerService().registerProcessingTimeTimer(coalescedTime);
-            }
+            if (label.value.gt(1).getBoolean()) return; // Only retrain Fraud and non-fraud labels
+            if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
+                label.id.f2 = "tl"; // Mark label as training label
+            GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
+            labelOp.delay();
+            int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
+            long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
+            long coalescedTime = (long) (Math.ceil((updateTime) /  100.0) * 100);
+            labelsTimer.enqueue(Tuple2.of(labelOp, updateTime));
+            graphRuntimeContext.getTimerService().registerProcessingTimeTimer(coalescedTime);
         }
 
         @Override
@@ -143,18 +145,22 @@ public class DGraphFin extends Dataset {
             GraphOp srcFeatureOp = null;
             GraphOp destFeatureOp = null;
             if (edge.src.features != null) {
-                Tensor labelSrc = (Tensor) edge.src.getFeature("l");
                 Tensor featureSrc = (Tensor) edge.src.getFeature("f");
-                edge.src.features = null;
-                addLabelToQueue(labelSrc);
                 srcFeatureOp = new GraphOp(Op.ADD, featureSrc.getMasterPart(), featureSrc);
+                if(withLabels){
+                    Tensor labelSrc = (Tensor) edge.src.getFeature("l");
+                    addLabelToQueue(labelSrc);
+                }
+                edge.src.features = null;
             }
             if (edge.dest.features != null) {
-                Tensor labelSrc = (Tensor) edge.dest.getFeature("l");
                 Tensor featureSrc = (Tensor) edge.dest.getFeature("f");
-                edge.dest.features = null;
-                addLabelToQueue(labelSrc);
                 destFeatureOp = new GraphOp(Op.ADD, featureSrc.getMasterPart(), featureSrc);
+                if(withLabels) {
+                    Tensor labelSrc = (Tensor) edge.dest.getFeature("l");
+                    addLabelToQueue(labelSrc);
+                }
+                edge.dest.features = null;
             }
             out.collect(value);
             ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value);
@@ -164,24 +170,40 @@ public class DGraphFin extends Dataset {
     }
 
     protected static class Joiner extends ProcessFunction<GraphOp, GraphOp> {
+
+        final boolean withLabels;
+
         transient IntOpenHashSet seenVertices;
 
         transient NDArray vertexFeatures;
 
         transient NDArray vertexLabels;
 
+        public Joiner(boolean withLabels) {
+            this.withLabels = withLabels;
+        }
+
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
+            if(withLabels){
+                vertexLabels = NDHelper.decodeNumpy(BaseNDManager.getManager(), new FileInputStream(
+                        Path.of(System.getenv("DATASET_DIR"), "DGraphFin", "node_labels.npy").toString()
+                )).toType(DataType.BOOLEAN, false);
+                vertexLabels.delay();
+            }
             vertexFeatures = NDHelper.decodeNumpy(BaseNDManager.getManager(), new FileInputStream(
                     Path.of(System.getenv("DATASET_DIR"), "DGraphFin", "node_features.npy").toString()
             ));
-            vertexLabels = NDHelper.decodeNumpy(BaseNDManager.getManager(), new FileInputStream(
-                    Path.of(System.getenv("DATASET_DIR"), "DGraphFin", "node_labels.npy").toString()
-            )).toType(DataType.BOOLEAN, false);
-            vertexFeatures.detach();
-            vertexLabels.detach();
+            vertexFeatures.delay();
             seenVertices = new IntOpenHashSet();
+        }
+
+        @Override
+        public void close() throws Exception {
+            super.close();
+            vertexFeatures.resume();
+            if(withLabels) vertexLabels.resume();
         }
 
         @Override
@@ -192,15 +214,19 @@ public class DGraphFin extends Dataset {
             if (!seenVertices.contains(srcVertexIndex)) {
                 Tensor feature = new Tensor("f", vertexFeatures.get(srcVertexIndex));
                 feature.setElement(edge.getSrc(), false);
-                Tensor label = new Tensor("l", vertexLabels.get(srcVertexIndex));
-                label.setElement(edge.getSrc(), false);
+                if(withLabels) {
+                    Tensor label = new Tensor("l", vertexLabels.get(srcVertexIndex));
+                    label.setElement(edge.getSrc(), false);
+                }
                 seenVertices.add(srcVertexIndex);
             }
             if (!seenVertices.contains(destVertexIndex)) {
                 Tensor feature = new Tensor("f", vertexFeatures.get(destVertexIndex));
                 feature.setElement(edge.getDest(), false);
-                Tensor label = new Tensor("l", vertexLabels.get(destVertexIndex));
-                label.setElement(edge.getDest(), false);
+                if(withLabels) {
+                    Tensor label = new Tensor("l", vertexLabels.get(destVertexIndex));
+                    label.setElement(edge.getDest(), false);
+                }
                 seenVertices.add(destVertexIndex);
             }
             out.collect(value);

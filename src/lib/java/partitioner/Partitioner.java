@@ -55,7 +55,7 @@ abstract public class Partitioner {
     /**
      * Process command line arguments
      */
-    public final void parseCmdArgs(String[] cmdArgs) {
+    public void parseCmdArgs(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
@@ -67,7 +67,7 @@ abstract public class Partitioner {
     /**
      * Set number of logical parts in this partitioner
      */
-    public final Partitioner setPartitions(short partitions) {
+    public Partitioner setPartitions(short partitions) {
         this.partitions = partitions;
         return this;
     }

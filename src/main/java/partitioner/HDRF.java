@@ -57,7 +57,7 @@ public class HDRF extends Partitioner {
                 new MultiThreadedProcessOperator<>(new HDRFProcessFunction(partitions, lambda, epsilon), numThreads))
                 .setParallelism(1);
         if(fineGrainedResourceManagementEnabled) result.slotSharingGroup("HDRF");
-        return result.transform("Buffer", TypeInformation.of(GraphOp.class), new FullBufferOperator<>()).setParallelism(1);
+        return result;
     }
 
     /**
@@ -141,7 +141,6 @@ public class HDRF extends Partitioner {
             }
 
             final short finalSelected = tmp.get(ThreadLocalRandom.current().nextInt(tmp.size()));
-//            final short finalSelected = tmp.get(0);
             // 3. Update the tables
             int newSizeOfPartition = partitionsSize.merge(finalSelected, 1, Integer::sum);
             maxSize.set(Math.max(maxSize.get(), newSizeOfPartition));

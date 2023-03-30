@@ -28,17 +28,17 @@ abstract public class BaseGNNEmbedding extends Plugin {
     /**
      * Are vertex embeddings trainable or should it be expected from outside
      */
-    public final boolean trainableVertexEmbeddings;
+    public final boolean generateVertexEmbeddings;
 
     /**
      * Fast reference to the {@link ModelServer} Plugin
      */
     public transient ModelServer<GNNBlock> modelServer;
 
-    public BaseGNNEmbedding(String modelName, String suffix, boolean trainableVertexEmbeddings) {
+    public BaseGNNEmbedding(String modelName, String suffix, boolean generateVertexEmbeddings) {
         super(String.format("%s-%s", modelName, suffix));
         this.modelName = modelName;
-        this.trainableVertexEmbeddings = trainableVertexEmbeddings;
+        this.generateVertexEmbeddings = generateVertexEmbeddings;
     }
 
     /**
@@ -74,11 +74,10 @@ abstract public class BaseGNNEmbedding extends Plugin {
 
     /**
      * Are vertex features(embeddings) trainable
-     *
      * @return are_trainable
      */
-    public final boolean usingTrainableVertexEmbeddings() {
-        return trainableVertexEmbeddings;
+    public final boolean usingGeneratedVertexEmbeddings() {
+        return generateVertexEmbeddings;
     }
 
     /**
@@ -99,7 +98,7 @@ abstract public class BaseGNNEmbedding extends Plugin {
             }
             aggStart.setElement(element, false);
             aggStart.createInternal();
-            if (usingTrainableVertexEmbeddings() && getRuntimeContext().isFirst()) {
+            if (usingGeneratedVertexEmbeddings() && getRuntimeContext().isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0]), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
                 embeddingRandom.createInternal();

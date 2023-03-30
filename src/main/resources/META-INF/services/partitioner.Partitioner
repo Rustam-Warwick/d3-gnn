@@ -1,3 +1,4 @@
 partitioner.HDRF
 partitioner.HyperGraphMinMax
 partitioner.RandomPartitioner
+partitioner.BufferedPartitioner

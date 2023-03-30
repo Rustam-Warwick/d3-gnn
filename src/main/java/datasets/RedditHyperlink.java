@@ -33,12 +33,6 @@ public class RedditHyperlink extends Dataset {
     protected String type;
 
     /**
-     * Type of reddit hyperlink stream: full, body, title
-     */
-    @CommandLine.Option(names = {"--redditHyperlink:hasEmbeddings"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Should the vertex embeddings be streamed as well"})
-    protected boolean hasEmbeddings;
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -101,6 +95,7 @@ public class RedditHyperlink extends Dataset {
             DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
             return new GraphOp(Op.ADD, directedEdge);
         }
+
     }
 
 }

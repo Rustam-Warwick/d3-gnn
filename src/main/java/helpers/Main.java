@@ -20,6 +20,7 @@ import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
 import plugins.gnn_embedding.CountWindowedGNNEmbedding;
+import plugins.gnn_embedding.StreamingGNNEmbedding;
 import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
 import java.util.ArrayList;
@@ -82,9 +83,9 @@ public class Main {
                 if (position == 0)
                     return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new CountWindowedGNNEmbedding(models.get(0).getName(), false, 2000)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)),new StreamingGNNEmbedding(models.get(0).getName(), true)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 2)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new CountWindowedGNNEmbedding(models.get(1).getName(), false, 6500)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbedding(models.get(1).getName(), false)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 else
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             });

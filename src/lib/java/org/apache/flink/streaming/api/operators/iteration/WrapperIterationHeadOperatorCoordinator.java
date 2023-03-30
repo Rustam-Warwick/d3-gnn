@@ -191,7 +191,6 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
                     notify();
                 }
             }
-            ;
         }
 
         /**
