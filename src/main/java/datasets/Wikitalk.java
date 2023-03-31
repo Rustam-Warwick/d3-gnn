@@ -14,32 +14,24 @@ import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.Collector;
-import picocli.CommandLine;
 
 import java.nio.file.Path;
 
 
 /**
- * Subreddit -> Subreddit networks in Reddit Social Network
- * <a href="https://snap.stanford.edu/data/soc-RedditHyperlinks.html">link</a>
+ * Users editing each other's wikitalk pages
+ * <a href="https://snap.stanford.edu/data/wiki-talk-temporal.html">link</a>
  */
-public class RedditHyperlink extends Dataset {
-
-    /**
-     * Type of reddit hyperlink stream: full, body, title
-     */
-    @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
-    protected String type;
+public class Wikitalk extends Dataset {
 
     /**
      * {@inheritDoc}
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", String.format("soc-redditHyperlinks-%s.tsv", type)).toString();;
-        String topologyOperatorName = String.format("Reddit Hyperlink[%s]", type);
-        SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(topologyOperatorName).setParallelism(1);
-        return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", topologyOperatorName)).setParallelism(1);
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "wikitalk", "wiki-talk-temporal.tsv").toString();;
+        SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name("Wikitalk").setParallelism(1);
+        return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", "Wikitalk")).setParallelism(1);
     }
 
     /**
@@ -55,7 +47,7 @@ public class RedditHyperlink extends Dataset {
      */
     @Override
     public boolean isResponsibleFor(String datasetName) {
-        return datasetName.equals("reddit-hyperlink");
+        return datasetName.equals("wikitalk");
     }
 
     /**
@@ -80,7 +72,6 @@ public class RedditHyperlink extends Dataset {
             DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]));
             return new GraphOp(Op.ADD, directedEdge);
         }
-
     }
 
 }

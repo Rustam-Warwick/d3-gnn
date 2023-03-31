@@ -20,15 +20,15 @@ import java.nio.file.Path;
 
 
 /**
- * Subreddit -> Subreddit networks in Reddit Social Network
- * <a href="https://snap.stanford.edu/data/soc-RedditHyperlinks.html">link</a>
+ * Stackoverflow dataset
+ * <a href="https://snap.stanford.edu/data/sx-stackoverflow.html">link</a>
  */
-public class RedditHyperlink extends Dataset {
+public class SxStackoverflow extends Dataset {
 
     /**
      * Type of reddit hyperlink stream: full, body, title
      */
-    @CommandLine.Option(names = {"--redditHyperlink:type"}, defaultValue = "body", fallbackValue = "body", arity = "1", description = {"Type of reddit hyperlink: body, title, full"})
+    @CommandLine.Option(names = {"--sx-stackoverflow:type"}, defaultValue = "a2q", fallbackValue = "a2q", arity = "1", description = {"Type of stackoverflow: a2q, full"})
     protected String type;
 
     /**
@@ -36,8 +36,8 @@ public class RedditHyperlink extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", String.format("soc-redditHyperlinks-%s.tsv", type)).toString();;
-        String topologyOperatorName = String.format("Reddit Hyperlink[%s]", type);
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "sx-stackoverflow", String.format("sx-stackoverflow-%s.tsv", type)).toString();;
+        String topologyOperatorName = String.format("Sx-Stackoverflow[%s]", type);
         SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(topologyOperatorName).setParallelism(1);
         return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", topologyOperatorName)).setParallelism(1);
     }
@@ -55,7 +55,7 @@ public class RedditHyperlink extends Dataset {
      */
     @Override
     public boolean isResponsibleFor(String datasetName) {
-        return datasetName.equals("reddit-hyperlink");
+        return datasetName.equals("sx-stackoverflow");
     }
 
     /**
