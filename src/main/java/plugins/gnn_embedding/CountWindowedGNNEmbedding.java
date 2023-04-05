@@ -56,7 +56,7 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
         }
     }
 
-    public void batchedForward(){
+    public void batchedForward() {
 
         // 1. Set placeholders
         final short currentPart = getPart();
@@ -66,7 +66,7 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseVertexIdList.clear();
 
         // 2. Collect data
-        try(BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
             maps.f1.forEach((key, ts) -> {
                 Vertex v = getRuntimeContext().getStorage().getVertex(key);
                 reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
@@ -80,7 +80,8 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
         NDArray batchedFeatures = NDArrays.stack(reuseFeaturesNDList);
         NDArray batchedAggregators = NDArrays.stack(reuseAggregatorsNDList);
         reuseFeaturesNDList.clear();
-        reuseFeaturesNDList.add(batchedFeatures);reuseFeaturesNDList.add(batchedAggregators);
+        reuseFeaturesNDList.add(batchedFeatures);
+        reuseFeaturesNDList.add(batchedAggregators);
         NDArray batchedUpdates = UPDATE(reuseFeaturesNDList, false).get(0);
 
         // 4. Send messages

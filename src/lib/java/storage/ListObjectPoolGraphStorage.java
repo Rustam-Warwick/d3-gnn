@@ -14,7 +14,7 @@ import org.apache.commons.collections.IteratorUtils;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.jctools.maps.NonBlockingHashMap;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
@@ -403,7 +403,8 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         public @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id, @Nullable VertexFeatureInfo featureInfo, @Nullable Object value) {
             if (id.f0 == ElementType.VERTEX) {
                 if (featureInfo == null) featureInfo = vertexFeatureInfoTable.get(id.f2);
-                if (value == null) value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
+                if (value == null)
+                    value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(id.f1).featureValues[featureInfo.position];
                 if (scopePool.isOpen()) {
                     return scopePool.getVertexFeature(value, id, featureInfo);
                 } else {

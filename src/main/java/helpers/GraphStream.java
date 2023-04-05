@@ -152,7 +152,7 @@ public class GraphStream {
     protected final SingleOutputStreamOperator<GraphOp> addGraphOperator(DataStream<GraphOp> inputStream, short position, Object[] extra) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position - 1, 0)));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers, extra)).setParallelism(thisParallelism);
-        if (fineGrainedResourceManagementEnabled) storageOperator.slotSharingGroup("GNN-" + Math.max(position, 1));
+        if (fineGrainedResourceManagementEnabled && position > 1) storageOperator.slotSharingGroup("GNN-" + position);
         iterateStreams[position] = IterateStream.startIteration(storageOperator);
         return storageOperator;
     }

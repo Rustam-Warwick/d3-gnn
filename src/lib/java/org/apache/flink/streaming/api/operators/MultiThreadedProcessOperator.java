@@ -50,7 +50,7 @@ public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT exten
         super.open();
         collector = ThreadLocal.withInitial(() -> new SynchronousCollector(output));
         context = ThreadLocal.withInitial(() -> new ContextImpl(userFunction, getProcessingTimeService()));
-        workQueue = new LimitedBlockingQueue<>((int) (3 * nThreads));
+        workQueue = new LimitedBlockingQueue<>(3 * nThreads);
         executorService = new ThreadPoolExecutor(nThreads, nThreads, Long.MAX_VALUE, TimeUnit.MILLISECONDS, workQueue);
     }
 
@@ -65,7 +65,7 @@ public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT exten
                 context.get().element = null;
             } catch (Exception e) {
                 e.printStackTrace();
-            }finally {
+            } finally {
                 element.getValue().resume();
             }
         }); // Waiting if the buffer is full
@@ -73,21 +73,21 @@ public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT exten
 
     @Override
     public void processWatermark(Watermark mark) throws Exception {
-        synchronized (this){
+        synchronized (this) {
             super.processWatermark(mark);
         }
     }
 
     @Override
     public void processLatencyMarker(LatencyMarker latencyMarker) throws Exception {
-        synchronized (this){
+        synchronized (this) {
             super.processLatencyMarker(latencyMarker);
         }
     }
 
     @Override
     public void processWatermarkStatus(WatermarkStatus watermarkStatus) throws Exception {
-        synchronized (this){
+        synchronized (this) {
             super.processWatermarkStatus(watermarkStatus);
         }
     }

@@ -91,16 +91,12 @@ dependencies{
     libApi 'info.picocli:picocli:4.7.0'
     libApi('ai.djl:api:0.21.0'){exclude group: 'org.slf4j'}
     libApi('ai.djl.pytorch:pytorch-engine:0.21.0') {exclude group: 'org.slf4j'}
-    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.2' // Cache
-    libApi 'it.unimi.dsi:fastutil:8.5.11' // Small data structures
-    libApi 'com.boundary:high-scale-lib:1.0.6' // Concurrent data structures
+    libApi "org.jctools:jctools-core:4.0.1" // More concurrent data structures
+    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.5' // Cache
+    libApi 'it.unimi.dsi:fastutil:8.5.12' // Small data structures
     libApi 'com.esotericsoftware:reflectasm:1.11.9' // Reflection and constructors fast
 
-//    testImplementation 'org.tensorflow:tensorflow-core-api:0.5.0-SNAPSHOT'
-//    testImplementation 'org.tensorflow:tensorflow-core-api:0.5.0-SNAPSHOT:linux-x86_64'
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"
-//    testImplementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
-//    testImplementation 'org.junit.jupiter:junit-jupiter'
 
 }
 

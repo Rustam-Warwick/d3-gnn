@@ -27,12 +27,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.Buffer;
-import java.nio.ByteBuffer;
-import java.nio.DoubleBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.LongBuffer;
+import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -98,17 +93,17 @@ import java.util.List;
  * <p>You can also close an individual NDArray. NDManager won't close an NDArray that's already been
  * closed. In certain use cases, you might want to return an NDArray outside of NDManager's scope.
  *
+ * @author rustambaku13
+ * <p>
+ * Added default implementation for attach(), detach() methods
+ * Added {@link LifeCycleControl}
+ * </p>
  * @see NDArray
  * @see Translator
  * @see TranslatorContext#getNDManager()
  * @see <a
- *     href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
- *     Memory Management Guide</a>
- * @author rustambaku13
- * <p>
- *     Added default implementation for attach(), detach() methods
- *     Added {@link LifeCycleControl}
- * </p>
+ * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
+ * Memory Management Guide</a>
  */
 public interface NDManager extends AutoCloseable, LifeCycleControl {
 
@@ -149,7 +144,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a new top-level {@code NDManager} with specified {@link Device} and engine.
      *
-     * @param device the default {@link Device}
+     * @param device     the default {@link Device}
      * @param engineName the name of the engine
      * @return a new top-level {@code NDManager}
      */
@@ -233,7 +228,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(float data) {
-        return create(new float[] {data}, new Shape());
+        return create(new float[]{data}, new Shape());
     }
 
     /**
@@ -243,7 +238,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(int data) {
-        return create(new int[] {data}, new Shape());
+        return create(new int[]{data}, new Shape());
     }
 
     /**
@@ -253,7 +248,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(double data) {
-        return create(new double[] {data}, new Shape());
+        return create(new double[]{data}, new Shape());
     }
 
     /**
@@ -263,7 +258,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(long data) {
-        return create(new long[] {data}, new Shape());
+        return create(new long[]{data}, new Shape());
     }
 
     /**
@@ -273,7 +268,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(byte data) {
-        return create(new byte[] {data}, new Shape());
+        return create(new byte[]{data}, new Shape());
     }
 
     /**
@@ -283,7 +278,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(boolean data) {
-        return create(new boolean[] {data}, new Shape());
+        return create(new boolean[]{data}, new Shape());
     }
 
     /**
@@ -293,7 +288,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(String data) {
-        return create(new String[] {data}, StandardCharsets.UTF_8, new Shape());
+        return create(new String[]{data}, StandardCharsets.UTF_8, new Shape());
     }
 
     /**
@@ -309,7 +304,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates and initializes 1D {@link NDArray}.
      *
-     * @param data the String data that needs to be set
+     * @param data    the String data that needs to be set
      * @param charset the charset to decode the string
      * @return a new instance of {@link NDArray}
      */
@@ -320,7 +315,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a String {@link NDArray} based on the provided shape.
      *
-     * @param data the flattened String array
+     * @param data  the flattened String array
      * @param shape the shape of the String NDArray
      * @return a new instance of {@code NDArray}
      */
@@ -331,9 +326,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a String {@link NDArray} based on the provided shape.
      *
-     * @param data the flattened String array
+     * @param data    the flattened String array
      * @param charset the charset to decode the string
-     * @param shape the shape of the String NDArray
+     * @param shape   the shape of the String NDArray
      * @return a new instance of {@code NDArray}
      */
     NDArray create(String[] data, Charset charset, Shape shape);
@@ -495,7 +490,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      *
      * <p>{@link DataType} of the NDArray will determined by type of Buffer.
      *
-     * @param data the data to initialize the {@code NDArray}
+     * @param data  the data to initialize the {@code NDArray}
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -508,7 +503,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates an uninitialized instance of {@link NDArray} with specified {@link Shape}, and {@link
      * DataType}.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -518,8 +513,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and
      * {@link DataType}.
      *
-     * @param data the data to initialize the {@link NDArray}
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param data     the data to initialize the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -533,7 +528,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and float
      * array.
      *
-     * @param data the float array that needs to be set
+     * @param data  the float array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -545,7 +540,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and int
      * array.
      *
-     * @param data the float array that needs to be set
+     * @param data  the float array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -557,7 +552,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and
      * double array.
      *
-     * @param data the float array that needs to be set
+     * @param data  the float array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -569,7 +564,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and long
      * array.
      *
-     * @param data the float array that needs to be set
+     * @param data  the float array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -581,7 +576,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and byte
      * array.
      *
-     * @param data the float array that needs to be set
+     * @param data  the float array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -593,7 +588,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates and initializes an instance of {@link NDArray} with specified {@link Shape} and
      * boolean array.
      *
-     * @param data the boolean array that needs to be set
+     * @param data  the boolean array that needs to be set
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -609,9 +604,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates an uninitialized instance of {@link NDArray} with specified {@link Shape}, {@link
      * DataType} and {@link Device}.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray create(Shape shape, DataType dataType, Device device) {
@@ -624,11 +619,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a Compressed Sparse Row Storage (CSR) Format Matrix.
      *
-     * @param data the data to set for the CSR Matrix
-     * @param indptr the indptr array is what will help identify the rows where the data appears
+     * @param data    the data to set for the CSR Matrix
+     * @param indptr  the indptr array is what will help identify the rows where the data appears
      * @param indices the indices array stores the column index for each non-zero element in data
-     * @param shape the {@link Shape} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param shape   the {@link Shape} of the {@link NDArray}
+     * @param device  the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray createCSR(
@@ -639,11 +634,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a Compressed Sparse Row Storage (CSR) Format Matrix.
      *
-     * @param data the data to set for the CSR Matrix
-     * @param indptr the indptr array is what will help identify the rows where the data appears
+     * @param data    the data to set for the CSR Matrix
+     * @param indptr  the indptr array is what will help identify the rows where the data appears
      * @param indices the indices array stores the column index for each non-zero element in data
-     * @param shape the {@link Shape} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param shape   the {@link Shape} of the {@link NDArray}
+     * @param device  the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray createCSR(
@@ -657,10 +652,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a Compressed Sparse Row Storage (CSR) Format Matrix.
      *
-     * @param data the data to set for the CSR Matrix
-     * @param indptr the indptr array is what will help identify the rows where the data appears
+     * @param data    the data to set for the CSR Matrix
+     * @param indptr  the indptr array is what will help identify the rows where the data appears
      * @param indices the indices array stores the column index for each non-zero element in data
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape   the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     NDArray createCSR(Buffer data, long[] indptr, long[] indices, Shape shape);
@@ -668,11 +663,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Stores the matrix in row sparse format.
      *
-     * @param data the data to set for the Row Sparse {@link NDArray}
+     * @param data      the data to set for the Row Sparse {@link NDArray}
      * @param dataShape the {@link Shape} of the data {@link NDArray}
-     * @param indices the indices to store the data
-     * @param shape the {@link Shape} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param indices   the indices to store the data
+     * @param shape     the {@link Shape} of the {@link NDArray}
+     * @param device    the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray createRowSparse(
@@ -686,10 +681,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Stores the matrix in row sparse format.
      *
-     * @param data the data to set for the Row Sparse {@link NDArray}
+     * @param data      the data to set for the Row Sparse {@link NDArray}
      * @param dataShape the {@link Shape} of the data {@link NDArray}
-     * @param indices the indices to store the data
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param indices   the indices to store the data
+     * @param shape     the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     NDArray createRowSparse(Buffer data, Shape dataShape, long[] indices, Shape shape);
@@ -697,9 +692,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates a Coordinate Format (COO) Matrix.
      *
-     * @param data the data to set for the Coordinate format {@link NDArray}
+     * @param data    the data to set for the Coordinate format {@link NDArray}
      * @param indices the matrix represent indices
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape   the {@link Shape} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     NDArray createCoo(Buffer data, long[][] indices, Shape shape);
@@ -736,7 +731,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Loads the NDArrays saved to a file.
      *
-     * @param path the path to the file
+     * @param path   the path to the file
      * @param device the device to use for the loaded arrays
      * @return the loaded arrays
      */
@@ -748,18 +743,18 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     }
 
     /**
-     * Sets the name for the NDManager.
-     *
-     * @param name the name assigned to the manager
-     */
-    void setName(String name);
-
-    /**
      * Gets the name of the NDManager.
      *
      * @return name
      */
     String getName();
+
+    /**
+     * Sets the name for the NDManager.
+     *
+     * @param name the name assigned to the manager
+     */
+    void setName(String name);
 
     /**
      * Creates an instance of {@link NDArray} with specified {@link Shape} filled with zeros.
@@ -775,7 +770,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates an instance of {@link NDArray} with specified {@link Shape} filled with zeros.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      * @see #zeros(Shape, DataType, Device)
@@ -790,9 +785,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates an instance of {@link NDArray} with specified {@link Device}, {@link Shape}, and
      * {@link DataType} filled with zeros.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray zeros(Shape shape, DataType dataType, Device device) {
@@ -805,7 +800,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Creates an instance of {@link NDArray} with specified {@link Shape} filled with ones.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -856,9 +851,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Creates an instance of {@link NDArray} with specified {@link Device}, {@link Shape}, and
      * {@link DataType} filled with ones.
      *
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray ones(Shape shape, DataType dataType, Device device) {
@@ -893,8 +888,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Return a new {@code NDArray} of given shape, filled with value.
      *
-     * @param shape shape of a new {@code NDArray}
-     * @param value fill value
+     * @param shape    shape of a new {@code NDArray}
+     * @param value    fill value
      * @param dataType the desired data-type for the {@link NDArray}
      * @return {@code NDArray} of fill value with the given shape
      */
@@ -903,10 +898,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Return a new {@code NDArray} of given shape, device, filled with value.
      *
-     * @param shape shape of a new {@code NDArray}
-     * @param value fill value
+     * @param shape    shape of a new {@code NDArray}
+     * @param value    fill value
      * @param dataType the desired data-type for the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return {@code NDArray} of fill value with the given shape
      */
     default NDArray full(Shape shape, float value, DataType dataType, Device device) {
@@ -955,7 +950,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * rather than a list.
      *
      * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
+     * @param stop  the end of interval. The interval does not include this value
      * @return a new instance of {@link NDArray}
      */
     default NDArray arange(int start, int stop) {
@@ -971,7 +966,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * rather than a list.
      *
      * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
+     * @param stop  the end of interval. The interval does not include this value
      * @return a new instance of {@link NDArray}
      */
     default NDArray arange(float start, float stop) {
@@ -987,8 +982,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * rather than a list.
      *
      * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
-     * @param step the spacing between values
+     * @param stop  the end of interval. The interval does not include this value
+     * @param step  the spacing between values
      * @return a new instance of {@link NDArray}
      */
     default NDArray arange(int start, int stop, int step) {
@@ -1004,8 +999,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * rather than a list.
      *
      * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
-     * @param step the spacing between values
+     * @param stop  the end of interval. The interval does not include this value
+     * @param step  the spacing between values
      * @return a new instance of {@link NDArray}
      */
     default NDArray arange(float start, float stop, float step) {
@@ -1020,9 +1015,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
-     * @param step the spacing between values
+     * @param start    the start of interval. The interval includes this value
+     * @param stop     the end of interval. The interval does not include this value
+     * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -1038,9 +1033,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
-     * @param step the spacing between values
+     * @param start    the start of interval. The interval includes this value
+     * @param stop     the end of interval. The interval does not include this value
+     * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
@@ -1054,11 +1049,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * equivalent to the Python built-in range function, but returns an instance of {@link NDArray}
      * rather than a list.
      *
-     * @param start the start of interval. The interval includes this value
-     * @param stop the end of interval. The interval does not include this value
-     * @param step the spacing between values
+     * @param start    the start of interval. The interval includes this value
+     * @param stop     the end of interval. The interval does not include this value
+     * @param step     the spacing between values
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray arange(float start, float stop, float step, DataType dataType, Device device) {
@@ -1073,7 +1068,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      *
      * @param rows the number of rows and cols in the output
      * @return a {@link NDArray} where all elements are equal to zero, except for the k-th diagonal,
-     *     whose values are equal to one
+     * whose values are equal to one
      */
     default NDArray eye(int rows) {
         return eye(rows, rows, 0, DataType.FLOAT32);
@@ -1083,10 +1078,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Returns a 2-D array with ones on the diagonal and zeros elsewhere.
      *
      * @param rows the number of rows and cols in the output
-     * @param k the index of the diagonal: a positive value refers to an upper diagonal, and a
-     *     negative value to a lower diagonal
+     * @param k    the index of the diagonal: a positive value refers to an upper diagonal, and a
+     *             negative value to a lower diagonal
      * @return a {@link NDArray} where all elements are equal to zero, except for the k-th diagonal,
-     *     whose values are equal to one
+     * whose values are equal to one
      */
     default NDArray eye(int rows, int k) {
         return eye(rows, rows, k, DataType.FLOAT32);
@@ -1097,10 +1092,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      *
      * @param rows the number of rows in the output
      * @param cols the number of columns in the output
-     * @param k the index of the diagonal: a positive value refers to an upper diagonal, and a
-     *     negative value to a lower diagonal
+     * @param k    the index of the diagonal: a positive value refers to an upper diagonal, and a
+     *             negative value to a lower diagonal
      * @return a {@link NDArray} where all elements are equal to zero, except for the k-th diagonal,
-     *     whose values are equal to one
+     * whose values are equal to one
      */
     default NDArray eye(int rows, int cols, int k) {
         return eye(rows, cols, k, DataType.FLOAT32);
@@ -1109,27 +1104,27 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns a 2-D array with ones on the diagonal and zeros elsewhere.
      *
-     * @param rows the number of rows int the output
-     * @param cols the number of columns in the output
-     * @param k the index of the diagonal: a positive value refers to an upper diagonal, and a
-     *     negative value to a lower diagonal
+     * @param rows     the number of rows int the output
+     * @param cols     the number of columns in the output
+     * @param k        the index of the diagonal: a positive value refers to an upper diagonal, and a
+     *                 negative value to a lower diagonal
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return a {@link NDArray} where all elements are equal to zero, except for the k-th diagonal,
-     *     whose values are equal to one
+     * whose values are equal to one
      */
     NDArray eye(int rows, int cols, int k, DataType dataType);
 
     /**
      * Returns a 2-D array with ones on the diagonal and zeros elsewhere.
      *
-     * @param rows the number of rows int the output
-     * @param cols the number of columns in the output
-     * @param k the index of the diagonal: a positive value refers to an upper diagonal, and a
-     *     negative value to a lower diagonal
+     * @param rows     the number of rows int the output
+     * @param cols     the number of columns in the output
+     * @param k        the index of the diagonal: a positive value refers to an upper diagonal, and a
+     *                 negative value to a lower diagonal
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a {@link NDArray} where all elements are equal to zero, except for the k-th diagonal,
-     *     whose values are equal to one
+     * whose values are equal to one
      */
     default NDArray eye(int rows, int cols, int k, DataType dataType, Device device) {
         if (device == null || device.equals(getDevice())) {
@@ -1144,8 +1139,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
      *
      * @param start the starting value of the sequence
-     * @param stop the end value of the sequence
-     * @param num the number of samples to generate
+     * @param stop  the end value of the sequence
+     * @param num   the number of samples to generate
      * @return a new instance of {@link NDArray}
      */
     default NDArray linspace(int start, int stop, int num) {
@@ -1158,8 +1153,8 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].
      *
      * @param start the starting value of the sequence
-     * @param stop the end value of the sequence
-     * @param num the number of samples to generate
+     * @param stop  the end value of the sequence
+     * @param num   the number of samples to generate
      * @return a new instance of {@link NDArray}
      */
     default NDArray linspace(float start, float stop, int num) {
@@ -1172,9 +1167,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
      * of the interval can optionally be excluded.
      *
-     * @param start the starting value of the sequence
-     * @param stop the end value of the sequence
-     * @param num the number of samples to generate
+     * @param start    the starting value of the sequence
+     * @param stop     the end value of the sequence
+     * @param num      the number of samples to generate
      * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
      * @return a new instance of {@link NDArray}
      */
@@ -1188,9 +1183,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
      * of the interval can optionally be excluded.
      *
-     * @param start the starting value of the sequence
-     * @param stop the end value of the sequence
-     * @param num the number of samples to generate
+     * @param start    the starting value of the sequence
+     * @param stop     the end value of the sequence
+     * @param num      the number of samples to generate
      * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
      * @return a new instance of {@link NDArray}
      */
@@ -1202,11 +1197,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Returns num evenly spaced samples, calculated over the interval [start, stop].The endpoint
      * of the interval can optionally be excluded.
      *
-     * @param start the starting value of the sequence
-     * @param stop the end value of the sequence
-     * @param num the number of samples to generate
+     * @param start    the starting value of the sequence
+     * @param stop     the end value of the sequence
+     * @param num      the number of samples to generate
      * @param endpoint if {@code true}, stop is the last sample, otherwise, it is not included
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return a new instance of {@link NDArray}
      */
     default NDArray linspace(float start, float stop, int num, boolean endpoint, Device device) {
@@ -1219,9 +1214,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Returns random integer values from low (inclusive) to high (exclusive).
      *
-     * @param low Lowest (signed) longs to be drawn from the distribution
-     * @param high one above the largest (signed) long to be drawn from the distribution
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param low      Lowest (signed) longs to be drawn from the distribution
+     * @param high     one above the largest (signed) long to be drawn from the distribution
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1242,10 +1237,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * but excludes high). In other words, any value within the given interval is equally likely to
      * be drawn by uniform.
      *
-     * @param low the lower boundary of the output interval. All values generated will be greater
-     *     than or equal to low.
-     * @param high the upper boundary of the output interval. All values generated will be less than
-     *     high.
+     * @param low   the lower boundary of the output interval. All values generated will be greater
+     *              than or equal to low.
+     * @param high  the upper boundary of the output interval. All values generated will be less than
+     *              high.
      * @param shape the {@link Shape} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1260,11 +1255,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * but excludes high). In other words, any value within the given interval is equally likely to
      * be drawn by uniform.
      *
-     * @param low the lower boundary of the output interval. All values generated will be greater
-     *     than or equal to low.
-     * @param high the upper boundary of the output interval. All values generated will be less than
-     *     high.
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param low      the lower boundary of the output interval. All values generated will be greater
+     *                 than or equal to low.
+     * @param high     the upper boundary of the output interval. All values generated will be less than
+     *                 high.
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1277,13 +1272,13 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * but excludes high). In other words, any value within the given interval is equally likely to
      * be drawn by uniform.
      *
-     * @param low the lower boundary of the output interval. All values generated will be greater
-     *     than or equal to low.
-     * @param high the upper boundary of the output interval. All values generated will be less than
-     *     high.
-     * @param shape the {@link Shape} of the {@link NDArray}
+     * @param low      the lower boundary of the output interval. All values generated will be greater
+     *                 than or equal to low.
+     * @param high     the upper boundary of the output interval. All values generated will be less than
+     *                 high.
+     * @param shape    the {@link Shape} of the {@link NDArray}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
     default NDArray randomUniform(
@@ -1312,7 +1307,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Draws random samples from a normal (Gaussian) distribution with mean 0 and standard deviation
      * 1.
      *
-     * @param shape the output {@link Shape}
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1323,9 +1318,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Draws random samples from a normal (Gaussian) distribution.
      *
-     * @param loc the mean (centre) of the distribution
-     * @param scale the standard deviation (spread or "width") of the distribution
-     * @param shape the output {@link Shape}
+     * @param loc      the mean (centre) of the distribution
+     * @param scale    the standard deviation (spread or "width") of the distribution
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1334,11 +1329,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
     /**
      * Draws random samples from a normal (Gaussian) distribution.
      *
-     * @param loc the mean (centre) of the distribution
-     * @param scale the standard deviation (spread or "width") of the distribution
-     * @param shape the output {@link Shape}
+     * @param loc      the mean (centre) of the distribution
+     * @param scale    the standard deviation (spread or "width") of the distribution
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
     default NDArray randomNormal(
@@ -1369,7 +1364,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * 1, discarding and re-drawing any samples that are more than two standard deviations from the
      * mean.
      *
-     * @param shape the output {@link Shape}
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1381,9 +1376,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Draws random samples from a normal (Gaussian) distribution, discarding and re-drawing any
      * samples that are more than two standard deviations from the mean.
      *
-     * @param loc the mean (centre) of the distribution
-     * @param scale the standard deviation (spread or "width") of the distribution
-     * @param shape the output {@link Shape}
+     * @param loc      the mean (centre) of the distribution
+     * @param scale    the standard deviation (spread or "width") of the distribution
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
@@ -1393,11 +1388,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Draws random samples from a normal (Gaussian) distribution, discarding and re-drawing any
      * samples that are more than two standard deviations from the mean.
      *
-     * @param loc the mean (centre) of the distribution
-     * @param scale the standard deviation (spread or "width") of the distribution
-     * @param shape the output {@link Shape}
+     * @param loc      the mean (centre) of the distribution
+     * @param scale    the standard deviation (spread or "width") of the distribution
+     * @param shape    the output {@link Shape}
      * @param dataType the {@link DataType} of the {@link NDArray}
-     * @param device the {@link Device} of the {@link NDArray}
+     * @param device   the {@link Device} of the {@link NDArray}
      * @return the drawn samples {@link NDArray}
      */
     default NDArray truncatedNormal(
@@ -1417,10 +1412,10 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * the distribution represents n such experiments. Its values, X_i = [X_0, X_1, ..., X_p],
      * represent the number of times the outcome was i.
      *
-     * @param n the number of experiments
+     * @param n       the number of experiments
      * @param pValues the probabilities of each of the p different outcomes. These should sum to 1
-     *     The last element is always assumed to account for the remaining probability, as long as
-     *     pValues.sum().getFloat() &lt;= 1)
+     *                The last element is always assumed to account for the remaining probability, as long as
+     *                pValues.sum().getFloat() &lt;= 1)
      * @return the drawn samples {@link NDArray}
      */
     NDArray randomMultinomial(int n, NDArray pValues);
@@ -1434,11 +1429,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * the distribution represents n such experiments. Its values, X_i = [X_0, X_1, ..., X_p],
      * represent the number of times the outcome was i.
      *
-     * @param n the number of experiments
+     * @param n       the number of experiments
      * @param pValues the probabilities of each of the p different outcomes. These should sum to 1
-     *     The last element is always assumed to account for the remaining probability, as long as
-     *     pValues.sum().getFloat() &lt;= 1)
-     * @param shape the output {@link Shape}
+     *                The last element is always assumed to account for the remaining probability, as long as
+     *                pValues.sum().getFloat() &lt;= 1)
+     * @param shape   the output {@link Shape}
      * @return the drawn samples {@link NDArray}
      */
     NDArray randomMultinomial(int n, NDArray pValues, Shape shape);
@@ -1447,7 +1442,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Concurrent sampling from multiple normal distributions with parameters *mu* (mean) and
      * *sigma* (standard deviation).
      *
-     * @param mu Means of the distributions
+     * @param mu    Means of the distributions
      * @param sigma Standard deviations of the distributions
      * @return the drawn samples {@link NDArray}
      */
@@ -1457,7 +1452,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Concurrent sampling from multiple normal distributions with parameters *mu* (mean) and
      * *sigma* (standard deviation).
      *
-     * @param mu Means of the distributions
+     * @param mu    Means of the distributions
      * @param sigma Standard deviations of the distributions
      * @param shape Shape to be sampled from each random distribution
      * @return the drawn samples {@link NDArray}
@@ -1481,7 +1476,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * <p>Samples are distributed according to a Poisson distribution parametrized by *lambda*
      * (rate). Samples will always be returned as a floating point data type.
      *
-     * @param lam Lambda (rate) parameters of the distributions
+     * @param lam   Lambda (rate) parameters of the distributions
      * @param shape Shape to be sampled from each random distribution
      * @return the drawn samples {@link NDArray}
      */
@@ -1494,7 +1489,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * and *beta* (scale).
      *
      * @param alpha The shape of the gamma distribution
-     * @param beta The scale of the gamma distribution
+     * @param beta  The scale of the gamma distribution
      * @return the drawn samples {@link NDArray}
      */
     NDArray sampleGamma(NDArray alpha, NDArray beta);
@@ -1506,7 +1501,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * and *beta* (scale).
      *
      * @param alpha The shape of the gamma distribution
-     * @param beta The scale of the gamma distribution
+     * @param beta  The scale of the gamma distribution
      * @param shape Shape to be sampled from each random distribution
      * @return the drawn samples {@link NDArray}
      */
@@ -1593,11 +1588,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * that should then call attachInternal.
      *
      * @param resourceId the unique resourceId
-     * @param resource the {@link AutoCloseable} resource to be attached
+     * @param resource   the {@link AutoCloseable} resource to be attached
      */
-    default void attachInternal(String resourceId, AutoCloseable resource){
+    default void attachInternal(String resourceId, AutoCloseable resource) {
         throw new NotImplementedException("Not implemented");
-    };
+    }
 
     /**
      * Attaches a resource to this {@code NDManager} circumventing any cap protection.
@@ -1609,11 +1604,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * that should then call attachInternal.
      *
      * @param resourceId the unique resourceId
-     * @param resource the {@link AutoCloseable} resource to be attached
+     * @param resource   the {@link AutoCloseable} resource to be attached
      */
-    default void attachUncappedInternal(String resourceId, AutoCloseable resource){
+    default void attachUncappedInternal(String resourceId, AutoCloseable resource) {
         throw new NotImplementedException("Not implemented");
-    };
+    }
 
     /**
      * Temporarily attaches a resource to this {@code NDManager} to be returned when this is closed.
@@ -1626,12 +1621,12 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * that should then call tempAttachInternal.
      *
      * @param originalManager the original manager to return the resource to
-     * @param resourceId the unique resourceId
-     * @param resource the {@link AutoCloseable} resource to be attached
+     * @param resourceId      the unique resourceId
+     * @param resource        the {@link AutoCloseable} resource to be attached
      */
-    default void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource){
+    default void tempAttachInternal(NDManager originalManager, String resourceId, NDResource resource) {
         throw new NotImplementedException("Not implemented");
-    };
+    }
 
     /**
      * Detaches a {@link NDArray} from this {@code NDManager}'s lifecycle.
@@ -1646,11 +1641,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      *
      * @param resourceId the resourceId to be removed from this {@code NDManager}'s lifecycle
      */
-    default void detachInternal(String resourceId){
+    default void detachInternal(String resourceId) {
         throw new NotImplementedException("Not implemented");
-    };
+    }
 
-    default void detachInternal(String resourceId, AutoCloseable resource){
+    default void detachInternal(String resourceId, AutoCloseable resource) {
         throw new NotImplementedException("Not implemented");
     }
 
@@ -1658,7 +1653,7 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * Returns a value outside of this manager by attaching to this manager's parent.
      *
      * @param resource the resource to return
-     * @param <T> the type of the resource
+     * @param <T>      the type of the resource
      * @return the passed in resource, after attaching to a new manager
      */
     default <T extends NDResource> T ret(T resource) {
@@ -1698,11 +1693,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * each version.
      *
      * @param operation the native operation to perform
-     * @param src the {@link NDList} of source {@link NDArray}
-     * @param dest the {@link NDList} to save output to
-     * @param params the parameters to be passed to the native operation
+     * @param src       the {@link NDList} of source {@link NDArray}
+     * @param dest      the {@link NDList} to save output to
+     * @param params    the parameters to be passed to the native operation
      * @throws IllegalArgumentException if operation is not supported by Engine
-     * @throws EngineException if operation failed in native engine
+     * @throws EngineException          if operation failed in native engine
      */
     void invoke(String operation, NDArray[] src, NDArray[] dest, PairList<String, ?> params);
 
@@ -1714,11 +1709,11 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      * each version.
      *
      * @param operation the native operation to perform
-     * @param src the {@link NDList} of source {@link NDArray}
-     * @param params the parameters to be passed to the native operation
+     * @param src       the {@link NDList} of source {@link NDArray}
+     * @param params    the parameters to be passed to the native operation
      * @return the output array of {@link NDArray}
      * @throws IllegalArgumentException if operation is not supported by Engine
-     * @throws EngineException if operation failed in native engine
+     * @throws EngineException          if operation failed in native engine
      */
     NDList invoke(String operation, NDList src, PairList<String, ?> params);
 
@@ -1729,7 +1724,9 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      */
     Engine getEngine();
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
     void close();
 
@@ -1738,5 +1735,6 @@ public interface NDManager extends AutoCloseable, LifeCycleControl {
      *
      * <p>Unlike a typical {@link NDManager}, they can not be closed and don't track memory.
      */
-    interface SystemNDManager {}
+    interface SystemNDManager {
+    }
 }

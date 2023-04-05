@@ -74,6 +74,7 @@ abstract public class BaseGNNEmbedding extends Plugin {
 
     /**
      * Are vertex features(embeddings) trainable
+     *
      * @return are_trainable
      */
     public final boolean usingGeneratedVertexEmbeddings() {

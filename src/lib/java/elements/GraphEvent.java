@@ -24,8 +24,6 @@ abstract public class GraphEvent implements OperatorEvent {
     public void merge(GraphEventPool pool, @Nullable GraphEvent incoming) {
     }
 
-    ;
-
     @Override
     public int hashCode() {
         return getClass().hashCode();

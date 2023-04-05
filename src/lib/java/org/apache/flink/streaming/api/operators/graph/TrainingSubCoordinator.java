@@ -198,7 +198,6 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                     notify();
                 }
             }
-            ;
         }
 
         @Override

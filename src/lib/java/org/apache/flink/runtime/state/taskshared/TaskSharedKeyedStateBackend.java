@@ -80,7 +80,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
         TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.set(this);
     }
 
-    public static TaskSharedKeyedStateBackend<?> getBackend(){
+    public static TaskSharedKeyedStateBackend<?> getBackend() {
         return TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.get();
     }
 
@@ -170,7 +170,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     public void close() throws IOException {
-        for (Map.Entry<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> taskLocalState: TASK_LOCAL_STATE_MAP.entrySet()) {
+        for (Map.Entry<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> taskLocalState : TASK_LOCAL_STATE_MAP.entrySet()) {
             if (taskLocalState.getKey().f0.equals(taskIdentifier.f0) && taskLocalState.getKey().f1.equals(taskIdentifier.f1) && taskLocalState.getValue().deregister(this))
                 TASK_LOCAL_STATE_MAP.remove(taskLocalState.getKey());
         }

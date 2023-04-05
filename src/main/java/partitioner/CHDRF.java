@@ -21,13 +21,9 @@ import picocli.CommandLine;
 import java.util.*;
 
 /**
- * Implementation of HDRF <strong>vertex-cut</strong> partitioning algorithm.
- * <p>
- * {@link DirectedEdge} streams should come first as the partitioner expects vertex-cut
- * Vertices and Vertex-Features are simply directed to their master part
- * </p>
+ * Cascading-HDRF for handling balancing cascading load of GNNs
  */
-public class HDRF extends Partitioner {
+public class CHDRF extends Partitioner {
 
     /**
      * A small value to overcome division by zero errors on score calculation
@@ -43,15 +39,15 @@ public class HDRF extends Partitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        return inputDataStream.process(new HDRFProcessFunction(partitions, lambda, epsilon)).name(String.format("HDRF[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
+        return inputDataStream.process(new CHDRFProcessFunction(partitions, lambda, epsilon)).name(String.format("CHDRF[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
     }
 
     @Override
     public boolean isResponsibleFor(String partitionerName) {
-        return partitionerName.equals("hdrf");
+        return partitionerName.equals("chdrf");
     }
 
-    public static class HDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
+    public static class CHDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         public final short numPartitions;
         public final float lamb;
         public final float eps;
@@ -61,12 +57,13 @@ public class HDRF extends Partitioner {
         public transient int[] partitionsSize;
         public transient ShortList emptyShortList;
         public transient ShortList reuseShortList;
+        public transient long degreeSum;
         public transient long maxSize;
         public transient long minSize;
         public transient long totalNumberOfVertices;
         public transient long totalNumberOfReplicas;
 
-        public HDRFProcessFunction(short numPartitions, float lambda, float eps) {
+        public CHDRFProcessFunction(short numPartitions, float lambda, float eps) {
             this.numPartitions = numPartitions;
             this.lamb = lambda;
             this.eps = eps;
@@ -113,6 +110,7 @@ public class HDRF extends Partitioner {
             // 1. Increment the node degrees seen so far
             partialDegTable.merge(directedEdge.getSrcId(), 1, Integer::sum);
             partialDegTable.merge(directedEdge.getDestId(), 1, Integer::sum);
+            degreeSum += 2;
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
@@ -161,6 +159,7 @@ public class HDRF extends Partitioner {
                     short part = partitionEdge(directedEdge);
                     updatePartitionTableAndAssignMaster(directedEdge.getSrc(), part);
                     updatePartitionTableAndAssignMaster(directedEdge.getDest(), part);
+                    partitionsSize[directedEdge.getSrc().masterPart] += 1 + (degreeSum / totalNumberOfVertices);
                     out.collect(value.setPartId(part));
                     break;
                 }

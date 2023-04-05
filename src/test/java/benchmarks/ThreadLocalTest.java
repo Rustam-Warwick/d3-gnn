@@ -19,7 +19,7 @@ public class ThreadLocalTest {
     @RepeatedTest(value = 20)
     public void testThreadLocal() throws Exception {
         long msStart = System.currentTimeMillis();
-        ExecutorService executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(50);
+        ExecutorService executorService = Executors.newFixedThreadPool(50);
         for (int i = 0; i < 50; i++) {
             executorService.submit(new WithThreadLocal());
         }
@@ -31,7 +31,7 @@ public class ThreadLocalTest {
     @RepeatedTest(value = 20)
     public void testNonThreadLocal() throws Exception {
         long msStart = System.currentTimeMillis();
-        ExecutorService executorService = (ThreadPoolExecutor) Executors.newFixedThreadPool(50);
+        ExecutorService executorService = Executors.newFixedThreadPool(50);
         for (int i = 0; i < 50; i++) {
             executorService.submit(new NoThreadLocal());
         }

@@ -29,7 +29,7 @@ public class Wikitalk extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "wikitalk", "wiki-talk-temporal.tsv").toString();;
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "wikitalk", "wiki-talk-temporal.tsv").toString();
         SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name("Wikitalk").setParallelism(1);
         return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", "Wikitalk")).setParallelism(1);
     }

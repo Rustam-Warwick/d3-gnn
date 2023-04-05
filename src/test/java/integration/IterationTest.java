@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class IterationTest extends IntegrationTest {
-    private static AtomicInteger sum = new AtomicInteger(0);
+    private static final AtomicInteger sum = new AtomicInteger(0);
 
     @Test
     public void testIteration() throws Exception {

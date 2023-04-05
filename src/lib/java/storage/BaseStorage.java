@@ -446,7 +446,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Refresh the pool scope by closing and opening the scope thus resetting all the elements
          */
-        public final void refresh(){
+        public final void refresh() {
             close();
             open();
         }

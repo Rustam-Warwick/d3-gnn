@@ -36,7 +36,7 @@ public class RedditHyperlink extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", String.format("soc-redditHyperlinks-%s.tsv", type)).toString();;
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", String.format("soc-redditHyperlinks-%s.tsv", type)).toString();
         String topologyOperatorName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(topologyOperatorName).setParallelism(1);
         return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", topologyOperatorName)).setParallelism(1);

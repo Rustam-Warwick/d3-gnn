@@ -123,7 +123,7 @@ public class DGraphFin extends Dataset {
             labelOp.delay();
             int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
             long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
-            long coalescedTime = (long) (Math.ceil((updateTime) /  100.0) * 100);
+            long coalescedTime = (long) (Math.ceil((updateTime) / 100.0) * 100);
             labelsTimer.enqueue(Tuple2.of(labelOp, updateTime));
             graphRuntimeContext.getTimerService().registerProcessingTimeTimer(coalescedTime);
         }
@@ -147,7 +147,7 @@ public class DGraphFin extends Dataset {
             if (edge.src.features != null) {
                 Tensor featureSrc = (Tensor) edge.src.getFeature("f");
                 srcFeatureOp = new GraphOp(Op.ADD, featureSrc.getMasterPart(), featureSrc);
-                if(withLabels){
+                if (withLabels) {
                     Tensor labelSrc = (Tensor) edge.src.getFeature("l");
                     addLabelToQueue(labelSrc);
                 }
@@ -156,7 +156,7 @@ public class DGraphFin extends Dataset {
             if (edge.dest.features != null) {
                 Tensor featureSrc = (Tensor) edge.dest.getFeature("f");
                 destFeatureOp = new GraphOp(Op.ADD, featureSrc.getMasterPart(), featureSrc);
-                if(withLabels) {
+                if (withLabels) {
                     Tensor labelSrc = (Tensor) edge.dest.getFeature("l");
                     addLabelToQueue(labelSrc);
                 }
@@ -186,7 +186,7 @@ public class DGraphFin extends Dataset {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
-            if(withLabels){
+            if (withLabels) {
                 vertexLabels = NDHelper.decodeNumpy(BaseNDManager.getManager(), new FileInputStream(
                         Path.of(System.getenv("DATASET_DIR"), "DGraphFin", "node_labels.npy").toString()
                 )).toType(DataType.BOOLEAN, false);
@@ -203,7 +203,7 @@ public class DGraphFin extends Dataset {
         public void close() throws Exception {
             super.close();
             vertexFeatures.resume();
-            if(withLabels) vertexLabels.resume();
+            if (withLabels) vertexLabels.resume();
         }
 
         @Override
@@ -214,7 +214,7 @@ public class DGraphFin extends Dataset {
             if (!seenVertices.contains(srcVertexIndex)) {
                 Tensor feature = new Tensor("f", vertexFeatures.get(srcVertexIndex));
                 feature.setElement(edge.getSrc(), false);
-                if(withLabels) {
+                if (withLabels) {
                     Tensor label = new Tensor("l", vertexLabels.get(srcVertexIndex));
                     label.setElement(edge.getSrc(), false);
                 }
@@ -223,7 +223,7 @@ public class DGraphFin extends Dataset {
             if (!seenVertices.contains(destVertexIndex)) {
                 Tensor feature = new Tensor("f", vertexFeatures.get(destVertexIndex));
                 feature.setElement(edge.getDest(), false);
-                if(withLabels) {
+                if (withLabels) {
                     Tensor label = new Tensor("l", vertexLabels.get(destVertexIndex));
                     label.setElement(edge.getDest(), false);
                 }

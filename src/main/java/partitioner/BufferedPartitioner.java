@@ -36,7 +36,7 @@ public class BufferedPartitioner extends Partitioner {
     @Override
     public boolean isResponsibleFor(String partitionerName) {
         boolean isResp = partitionerName.contains(":buffered");
-        if(isResp) mainPartitionerName = partitionerName.split(":buffered")[0];
+        if (isResp) mainPartitionerName = partitionerName.split(":buffered")[0];
         return isResp;
     }
 }

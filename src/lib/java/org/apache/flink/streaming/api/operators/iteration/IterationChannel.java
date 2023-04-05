@@ -3,10 +3,10 @@ package org.apache.flink.streaming.api.operators.iteration;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.queues.SpscLinkedQueue;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
+import org.jctools.queues.unpadded.SpscUnboundedUnpaddedArrayQueue;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
@@ -88,7 +88,7 @@ public class IterationChannel<T> implements Closeable {
      *
      * @param <T> Type of elements in this iteration
      */
-    protected static class IterationQueue<T> extends SpscLinkedQueue<T> implements ThrowingRunnable<Exception>, Closeable {
+    protected static class IterationQueue<T> extends SpscUnboundedUnpaddedArrayQueue<T> implements ThrowingRunnable<Exception>, Closeable {
 
         /**
          * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains this queue
@@ -106,6 +106,7 @@ public class IterationChannel<T> implements Closeable {
         private final Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
+            super(1 << 18); // 1 MB each array reference
             this.consumerAndExecutor = consumerAndExecutor;
         }
 

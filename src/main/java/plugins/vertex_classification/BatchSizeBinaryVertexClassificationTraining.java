@@ -135,7 +135,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         reuseLabelsNDList.clear();
 
         // 2. Collect data from storage
-        try(BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : miniBatchVertexIds) {
                 reuseFeaturesId.f1 = reuseLabelsId.f1 = vertexId;
                 reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeaturesId).getValue());
@@ -198,7 +198,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
                 getRuntimeContext().runForAllLocalParts(() -> part2TrainingVertexMap.get(getPart()).clear());
                 getRuntimeContext().broadcast(new GraphOp(new TrainingSubCoordinator.ExitedTraining()), OutputTags.BACKWARD_OUTPUT_TAG);
             }
-        } else if(evt instanceof TrainingSubCoordinator.EnteredTraining){
+        } else if (evt instanceof TrainingSubCoordinator.EnteredTraining) {
             getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingSettingsRequest(collectedTrainingDataCount));
         }
     }

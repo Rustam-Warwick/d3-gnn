@@ -36,7 +36,7 @@ public class SxStackoverflow extends Dataset {
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "sx-stackoverflow", String.format("sx-stackoverflow-%s.tsv", type)).toString();;
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "sx-stackoverflow", String.format("sx-stackoverflow-%s.tsv", type)).toString();
         String topologyOperatorName = String.format("Sx-Stackoverflow[%s]", type);
         SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(topologyOperatorName).setParallelism(1);
         return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", topologyOperatorName)).setParallelism(1);

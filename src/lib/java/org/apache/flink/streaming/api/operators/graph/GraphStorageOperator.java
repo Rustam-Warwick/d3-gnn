@@ -128,7 +128,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         this.graphRuntimeContext = new GraphRuntimeContextImpl(); // Create so that it gets stored to threadLocal
         this.plugins = new HashMap<>(plugins.stream().collect(Collectors.toMap(Plugin::getId, p -> p)));
         this.plugins.values().forEach(plugin -> plugin.setRuntimeContext(this.graphRuntimeContext));
-        this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), getMetricGroup().getIOMetricGroup().getNumRecordsOutCounter());
+        this.output = this.thisOutput = new CountingBroadcastingGraphOutputCollector(parameters.getOutput(), operatorIOMetricGroup.getNumRecordsOutCounter());
         this.eventPool = new GraphEventPool(this, this.graphRuntimeContext);
         this.operatorEventGateway = parameters.getOperatorEventDispatcher().getOperatorEventGateway(getOperatorID());
         parameters.getOperatorEventDispatcher().registerEventHandler(getOperatorID(), this);
@@ -334,7 +334,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public void runForAllLocalParts(Runnable run) {
             PartNumber initialKey = (PartNumber) getCurrentKey();
-            try{
+            try {
                 for (short thisOperatorPart : getThisOperatorParts()) {
                     setCurrentKey(PartNumber.of(thisOperatorPart));
                     run.run();
@@ -351,7 +351,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
             try {
                 run.run();
             } finally {
-                if(oldTs == null) reuse.eraseTimestamp();
+                if (oldTs == null) reuse.eraseTimestamp();
                 else reuse.setTimestamp(oldTs);
             }
         }

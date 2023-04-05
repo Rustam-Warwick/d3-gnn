@@ -56,7 +56,8 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         reuseFeaturesNDList = new NDList();
         reuseAggId = Tuple3.of(ElementType.VERTEX, null, "agg");
         part2VertexIdsMap = new Short2ObjectOpenHashMap<>();
-        reuseTensor = new Tensor("f", null, false); reuseTensor.id.f0 = ElementType.VERTEX;
+        reuseTensor = new Tensor("f", null, false);
+        reuseTensor.id.f0 = ElementType.VERTEX;
     }
 
     /**
@@ -104,7 +105,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
+                if (false) updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
@@ -112,7 +113,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
                     forward((Vertex) feature.getElement());
             }
         }
-
     }
 
     /**
@@ -143,7 +143,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     public void reduceOutEdges(Tensor feature, Vertex v) {
         NDList message = null;
         part2VertexIdsMap.forEach((key, val) -> val.clear());
-        try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT)) {
                 if (message == null) {
                     reuseFeaturesNDList.clear();
@@ -156,7 +156,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         }
         final NDList finalMessage = message;
         part2VertexIdsMap.forEach((part, values) -> {
-            if(values.isEmpty()) return;
+            if (values.isEmpty()) return;
             Rmi.buildAndRun(
                     getId(),
                     getType(),
@@ -174,7 +174,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
-        try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : vertices) {
                 reuseAggId.f1 = vertexId;
                 Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "reduce", message, 1);
@@ -231,7 +231,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
-        try(BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : vertices) {
                 reuseAggId.f1 = vertexId;
                 Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "replace", messageNew, messageOld);

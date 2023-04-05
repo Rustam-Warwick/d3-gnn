@@ -21,9 +21,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author rustambaku13
  * <p>
- *     Removed unnecessary fields
- *     Removed atomic access
- *     Remove marshalling
+ * Removed unnecessary fields
+ * Removed atomic access
+ * Remove marshalling
  * </p>
  */
 public abstract class NativeResource<T> implements AutoCloseable {
@@ -48,14 +48,14 @@ public abstract class NativeResource<T> implements AutoCloseable {
     /**
      * Mark this as released
      */
-    public void markReleased(){
+    public void markReleased() {
         handle = Long.MAX_VALUE;
     }
 
     /**
      * Get handle
      */
-    public T getHandle(){
+    public T getHandle() {
         return (T) Long.valueOf(handle);
     }
 
