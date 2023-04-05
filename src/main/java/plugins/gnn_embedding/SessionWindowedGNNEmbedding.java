@@ -63,7 +63,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
     public void forward(Vertex v) {
         long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
         long thisElementUpdateTime = currentProcessingTime + sessionIntervalMs;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 50.0) * 50);
+        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 25.0) * 25);
         Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2VertexMaps.get(getPart());
         maps.f0.removeLong(v.getId());
         maps.f0.put(v.getId(), thisElementUpdateTime);
