@@ -35,7 +35,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     protected transient Tuple3<ElementType, Object, String> reuseAggId;
 
-    protected transient Short2ObjectOpenHashMap<ObjectArrayList<String>> part2VertexIdsMap;
+    protected transient Short2ObjectOpenHashMap<ObjectArrayList<String>> reusePart2VertexIdsMap;
 
     protected transient Tensor reuseTensor;
 
@@ -55,7 +55,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         getRuntimeContext().getMetricGroup().counter("latency", latency);
         reuseFeaturesNDList = new NDList();
         reuseAggId = Tuple3.of(ElementType.VERTEX, null, "agg");
-        part2VertexIdsMap = new Short2ObjectOpenHashMap<>();
+        reusePart2VertexIdsMap = new Short2ObjectOpenHashMap<>();
         reuseTensor = new Tensor("f", null, false);
         reuseTensor.id.f0 = ElementType.VERTEX;
     }
@@ -105,7 +105,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                if (false) updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
+                updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
@@ -142,7 +142,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
      */
     public void reduceOutEdges(Tensor feature, Vertex v) {
         NDList message = null;
-        part2VertexIdsMap.forEach((key, val) -> val.clear());
+        reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT)) {
                 if (message == null) {
@@ -150,12 +150,12 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
                     reuseFeaturesNDList.add(feature.getValue());
                     message = MESSAGE(reuseFeaturesNDList, false);
                 }
-                part2VertexIdsMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), (k) -> new ObjectArrayList<>()).add(directedEdge.getDestId());
+                reusePart2VertexIdsMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), (k) -> new ObjectArrayList<>()).add(directedEdge.getDestId());
                 objectPoolScope.refresh();
             }
         }
         final NDList finalMessage = message;
-        part2VertexIdsMap.forEach((part, values) -> {
+        reusePart2VertexIdsMap.forEach((part, values) -> {
             if (values.isEmpty()) return;
             Rmi.buildAndRun(
                     getId(),
@@ -193,7 +193,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature, Vertex vertex) {
         NDList msgOld = null;
         NDList msgNew = null;
-        part2VertexIdsMap.forEach((key, val) -> val.clear());
+        reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.OUT)) {
                 if (msgOld == null) {
@@ -205,13 +205,13 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
                     msgNew = MESSAGE(reuseFeaturesNDList, false);
                     reuseFeaturesNDList.clear();
                 }
-                part2VertexIdsMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), (k) -> new ObjectArrayList<>()).add(directedEdge.getDestId());
+                reusePart2VertexIdsMap.computeIfAbsent(directedEdge.getDest().getMasterPart(), (k) -> new ObjectArrayList<>()).add(directedEdge.getDestId());
                 objectPoolScope.refresh();
             }
         }
         final NDList finalMsgOld = msgOld;
         final NDList finalMsgNew = msgNew;
-        part2VertexIdsMap.forEach((part, values) -> {
+        reusePart2VertexIdsMap.forEach((part, values) -> {
             if (values.isEmpty()) return;
             Rmi.buildAndRun(
                     getId(),

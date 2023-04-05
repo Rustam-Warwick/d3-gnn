@@ -362,11 +362,11 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         }
 
         @Override
-        public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type) {
+        public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edgeType) {
             VertexInfo vertexInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> inEdgeIterable = IteratorUtils.emptyIterator();
             Iterator<DirectedEdge> outEdgeIterable = IteratorUtils.emptyIterator();
-            if (vertexInfo.outEdges != null && (edge_type == EdgeType.OUT || edge_type == EdgeType.BOTH)) {
+            if (vertexInfo.outEdges != null && (edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)) {
                 outEdgeIterable = vertexInfo.outEdges.stream().map(partialIds -> {
                     reuseEdgeId.f0 = vertex.getId();
                     reuseEdgeId.f1 = partialIds[0];
@@ -376,7 +376,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
                     return e;
                 }).iterator();
             }
-            if (vertexInfo.inEdges != null && (edge_type == EdgeType.IN || edge_type == EdgeType.BOTH)) {
+            if (vertexInfo.inEdges != null && (edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)) {
                 inEdgeIterable = vertexInfo.inEdges.stream().map(partialIds -> {
                     reuseEdgeId.f0 = partialIds[0];
                     reuseEdgeId.f1 = vertex.getId();
@@ -388,6 +388,15 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             }
             Iterator<DirectedEdge> res = IteratorUtils.chainedIterator(inEdgeIterable, outEdgeIterable);
             return () -> res;
+        }
+
+        @Override
+        public int getVertexDegree(Vertex vertex, EdgeType edgeType) {
+            int res = 0;
+            VertexInfo vertexInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
+            if((edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)  && vertexInfo.outEdges != null) res += vertexInfo.outEdges.size();
+            if((edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)  && vertexInfo.inEdges != null) res += vertexInfo.inEdges.size();
+            return res;
         }
 
         @Override
@@ -487,11 +496,11 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context) {
             if (element.getType() == ElementType.VERTEX) {
-                VertexInfo vertexFeatureInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(element.getId());
+                VertexInfo vertexInfo = vertexMap.get(getRuntimeContext().getCurrentPart()).get(element.getId());
                 vertexFeatureInfoTable.forEach((featureName, featureInfo) -> {
                     if ((!featureInfo.halo && context == CacheFeatureContext.HALO)
                             || (featureInfo.halo && context == CacheFeatureContext.NON_HALO)
-                            || !vertexFeatureInfo.hasFeatureInPosition(featureInfo.position))
+                            || !vertexInfo.hasFeatureInPosition(featureInfo.position))
                         return;
                     element.getFeature(featureName); // Try to get it so element will cache
 

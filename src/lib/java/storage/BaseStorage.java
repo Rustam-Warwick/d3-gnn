@@ -4,6 +4,7 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
+import org.apache.commons.math3.geometry.spherical.twod.Edge;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
@@ -163,6 +164,11 @@ abstract public class BaseStorage extends TaskSharedState {
          * Get incided edges of {@link Vertex}
          */
         public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+
+        /**
+         * Get edge degrees for vertex
+         */
+        public abstract int getVertexDegree(Vertex vertex, EdgeType edgeType);
 
         /**
          * Get {@link HyperEdge} by its String id
