@@ -27,7 +27,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import plugins.ModelServer;
 import plugins.debugging.LogCallbacks;
-import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
+import plugins.gnn_embedding.DeepAdaptiveWindowedGNNEmbeddingDeep;
+import plugins.gnn_embedding.DeepSessionWindowedGNNEmbedding;
 import plugins.gnn_embedding.StreamingGNNEmbedding;
 
 import java.util.ArrayList;
@@ -93,7 +94,37 @@ public class GNNEmbeddingsTest extends IntegrationTest {
                 return new GraphStorageOperatorFactory(
                         List.of(
                                 new ModelServer<>(models.get(pos - 1)),
-                                new SessionWindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150),
+                                new DeepSessionWindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150),
+                                new LogCallbacks()
+                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            };
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
+            gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
+            env.execute();
+            verifyEmbeddings(meshSize, models);
+        } finally {
+            vertexEmbeddings.values().forEach(NDArray::resume);
+            vertexEmbeddings.clear();
+            BaseNDManager.getManager().resume();
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("jobArguments")
+    void testAdaptiveWindowPlugin(String[] args, int layers, int meshSize) throws Exception {
+        try {
+            BaseNDManager.getManager().delay();
+            StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
+            ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
+            TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                if (pos == 0)
+                    return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                return new GraphStorageOperatorFactory(
+                        List.of(
+                                new ModelServer<>(models.get(pos - 1)),
+                                new DeepAdaptiveWindowedGNNEmbeddingDeep(models.get(pos - 1).getName(), true, 150),
                                 new LogCallbacks()
                         ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
             };

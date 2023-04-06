@@ -94,6 +94,8 @@ dependencies{
     libApi "org.jctools:jctools-core:4.0.1" // More concurrent data structures
     libApi 'com.github.ben-manes.caffeine:caffeine:3.1.5' // Cache
     libApi 'it.unimi.dsi:fastutil:8.5.12' // Small data structures
+    libApi group: 'com.clearspring.analytics', name: 'stream', version: '2.9.8'
+
     libApi 'com.esotericsoftware:reflectasm:1.11.9' // Reflection and constructors fast
 
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"

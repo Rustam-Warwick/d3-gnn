@@ -257,7 +257,7 @@
 //    }
 //
 //    @Override
-//    public @Nullable Feature<?, ?> getAttachedFeature(Tuple3<ElementType, Object, String> ids) {
+//    public @Nullable Feature<?, ?> getAttachedVertexFeature(Tuple3<ElementType, Object, String> ids) {
 //        try {
 //            reuse.f0 = ids.f2;
 //            reuse.f1 = ids.f0;

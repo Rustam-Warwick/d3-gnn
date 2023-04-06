@@ -32,13 +32,12 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     /**
      * Is this Plugin currently listening to graph updates
      */
-    public boolean listening = true;
+    protected boolean listening = true;
 
     /**
      * Reference to {@link GraphRuntimeContext}
      */
-    public transient GraphRuntimeContext runtimeContext;
-
+    protected transient GraphRuntimeContext runtimeContext;
 
     public Plugin() {
         this(null);
@@ -97,6 +96,13 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     @Override
     public short getPart() {
         return getRuntimeContext().getCurrentPart();
+    }
+
+    /**
+     * Is this Plugin listening to graph updates
+     */
+    public boolean isListening() {
+        return listening;
     }
 
     /**

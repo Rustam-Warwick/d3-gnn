@@ -4,7 +4,6 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
-import org.apache.commons.math3.geometry.spherical.twod.Edge;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
@@ -35,9 +34,7 @@ abstract public class BaseStorage extends TaskSharedState {
 
     /**
      * {@inheritDoc}
-     * <p>
      * Will fail if the storage object is created outside of {@link GraphRuntimeContext} and non-part-number part
-     * </p>
      */
     @Override
     public void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
@@ -59,6 +56,8 @@ abstract public class BaseStorage extends TaskSharedState {
 
     /**
      * A thread local view of the graph object
+     *
+     * @implNote All the get methods assume that contains is checked before
      */
     abstract public static class GraphView {
 
@@ -119,7 +118,7 @@ abstract public class BaseStorage extends TaskSharedState {
         public abstract void updateHyperEdge(HyperEdge hyperEdge, HyperEdge memento);
 
         /**
-         * Delte {@link Feature} that is attached to element
+         * Delete {@link Feature} that is attached to element
          */
         public abstract void deleteAttachedFeature(Feature feature);
 
@@ -158,17 +157,13 @@ abstract public class BaseStorage extends TaskSharedState {
          * Get {@link DirectedEdge} by its full id
          */
         @Nullable
-        public abstract DirectedEdge getEdge(Tuple3<String, String, String> id);
+        public abstract DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId);
 
         /**
-         * Get incided edges of {@link Vertex}
+         * Get incided edges of {@link Vertex}.
+         * @param lastN -1 get all edges otherwise pick lastN edges
          */
-        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
-
-        /**
-         * Get edge degrees for vertex
-         */
-        public abstract int getVertexDegree(Vertex vertex, EdgeType edgeType);
+        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, int lastN);
 
         /**
          * Get {@link HyperEdge} by its String id
@@ -184,7 +179,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Get attached {@link Feature} by its id
          */
-        public abstract @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id);
+        public abstract @Nullable Feature getAttachedFeature(ElementType elementType, Object elementId, String featureName);
 
         /**
          * Get all attached {@link Feature} of a given name
@@ -209,7 +204,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Does this storage contain {@link Feature} by its id
          */
-        public abstract boolean containsAttachedFeature(Tuple3<ElementType, Object, String> id);
+        public abstract boolean containsAttachedFeature(ElementType elementType, Object elementId, String featureName);
 
         /**
          * Does this storage contain {@link Feature} by its id
@@ -219,7 +214,7 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Does this storage contain {@link DirectedEdge} by its id
          */
-        public abstract boolean containsEdge(Tuple3<String, String, String> id);
+        public abstract boolean containsEdge(String srcId, String destId, @Nullable String attributeId);
 
         /**
          * Does this torage contain {@link HyperEdge} by its id
@@ -319,11 +314,13 @@ abstract public class BaseStorage extends TaskSharedState {
                 case VERTEX:
                     return containsVertex((String) id);
                 case EDGE:
-                    return containsEdge((Tuple3<String, String, String>) id);
+                    Tuple3<String, String, String> realEdgeId = (Tuple3<String, String, String>) id;
+                    return containsEdge(realEdgeId.f0, realEdgeId.f1, realEdgeId.f2);
                 case ATTACHED_FEATURE:
-                    return containsAttachedFeature((Tuple3<ElementType, Object, String>) id);
+                    Tuple3<ElementType, Object, String> realFeatureId = (Tuple3<ElementType, Object, String>) id;
+                    return containsAttachedFeature(realFeatureId.f0, realFeatureId.f1, realFeatureId.f2);
                 case STANDALONE_FEATURE:
-                    return containsStandaloneFeature((String) id);
+                    return containsStandaloneFeature(((Tuple3<ElementType, Object, String>) id).f2);
                 case HYPEREDGE:
                     return containsHyperEdge((String) id);
                 case PLUGIN:
@@ -336,16 +333,18 @@ abstract public class BaseStorage extends TaskSharedState {
         /**
          * Get {@link GraphElement} given its id and {@link ElementType}
          */
-        public GraphElement getElement(Object id, ElementType t) {
-            switch (t) {
+        public GraphElement getElement(Object id, ElementType type) {
+            switch (type) {
                 case VERTEX:
                     return getVertex((String) id);
-                case ATTACHED_FEATURE:
-                    return getAttachedFeature((Tuple3<ElementType, Object, String>) id);
-                case STANDALONE_FEATURE:
-                    return getStandaloneFeature((String) id);
                 case EDGE:
-                    return getEdge((Tuple3<String, String, String>) id);
+                    Tuple3<String, String, String> realEdgeId = (Tuple3<String, String, String>) id;
+                    return getEdge(realEdgeId.f0, realEdgeId.f1, realEdgeId.f2);
+                case ATTACHED_FEATURE:
+                    Tuple3<ElementType, Object, String> realFeatureId = (Tuple3<ElementType, Object, String>) id;
+                    return getAttachedFeature(realFeatureId.f0, realFeatureId.f1, realFeatureId.f2);
+                case STANDALONE_FEATURE:
+                    return getStandaloneFeature(((Tuple3<ElementType, Object, String>) id).f2);
                 case HYPEREDGE:
                     return getHyperEdge((String) id);
                 case PLUGIN:
@@ -362,12 +361,15 @@ abstract public class BaseStorage extends TaskSharedState {
             switch (element.getType()) {
                 case VERTEX:
                     return containsVertex((String) element.getId());
-                case ATTACHED_FEATURE:
-                    return containsAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
-                case STANDALONE_FEATURE:
-                    return containsStandaloneFeature((String) element.getId());
                 case EDGE:
-                    return containsEdge((Tuple3<String, String, String>) element.getId());
+                    DirectedEdge directedEdge = (DirectedEdge) element;
+                    return containsEdge(directedEdge.getSrcId(), directedEdge.getDestId(), directedEdge.getAttribute());
+                case ATTACHED_FEATURE:
+                    Feature attachedFeature = (Feature) element;
+                    return containsAttachedFeature(attachedFeature.getAttachedElementType(), attachedFeature.getAttachedElementId(), attachedFeature.getName());
+                case STANDALONE_FEATURE:
+                    Feature standaloneFeature = (Feature) element;
+                    return containsStandaloneFeature(standaloneFeature.getName());
                 case HYPEREDGE:
                     return containsHyperEdge((String) element.getId());
                 default:
@@ -382,12 +384,15 @@ abstract public class BaseStorage extends TaskSharedState {
             switch (element.getType()) {
                 case VERTEX:
                     return getVertex((String) element.getId());
-                case ATTACHED_FEATURE:
-                    return getAttachedFeature((Tuple3<ElementType, Object, String>) element.getId());
-                case STANDALONE_FEATURE:
-                    return getStandaloneFeature((String) element.getId());
                 case EDGE:
-                    return getEdge((Tuple3<String, String, String>) element.getId());
+                    DirectedEdge directedEdge = (DirectedEdge) element;
+                    return getEdge(directedEdge.getSrcId(), directedEdge.getDestId(), directedEdge.getAttribute());
+                case ATTACHED_FEATURE:
+                    Feature attachedFeature = (Feature) element;
+                    return getAttachedFeature(attachedFeature.getAttachedElementType(), attachedFeature.getAttachedElementId(), attachedFeature.getName());
+                case STANDALONE_FEATURE:
+                    Feature standaloneFeature = (Feature) element;
+                    return getStandaloneFeature(standaloneFeature.getName());
                 case HYPEREDGE:
                     return getHyperEdge((String) element.getId());
                 default:

@@ -25,11 +25,11 @@ import java.util.Map;
 /**
  * GNN Embedding Layer that forwards messages only on pre-defined sessioned intervals
  */
-public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
+public class DeepSessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     public final int sessionIntervalMs;
 
-    protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> part2VertexMaps;
+    protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> part2Maps;
 
     protected transient Counter windowThroughput;
 
@@ -37,7 +37,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     protected transient ObjectArrayList<String> reuseVertexIdList;
 
-    public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionIntervalMs) {
+    public DeepSessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionIntervalMs) {
         super(modelName, trainableVertexEmbeddings);
         this.sessionIntervalMs = sessionIntervalMs;
     }
@@ -50,10 +50,10 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         super.open(params);
         reuseAggregatorsNDList = new NDList();
         reuseVertexIdList = new ObjectArrayList<>();
-        part2VertexMaps = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("window_part2VertexMaps", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
-        getRuntimeContext().getThisOperatorParts().forEach(part -> part2VertexMaps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
         windowThroughput = new SimpleCounter();
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
+        part2Maps = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("window_part2Maps", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
+        getRuntimeContext().getThisOperatorParts().forEach(part -> part2Maps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
     }
 
     /**
@@ -61,12 +61,17 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
      * Adds the forward messages to timer queue and does not immediately forward it to the next layer
      */
     public void forward(Vertex v) {
-        long currentProcessingTime = getRuntimeContext().getTimerService().currentProcessingTime();
-        long thisElementUpdateTime = currentProcessingTime + sessionIntervalMs;
-        long timerTime = (long) (Math.ceil((thisElementUpdateTime) / 25.0) * 25);
-        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2VertexMaps.get(getPart());
+        forwardTimer(v, getRuntimeContext().getTimerService().currentProcessingTime() + sessionIntervalMs);
+    }
+
+    /**
+     * Add to timers for future-forward requests
+     */
+    public void forwardTimer(Vertex v, long updateTime){
+        long timerTime = (long) (Math.ceil((updateTime) / 25.0) * 25);
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2Maps.get(getPart());
         maps.f0.removeLong(v.getId());
-        maps.f0.put(v.getId(), thisElementUpdateTime);
+        maps.f0.put(v.getId(), updateTime);
         maps.f1.put(v.getId(), getRuntimeContext().currentTimestamp());
         getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         windowThroughput.inc();
@@ -79,7 +84,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
         // 1. Set placeholders
         final short currentPart = getPart();
-        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2VertexMaps.get(getPart());
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = part2Maps.get(getPart());
         reuseFeaturesNDList.clear();
         reuseAggregatorsNDList.clear();
         reuseVertexIdList.clear();

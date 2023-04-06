@@ -69,7 +69,6 @@ public class ModelServer<T extends Block> extends Plugin {
      */
     protected transient Tuple2<ParameterList, Short> syncParameters;
 
-
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
         this.model = m;
@@ -177,7 +176,7 @@ public class ModelServer<T extends Block> extends Plugin {
      * This object is going to be added to TaskLocalState
      * </p>
      */
-    static class ModelWrapper<T extends Block> {
+    protected static class ModelWrapper<T extends Block> {
 
         T block;
 

@@ -399,21 +399,21 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         @Override
         public void addElementCallback(GraphElement element) {
             plugins.values().forEach(plugin -> {
-                if (plugin.listening) plugin.addElementCallback(element);
+                if (plugin.isListening()) plugin.addElementCallback(element);
             });
         }
 
         @Override
         public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
             plugins.values().forEach(plugin -> {
-                if (plugin.listening) plugin.updateElementCallback(newElement, oldElement);
+                if (plugin.isListening()) plugin.updateElementCallback(newElement, oldElement);
             });
         }
 
         @Override
         public void deleteElementCallback(GraphElement deletedElement) {
             plugins.values().forEach(plugin -> {
-                if (plugin.listening) plugin.deleteElementCallback(deletedElement);
+                if (plugin.isListening()) plugin.deleteElementCallback(deletedElement);
             });
         }
 

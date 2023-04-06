@@ -137,9 +137,8 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         // 2. Collect data from storage
         try (BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : miniBatchVertexIds) {
-                reuseFeaturesId.f1 = reuseLabelsId.f1 = vertexId;
-                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeaturesId).getValue());
-                reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseLabelsId).getValue());
+                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "f").getValue());
+                reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "tl").getValue());
                 scope.refresh();
             }
         }

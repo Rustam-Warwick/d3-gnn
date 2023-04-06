@@ -296,7 +296,7 @@
 //        }
 //
 //        @Override
-//        public @Nullable Feature getAttachedFeature(Tuple3<ElementType, Object, String> id) {
+//        public @Nullable Feature getAttachedVertexFeature(Tuple3<ElementType, Object, String> id) {
 //            if (id.f0 == ElementType.VERTEX) {
 //                Tuple4<Boolean, ConstructorAccess<? extends Feature>, Integer, ?> featureInfo = vertexFeatureInfo.get(id.f2);
 //                Object value = localVertexTable.get(getRuntimeContext().getCurrentPart()).get((String) id.f1).f2[featureInfo.f2];

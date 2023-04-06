@@ -310,7 +310,7 @@
 //
 //    @Nullable
 //    @Override
-//    public Feature<?, ?> getAttachedFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
+//    public Feature<?, ?> getAttachedVertexFeature(ElementType attachedType, String attachedId, String featureName, @Nullable String featureId) {
 //        try {
 //            reuse.f0 = featureName;
 //            reuse.f1 = attachedType;
@@ -393,7 +393,7 @@
 //                    continue;
 //                if (element.features != null && element.features.stream().anyMatch(item -> item.getName().equals(tuple2Tuple3Entry.getKey().f0)))
 //                    return;
-//                Feature<?, ?> feature = getAttachedFeature(element.getType(), elId, tuple2Tuple3Entry.getKey().f0, null);
+//                Feature<?, ?> feature = getAttachedVertexFeature(element.getType(), elId, tuple2Tuple3Entry.getKey().f0, null);
 //                feature.setElement(element, false);
 //            }
 //        } catch (Exception e) {

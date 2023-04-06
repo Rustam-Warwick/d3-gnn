@@ -7,10 +7,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Base class for all task-shared state used in {@link TaskSharedKeyedStateBackend}
  * This state does not actively scope to keys instead the state is shared and stored for all tasks
- * Implementations should obviously be Thread-Safe
- * <p>
- * Note that it is not a KVState but it can create a wrapper KVState if needed to register for publishable states
- * </p>
+ * <ul>
+ *     <li>Implementations should obviously be Thread-Safe</li>
+ *     <li> * Note that it is not a KVState but it can create a wrapper KVState if needed to register for publishable states</li>
+ * </ul>
  */
 abstract public class TaskSharedState implements State {
 

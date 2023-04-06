@@ -15,6 +15,7 @@ import java.util.function.Function;
 /**
  * Map state per part
  * Only use it when the state is partitioned according to {@link org.apache.flink.runtime.state.PartNumber}
+ * No need to synchronize since the map will be preloaded with the necessary parts on registration
  */
 public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implements Map<Short, V> {
 

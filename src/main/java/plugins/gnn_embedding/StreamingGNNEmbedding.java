@@ -144,7 +144,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         NDList message = null;
         reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT)) {
+            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT, -1)) {
                 if (message == null) {
                     reuseFeaturesNDList.clear();
                     reuseFeaturesNDList.add(feature.getValue());
@@ -170,14 +170,13 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     }
 
     /**
-     * Accepts the reduced messages
+     * Receive the reduction messages and commit
      */
     @RemoteFunction(triggerUpdate = false)
     public void receiveReduceOutEdges(List<String> vertices, NDList message) {
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : vertices) {
-                reuseAggId.f1 = vertexId;
-                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "reduce", message, 1);
+                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "agg"), "reduce", message, 1);
                 objectPoolScope.refresh();
             }
         }
@@ -195,7 +194,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         NDList msgNew = null;
         reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.OUT)) {
+            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.OUT, -1)) {
                 if (msgOld == null) {
                     reuseFeaturesNDList.clear();
                     reuseFeaturesNDList.add(oldFeature.getValue());
@@ -227,14 +226,13 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
     }
 
     /**
-     * Receive the replacement messages
+     * Receive the replacement messages and commit to memory
      */
     @RemoteFunction(triggerUpdate = false)
     public void receiveReplaceOutEdges(List<String> vertices, NDList messageNew, NDList messageOld) {
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : vertices) {
-                reuseAggId.f1 = vertexId;
-                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggId), "replace", messageNew, messageOld);
+                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "agg"), "replace", messageNew, messageOld);
                 objectPoolScope.refresh();
             }
         }

@@ -6,7 +6,6 @@ import elements.enums.ElementType;
 import elements.enums.ReplicaState;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.Nullable;
 import storage.BaseStorage;
@@ -56,7 +55,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                         if (features == null) features = new ArrayList<>(4);
                         Feature<?, ?> cpyFeature = feature.copy(context);
                         cpyFeature.element = this;
-                        features.add(feature.copy(context));
+                        features.add(cpyFeature);
                     }
                 }
             }
@@ -79,7 +78,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Part of creation relating to storage and plugin callbacks
-     *
      * @implNote features will be cleared after exiting this method
      * <ol>
      *     <li>Create in Storage</li>
@@ -253,7 +251,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(Tuple3.of(getType(), getId(), name));
+        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name);
         feature.setElement(this, false);
         return feature;
     }
@@ -268,7 +266,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             }
         }
         if (getGraphRuntimeContext() != null) {
-            return getGraphRuntimeContext().getStorage().containsAttachedFeature(Tuple3.of(getType(), getId(), name));
+            return getGraphRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name);
         }
         return false;
     }

@@ -121,15 +121,14 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         int[] meanAggregatorValues = modelServer.getBlock().getAgg() == AggregatorVariant.MEAN ? new int[gradientAggregator.keys.length] : null;
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (int i = 0; i < gradientAggregator.keys.length; i++) {
-                reuseFeatureKey.f1 = reusePartsKey.f1 = reuseAggregatorKey.f1 = gradientAggregator.keys[i];
-                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureKey).getValue());
-                Aggregator<?> val = (Aggregator<?>) getRuntimeContext().getStorage().getAttachedFeature(reuseAggregatorKey);
+                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, gradientAggregator.keys[i], "f").getValue());
+                Aggregator<?> val = (Aggregator<?>) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, gradientAggregator.keys[i], "agg");
                 reuseAggregatorNDList.add(val.getValue());
                 if (meanAggregatorValues != null) meanAggregatorValues[i] = val.getReducedCount();
                 if (val.getReducedCount() > 0) {
                     reusePart2Indices.computeIfAbsent(getPart(), (ignore) -> new IntArrayList()).add(i);
-                    if (getRuntimeContext().getStorage().containsAttachedFeature(reusePartsKey)) {
-                        for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(reusePartsKey)).getValue()) {
+                    if (getRuntimeContext().getStorage().containsAttachedFeature(ElementType.VERTEX, gradientAggregator.keys[i], "p")) {
+                        for (Short replicaPart : ((Parts) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, gradientAggregator.keys[i], "p")).getValue()) {
                             reusePart2Indices.computeIfAbsent(replicaPart, (ignore) -> new IntArrayList()).add(i);
                         }
                     }
@@ -214,11 +213,11 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             for (int i = 0; i < gradientAggregator.keys.length; i++) {
                 Vertex v = getRuntimeContext().getStorage().getVertex(gradientAggregator.keys[i]);
                 try (BaseStorage.ObjectPoolScope innerObjectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.IN)) {
+                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.IN, -1)) {
                         reuseFeatureKey.f1 = incidentEdge.getSrcId();
-                        if (getRuntimeContext().getStorage().containsAttachedFeature(reuseFeatureKey)) {
+                        if (getRuntimeContext().getStorage().containsAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f")) {
                             reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
-                                Tensor srcFeature = (Tensor) getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureKey);
+                                Tensor srcFeature = (Tensor) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f");
                                 reuseFeaturesNDList.add(srcFeature.getValue());
                                 reuseVertexIdList.add(incidentEdge.getSrcId());
                                 reusePart2Indices.computeIfAbsent(srcFeature.getMasterPart(), (ignore) -> new IntArrayList()).add(reuseVertexIdList.size() - 1);
@@ -312,11 +311,11 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
                 boolean hasInEdges = false;
                 try (BaseStorage.ObjectPoolScope innerObjetPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN)) {
+                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN, -1)) {
                         reuseFeatureKey.f1 = incidentEdge.getSrcId();
-                        if (getRuntimeContext().getStorage().containsAttachedFeature(reuseFeatureKey)) {
+                        if (getRuntimeContext().getStorage().containsAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f")) {
                             reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
-                                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseFeatureKey).getValue());
+                                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f").getValue());
                                 return reuseFeaturesNDList.size() - 1;
                             });
                             reuseSrcIndexList.add(reuseVertexToIndexMap.getInt(incidentEdge.getSrcId()));
@@ -400,7 +399,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
                 reuseAggregatorKey.f1 = vertexIds[i];
                 reuseAggregatorNDList.clear();
                 reuseAggregatorNDList.add(batchedPartialAggregators.get(i));
-                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(reuseAggregatorKey), "reduce", reuseAggregatorNDList, counts[i]);
+                Rmi.execute(getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexIds[i], "agg"), "reduce", reuseAggregatorNDList, counts[i]);
                 objectPoolScope.refresh();
             }
         }
@@ -419,7 +418,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
                     // Master vertices with feature
                     reuseFeaturesNDList.add((NDArray) f.getValue());
                     reuseAggregatorKey.f1 = f.getAttachedElementId();
-                    reuseAggregatorNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(reuseAggregatorKey).getValue());
+                    reuseAggregatorNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, f.getAttachedElementId(), "agg").getValue());
                     reuseVertexIdList.add((String) f.getAttachedElementId());
                 }
                 objectPoolScope.refresh();
