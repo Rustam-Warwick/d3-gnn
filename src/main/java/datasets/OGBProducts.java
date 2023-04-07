@@ -163,7 +163,7 @@ public class OGBProducts extends Dataset {
             Feature<Integer, Integer> label = new Feature<>("l", Integer.parseInt(values[1]), true);
             label.id.f0 = ElementType.VERTEX;
             label.id.f1 = values[0];
-            return new GraphOp(Op.UPDATE, label);
+            return new GraphOp(Op.COMMIT, label);
         }
     }
 
@@ -181,7 +181,7 @@ public class OGBProducts extends Dataset {
             Tensor feature = new Tensor("f", BaseNDManager.getManager().create(featureFloat));
             feature.id.f0 = ElementType.VERTEX;
             feature.id.f1 = values[0];
-            return new GraphOp(Op.UPDATE, feature);
+            return new GraphOp(Op.COMMIT, feature);
         }
     }
 
@@ -192,7 +192,7 @@ public class OGBProducts extends Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] ids = value.split(",");
-            return new GraphOp(Op.UPDATE, new DirectedEdge(new Vertex(ids[0]), new Vertex(ids[1])));
+            return new GraphOp(Op.COMMIT, new DirectedEdge(new Vertex(ids[0]), new Vertex(ids[1])));
         }
     }
 }

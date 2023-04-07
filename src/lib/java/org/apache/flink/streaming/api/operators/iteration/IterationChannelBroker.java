@@ -6,6 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Singleton Broker Pattern for the {@link IterationChannel}
  */
 public class IterationChannelBroker {
+
     protected static final IterationChannelBroker INSTANCE = new IterationChannelBroker();
 
     /**
@@ -24,8 +25,7 @@ public class IterationChannelBroker {
      * Get {@link IterationChannel} or create and get
      */
     public <T> IterationChannel<T> getIterationChannel(IterationChannelKey iterationChannelKey) {
-        channels.computeIfAbsent(iterationChannelKey, (ignored) -> new IterationChannel<T>(iterationChannelKey));
-        return (IterationChannel<T>) channels.get(iterationChannelKey);
+        return (IterationChannel<T>) channels.compute(iterationChannelKey, (ignored, channel) -> channel == null ? new IterationChannel<T>(iterationChannelKey) : channel);
     }
 
     /**

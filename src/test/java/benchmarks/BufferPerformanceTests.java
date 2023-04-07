@@ -1,18 +1,19 @@
 package benchmarks;
 
-import org.jctools.queues.SpscLinkedQueue;
+import org.jctools.queues.MpscLinkedQueue;
+import org.jctools.queues.SpscUnboundedArrayQueue;
+import org.jctools.queues.unpadded.SpscUnboundedUnpaddedArrayQueue;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.Phaser;
+
 
 public class BufferPerformanceTests {
 
     public long testLinkedTransferQueue() {
         long ms = System.currentTimeMillis();
-        LinkedTransferQueue<Integer> a = new LinkedTransferQueue<>();
+        SpscUnboundedUnpaddedArrayQueue<Integer> a = new SpscUnboundedUnpaddedArrayQueue<>(1000);
         ArrayList<Thread> producers = new ArrayList<>();
         Phaser phaser = new Phaser();
         phaser.register();
@@ -27,16 +28,16 @@ public class BufferPerformanceTests {
         }
         producers.forEach(Thread::start);
         while (phaser.getArrivedParties() < 1) {
-            for (Integer integer : a) {
+            a.drain((integer) -> {
                 if (integer % 100000 == 0) System.out.println(integer);
-            }
+            });
         }
         return System.currentTimeMillis() - ms;
     }
 
     public long testLinkedQueue() {
         long ms = System.currentTimeMillis();
-        ConcurrentLinkedQueue<Integer> a = new ConcurrentLinkedQueue<>();
+        MpscLinkedQueue<Integer> a = new MpscLinkedQueue<>();
         ArrayList<Thread> producers = new ArrayList<>();
         Phaser phaser = new Phaser();
         phaser.register();
@@ -60,7 +61,7 @@ public class BufferPerformanceTests {
 
     public long testSPSCQueue() {
         long ms = System.currentTimeMillis();
-        SpscLinkedQueue<Integer> a = new SpscLinkedQueue<>();
+        SpscUnboundedArrayQueue<Integer> a = new SpscUnboundedArrayQueue<>(1000);
         ArrayList<Thread> producers = new ArrayList<>();
         Phaser phaser = new Phaser();
         phaser.register();
@@ -84,10 +85,10 @@ public class BufferPerformanceTests {
 
     @Test
     public void compareQueues() {
-        long linkedTransferQueue = testLinkedTransferQueue();
-        long linkedQueue = testLinkedQueue();
+        long unpadded = testLinkedTransferQueue();
+        long linkedQueue = 0;
         long spscQueue = testSPSCQueue();
-        System.out.format("Transfer: %s | Linked: %s | SPSC: %s\n", linkedTransferQueue, linkedQueue, spscQueue);
+        System.out.format("Unpadded-array: %s | Linked: %s | Array : %s\n", unpadded, linkedQueue, spscQueue);
     }
 
 }

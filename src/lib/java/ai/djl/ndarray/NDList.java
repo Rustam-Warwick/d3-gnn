@@ -16,10 +16,12 @@ import ai.djl.Device;
 import ai.djl.ndarray.types.Shape;
 
 import java.io.*;
+import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -30,6 +32,10 @@ import java.util.zip.ZipOutputStream;
  * <p>Each {@link NDArray} in this list can optionally have a name. You can use the name to look up
  * an NDArray in the NDList.
  *
+ * @author rustambaku13
+ * <p>
+ * Added {@link LifeCycleControl}
+ * </p>
  * @see NDArray
  */
 public class NDList extends ArrayList<NDArray> implements NDResource, BytesSupplier, LifeCycleControl {
@@ -78,7 +84,34 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
      * @return {@code NDList}
      */
     public static NDList decode(NDManager manager, byte[] byteArray) {
-        return decode(manager, new ByteArrayInputStream(byteArray));
+        if (byteArray.length < 4) {
+            throw new IllegalArgumentException("Invalid input length: " + byteArray.length);
+        }
+        try {
+            if (byteArray[0] == 'P' && byteArray[1] == 'K') {
+                return decodeNumpy(manager, new ByteArrayInputStream(byteArray));
+            } else if (byteArray[0] == (byte) 0x39
+                    && byteArray[1] == 'N'
+                    && byteArray[2] == 'U'
+                    && byteArray[3] == 'M') {
+                return new NDList(
+                        NDSerializer.decode(manager, new ByteArrayInputStream(byteArray)));
+            }
+
+            ByteBuffer bb = ByteBuffer.wrap(byteArray);
+
+            int size = bb.getInt();
+            if (size < 0) {
+                throw new IllegalArgumentException("Invalid NDList size: " + size);
+            }
+            NDList list = new NDList();
+            for (int i = 0; i < size; i++) {
+                list.add(i, NDSerializer.decode(manager, bb));
+            }
+            return list;
+        } catch (IOException | BufferUnderflowException e) {
+            throw new IllegalArgumentException("Invalid NDArray input", e);
+        }
     }
 
     /**
@@ -233,7 +266,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
      * Returns a view of the portion of this NDList between the specified fromIndex, inclusive, and
      * to the end.
      *
-     * @param fromIndex the startTermination index (inclusive)
+     * @param fromIndex the start index (inclusive)
      * @return a view of the portion of this NDList
      */
     public NDList subNDList(int fromIndex) {
@@ -265,6 +298,14 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
     @Override
     public NDManager getManager() {
         return head().getManager();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<NDArray> getResourceNDArrays() {
+        return this;
     }
 
     /**
@@ -354,7 +395,7 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         DataOutputStream dos = new DataOutputStream(os);
         dos.writeInt(size());
         for (NDArray nd : this) {
-            dos.write(nd.encode());
+            NDSerializer.encode(nd, dos);
         }
         dos.flush();
     }
@@ -384,16 +425,6 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         return stream().map(NDArray::getShape).toArray(Shape[]::new);
     }
 
-    @Override
-    public void delay() {
-        forEach(LifeCycleControl::delay);
-    }
-
-    @Override
-    public void resume() {
-        forEach(LifeCycleControl::resume);
-    }
-
     /**
      * {@inheritDoc}
      */
@@ -402,6 +433,30 @@ public class NDList extends ArrayList<NDArray> implements NDResource, BytesSuppl
         forEach(NDArray::close);
         clear();
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void delay() {
+        forEach(NDArray::delay);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void resume() {
+        forEach(NDArray::resume);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void destroy() {
+        forEach(NDArray::destroy);
+    }
+
 
     /**
      * {@inheritDoc}

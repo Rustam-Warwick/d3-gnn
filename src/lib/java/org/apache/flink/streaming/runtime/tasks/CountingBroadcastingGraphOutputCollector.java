@@ -1,7 +1,7 @@
 package org.apache.flink.streaming.runtime.tasks;
 
 import elements.GraphOp;
-import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple4;
 import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputSerializer;
 import org.apache.flink.core.memory.DataOutputView;
@@ -13,6 +13,7 @@ import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
 import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.util.OutputTag;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,7 +24,8 @@ import java.util.List;
  * Special Counting Output Collector for {@link GraphOp}.
  * <ul>
  *     <li> Counting Output Metrics </li>
- *     <li> Handling broadcast & selective broadcast messages </li>
+ *     <li> Handling broadcast & selective broadcast messages for output channels with graphOp types </li>
+ *     <li> Methods for analysing the r-ty of the individual output gates </li>
  * </ul>
  *
  * @implNote Assumes the underlying serializer is {@link typeinfo.graphopinfo.GraphOpSerializer} joined with {@link org.apache.flink.streaming.runtime.streamrecord.StreamElementSerializer}
@@ -38,14 +40,18 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
 
     static Field serializationDelegateField;
 
+    static Field numChannelsField;
+
     static {
         try {
             outputTagField = RecordWriterOutput.class.getDeclaredField("outputTag");
             recordWriterField = RecordWriterOutput.class.getDeclaredField("recordWriter");
             serializationDelegateField = RecordWriterOutput.class.getDeclaredField("serializationDelegate");
+            numChannelsField = RecordWriter.class.getDeclaredField("numberOfChannels");
             outputTagField.setAccessible(true);
             recordWriterField.setAccessible(true);
             serializationDelegateField.setAccessible(true);
+            numChannelsField.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException("Could not initialization GraphOutputCollected, turn off Security manager");
         }
@@ -59,21 +65,23 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
     /**
      * Reference to the fields in the {@link RecordWriterOutput}
      */
-    protected final Tuple3<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate>[] outputInternalInfo;
+    protected final Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer>[] outputInternalInfo;
 
     public CountingBroadcastingGraphOutputCollector(Output<StreamRecord<GraphOp>> output, Counter numRecordsOutCounter) {
         super(output instanceof BroadcastingOutputCollector ? ((BroadcastingOutputCollector) output).outputs : new Output[]{output});
         this.numRecordsOutCounter = numRecordsOutCounter;
-        outputInternalInfo = new Tuple3[outputs.length];
+        this.outputInternalInfo = new Tuple4[outputs.length];
         try {
             for (int i = 0; i < outputs.length; i++) {
                 if (outputs[i] instanceof RecordWriterOutput) {
-                    OutputTag<GraphOp> tag = (OutputTag<GraphOp>) outputTagField.get(outputs[i]);
+                    OutputTag<?> tag = (OutputTag<?>) outputTagField.get(outputs[i]);
+                    if (tag != null && !tag.getTypeInfo().getTypeClass().equals(GraphOp.class))
+                        continue; // Not adding non-GraphOp output tags
                     RecordWriter<SerializationDelegate<StreamElement>> recordWriter = (RecordWriter<SerializationDelegate<StreamElement>>) recordWriterField.get(outputs[i]);
                     SerializationDelegate<StreamElement> serializationDelegateOld = (SerializationDelegate<StreamElement>) serializationDelegateField.get(outputs[i]);
                     HelperSerializationDelegate serializationDelegate = new HelperSerializationDelegate(serializationDelegateOld);
                     serializationDelegateField.set(outputs[i], serializationDelegate);
-                    outputInternalInfo[i] = Tuple3.of(tag, recordWriter, serializationDelegate);
+                    outputInternalInfo[i] = Tuple4.of((OutputTag<GraphOp>) tag, recordWriter, serializationDelegate, (Integer) numChannelsField.get(recordWriter));
                 }
             }
         } catch (Exception e) {
@@ -98,78 +106,68 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
     }
 
     /**
-     * Broadcast single messages to all output channels in the forward layer
+     * Broadcast single message to all output channels in all connected edges
      */
-    public void broadcast(StreamRecord<GraphOp> record) {
-        for (Tuple3<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate> info : outputInternalInfo) {
+    public void broadcastAll(StreamRecord<GraphOp> record) {
+        for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
             if (info == null) continue;
-            if (info.f0 == null) {
-                numRecordsOutCounter.inc();
-                info.f2.setInstance(record);
-                try {
-                    info.f1.broadcastEmit(info.f2);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e.getMessage(), e);
-                }
-                return;
+            info.f2.setInstance(record);
+            try {
+                info.f1.broadcastEmit(info.f2);
+                numRecordsOutCounter.inc(info.f3);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e.getMessage(), e);
             }
+
+        }
+    }
+
+    /**
+     * Broadcast single message to all output channels for an {@link OutputTag} output or forward if {@code outputTag == null}
+     */
+    public void broadcast(@Nullable OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record) {
+        for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
+            if (info == null || (outputTag == null ^ info.f0 == null) || (info.f0 != null && !OutputTag.isResponsibleFor(outputTag, info.f0)))
+                continue;
+            info.f2.setInstance(record);
+            try {
+                info.f1.broadcastEmit(info.f2);
+                numRecordsOutCounter.inc(info.f3);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e.getMessage(), e);
+            }
+            return;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }
 
     /**
-     * Broadcast single message to all output channels for an {@link OutputTag} output
+     * Selectively broadcast {@link GraphOp} to all channels for {@link OutputTag} or forward if {@code outputTag == null}
      */
-    public void broadcast(OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record) {
-        for (Tuple3<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate> info : outputInternalInfo) {
-            if (info == null) continue;
-            if (OutputTag.isResponsibleFor(outputTag, info.f0)) {
-                numRecordsOutCounter.inc();
-                info.f2.setInstance(record);
-                try {
-                    info.f1.broadcastEmit(info.f2);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e.getMessage(), e);
-                }
-                return;
+    public void broadcast(@Nullable OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record, List<Short> selectedParts) {
+        for (int i = 0; i < outputInternalInfo.length; i++) {
+            if (outputInternalInfo[i] == null || (outputTag == null ^ outputInternalInfo[i].f0 == null) || (outputInternalInfo[i].f0 != null && !OutputTag.isResponsibleFor(outputTag, outputInternalInfo[i].f0)))
+                continue;
+            outputInternalInfo[i].f2.broadcastStart();
+            for (short selectedPart : selectedParts) {
+                record.getValue().setPartId(selectedPart);
+                outputs[i].collect(outputTag, record);
             }
+            numRecordsOutCounter.inc(selectedParts.size());
+            outputInternalInfo[i].f2.broadcastFinish();
+            return;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }
 
     /**
-     * Do a selective broadcast of a single {@link GraphOp} to multiple parts in the forward by only changing the part id
+     * Gets the number of output channel in the given output tag
      */
-    public void broadcast(StreamRecord<GraphOp> record, List<Short> selectedParts) {
-        for (int i = 0; i < outputInternalInfo.length; i++) {
-            if (outputInternalInfo[i] == null) continue;
-            if (outputInternalInfo[i].f0 == null) {
-                outputInternalInfo[i].f2.broadcastStart();
-                for (short selectedPart : selectedParts) {
-                    record.getValue().setPartId(selectedPart);
-                    outputs[i].collect(record);
-                }
-                numRecordsOutCounter.inc(selectedParts.size());
-                outputInternalInfo[i].f2.broadcastFinish();
-                return;
-            }
-        }
-        throw new IllegalStateException("No output responsible for broadcast message");
-    }
-
-    public void broadcast(OutputTag<GraphOp> outputTag, StreamRecord<GraphOp> record, List<Short> selectedParts) {
-        for (int i = 0; i < outputInternalInfo.length; i++) {
-            if (outputInternalInfo[i] == null) continue;
-            if (OutputTag.isResponsibleFor(outputTag, outputInternalInfo[i].f0)) {
-                outputInternalInfo[i].f2.broadcastStart();
-                for (short selectedPart : selectedParts) {
-                    record.getValue().setPartId(selectedPart);
-                    outputs[i].collect(outputTag, record);
-                }
-                numRecordsOutCounter.inc(selectedParts.size());
-                outputInternalInfo[i].f2.broadcastFinish();
-                return;
-            }
+    public int getNumChannels(@Nullable OutputTag<GraphOp> outputTag) {
+        for (Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer> info : outputInternalInfo) {
+            if (info == null || (outputTag == null ^ info.f0 == null) || (info.f0 != null && !OutputTag.isResponsibleFor(outputTag, info.f0)))
+                continue;
+            return info.f3;
         }
         throw new IllegalStateException("No output responsible for broadcast message");
     }
@@ -189,7 +187,7 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
          * <p>
          * 0 -> Normal mode of execution, need to delegate everything to mainSerializationDelegate
          * 1 -> Started broadcasting but haven't yet received the first element of broadcast
-         * >1 -> Broadcasting and the out already holds the serialized value and this int is the capacity of the serialized value
+         * >1 -> Broadcasting and the out already holds the serialized value and this int is the capacity of the serialized buffer
          * </p>
          */
         int broadcastStarted = 0;

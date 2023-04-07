@@ -9,6 +9,7 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.gnn.AggregatorVariant;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.nn.hgnn.HSageConv;
+import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.junit.ClassRule;
@@ -19,13 +20,19 @@ import java.util.ArrayList;
  * Base class for all integration Tests
  */
 abstract public class IntegrationTest {
+    protected static Configuration config = new Configuration();
     @ClassRule
     public static MiniClusterWithClientResource flinkCluster =
             new MiniClusterWithClientResource(
                     new MiniClusterResourceConfiguration.Builder()
                             .setNumberSlotsPerTaskManager(10)
                             .setNumberTaskManagers(3)
+                            .setConfiguration(config)
                             .build());
+
+    static {
+        config.setString("metrics.reporter.fileoutput.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
+    }
 
     /**
      * Get a multi-layered GNN {@link Model} with SUM {@link AggregatorVariant}

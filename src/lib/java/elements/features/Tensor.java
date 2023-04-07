@@ -2,9 +2,7 @@ package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import elements.Feature;
-import elements.GraphElement;
 import elements.enums.CopyContext;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 
 /**
  * Feature of {@link NDArray} Used to represent embeddings of specific model versions
@@ -41,34 +39,6 @@ public class Tensor extends Feature<NDArray, NDArray> {
 
     /**
      * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage needs delay
-     * </p>
-     */
-    @Override
-    public void createInternal() {
-        super.createInternal();
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.delay();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage need delay
-     * </p>
-     */
-    @Override
-    public void updateInternal(GraphElement newElement) {
-        super.updateInternal(newElement);
-        Tensor newTensor = (Tensor) newElement;
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newTensor.value != value) {
-            value.delay();
-            newTensor.value.resume();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
      */
     @Override
     public NDArray getValue() {
@@ -101,11 +71,9 @@ public class Tensor extends Feature<NDArray, NDArray> {
         value.resume();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public TypeInformation<?> getValueTypeInfo() {
-        return TypeInformation.of(NDArray.class);
+    public void destroy() {
+        super.destroy();
+        value.destroy();
     }
 }

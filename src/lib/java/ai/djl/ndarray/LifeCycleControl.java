@@ -26,7 +26,14 @@ public interface LifeCycleControl {
      * Pool is destroying this object, last actions
      */
     default void destroy() {
+    }
 
+    /**
+     * Simply resume and then delay
+     */
+    default void resumeAndDelay() {
+        resume();
+        delay();
     }
 
 }

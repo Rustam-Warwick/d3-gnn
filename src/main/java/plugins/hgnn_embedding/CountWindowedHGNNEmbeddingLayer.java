@@ -27,11 +27,6 @@ public class CountWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLayer
         this.BATCH_SIZE = BATCH_SIZE;
     }
 
-    public CountWindowedHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE, int BATCH_SIZE) {
-        super(modelName, trainableVertexEmbeddings, IS_ACTIVE);
-        this.BATCH_SIZE = BATCH_SIZE;
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
@@ -60,7 +55,7 @@ public class CountWindowedHGNNEmbeddingLayer extends StreamingHGNNEmbeddingLayer
                 Tensor updateTensor = new Tensor("f", batchedUpdates.get(i), false, messageVertex.getMasterPart());
                 updateTensor.id.f0 = ElementType.VERTEX;
                 updateTensor.id.f1 = messageVertex.getId();
-                getRuntimeContext().output(new GraphOp(Op.UPDATE, updateTensor.getMasterPart(), updateTensor));
+                getRuntimeContext().output(new GraphOp(Op.COMMIT, updateTensor.getMasterPart(), updateTensor));
                 throughput.inc();
             }
             PART_BATCH.f0 = 0;

@@ -35,6 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * difficult.
  *
  * <p>For more details about the class internals, see {@link Evaluator}.
+ *
+ * @author rustambaku13
+ * <p>
+ * Added {@link KryoExternalizable}
+ * </p>
  */
 public abstract class Loss extends Evaluator implements KryoExternalizable {
 

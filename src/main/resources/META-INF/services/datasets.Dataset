@@ -1,4 +1,8 @@
+datasets.DGraphFin
 datasets.DBLPCoAuth
 datasets.OGBProducts
 datasets.RedditHyperlink
+datasets.SxStackoverflow
 datasets.TagsAskUbuntu
+datasets.Wikitalk
+datasets.SxSuperUser

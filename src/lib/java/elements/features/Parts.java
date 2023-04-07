@@ -4,8 +4,6 @@ import elements.Feature;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
 import it.unimi.dsi.fastutil.shorts.ShortArrayList;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 
 /**
  * Special {@link Feature} representing the Replica parts of {@link elements.GraphElement}
@@ -42,10 +40,10 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
     }
 
     /**
-     * {@link RemoteFunction} to add a new part to the collection
+     * {@link RemoteFunction} to aggregate a new part to the collection
      */
     @RemoteFunction
-    public void add(Short element) {
+    public void add(short element) {
         if (this.value.contains(element)) return;
         this.value.add(element);
     }
@@ -54,7 +52,7 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
      * {@link RemoteFunction} to remove a new part to the collection
      */
     @RemoteFunction
-    public void remove(Short element) {
+    public void remove(short element) {
         if (!this.value.contains(element)) return;
         this.value.remove(element);
     }
@@ -73,13 +71,5 @@ public class Parts extends Feature<ShortArrayList, ShortArrayList> {
     @Override
     public ShortArrayList getValue() {
         return this.value;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.LIST(Types.SHORT);
     }
 }

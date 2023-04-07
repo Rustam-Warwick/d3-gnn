@@ -12,22 +12,28 @@
  */
 package ai.djl.util;
 
-import com.sun.jna.Pointer;
-
-import java.util.concurrent.atomic.AtomicReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@code NativeResource} is an internal class for {@link AutoCloseable} blocks of memory created in
  * the different engines.
  *
- * @param <T> the resource that could map to a native pointer or java object
+ * @author rustambaku13
+ * <p>
+ * Removed unnecessary fields
+ * Removed atomic access
+ * Remove marshalling
+ * </p>
  */
 public abstract class NativeResource<T> implements AutoCloseable {
 
-    protected final AtomicReference<T> handle;
+    private static final Logger logger = LoggerFactory.getLogger(NativeResource.class);
 
-    protected NativeResource(T handle) {
-        this.handle = new AtomicReference<>(handle);
+    protected long handle;
+
+    protected NativeResource(long handle) {
+        this.handle = handle;
     }
 
     /**
@@ -36,20 +42,21 @@ public abstract class NativeResource<T> implements AutoCloseable {
      * @return whether this resource has been released
      */
     public boolean isReleased() {
-        return handle.get() == null;
+        return handle == Long.MAX_VALUE;
     }
 
     /**
-     * Gets the {@link Pointer} to this resource.
-     *
-     * @return the {@link Pointer} to this resource
+     * Mark this as released
+     */
+    public void markReleased() {
+        handle = Long.MAX_VALUE;
+    }
+
+    /**
+     * Get handle
      */
     public T getHandle() {
-        T reference = handle.get();
-        if (reference == null) {
-            throw new IllegalStateException("Native resource has been release already.");
-        }
-        return reference;
+        return (T) Long.valueOf(handle);
     }
 
     /**
@@ -58,7 +65,8 @@ public abstract class NativeResource<T> implements AutoCloseable {
      * @return the unique ID of this resource
      */
     public final String getUid() {
-        return handle.toString();
+        logger.warn("Accessing UID of resource is costly, try to not do it");
+        return String.valueOf(handle);
     }
 
     /**

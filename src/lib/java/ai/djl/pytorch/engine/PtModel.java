@@ -24,6 +24,7 @@ import ai.djl.training.TrainingConfig;
 import ai.djl.training.initializer.Initializer;
 import ai.djl.util.Pair;
 import ai.djl.util.PairList;
+import ai.djl.util.Utils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -41,6 +42,11 @@ import java.util.stream.Collectors;
  *
  * <p>PtModel contains all the methods in Model to load and process a model. In addition, it
  * provides PyTorch Specific functionality
+ *
+ * @author rustambaku13
+ * <p>
+ * Added default constructor
+ * </p>
  */
 public class PtModel extends BaseModel {
 
@@ -68,28 +74,29 @@ public class PtModel extends BaseModel {
     public void load(Path modelPath, String prefix, Map<String, ?> options)
             throws IOException, MalformedModelException {
         setModelDir(modelPath);
+        wasLoaded = true;
         if (prefix == null) {
             prefix = modelName;
         }
 
         if (block == null) {
-            Path modelFile = findModelFile(prefix);
+            // search for .pt file with prefix, folder name or "model.pt"
+            Path modelFile = findModelFile(prefix, modelDir.toFile().getName(), "model.pt");
             if (modelFile == null) {
-                modelFile = findModelFile(modelDir.toFile().getName());
-                if (modelFile == null) {
-                    String fileName = prefix.endsWith(".pt") ? prefix : prefix + ".pt";
-                    throw new FileNotFoundException(fileName + " file not found in: " + modelDir);
-                }
+                String fileName = prefix.endsWith(".pt") ? prefix : prefix + ".pt";
+                throw new FileNotFoundException(fileName + " file not found in: " + modelDir);
             }
-            String[] extraFileKeys = new String[0];
-            String[] extraFileValues = new String[0];
+            String[] extraFileKeys = Utils.EMPTY_ARRAY;
+            String[] extraFileValues = Utils.EMPTY_ARRAY;
             boolean mapLocation = false;
+            boolean trainParam = false;
             // load jit extra files
             if (options != null) {
                 if (options.containsKey("extraFiles")) {
                     extraFileKeys = ((String) options.get("extraFiles")).split(",");
                     extraFileValues = new String[extraFileKeys.length];
                 }
+                trainParam = Boolean.parseBoolean((String) options.get("trainParam"));
                 mapLocation = Boolean.parseBoolean((String) options.get("mapLocation"));
             }
             block =
@@ -98,10 +105,19 @@ public class PtModel extends BaseModel {
                             modelFile,
                             mapLocation,
                             extraFileKeys,
-                            extraFileValues);
+                            extraFileValues,
+                            trainParam);
             for (int i = 0; i < extraFileKeys.length; i++) {
                 properties.put(extraFileKeys[i], extraFileValues[i]);
             }
+
+            /*
+             * By default, the parameters are frozen, since the previous version before adding this
+             * trainParam, they were frozen due to the setting JITCallGuard guard, which disables
+             * autograd. Also, the pretrained parameters usually should not be updated too much. It
+             * is safe to freeze it. Users may unfreeze it and set their learning rate small.
+             */
+            block.freezeParameters(!trainParam);
         } else {
             boolean hasParameter = true;
             if (options != null) {
@@ -149,7 +165,7 @@ public class PtModel extends BaseModel {
         block = JniUtils.loadModule((PtNDManager) manager, modelStream, mapLocation, false);
     }
 
-    private Path findModelFile(String prefix) {
+    private Path findModelFile(String... prefixes) {
         if (Files.isRegularFile(modelDir)) {
             Path file = modelDir;
             modelDir = modelDir.getParent();
@@ -161,17 +177,19 @@ public class PtModel extends BaseModel {
             }
             return file;
         }
-        Path modelFile = modelDir.resolve(prefix);
-        if (Files.notExists(modelFile) || !Files.isRegularFile(modelFile)) {
-            if (prefix.endsWith(".pt")) {
-                return null;
+        for (String prefix : prefixes) {
+            Path modelFile = modelDir.resolve(prefix);
+            if (Files.isRegularFile(modelFile)) {
+                return modelFile;
             }
-            modelFile = modelDir.resolve(prefix + ".pt");
-            if (Files.notExists(modelFile) || !Files.isRegularFile(modelFile)) {
-                return null;
+            if (!prefix.endsWith(".pt")) {
+                modelFile = modelDir.resolve(prefix + ".pt");
+                if (Files.isRegularFile(modelFile)) {
+                    return modelFile;
+                }
             }
         }
-        return modelFile;
+        return null;
     }
 
     /**
@@ -183,6 +201,10 @@ public class PtModel extends BaseModel {
         if (block == null) {
             throw new IllegalStateException(
                     "You must set a block for the model before creating a new trainer");
+        }
+        if (wasLoaded) {
+            // Unfreeze parameters if training directly
+            block.freezeParameters(false);
         }
         for (Pair<Initializer, Predicate<Parameter>> pair : initializer) {
             if (pair.getKey() != null && pair.getValue() != null) {
@@ -211,7 +233,7 @@ public class PtModel extends BaseModel {
                 Path relative = modelDir.relativize(path);
                 ret.add(relative.toString());
             }
-            return ret.toArray(new String[0]);
+            return ret.toArray(Utils.EMPTY_ARRAY);
         } catch (IOException e) {
             throw new AssertionError("Failed list files", e);
         }

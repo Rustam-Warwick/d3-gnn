@@ -43,11 +43,6 @@ public abstract class Aggregator<T> extends Feature<T, NDArray> {
     public abstract void replace(NDList newElement, NDList oldElement);
 
     /**
-     * Given Dl/Da return dl/dmessage
-     */
-    public abstract NDArray grad(NDArray aggGradient);
-
-    /**
      * Reset this aggregator to its initial state
      */
     public abstract void reset();
@@ -55,5 +50,5 @@ public abstract class Aggregator<T> extends Feature<T, NDArray> {
     /**
      * Return the number of reduced connections to this aggregator
      */
-    public abstract int reducedCount();
+    public abstract int getReducedCount();
 }

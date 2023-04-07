@@ -16,7 +16,6 @@ import ai.djl.Device;
 import ai.djl.engine.Engine;
 import ai.djl.ndarray.types.DataType;
 import ai.djl.ndarray.types.Shape;
-import ai.djl.util.Float16Utils;
 import ai.djl.util.PairList;
 import ai.djl.util.RandomUtils;
 import com.github.benmanes.caffeine.cache.*;
@@ -28,8 +27,11 @@ import java.nio.Buffer;
 import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * {@code BaseNDManager} is the default implementation of {@link NDManager}.
@@ -39,9 +41,14 @@ import java.util.concurrent.TimeUnit;
  * </strong>
  *
  * <strong>
- * To add a new engine support we need to create NDManager and place it in ThreadLocal
+ * To aggregate a new engine support we need to create NDManager and place it in ThreadLocal
  * Further retrievals should also be done through threadlocal as well
  * </strong>
+ *
+ * @author rustambaku13
+ * <p>
+ * Changes to cache based storage with ticker eviction
+ * </p>
  */
 public abstract class BaseNDManager implements NDManager {
 
@@ -132,6 +139,8 @@ public abstract class BaseNDManager implements NDManager {
         }
     }
 
+    // -------------------------- DEFAULT METHODS ---------------------------
+
     /**
      * Copies data from the source {@code Buffer} to the target {@code ByteBuffer}.
      *
@@ -168,6 +177,7 @@ public abstract class BaseNDManager implements NDManager {
         target.rewind();
     }
 
+
     /**
      * {@inheritDoc}
      */
@@ -185,8 +195,6 @@ public abstract class BaseNDManager implements NDManager {
     public void detachInternal(String resourceId, AutoCloseable resource) {
         attached.invalidate(resource); // !This might cause eviction is the time is late
     }
-
-    // -------------------------- DEFAULT METHODS ---------------------------
 
     /**
      * {@inheritDoc}
@@ -268,7 +276,7 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public String getName() {
-        return uid;
+        return this.name == null ? uid : this.name;
     }
 
     /**
@@ -277,53 +285,6 @@ public abstract class BaseNDManager implements NDManager {
     @Override
     public void setName(String name) {
         this.name = name;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public NDArray zeros(Shape shape, DataType dataType) {
-        int size = (int) shape.size();
-        ByteBuffer bb = allocateDirect(size * dataType.getNumOfBytes());
-        return create(bb, shape, dataType);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public NDArray ones(Shape shape, DataType dataType) {
-        int size = (int) shape.size();
-        ByteBuffer bb = allocateDirect(size * dataType.getNumOfBytes());
-        for (int i = 0; i < size; ++i) {
-            switch (dataType) {
-                case FLOAT16:
-                    bb.putShort(Float16Utils.ONE);
-                    break;
-                case FLOAT32:
-                    bb.putFloat(1f);
-                    break;
-                case FLOAT64:
-                    bb.putDouble(1d);
-                    break;
-                case INT32:
-                    bb.putInt(1);
-                    break;
-                case INT64:
-                    bb.putLong(1);
-                    break;
-                case UINT8:
-                case INT8:
-                    bb.put((byte) 1);
-                    break;
-                case UNKNOWN:
-                default:
-                    break;
-            }
-        }
-        bb.rewind();
-        return create(bb, shape, dataType);
     }
 
     /**
@@ -363,6 +324,14 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public NDArray randomInteger(long low, long high, Shape shape, DataType dataType) {
+        throw new UnsupportedOperationException("Not supported!");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray randomPermutation(long n) {
         throw new UnsupportedOperationException("Not supported!");
     }
 
@@ -479,7 +448,7 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public void cap() {
-
+        // pass, no cap by default
     }
 
     /**
@@ -504,6 +473,26 @@ public abstract class BaseNDManager implements NDManager {
     @Override
     public Device getDevice() {
         return device;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<NDArray> getManagedArrays() {
+        return attached.asMap().keySet().stream()
+                .flatMap(
+                        r -> {
+                            if (r instanceof NDResource) {
+                                return ((NDResource) r)
+                                        .getResourceNDArrays().stream();
+                            } else if (r instanceof NDManager) {
+                                return ((NDManager) r).getManagedArrays().stream();
+                            } else {
+                                return Stream.empty();
+                            }
+                        })
+                .collect(Collectors.toList());
     }
 
     /**
@@ -542,7 +531,7 @@ public abstract class BaseNDManager implements NDManager {
      */
     @Override
     public void close() {
-        // pass
+        // pass closing on de-reference
     }
 
     /**
@@ -557,13 +546,12 @@ public abstract class BaseNDManager implements NDManager {
         }
         sb.append("\\--- NDManager(")
                 .append(uid.substring(24))
-                .append(") attached count: ")
+                .append(") resource count: ")
                 .append(attached.estimatedSize());
-
     }
 
     NDManager getAlternativeManager() {
-        return null;
+        return this;
     }
 
     protected static final class TempResource {
@@ -617,6 +605,7 @@ public abstract class BaseNDManager implements NDManager {
      * Cleanup remaining tensors after the Thread is dead
      */
     static class NDManagerFinalizeTask implements Runnable {
+
         private final Cache<AutoCloseable, Void> attached;
 
         public NDManagerFinalizeTask(BaseNDManager manager) {
@@ -628,7 +617,6 @@ public abstract class BaseNDManager implements NDManager {
             attached.asMap().forEach((key, value) -> {
                 ((LifeCycleControl) key).destroy();
             });
-            attached.invalidateAll();
         }
     }
 }

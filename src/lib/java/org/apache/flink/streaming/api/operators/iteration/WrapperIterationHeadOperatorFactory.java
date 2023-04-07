@@ -23,13 +23,19 @@ public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOper
     protected final int iterationID;
 
     /**
+     * Are the element part of lifecycle control
+     */
+    protected final boolean hasLifeCycleControl;
+
+    /**
      * Main Body {@link StreamOperatorFactory}
      */
-    protected StreamOperatorFactory<OUT> bodyOperatorFactory;
+    protected final StreamOperatorFactory<OUT> bodyOperatorFactory;
 
-    public WrapperIterationHeadOperatorFactory(int iterationID, StreamOperatorFactory<OUT> bodyOperatorFactory) {
+    public WrapperIterationHeadOperatorFactory(int iterationID, StreamOperatorFactory<OUT> bodyOperatorFactory, boolean hasLifeCycleControl) {
         this.iterationID = iterationID;
         this.bodyOperatorFactory = bodyOperatorFactory;
+        this.hasLifeCycleControl = hasLifeCycleControl;
     }
 
     /**
@@ -39,7 +45,7 @@ public class WrapperIterationHeadOperatorFactory<OUT> extends AbstractStreamOper
     @Override
     public <T extends StreamOperator<OUT>> T createStreamOperator(StreamOperatorParameters<OUT> parameters) {
         final Tuple2<AbstractStreamOperator<OUT>, Optional<ProcessingTimeService>> bodyOperatorResult = StreamOperatorFactoryUtil.createOperator(bodyOperatorFactory, (StreamTask<OUT, ?>) parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput(), parameters.getOperatorEventDispatcher());
-        return (T) new WrapperIterationHeadOperator<>(iterationID, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), bodyOperatorResult.f0, parameters);
+        return (T) new WrapperIterationHeadOperator<>(iterationID, parameters.getContainingTask().getMailboxExecutorFactory().createExecutor(-1), bodyOperatorResult.f0, parameters, hasLifeCycleControl);
     }
 
     @Override

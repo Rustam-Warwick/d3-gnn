@@ -4,8 +4,6 @@ import elements.enums.CopyContext;
 import elements.enums.ElementType;
 import elements.enums.Op;
 import elements.enums.ReplicaState;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.jetbrains.annotations.Nullable;
@@ -24,11 +22,6 @@ import java.util.Objects;
 public class Feature<T, V> extends ReplicableGraphElement {
 
     /**
-     * List of Element types
-     */
-    public static ElementType[] ELEMENT_VALUES = ElementType.values();
-
-    /**
      * Actual value stored in this Feature object
      */
     public T value;
@@ -36,7 +29,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     /**
      * If this Feature is halo
      */
-    public boolean halo = false;
+    public boolean halo;
 
     /**
      * Attached {@link  GraphElement} if it exists
@@ -56,22 +49,22 @@ public class Feature<T, V> extends ReplicableGraphElement {
 
     public Feature(String name, T value) {
         super();
-        this.value = value;
         this.id = Tuple3.of(ElementType.NONE, null, name);
+        this.value = value;
     }
 
     public Feature(String name, T value, boolean halo) {
         super();
-        this.value = value;
         this.id = Tuple3.of(ElementType.NONE, null, name);
+        this.value = value;
         this.halo = halo;
     }
 
     public Feature(String name, T value, boolean halo, short master) {
         super(master);
+        this.id = Tuple3.of(ElementType.NONE, null, name);
         this.halo = halo;
         this.value = value;
-        this.id = Tuple3.of(ElementType.NONE, null, name);
     }
 
     public Feature(Feature<T, V> feature, CopyContext context) {
@@ -112,12 +105,12 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public void create() {
         if (getType() == ElementType.STANDALONE_FEATURE) super.create();
         else if (!getGraphRuntimeContext().getStorage().containsElement(id.f1, id.f0)) {
-            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElement(id.f1, id.f0);
+            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElementAsMaster(id.f1, id.f0);
             setElement(el, false);
             el.create();
         } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
-                GraphOp message = new GraphOp(Op.UPDATE, copy(CopyContext.SYNC));
+                GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
                 getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             createInternal();
@@ -154,13 +147,6 @@ public class Feature<T, V> extends ReplicableGraphElement {
      */
     public boolean valuesEqual(T v1, T v2) {
         return false;
-    }
-
-    /**
-     * Helper TypeInfo for the storage layers
-     */
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.GENERIC(Object.class);
     }
 
     /**
@@ -254,6 +240,9 @@ public class Feature<T, V> extends ReplicableGraphElement {
      *
      * @param testIfExistsInElement If we should check for existence of duplicated {@link Feature} in {@link GraphElement}
      *                              <p> If test is true, this Feature will not be added to GraphElement if there is a feature with that name already </p>
+     *                              <p>
+     *                              Does not handle the duplication of the feature in multiple Graph Elements
+     *                              </p>
      */
     public void setElement(GraphElement attachingElement, boolean testIfExistsInElement) {
         element = attachingElement;
@@ -275,7 +264,7 @@ public class Feature<T, V> extends ReplicableGraphElement {
     public String toString() {
         return getType() + "{" +
                 "id='" + getId() + '\'' +
-                "master='" + getMasterPart() + '\'' +
+                "master='" + masterPart + '\'' +
                 "value='" + value + '\'' +
                 '}';
     }

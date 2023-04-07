@@ -24,6 +24,7 @@ public class ParameterStore {
 
     public NDArray getValue(Parameter parameter, Device device, boolean training) {
         if (Objects.nonNull(parameter)) {
+
             if (parameter.getArray().hasGradient() != training) {
                 parameter.getArray().setRequiresGradient(training);
             }

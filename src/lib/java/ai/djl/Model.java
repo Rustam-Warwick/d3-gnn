@@ -49,6 +49,11 @@ import java.util.function.Function;
  * <p>For training a model, see {@link Trainer}.
  *
  * <p>For running inference with a model, see {@link Predictor}.
+ *
+ * @author rustambaku13
+ * <p>
+ * Added {@link KryoExternalizable}
+ * </p>
  */
 public interface Model extends AutoCloseable, KryoExternalizable {
 
@@ -194,12 +199,27 @@ public interface Model extends AutoCloseable, KryoExternalizable {
     String getName();
 
     /**
-     * Gets the property of the model based on property name.
+     * Returns the property of the model based on property name.
      *
      * @param key the name of the property
      * @return the value of the property
      */
     String getProperty(String key);
+
+    /**
+     * Returns the property of the model based on property name.
+     *
+     * @param key      the name of the property
+     * @param defValue the default value if key not found
+     * @return the value of the property
+     */
+    default String getProperty(String key, String defValue) {
+        String value = getProperty(key);
+        if (value == null || value.isEmpty()) {
+            return defValue;
+        }
+        return value;
+    }
 
     /**
      * Sets a property to the model.

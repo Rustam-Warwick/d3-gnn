@@ -10,17 +10,20 @@ import ai.djl.nn.Activation;
 import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
+import ai.djl.training.loss.Loss;
 import elements.GraphOp;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.runtime.state.graph.GraphStateBackend;
-import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
-import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
+import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
+import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
-import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import storage.EdgeListStorage;
+import plugins.gnn_embedding.DeepAdaptiveWindowedGNNEmbedding;
+import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
 
@@ -31,29 +34,29 @@ public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
+        sb.add(new SAGEConv(128, true));
         sb.add(new SAGEConv(64, true));
-        sb.add(new SAGEConv(47, true));
         sb.add(
                 new SequentialBlock()
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(32).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
                                 return Activation.relu(ndArrays);
                             }
                         })
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(16).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
                                 return Activation.relu(ndArrays);
                             }
                         })
-                        .add(Linear.builder().setUnits(47).optBias(true).build())
+                        .add(Linear.builder().setUnits(1).optBias(true).build())
                         .add(new Function<NDList, NDList>() {
                             @Override
                             public NDList apply(NDList ndArrays) {
-                                return Activation.softmax(ndArrays);
+                                return Activation.sigmoid(ndArrays);
                             }
                         })
 
@@ -61,7 +64,7 @@ public class Main {
         BaseModel model = (BaseModel) Model.newInstance("GNN");
         model.setBlock(sb);
 //        NDHelper.loadModel(Path.of(System.getenv("DATASET_DIR"), "ogb-products", "graphSage"), model);
-        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(100));
+        model.getBlock().initialize(BaseNDManager.getManager(), DataType.FLOAT32, new Shape(17));
         ArrayList<Model> models = new ArrayList<>();
         sb.getChildren().forEach(item -> {
             BaseModel tmp = (BaseModel) Model.newInstance("GNN"); // Should all have the same name
@@ -73,14 +76,21 @@ public class Main {
 
     public static void main(String[] args) throws Throwable {
         try {
-            BaseNDManager.getManager().delay();
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            env.setStateBackend(GraphStateBackend.with(new HashMapStateBackend()));
-            DataStream<GraphOp>[] res = new GraphStream(env, args, true, false, false,
-                    Tuple2.of(new EdgeListStorage(), List.of(new ModelServer<>(models.get(0)), new SessionWindowedGNNEmbeddingLayer(models.get(0).getName(), true, 5000)))
-            ).build();
-            env.execute();
+            GraphStream gs = new GraphStream(env, args, (short) 2, (position, layers, extra) -> {
+                if (position == 0)
+                    return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                if (position == 1)
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new DeepAdaptiveWindowedGNNEmbedding(models.get(0).getName(), true, 25, 2000, 0.2)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                if (position == 2)
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new DeepAdaptiveWindowedGNNEmbedding(models.get(1).getName(), false, 25,2000, 0.2)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                else
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
+            });
+            env.setMaxParallelism(270);
+            gs.build();
+            env.execute(String.format("Streaming %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

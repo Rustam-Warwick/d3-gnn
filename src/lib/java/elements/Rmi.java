@@ -10,7 +10,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.jctools.maps.NonBlockingHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,10 +31,12 @@ public class Rmi extends GraphElement {
      * </strong>
      */
     public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>>> classRemoteMethods = new NonBlockingHashMap<>(1 << 4);
+
     /**
      * Log
      */
     private static final Logger LOG = LoggerFactory.getLogger(Rmi.class);
+
     /**
      * Method Arguments list
      */
@@ -54,6 +56,7 @@ public class Rmi extends GraphElement {
      * Name of the remote method to be called
      */
     public String methodName;
+
 
     public Rmi() {
         super();
@@ -95,8 +98,7 @@ public class Rmi extends GraphElement {
      */
     public static void execute(GraphElement element, String methodName, Object... args) {
         try {
-            classRemoteMethods.computeIfAbsent(element.getClass(), Rmi::getClassRemoteMethods); // Cache MethodHandles of all elements of the given class
-            Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>> classMethods = classRemoteMethods.get(element.getClass());
+            Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>> classMethods = classRemoteMethods.computeIfAbsent(element.getClass(), Rmi::getClassRemoteMethods); // Cache MethodHandles of all elements of the given class
             Tuple2<Integer, Boolean> method = classMethods.f1.get(methodName);
             if (method.f1) {
                 GraphElement deepCopyElement = element.copy(CopyContext.RMI); // Creates an RMI copy of the element
@@ -153,8 +155,18 @@ public class Rmi extends GraphElement {
      * {@inheritDoc}
      */
     @Override
+    public void destroy() {
+        for (Object arg : args) {
+            if (arg instanceof LifeCycleControl) ((LifeCycleControl) arg).destroy();
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public ElementType getType() {
-        return this.elemType;
+        return elemType;
     }
 
     /**

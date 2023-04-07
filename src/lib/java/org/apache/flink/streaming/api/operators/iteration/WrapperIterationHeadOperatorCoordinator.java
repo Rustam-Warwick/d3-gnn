@@ -8,6 +8,8 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Coordinator for {@link WrapperIterationHeadOperator}
@@ -16,7 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordinator {
 
     /**
-     * Coordinator for the internal operator
+     * Coordinator for the internal operator. All the events are also directed to this body operator coordinator if it exists
      */
     @Nullable
     protected final OperatorCoordinator bodyOperatorCoordinator;
@@ -48,22 +50,24 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
     @Override
     public void start() throws Exception {
-        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.start();
         controller.addCoordinator(this);
+        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.start();
     }
 
     @Override
     public void close() throws Exception {
-        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.close();
         controller.removeCoordinator(this);
+        if (bodyOperatorCoordinator != null) bodyOperatorCoordinator.close();
     }
 
     @Override
     public void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event) throws Exception {
+        if (event instanceof StartTermination) controller.startTermination();
+        if (event instanceof TerminationScanResponse)
+            controller.consumeResponse(((TerminationScanResponse) event).terminateReady);
         if (bodyOperatorCoordinator != null)
             bodyOperatorCoordinator.handleEventFromOperator(subtask, attemptNumber, event);
-        if (event instanceof StartTermination) controller.startTermination();
-        if (event instanceof ResponseScan) controller.consumeResponse(((ResponseScan) event).terminateReady);
+
     }
 
     @Override
@@ -88,18 +92,18 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
     @Override
     public void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason) {
-        if (bodyOperatorCoordinator != null)
-            bodyOperatorCoordinator.executionAttemptFailed(subtask, attemptNumber, reason);
         gateways[subtask] = null;
         controller.removeSubOperator();
+        if (bodyOperatorCoordinator != null)
+            bodyOperatorCoordinator.executionAttemptFailed(subtask, attemptNumber, reason);
     }
 
     @Override
     public void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway) {
-        if (bodyOperatorCoordinator != null)
-            bodyOperatorCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
         gateways[subtask] = gateway;
         controller.addSubOperator();
+        if (bodyOperatorCoordinator != null)
+            bodyOperatorCoordinator.executionAttemptReady(subtask, attemptNumber, gateway);
     }
 
     /**
@@ -107,9 +111,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      */
     public void doScan() {
         for (SubtaskGateway gateway : gateways) {
-            if (gateway != null) {
-                gateway.sendEvent(new RequestScan());
-            }
+            if (gateway != null) gateway.sendEvent(new TerminationScanRequest());
         }
     }
 
@@ -118,17 +120,25 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      */
     public void doTerminate() {
         for (SubtaskGateway gateway : gateways) {
-            if (gateway != null) {
-                gateway.sendEvent(new Terminate());
-            }
+            if (gateway != null) gateway.sendEvent(new TerminationReady());
         }
     }
 
     /**
      * Helper class instance of which is shared amongst {@link WrapperIterationHeadOperatorCoordinator} in one job
+     * <p>
      * Counts the number of messages from each sub-operator and detects when to terminate the operator
+     * <p>
+     * It can happen that termination is started before other operators are joined to the thread
+     * Assumptions:
+     * - Streaming mode only
+     * - All coordinates are joined before the start termination
+     * - All iteration channels are closed at the same time. No partial termination of dataflow graph
+     * </p>
      */
     private static class TerminationDetectionController extends Thread {
+
+        static private final long SLEEP_TIME_MS = 2000;
 
         /**
          * List of all Coordinators
@@ -137,21 +147,30 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
         /**
          * Number of sub-operators with iteration HEAD logic
          */
-        int numIterationSubOperators;
+        protected final AtomicInteger joinedSubOperators = new AtomicInteger(0);
         /**
          * Number of messages received from HEAD sub-operators
          */
-        int receivedFromIterationOperators;
+        protected final AtomicInteger receivedFromSubOperators = new AtomicInteger(0);
         /**
          * Found termination point
          */
-        boolean terminationFound;
+        protected final AtomicBoolean terminationFound = new AtomicBoolean(false);
+        /**
+         * Running this Thread
+         */
+        protected final AtomicBoolean startedOnce = new AtomicBoolean(false);
+        /**
+         * Total number of suboperators
+         */
+        protected int numSubOperators;
 
         /**
          * Add newly created {@link WrapperIterationHeadOperatorCoordinator} object to the list
          */
         synchronized void addCoordinator(WrapperIterationHeadOperatorCoordinator coordinator) {
             coordinators.add(coordinator);
+            numSubOperators += coordinator.context.currentParallelism();
         }
 
         /**
@@ -159,62 +178,72 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
          */
         synchronized void removeCoordinator(WrapperIterationHeadOperatorCoordinator coordinator) {
             coordinators.remove(coordinator);
+            numSubOperators -= coordinator.context.currentParallelism();
             if (coordinators.isEmpty() && isAlive()) interrupt();
         }
 
         /**
          * New Sub-Operator added increment counter
          */
-        synchronized void addSubOperator() {
-            numIterationSubOperators++;
+        void addSubOperator() {
+            if (joinedSubOperators.incrementAndGet() == numSubOperators) {
+                synchronized (this) {
+                    notify();
+                }
+            }
         }
 
         /**
          * Sub-Operator failed increment counter
          */
-        synchronized void removeSubOperator() {
-            numIterationSubOperators--;
+        void removeSubOperator() {
+            joinedSubOperators.decrementAndGet();
         }
 
         /**
-         * One head has reached finish block startTermination the distributed termination detection
+         * One head has reached finish block startFlushing the distributed termination detection
          */
-        synchronized public void startTermination() {
-            if (!isAlive()) {
-                start();
-            }
+        void startTermination() {
+            if (!startedOnce.getAndSet(true)) start();
         }
 
         /**
          * Consume Scan response
          */
-        synchronized void consumeResponse(boolean response) {
-            terminationFound &= response;
-            receivedFromIterationOperators++;
+        void consumeResponse(boolean response) {
+            terminationFound.compareAndExchange(true, response);
+            if (receivedFromSubOperators.incrementAndGet() == joinedSubOperators.get()) {
+                synchronized (this) {
+                    notify();
+                }
+            }
         }
 
         @Override
         public void run() {
             try {
-                while (!terminationFound) {
-                    terminationFound = true; // Assume found if not negated by sub-operator
+                synchronized (this) {
+                    while (numSubOperators != joinedSubOperators.get()) {
+                        wait();
+                    }
+                }
+                while (!terminationFound.get()) {
+                    terminationFound.set(true); // Assume found if not negated by sub-operator
+                    receivedFromSubOperators.set(0);
                     coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doScan);
-                    while (receivedFromIterationOperators < numIterationSubOperators) {
-                        Thread.onSpinWait();
+                    synchronized (this) {
+                        while (receivedFromSubOperators.get() < joinedSubOperators.get()) {
+                            wait();
+                        }
                     }
-                    if (terminationFound) {
-                        coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
-                    } else {
-                        Thread.sleep(4000);
-                        receivedFromIterationOperators = 0;
-                    }
+                    if (!terminationFound.get()) Thread.sleep(SLEEP_TIME_MS);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                coordinators.forEach(WrapperIterationHeadOperatorCoordinator::doTerminate);
             }
         }
-
-
     }
 
     /**
@@ -228,17 +257,17 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Message for Requesting Scanning of HEAD operator
      * Should be sent from {@link WrapperIterationHeadOperatorCoordinator} to {@link WrapperIterationHeadOperator}
      */
-    public static class RequestScan implements OperatorEvent {
+    public static class TerminationScanRequest implements OperatorEvent {
     }
 
     /**
      * Scan Response Result from operators
      * Should be sent from {@link WrapperIterationHeadOperator} to {@link WrapperIterationHeadOperatorCoordinator}
      */
-    public static class ResponseScan implements OperatorEvent {
+    public static class TerminationScanResponse implements OperatorEvent {
         public final boolean terminateReady;
 
-        public ResponseScan(boolean terminateReady) {
+        public TerminationScanResponse(boolean terminateReady) {
             this.terminateReady = terminateReady;
         }
     }
@@ -247,7 +276,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
      * Terminate the operator
      * Should be sent from {@link WrapperIterationHeadOperatorCoordinator} to {@link WrapperIterationHeadOperator}
      */
-    public static class Terminate implements OperatorEvent {
+    public static class TerminationReady implements OperatorEvent {
     }
 
     /**
@@ -272,10 +301,7 @@ public class WrapperIterationHeadOperatorCoordinator implements OperatorCoordina
 
         @Override
         public OperatorCoordinator create(Context context) throws Exception {
-            if (bodyOperatorCoordinatorProvider == null)
-                return new WrapperIterationHeadOperatorCoordinator(null, context);
-            else
-                return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider.create(context), context);
+            return new WrapperIterationHeadOperatorCoordinator(bodyOperatorCoordinatorProvider == null ? null : bodyOperatorCoordinatorProvider.create(context), context);
         }
     }
 }

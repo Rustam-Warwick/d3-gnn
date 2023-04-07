@@ -31,10 +31,6 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         super(modelName, "inferencer", trainableVertexEmbeddings);
     }
 
-    public StreamingHGNNEmbeddingLayer(String modelName, boolean trainableVertexEmbeddings, boolean IS_ACTIVE) {
-        super(modelName, "inferencer", trainableVertexEmbeddings, IS_ACTIVE);
-    }
-
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
@@ -100,7 +96,7 @@ public class StreamingHGNNEmbeddingLayer extends BaseHGNNEmbeddingPlugin {
         tmp.id.f1 = v.getId();
         throughput.inc();
         latency.inc(getRuntimeContext().getTimerService().currentProcessingTime() - getRuntimeContext().currentTimestamp());
-        getRuntimeContext().output(new GraphOp(Op.UPDATE, v.getMasterPart(), tmp));
+        getRuntimeContext().output(new GraphOp(Op.COMMIT, v.getMasterPart(), tmp));
     }
 
     /**

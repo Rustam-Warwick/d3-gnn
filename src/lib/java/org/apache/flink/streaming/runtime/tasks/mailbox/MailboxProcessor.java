@@ -62,6 +62,10 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>This class has an open-prepareClose-close lifecycle that is connected with and maps to the
  * lifecycle of the encapsulated {@link TaskMailbox} (which is open-quiesce-close).
+ *
+ * @author rustambaku13
+ * Added {@link NDManager} delaying and resuming life-cycle logic on mail and default action execution
+ * So all the timer, operator events, messages are all going to be encapsulated with delayed manager logic
  */
 @Internal
 public class MailboxProcessor implements Closeable {
@@ -136,6 +140,8 @@ public class MailboxProcessor implements Closeable {
         this.mailboxLoopRunning = true;
         this.suspendedDefaultAction = null;
         this.mailboxMetricsControl = mailboxMetricsControl;
+        System.gc();
+        System.runFinalization();
     }
 
     public MailboxExecutor getMainMailboxExecutor() {
@@ -192,6 +198,8 @@ public class MailboxProcessor implements Closeable {
                         throw e;
                     });
         }
+        System.gc();
+        System.runFinalization();
     }
 
     /**
@@ -473,7 +481,7 @@ public class MailboxProcessor implements Closeable {
 
         private final MailboxProcessor mailboxProcessor;
 
-        protected MailboxController(MailboxProcessor mailboxProcessor) {
+        private MailboxController(MailboxProcessor mailboxProcessor) {
             this.mailboxProcessor = mailboxProcessor;
         }
 

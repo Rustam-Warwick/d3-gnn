@@ -60,7 +60,7 @@ public class MeshHyperGraphGenerator extends Dataset {
         GraphOp[] resultingEdges = new GraphOp[nVertices];
         List<String> hyperEdges = IntStream.range(0, nVertices).mapToObj(item -> RandomStringGenerator.getRandomString(20)).collect(Collectors.toList());
         for (int i = 0; i < nVertices; i++) {
-            resultingEdges[i] = new GraphOp(Op.UPDATE,
+            resultingEdges[i] = new GraphOp(Op.COMMIT,
                     new HyperEgoGraph(new Vertex(String.valueOf(i)), hyperEdges));
         }
         return List.of(resultingEdges);

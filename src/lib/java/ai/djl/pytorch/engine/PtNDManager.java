@@ -29,12 +29,17 @@ import java.nio.charset.Charset;
 
 /**
  * {@code PtNDManager} is the PyTorch implementation of {@link NDManager}.
+ *
+ * @author rustambaku13
+ * <p>
+ * getSubManager is now ThreadLocal
+ * </p>
  */
 public class PtNDManager extends BaseNDManager {
 
     private static final PtNDManager SYSTEM_MANAGER = new SystemManager();
 
-    protected PtNDManager(NDManager parent, Device device) {
+    private PtNDManager(NDManager parent, Device device) {
         super(parent, device);
     }
 
@@ -58,7 +63,9 @@ public class PtNDManager extends BaseNDManager {
         if (array == null || array instanceof PtNDArray) {
             return (PtNDArray) array;
         }
-        return create(array.toByteBuffer(), array.getShape(), array.getDataType());
+        PtNDArray result = create(array.toByteBuffer(), array.getShape(), array.getDataType());
+        result.setName(array.getName());
+        return result;
     }
 
     /**
@@ -186,6 +193,14 @@ public class PtNDManager extends BaseNDManager {
      * {@inheritDoc}
      */
     @Override
+    public NDArray randomPermutation(long n) {
+        return JniUtils.randperm(this, n, DataType.INT64, device);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public NDArray randomUniform(float low, float high, Shape shape, DataType dataType) {
         return JniUtils.uniform(this, low, high, shape, dataType, device);
     }
@@ -196,6 +211,14 @@ public class PtNDManager extends BaseNDManager {
     @Override
     public NDArray randomNormal(float loc, float scale, Shape shape, DataType dataType) {
         return JniUtils.normal(this, loc, scale, shape, dataType, device);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray hanningWindow(long numPoints) {
+        return JniUtils.hannWindow(this, numPoints, true, device);
     }
 
     /**
@@ -223,6 +246,7 @@ public class PtNDManager extends BaseNDManager {
      * The SystemManager is the root {@link PtNDManager} of which all others are children.
      */
     private static final class SystemManager extends PtNDManager implements SystemNDManager {
+
         SystemManager() {
             super(null, null);
         }

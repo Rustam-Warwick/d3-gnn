@@ -12,16 +12,12 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 
-public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin {
+public class VertexClassificationAccuracyReporter extends BaseVertexOutput {
 
-    Tuple2<Integer, Integer> correctVsIncorrect = Tuple2.of(0, 0);
+    final Tuple2<Integer, Integer> correctVsIncorrect = Tuple2.of(0, 0);
 
     public VertexClassificationAccuracyReporter(String modelName) {
         super(modelName, "accuracy-reporter");
-    }
-
-    public VertexClassificationAccuracyReporter(String modelName, boolean IS_ACTIVE) {
-        super(modelName, "accuracy-reporter", IS_ACTIVE);
     }
 
     @Override
@@ -42,7 +38,7 @@ public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin
         super.addElementCallback(element);
         if (element.getType() == ElementType.ATTACHED_FEATURE && element.state() == ReplicaState.MASTER) {
             Feature<?, ?> ft = (Feature<?, ?>) element;
-            if (ft.getName().equals("f") || ft.getName().equals("l")) addNewTrainingSample((Vertex) ft.getElement());
+            if (ft.getName().equals("f") || ft.getName().equals("tl")) addNewTrainingSample((Vertex) ft.getElement());
         }
     }
 
@@ -56,35 +52,39 @@ public class VertexClassificationAccuracyReporter extends BaseVertexOutputPlugin
     }
 
     public void updateOldAccuracySample(Tensor newFeature, Tensor oldFeature) {
-        if (newFeature.getElement().containsFeature("l")) {
-            int label = (int) newFeature.getElement().getFeature("l").getValue();
+        if (newFeature.getElement().containsFeature("tl")) {
+            NDArray label = (NDArray) newFeature.getElement().getFeature("tl").getValue();
             boolean wasCorrect = isCorrect(new NDList(oldFeature.getValue()), label);
             boolean isCorrect = isCorrect(new NDList(newFeature.getValue()), label);
-            if (wasCorrect != isCorrect) {
-                if (wasCorrect) {
-                    // Was but not now
-                    correctVsIncorrect.f0--;
-                    correctVsIncorrect.f1++;
-                } else {
-                    // Was incorrect not correct
-                    correctVsIncorrect.f0++;
-                    correctVsIncorrect.f1--;
+            synchronized (correctVsIncorrect) {
+                if (wasCorrect != isCorrect) {
+                    if (wasCorrect) {
+                        // Was but not now
+                        correctVsIncorrect.f0--;
+                        correctVsIncorrect.f1++;
+                    } else {
+                        // Was incorrect not correct
+                        correctVsIncorrect.f0++;
+                        correctVsIncorrect.f1--;
+                    }
                 }
             }
         }
     }
 
     public void addNewTrainingSample(Vertex v) {
-        if (v.containsFeature("f") && v.containsFeature("l")) {
-            boolean isCorrect = isCorrect(new NDList((NDArray) v.getFeature("f").getValue()), (int) v.getFeature("l").getValue());
-            if (isCorrect) correctVsIncorrect.f0++;
-            else correctVsIncorrect.f1++;
+        if (v.containsFeature("f") && v.containsFeature("tl")) {
+            boolean isCorrect = isCorrect(new NDList((NDArray) v.getFeature("f").getValue()), (NDArray) v.getFeature("tl").getValue());
+            synchronized (correctVsIncorrect) {
+                if (isCorrect) correctVsIncorrect.f0++;
+                else correctVsIncorrect.f1++;
+            }
         }
     }
 
-    public boolean isCorrect(NDList input, int label) {
+    public boolean isCorrect(NDList input, NDArray label) {
         NDArray res = output(input, false).get(0);
-        return res.argMax().getLong() == label;
+        return res.argMax().eq(label).getBoolean();
     }
 
 

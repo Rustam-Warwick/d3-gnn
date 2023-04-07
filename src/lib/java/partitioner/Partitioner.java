@@ -4,6 +4,7 @@ import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.jetbrains.annotations.Nullable;
+import picocli.CommandLine;
 
 import java.util.ServiceLoader;
 
@@ -12,6 +13,12 @@ import java.util.ServiceLoader;
  * Follows {@link ServiceLoader} pattern and can be extended
  */
 abstract public class Partitioner {
+
+    /**
+     * Is fine grained resource management enabled
+     */
+    @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
+    protected boolean fineGrainedResourceManagementEnabled;
 
     /**
      * Number of logical parts the partitioner sees, usually set to {@code env.getMaxParallelism()}
@@ -49,6 +56,7 @@ abstract public class Partitioner {
      * Process command line arguments
      */
     public void parseCmdArgs(String[] cmdArgs) {
+        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
     /**
@@ -59,7 +67,7 @@ abstract public class Partitioner {
     /**
      * Set number of logical parts in this partitioner
      */
-    public final Partitioner setPartitions(short partitions) {
+    public Partitioner setPartitions(short partitions) {
         this.partitions = partitions;
         return this;
     }

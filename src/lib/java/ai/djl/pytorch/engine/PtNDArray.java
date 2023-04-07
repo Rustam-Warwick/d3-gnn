@@ -30,12 +30,19 @@ import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
  * {@code PtNDArray} is the PyTorch implementation of {@link NDArray}.
+ *
+ * @author rustambaku13
+ * <p>
+ * - Delay and resume logic
+ * - Detach and Cleanable logic
+ * - Destroy logic
+ * - Equals and hascode() logic
+ * </p>
  */
 public class PtNDArray extends NativeResource<Long> implements NDArray {
 
@@ -53,25 +60,19 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         }
     }
 
-    public Shape shape;
-
     private transient Cleaner.Cleanable cleanable;
-
     private Device device;
-
     private DataType dataType;
-
-    private byte delayed;
-
+    private Shape shape;
     private SparseFormat sparseFormat;
     // use Boolean object to maintain three status: null, false, true
-    private transient Boolean hasGradient;
-
+    private Boolean hasGradient;
+    private byte delayed;
     private PtNDArrayEx ptNDArrayEx;
+
     // keep a reference to direct buffer to avoid GC release the memory
     @SuppressWarnings("PMD.UnusedPrivateField")
     private ByteBuffer[] dataRef;
-
 
     /**
      * Constructs a PyTorch {@code NDArray} from a native handle (internal. Use {@link NDManager}
@@ -136,6 +137,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void setName(String name) {
+
     }
 
     /**
@@ -313,9 +315,45 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public NDArray gather(NDArray index, int axis) {
         if (!(index instanceof PtNDArray)) {
-            throw new IllegalArgumentException("Only PtNDArray is supported.");
+            throw new IllegalArgumentException("Only PtNDArray index is supported.");
         }
         return JniUtils.gather(this, (PtNDArray) index, axis);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray gatherNd(NDArray index) {
+        if (!(index instanceof PtNDArray)) {
+            throw new IllegalArgumentException("Only PtNDArray index is supported.");
+        }
+        Shape indexShape = index.getShape();
+        Shape dataShape = getShape();
+        int indexingDepth = (int) indexShape.get(0);
+        if (indexingDepth > dataShape.dimension()) {
+            throw new IllegalArgumentException(
+                    "Indexing rank "
+                            + indexShape.get(0)
+                            + " exceeds the data rank "
+                            + dataShape.dimension());
+        }
+        // Row-first order, the linear index is accumulated from z->y->x.
+        // For example, dataShape = (3, 2, 3), indexShape = (2, 3, 3)
+        // The method is: indexLinear = index[1] + index[0] * dataShape[1], row-first order
+        // indexLinear has shape (3, 3), is from combining the index along 0 axis.
+        // Each number in indexLinear is an indexing to an element in data (3, 2, ...).
+        // data is flattened to be (3*2, ...) which can be indexed by indexLinear.
+        // Finally, reshape the output to (3, 3, ...). Thus
+        // totalShape = indexShape.slice(1).addAll(dataShape.slice(indexingDepth));
+        NDArray indexLinear = index.get("{}, ...", indexingDepth - 1);
+        long dim = 1;
+        for (int i = indexingDepth - 2; i > -1; i--) {
+            dim = dim * dataShape.get(i + 1);
+            indexLinear = indexLinear.addi(index.get("{}, ...", i).muli(dim));
+        }
+        NDArray dataFlatten = this.flatten(0, indexingDepth - 1);
+        return dataFlatten.get(indexLinear);
     }
 
     /**
@@ -333,11 +371,22 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
-    public NDArray put(NDArray index, NDArray data) {
-        if (!(index instanceof PtNDArray) || !(data instanceof PtNDArray)) {
+    public NDArray put(NDArray index, NDArray value) {
+        if (!(index instanceof PtNDArray) || !(value instanceof PtNDArray)) {
             throw new IllegalArgumentException("Only PtNDArray is supported.");
         }
-        return JniUtils.put(this, (PtNDArray) index, (PtNDArray) data);
+        return JniUtils.put(this, (PtNDArray) index, (PtNDArray) value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray scatter(NDArray index, NDArray value, int axis) {
+        if (!(index instanceof PtNDArray) || !(value instanceof PtNDArray)) {
+            throw new IllegalArgumentException("Only PtNDArray is supported.");
+        }
+        return JniUtils.scatter(this, (PtNDArray) index, (PtNDArray) value, axis);
     }
 
     /**
@@ -348,15 +397,12 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
         throw new UnsupportedOperationException("Not implemented");
     }
 
-
-    // NDMANAGER CONTROL
-
     /**
      * {@inheritDoc}
      */
     @Override
     public void attach(NDManager manager) {
-        throw new IllegalStateException("Attach not working ");
+        throw new IllegalStateException("Not Implemented");
     }
 
     /**
@@ -364,7 +410,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void returnResource(NDManager manager) {
-        throw new IllegalStateException("Attach not working ");
+        throw new IllegalStateException("Not Implemented");
     }
 
     /**
@@ -372,7 +418,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void tempAttach(NDManager manager) {
-        throw new IllegalStateException("Attach not working ");
+        throw new IllegalStateException("Not Implemented");
     }
 
     /**
@@ -406,9 +452,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
             getManager().attachInternal(null, this);
         }
     }
-
-    // NDMANAGER CONTROL
-
 
     /**
      * {@inheritDoc}
@@ -465,7 +508,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public boolean contentEquals(Number number) {
-        return JniUtils.contentEqual(this, (PtNDArray) getManager().create(number));
+        return contentEquals(getManager().create(number));
     }
 
     /**
@@ -1188,6 +1231,22 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public NDArray cumProd(int axis) {
+        return JniUtils.cumProd(this, axis, null);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray cumProd(int axis, DataType dataType) {
+        return JniUtils.cumProd(this, axis, dataType);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public PtNDArray prod() {
         return JniUtils.prod(this);
     }
@@ -1288,6 +1347,37 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public NDArray flatten(int startDim, int endDim) {
+        return JniUtils.flatten(this, startDim, endDim);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray fft(long length, long axis) {
+        return JniUtils.fft(this, length, axis);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray stft(
+            long nFft,
+            long hopLength,
+            boolean center,
+            NDArray window,
+            boolean normalize,
+            boolean returnComplex) {
+        return JniUtils.stft(
+                this, nFft, hopLength, (PtNDArray) window, center, normalize, returnComplex);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public PtNDArray reshape(Shape shape) {
         return JniUtils.reshape(this, shape.getShape());
     }
@@ -1322,11 +1412,11 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public PtNDArray squeeze(int[] axes) {
         if (isScalar()) {
-            if (axes.length > 1 || axes[0] != 0) {
-                throw new IllegalArgumentException(
-                        "axis " + axes[0] + "is out of bounds for array of dimension 0");
+            if (axes.length == 0 || (axes.length == 1 && axes[0] == 0)) {
+                return (PtNDArray) duplicate();
             }
-            return (PtNDArray) duplicate();
+            throw new IllegalArgumentException(
+                    "axis " + axes[0] + " is out of bounds for array of dimension 0");
         }
         long[] shapeArr = getShape().getShape();
         List<Long> newShape = new ArrayList<>();
@@ -1454,7 +1544,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public void intern(NDArray replaced) {
         PtNDArray arr = (PtNDArray) replaced;
-        Long oldHandle = handle.getAndSet(arr.handle.getAndSet(null));
+        long oldHandle = handle;
+        handle = arr.handle;
+        arr.handle = Long.MAX_VALUE;
         JniUtils.deleteNDArray(oldHandle);
         // dereference old ndarray
         arr.close();
@@ -1852,7 +1944,27 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      * {@inheritDoc}
      */
     @Override
+    public NDArray complex() {
+        return JniUtils.complex(this);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NDArray real() {
+        return JniUtils.real(this);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public PtNDArrayEx getNDArrayInternal() {
+        if (ptNDArrayEx == null) {
+            throw new UnsupportedOperationException(
+                    "NDArray operation is not supported for String tensor");
+        }
         return ptNDArrayEx;
     }
 
@@ -1886,7 +1998,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public int hashCode() {
-        return handle.getPlain().hashCode();
+        return (int) handle;
     }
 
     /**
@@ -1894,17 +2006,19 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void close() {
-        if (cleanable != null) return; // Will be cleaned by its cleanable
+        if (cleanable != null) {
+            cleanable.clean();
+            return;
+        }
         if (delayed == 0) getManager().detachInternal(null, this);
-        Long pointer = handle.getAndSet(null);
-        if (pointer != null) {
-            JniUtils.deleteNDArray(pointer);
+        if (!isReleased() && handle != -1) {
+            JniUtils.deleteNDArray(handle);
+            markReleased();
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);
             dataRef[0] = null;
         }
-        if (cleanable != null) cleanable.clean();
     }
 
     /**
@@ -1912,21 +2026,23 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public void destroy() {
-        if (cleanable != null) return;
-        Long pointer = handle.getAndSet(null);
-        if (pointer != null) {
-            JniUtils.deleteNDArray(pointer);
+        if (cleanable != null) {
+            cleanable.clean();
+            return;
+        }
+        if (!isReleased() && handle != -1) {
+            JniUtils.deleteNDArray(handle);
+            markReleased();
         }
         if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
             UNSAFE.invokeCleaner(dataRef[0]);
             dataRef[0] = null;
         }
-        if (cleanable != null) cleanable.clean();
     }
 
     public static class PtNDArrayFinalizeTask implements Runnable {
-        private final AtomicReference<Long> handle;
         private final ByteBuffer[] dataRef;
+        private long handle;
 
         public PtNDArrayFinalizeTask(PtNDArray array) {
             handle = array.handle;
@@ -1935,9 +2051,9 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
         @Override
         public void run() {
-            Long pointer = handle.getAndSet(null);
-            if (pointer != null) {
-                JniUtils.deleteNDArray(pointer);
+            if (handle != Long.MAX_VALUE) {
+                JniUtils.deleteNDArray(handle);
+                handle = Long.MAX_VALUE;
             }
             if (dataRef != null && dataRef.length > 0 && dataRef[0] != null) {
                 UNSAFE.invokeCleaner(dataRef[0]);

@@ -3,7 +3,6 @@ package datasets;
 import elements.DirectedEdge;
 import elements.GraphOp;
 import elements.Vertex;
-import elements.enums.ElementType;
 import elements.enums.Op;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.io.TextInputFormat;
@@ -33,30 +32,11 @@ public class RedditHyperlink extends Dataset {
     protected String type;
 
     /**
-     * Type of reddit hyperlink stream: full, body, title
-     */
-    @CommandLine.Option(names = {"--redditHyperlink:hasEmbeddings"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Should the vertex embeddings be streamed as well"})
-    protected boolean hasEmbeddings;
-
-    /**
      * {@inheritDoc}
      */
     @Override
     public DataStream<GraphOp> build(StreamExecutionEnvironment env) {
-        String topologyFileName;
-        switch (type) {
-            case "body":
-                topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", "soc-redditHyperlinks-body.tsv").toString();
-                break;
-            case "title":
-                topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", "soc-redditHyperlinks-title.tsv").toString();
-                break;
-            case "full":
-                topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", "soc-redditHyperlinks-full.tsv").toString();
-                break;
-            default:
-                throw new IllegalStateException("RedditHyperlink operates in 3 modes: body, title and full");
-        }
+        String topologyFileName = Path.of(System.getenv("DATASET_DIR"), "RedditHyperlinks", String.format("soc-redditHyperlinks-%s.tsv", type)).toString();
         String topologyOperatorName = String.format("Reddit Hyperlink[%s]", type);
         SingleOutputStreamOperator<String> topologyFileStream = env.readFile(new TextInputFormat(new org.apache.flink.core.fs.Path(topologyFileName)), topologyFileName, processOnce ? FileProcessingMode.PROCESS_ONCE : FileProcessingMode.PROCESS_CONTINUOUSLY, processOnce ? 0 : 1000).name(topologyOperatorName).setParallelism(1);
         return topologyFileStream.map(new TopologyParser()).name(String.format("Parser %s", topologyOperatorName)).setParallelism(1);
@@ -85,8 +65,7 @@ public class RedditHyperlink extends Dataset {
         @Override
         public void processElement(GraphOp value, KeyedProcessFunction<PartNumber, GraphOp, GraphOp>.Context ctx, Collector<GraphOp> out) throws Exception {
             out.collect(value);
-            if (value.element.getType() != ElementType.ATTACHED_FEATURE)
-                ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
+            ctx.output(OutputTags.TOPOLOGY_ONLY_DATA_OUTPUT, value); // Edge with Features even for the topology
         }
     }
 
@@ -98,9 +77,10 @@ public class RedditHyperlink extends Dataset {
         @Override
         public GraphOp map(String value) throws Exception {
             String[] values = value.split("\t");
-            DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]), values[2]);
+            DirectedEdge directedEdge = new DirectedEdge(new Vertex(values[0]), new Vertex(values[1]));
             return new GraphOp(Op.ADD, directedEdge);
         }
+
     }
 
 }

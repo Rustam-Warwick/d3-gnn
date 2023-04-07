@@ -3,22 +3,20 @@ package partitioner;
 
 import elements.DirectedEdge;
 import elements.GraphOp;
-import elements.HyperEdge;
-import elements.HyperEgoGraph;
-import elements.enums.ElementType;
+import elements.Vertex;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.shorts.ShortList;
+import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Gauge;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Random;
 
 /**
  * Implementation of Random graph partitioning algorithm.
@@ -26,46 +24,23 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class RandomPartitioner extends Partitioner {
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        return inputDataStream.map(new RandomMapFunction(this.partitions)).name("Random Partitioner").setParallelism(1);
+        return inputDataStream.map(new RandomMapFunction(partitions)).name("Random Partitioner").setParallelism(1);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isResponsibleFor(String partitionerName) {
         return partitionerName.equals("random");
     }
 
-    /**
-     * Actual Random graph partitioning process function
-     * <p>
-     * For {@link DirectedEdge} streams chose a random part and send the edge there
-     * Src and dest master parts are going to be assigned as the first part of encountered edges
-     * Replication Factor is calculated as = total_unique_vertices / total_number_replica_vertices
-     * </p>
-     * <p>
-     * For {@link HyperEgoGraph} streams chose a random part and send the graph there
-     * Vertex and HyperEdge master parts are going to be assigned as the first part of encountered edges
-     * Replication Factor is calculated as = total_unique_hEdges / total_number_of_replica_hEdges
-     * </p>
-     */
     public static class RandomMapFunction extends RichMapFunction<GraphOp, GraphOp> {
 
         public final short partitions;
-
-        public Map<String, List<Short>> vertexPartitionTable = new ConcurrentHashMap<>();
-
-        public Map<String, List<Short>> hyperEdgePartitionTable = new ConcurrentHashMap<>();
-
-        public AtomicInteger totalNumberOfVertices = new AtomicInteger(0);
-
-        public AtomicInteger totalNumberOfReplicas = new AtomicInteger(0);
+        public transient Random random;
+        public transient Map<String, ShortList> partitionTable;
+        public transient int totalNumberOfVertices;
+        public transient int totalNumberOfReplicas;
 
         public RandomMapFunction(short partitions) {
             this.partitions = partitions;
@@ -74,88 +49,49 @@ public class RandomPartitioner extends Partitioner {
         @Override
         public void open(Configuration parameters) throws Exception {
             super.open(parameters);
+            random = new Random(0);
+            partitionTable = new HashMap<>();
             getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    int totalVertices = totalNumberOfVertices.get();
-                    int totalReplicas = totalNumberOfReplicas.get();
-                    if (totalVertices == 0) return 0;
-                    return (int) ((float) totalReplicas / totalVertices * 1000);
+                    if (totalNumberOfVertices == 0) return 0;
+                    return (int) ((float) totalNumberOfReplicas / totalNumberOfVertices * 1000);
                 }
             });
+        }
 
-            getRuntimeContext().getMetricGroup().getMetricIdentifier("Replication Factor");
+        protected void updateVertexPartitionTableAndAssignMaster(Vertex vertex, short part) {
+            partitionTable.compute(vertex.getId(), (key, val) -> {
+                if (val == null) {
+                    // This is the first part of this vertex hence the master
+                    vertex.masterPart = part;
+                    totalNumberOfVertices++;
+                    return new ShortArrayList(List.of(part));
+                } else {
+                    if (!val.contains(part)) {
+                        // Second or more part hence the replica
+                        totalNumberOfReplicas++;
+                        val.add(part);
+                    }
+                    vertex.masterPart = val.getShort(0);
+                    return val;
+                }
+            });
         }
 
         @Override
         public GraphOp map(GraphOp value) throws Exception {
-            short part = (short) ThreadLocalRandom.current().nextInt(0, this.partitions);
-            if (value.element.getType() == ElementType.EDGE) {
-                DirectedEdge directedEdge = (DirectedEdge) value.element;
-                vertexPartitionTable.compute(directedEdge.getSrcId(), (key, val) -> {
-                    if (val == null) {
-                        // This is the first part of this vertex hence the master
-                        directedEdge.getSrc().masterPart = part;
-                        totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                    } else {
-                        if (!val.contains(part)) {
-                            // Seocond or more part hence the replica
-                            totalNumberOfReplicas.incrementAndGet();
-                            val.add(part);
-                        }
-                        directedEdge.getSrc().masterPart = val.get(0);
-                        return val;
-                    }
-                });
-                vertexPartitionTable.compute(directedEdge.getDestId(), (key, val) -> {
-                    if (val == null) {
-                        // This is the first part of this vertex hence the master
-                        directedEdge.getDest().masterPart = part;
-                        totalNumberOfVertices.incrementAndGet();
-                        return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                    } else {
-                        if (!val.contains(part)) {
-                            // Seocond or more part hence the replica
-                            totalNumberOfReplicas.incrementAndGet();
-                            val.add(part);
-                        }
-                        directedEdge.getDest().masterPart = val.get(0);
-                        return val;
-                    }
-                });
-            } else if (value.element.getType() == ElementType.GRAPH) {
-                HyperEgoGraph hyperEgoGraph = (HyperEgoGraph) value.element;
-                vertexPartitionTable.compute(hyperEgoGraph.getCentralVertex().getId(), (key, val) -> {
-                    if (val == null) {
-                        hyperEgoGraph.getCentralVertex().masterPart = part;
-                        return new ArrayList<>(List.of(part));
-                    } else {
-                        if (!val.contains(part)) {
-                            val.add(part);
-                        }
-                        hyperEgoGraph.getCentralVertex().masterPart = val.get(0);
-                        return val;
-                    }
-                });
-                for (HyperEdge hyperEdge : hyperEgoGraph.getHyperEdges()) {
-                    hyperEdgePartitionTable.compute(hyperEdge.getId(), (key, val) -> {
-                        if (val == null) {
-                            // This is the first part of this vertex hence the master
-                            hyperEdge.masterPart = part;
-                            totalNumberOfVertices.incrementAndGet();
-                            return Collections.synchronizedList(new ArrayList<Short>(List.of(part)));
-                        } else {
-                            if (!val.contains(part)) {
-                                // Seocond or more part hence the replica
-                                totalNumberOfReplicas.incrementAndGet();
-                                val.add(part);
-                            }
-                            hyperEdge.masterPart = val.get(0);
-                            return val;
-                        }
-                    });
-                }
+            short part = (short) random.nextInt(this.partitions);
+            switch (value.element.getType()) {
+                case EDGE:
+                    DirectedEdge directedEdge = (DirectedEdge) value.element;
+                    updateVertexPartitionTableAndAssignMaster(directedEdge.getSrc(), part);
+                    updateVertexPartitionTableAndAssignMaster(directedEdge.getDest(), part);
+                    break;
+                case HYPEREDGE:
+                    break;
+                default:
+                    throw new NotImplementedException("Other Element Types are not allowed: Received" + value.element.getType());
             }
             return value.setPartId(part);
         }

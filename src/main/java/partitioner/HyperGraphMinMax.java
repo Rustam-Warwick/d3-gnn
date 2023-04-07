@@ -37,7 +37,7 @@ public class HyperGraphMinMax extends Partitioner {
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
         Preconditions.checkState(partitions > 0);
         Preconditions.checkNotNull(inputDataStream);
-        return inputDataStream.process(new Partitioner(this.partitions, this.betaImbalance)).name("HyperGraphMinMax").setParallelism(1);
+        return inputDataStream.process(new MinMaxProcessFunction(this.partitions, this.betaImbalance)).name("HyperGraphMinMax").setParallelism(1);
     }
 
     /**
@@ -49,17 +49,9 @@ public class HyperGraphMinMax extends Partitioner {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void parseCmdArgs(String[] cmdArgs) {
-        new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
-    }
-
-    /**
      * Actual Min-Max partitioning function
      */
-    public static class Partitioner extends ProcessFunction<GraphOp, GraphOp> {
+    public static class MinMaxProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         private final int partitions;
 
         private final float betaImbalance;
@@ -75,7 +67,7 @@ public class HyperGraphMinMax extends Partitioner {
         private transient int[] parts;
         private transient int minParts;
 
-        public Partitioner(int partitions, float betaImbalance) {
+        public MinMaxProcessFunction(int partitions, float betaImbalance) {
             this.partitions = partitions;
             this.betaImbalance = betaImbalance;
         }

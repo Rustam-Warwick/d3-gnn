@@ -2,43 +2,36 @@ package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import elements.GraphElement;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Mean aggregator that does inplace operation hence the updated oldValue is never updated
  *
  * @implNote <strong>Use this if the updated oldValue is never used by the plugins</strong>
  */
-public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
+public final class InPlaceMeanAggregator extends Aggregator<CountTensorHolder> {
 
     public InPlaceMeanAggregator() {
         super();
     }
 
     public InPlaceMeanAggregator(String id, NDArray value) {
-        super(id, Tuple2.of(value, 0));
+        super(id, new CountTensorHolder(value, 0));
     }
 
     public InPlaceMeanAggregator(String id, NDArray value, boolean halo) {
-        super(id, Tuple2.of(value, 0), halo);
+        super(id, new CountTensorHolder(value, 0), halo);
     }
 
     public InPlaceMeanAggregator(String id, NDArray value, boolean halo, short master) {
-        super(id, Tuple2.of(value, 0), halo, master);
+        super(id, new CountTensorHolder(value, 0), halo, master);
     }
 
     public InPlaceMeanAggregator(InPlaceMeanAggregator f, CopyContext context) {
         super(f, context);
     }
 
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
-    }
 
     /**
      * {@inheritDoc}
@@ -50,39 +43,11 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
 
     /**
      * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage needs delay
-     * </p>
-     */
-    @Override
-    public void createInternal() {
-        super.createInternal();
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.f0.delay();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage need delay
-     * </p>
-     */
-    @Override
-    public void updateInternal(GraphElement newElement) {
-        super.updateInternal(newElement);
-        InPlaceMeanAggregator newAggregator = (InPlaceMeanAggregator) newElement;
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
-            value.f0.delay();
-            newAggregator.value.f0.resume();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
      */
     @RemoteFunction
     @Override
     public void reduce(NDList newElement, int count) {
-        value.f0.muli(value.f1).addi(newElement.get(0)).divi(++value.f1);
+        value.val.muli(value.count).addi(newElement.get(0)).divi(++value.count);
     }
 
     /**
@@ -91,16 +56,8 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
     @RemoteFunction
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.f1);
-        value.f0.addi(increment);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public NDArray grad(NDArray aggGradient) {
-        return aggGradient.div(value.f1);
+        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.count);
+        value.val.addi(increment);
     }
 
     /**
@@ -108,7 +65,7 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
      */
     @Override
     public NDArray getValue() {
-        return value.f0;
+        return value.val;
     }
 
     /**
@@ -116,16 +73,16 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
      */
     @Override
     public void reset() {
-        value.f0.subi(value.f0);
-        value.f1 = 0;
+        value.val.subi(value.val);
+        value.count = 0;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int reducedCount() {
-        return value.f1;
+    public int getReducedCount() {
+        return value.count;
     }
 
     /**
@@ -134,7 +91,7 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
     @Override
     public void delay() {
         super.delay();
-        value.f0.delay();
+        value.delay();
     }
 
     /**
@@ -143,14 +100,12 @@ public final class InPlaceMeanAggregator extends Aggregator<Tuple2<NDArray, Inte
     @Override
     public void resume() {
         super.resume();
-        value.f0.resume();
+        value.resume();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.TUPLE(TypeInformation.of(NDArray.class), Types.INT);
+    public void destroy() {
+        super.destroy();
+        value.destroy();
     }
 }

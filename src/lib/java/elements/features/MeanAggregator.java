@@ -2,42 +2,34 @@ package elements.features;
 
 import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
-import elements.GraphElement;
 import elements.annotations.RemoteFunction;
 import elements.enums.CopyContext;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.common.typeinfo.Types;
-import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * MEAN {@link ai.djl.nn.gnn.AggregatorVariant} aggregator for GNNs
  */
-public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
+public final class MeanAggregator extends Aggregator<CountTensorHolder> {
 
     public MeanAggregator() {
         super();
     }
 
     public MeanAggregator(String id, NDArray value) {
-        super(id, Tuple2.of(value, 0));
+        super(id, new CountTensorHolder(value, 0));
     }
 
     public MeanAggregator(String id, NDArray value, boolean halo) {
-        super(id, Tuple2.of(value, 0), halo);
+        super(id, new CountTensorHolder(value, 0), halo);
     }
 
     public MeanAggregator(String id, NDArray value, boolean halo, short master) {
-        super(id, Tuple2.of(value, 0), halo, master);
+        super(id, new CountTensorHolder(value, 0), halo, master);
     }
 
     public MeanAggregator(MeanAggregator f, CopyContext context) {
         super(f, context);
-        if (context == CopyContext.RMI) value = Tuple2.of(value.f0, value.f1);
+        if (context == CopyContext.RMI) value = new CountTensorHolder(f.value.val, f.value.count);
 
-    }
-
-    public static NDArray bulkReduce(NDArray newMessages) {
-        return newMessages.sum(new int[]{0});
     }
 
     /**
@@ -50,39 +42,11 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
 
     /**
      * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage needs delay
-     * </p>
-     */
-    @Override
-    public void createInternal() {
-        super.createInternal();
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay()) value.f0.delay();
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * Delaying tensors if storage need delay
-     * </p>
-     */
-    @Override
-    public void updateInternal(GraphElement newElement) {
-        super.updateInternal(newElement);
-        MeanAggregator newAggregator = (MeanAggregator) newElement;
-        if (getGraphRuntimeContext().getStorage().needsTensorDelay() && newAggregator.value.f0 != value.f0) {
-            value.f0.delay();
-            newAggregator.value.f0.resume();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
      */
     @RemoteFunction()
     @Override
     public void reduce(NDList newElement, int count) {
-        value.f0 = value.f0.mul(value.f1).add(newElement.get(0)).div(++value.f1);
+        value.val = value.val.mul(value.count).add(newElement.get(0)).div(++value.count);
     }
 
     /**
@@ -91,16 +55,8 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
     @RemoteFunction()
     @Override
     public void replace(NDList newElement, NDList oldElement) {
-        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.f1);
-        value.f0 = value.f0.add(increment);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public NDArray grad(NDArray aggGradient) {
-        return aggGradient.div(value.f1);
+        NDArray increment = newElement.get(0).sub(oldElement.get(0)).div(value.count);
+        value.val = value.val.add(increment);
     }
 
     /**
@@ -108,7 +64,7 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
      */
     @Override
     public NDArray getValue() {
-        return value.f0;
+        return value.val;
     }
 
     /**
@@ -116,16 +72,16 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
      */
     @Override
     public void reset() {
-        value.f0.subi(value.f0);
-        value.f1 = 0;
+        value.val.subi(value.val);
+        value.count = 0;
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public int reducedCount() {
-        return value.f1;
+    public int getReducedCount() {
+        return value.count;
     }
 
     /**
@@ -134,7 +90,7 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void delay() {
         super.delay();
-        value.f0.delay();
+        value.delay();
     }
 
     /**
@@ -143,14 +99,12 @@ public final class MeanAggregator extends Aggregator<Tuple2<NDArray, Integer>> {
     @Override
     public void resume() {
         super.resume();
-        value.f0.resume();
+        value.resume();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public TypeInformation<?> getValueTypeInfo() {
-        return Types.TUPLE(TypeInformation.of(NDArray.class), Types.INT);
+    public void destroy() {
+        super.destroy();
+        value.destroy();
     }
 }

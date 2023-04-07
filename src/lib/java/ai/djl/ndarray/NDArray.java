@@ -25,6 +25,8 @@ import java.nio.*;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -38,6 +40,12 @@ import java.util.stream.LongStream;
  * please refer to <a
  * href="https://github.com/deepjavalibrary/djl/blob/master/docs/development/memory_management.md">NDArray
  * Memory Management Guide</a>
+ *
+ * @author rustambaku13
+ * <p>
+ * Added {@link LifeCycleControl}
+ * Added isValid()
+ * </p>
  */
 public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
 
@@ -565,15 +573,40 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     }
 
     /**
-     * Returns a partial {@code NDArray} pointed by the indexed array. Given NDArray arr, NDArray
-     * idx, and long axis, the output is out_{ijk} = arr_{idx_{ijk}, j, k} if axis=0 or arr_{i,
-     * idx_{ijk}, k} if axis=1 or arr_{i, j, idx_{ijk}} if axis=2
+     * Returns a partial {@code NDArray} pointed by the indexed array.
+     *
+     * <pre>
+     * out[i][j][k] = input[index[i][j][k]][j][k] # if axis == 0
+     * out[i][j][k] = input[i][index[i][j][k]][k] # if axis == 1
+     * out[i][j][k] = input[i][j][index[i][j][k]] # if axis == 2
+     * </pre>
      *
      * @param index picks the elements of an NDArray to the same position as index
      * @param axis  the entries of index are indices of axis
      * @return the partial {@code NDArray} of the same shape as index
      */
     NDArray gather(NDArray index, int axis);
+
+    /**
+     * Returns a partial {@code NDArray} pointed by the indexed array.
+     *
+     * <pre>
+     * Given NDArray arr and NDArray idx. idx is the following structure:
+     * \( idx = [ idx[0, ...], idx[1, ...],..., idx[indexingDepth,...] ] \)
+     * corresponding to x, y, z index, i.e. [idx_x, idx_y, idx_z, ...].
+     * </pre>
+     *
+     * <p>So indexingDepth smaller than or equal to data.shape[0] If indexingDepth is smaller than
+     * data.shape[0], for instance, data.shape[0]=3, i.e. x,y,z but indexingDepth = 2, i.e. [idx_x,
+     * idx_y], then the tail co-rank = data.shape[0] - indexingDepth will be kept.
+     *
+     * <p>With it, the output shape = idx_y.shape appended by data.shape[indexingDepth:] <a
+     * href="https://mxnet.apache.org/versions/1.6/api/r/docs/api/mx.symbol.gather_nd.html?highlight=gather_nd">mx.symbol.gather_nd</a>
+     *
+     * @param index picks the elements of an NDArray to the same position as index
+     * @return the partial {@code NDArray} of the same shape as index
+     */
+    NDArray gatherNd(NDArray index);
 
     /**
      * Returns a partial {@code NDArray} pointed by index according to linear indexing, and the of
@@ -597,14 +630,39 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     NDArray take(NDManager manager, NDArray index);
 
     /**
-     * Set the entries of {@code NDArray} pointed by index according to linear indexing, to be the
-     * numbers in data, which is of the same shape as index.
+     * Sets the entries of {@code NDArray} pointed by index, according to linear indexing, to be the
+     * numbers in value.
+     *
+     * <p>Value has to be of the same shape as index.
      *
      * @param index select the entries of an {@code NDArray}
-     * @param data  numbers to assign to the indexed entries
+     * @param value numbers to assign to the indexed entries
      * @return the NDArray with updated values
      */
-    NDArray put(NDArray index, NDArray data);
+    NDArray put(NDArray index, NDArray value);
+
+    /**
+     * Writes all values from the tensor value into self at the indices specified in the index
+     * tensor.
+     *
+     * <pre>
+     * This is the reverse operation of the manner described in gather().
+     *
+     * self[index[i][j][k]][j][k] = value[i][j][k] # if axis == 0
+     * self[i][index[i][j][k]][k] = value[i][j][k] # if axis == 1
+     * self[i][j][index[i][j][k]] = value[i][j][k] # if axis == 2
+     * </pre>
+     * <p>
+     * <a
+     * href="https://pytorch.org/docs/1.13/generated/torch.Tensor.scatter_.html#torch.Tensor.scatter">torch.Tensor.scatter_</a>
+     *
+     * @param axis  the axis along which to index
+     * @param index the indices of elements to scatter, can be either empty or of the same
+     *              dimensionality as value. When empty, the operation returns self unchanged
+     * @param value the source element(s) to scatter
+     * @return the NDArray with updated values
+     */
+    NDArray scatter(NDArray index, NDArray value, int axis);
 
     /**
      * Returns a scalar {@code NDArray} corresponding to a single element.
@@ -2580,6 +2638,27 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     NDArray sum(int[] axes, boolean keepDims);
 
     /**
+     * Returns the cumulative product of elements of input in the dimension dim. For example, if
+     * input is a vector of size N, the result will also be a vector of size N, with elements. [x1,
+     * x1 * x2, x1 * x2 *x3 ...]
+     *
+     * @param axis the axis along which to operate
+     * @return the cumulative product of this
+     */
+    NDArray cumProd(int axis);
+
+    /**
+     * Returns the cumulative product of elements of input in the dimension dim. For example, if
+     * input is a vector of size N, the result will also be a vector of size N, with elements. [x1,
+     * x1 * x2, x1 * x2 *x3 ...]
+     *
+     * @param axis     the axis along which to operate
+     * @param dataType the datatype of the output
+     * @return the cumulative product of this
+     */
+    NDArray cumProd(int axis, DataType dataType);
+
+    /**
      * Returns the product of this {@code NDArray}.
      *
      * <p>Examples
@@ -3128,6 +3207,83 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      * @return a 1-D {@code NDArray} of equal size
      */
     NDArray flatten();
+
+    /**
+     * Flattens this {@code NDArray} into a partially flatten {@code NDArray}.
+     *
+     * <p>Examples
+     *
+     * <pre>
+     * jshell&gt; NDArray array = manager.create(new float[]{1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f}, new Shape(2, 2, 2));
+     * jshell&gt; array.flatten(0, 1);
+     * ND: (4) cpu() float32
+     * [[1., 2], [3., 4.], [5., 6.], [7., 8.]]
+     * </pre>
+     *
+     * @param startDim the first dim to flatten, inclusive
+     * @param endDim   the last dim to flatten, inclusive
+     * @return a partially fallen {@code NDArray}
+     */
+    NDArray flatten(int startDim, int endDim);
+
+    /**
+     * Computes the one-dimensional discrete Fourier Transform.
+     *
+     * @param length Length of the transformed axis of the output.
+     * @return The truncated or zero-padded input, transformed along the axis indicated by axis, or
+     * the last one if axis is not specified.
+     */
+    default NDArray fft(long length) {
+        return fft(length, -1);
+    }
+
+    /**
+     * Computes the one-dimensional discrete Fourier Transform.
+     *
+     * @param length Length of the transformed axis of the output.
+     * @param axis   Axis over which to compute the FFT.
+     * @return The truncated or zero-padded input, transformed along the axis indicated by axis, or
+     * the last one if axis is not specified.
+     */
+    NDArray fft(long length, long axis);
+
+    /**
+     * Computes the Short Time Fourier Transform (STFT).
+     *
+     * @param nFft          size of Fourier transform
+     * @param hopLength     the distance between neighboring sliding window frames. Default can be:
+     *                      floor(n_fft / 4)
+     * @param center        whether to pad input on both sides.
+     * @param window        Desired window to use. Recommend for HanningWindow
+     * @param returnComplex whether to return a complex tensor, or a real tensor with an extra last
+     *                      dimension for the real and imaginary components.
+     * @return A NDArray containing the STFT result with shape described above
+     */
+    default NDArray stft(
+            long nFft, long hopLength, boolean center, NDArray window, boolean returnComplex) {
+        return stft(nFft, hopLength, center, window, false, returnComplex);
+    }
+
+    /**
+     * Computes the Short Time Fourier Transform (STFT).
+     *
+     * @param nFft          size of Fourier transform
+     * @param hopLength     the distance between neighboring sliding window frames. Default can be:
+     *                      floor(n_fft / 4)
+     * @param center        whether to pad input on both sides.
+     * @param window        Desired window to use. Recommend for HanningWindow
+     * @param normalize     controls whether to return the normalized STFT results
+     * @param returnComplex whether to return a complex tensor, or a real tensor with an extra last
+     *                      dimension for the real and imaginary components.
+     * @return A NDArray containing the STFT result with shape described above
+     */
+    NDArray stft(
+            long nFft,
+            long hopLength,
+            boolean center,
+            NDArray window,
+            boolean normalize,
+            boolean returnComplex);
 
     /**
      * Reshapes this {@code NDArray} to the given {@link Shape}.
@@ -4563,6 +4719,14 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     NDArray erfinv();
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    default List<NDArray> getResourceNDArrays() {
+        return Collections.singletonList(this);
+    }
+
+    /**
      * Returns an internal representative of Native {@code NDArray}.
      *
      * <p>This method should only be used by Engine provider
@@ -4572,25 +4736,56 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
     NDArrayEx getNDArrayInternal();
 
     /**
+     * Returns {@code true} if this NDArray has been released.
+     *
+     * @return {@code true} if this NDArray has been released
+     */
+    boolean isReleased();
+
+    /**
      * Runs the debug string representation of this {@code NDArray}.
      *
      * @return the debug string representation of this {@code NDArray}
      */
     default String toDebugString() {
-        return toDebugString(100, 10, 10, 20);
+        if (isReleased()) {
+            return "This array is already closed";
+        }
+        if (getDataType() == DataType.STRING) {
+            return Arrays.toString(toStringArray(StandardCharsets.UTF_8));
+        }
+        return NDFormat.format(this, 100, 10, 10, 20);
     }
 
     /**
      * Runs the debug string representation of this {@code NDArray}.
      *
-     * @param maxSize    the maximum elements to print out
-     * @param maxDepth   the maximum depth to print out
-     * @param maxRows    the maximum rows to print out
-     * @param maxColumns the maximum columns to print out
+     * @param withContent true to show the content of NDArray
      * @return the debug string representation of this {@code NDArray}
      */
-    default String toDebugString(int maxSize, int maxDepth, int maxRows, int maxColumns) {
-        return NDFormat.format(this, maxSize, maxDepth, maxRows, maxColumns);
+    default String toDebugString(boolean withContent) {
+        return toDebugString(1000, 10, 10, 20, withContent);
+    }
+
+    /**
+     * Runs the debug string representation of this {@code NDArray}.
+     *
+     * @param maxSize     the maximum elements to print out
+     * @param maxDepth    the maximum depth to print out
+     * @param maxRows     the maximum rows to print out
+     * @param maxColumns  the maximum columns to print out
+     * @param withContent true to show the content of NDArray
+     * @return the debug string representation of this {@code NDArray}
+     */
+    default String toDebugString(
+            int maxSize, int maxDepth, int maxRows, int maxColumns, boolean withContent) {
+        if (isReleased()) {
+            return "This array is already closed";
+        }
+        if (getDataType() == DataType.STRING) {
+            return Arrays.toString(toStringArray(StandardCharsets.UTF_8));
+        }
+        return NDFormat.format(this, maxSize, maxDepth, maxRows, maxColumns, withContent);
     }
 
     /**
@@ -4897,6 +5092,26 @@ public interface NDArray extends NDResource, BytesSupplier, LifeCycleControl {
      */
     NDArray batchDot(NDArray other);
 
+    /**
+     * Convert a general NDArray to its complex math format.
+     *
+     * <p>example: [10f, 12f] float32 -&gt; [10+12j] in complex64
+     *
+     * @return the complex NDArray
+     */
+    NDArray complex();
+
+    /**
+     * Convert a complex NDArray to its real math format. example: [10+12j] in complex64 -&gt; [10f,
+     * 12f] float32
+     *
+     * @return tje real NDArray
+     */
+    NDArray real();
+
+    /**
+     * Is this a valid NDArray
+     */
     default boolean isValid() {
         return !isNaN().any().getBoolean() && !isInfinite().any().getBoolean();
     }

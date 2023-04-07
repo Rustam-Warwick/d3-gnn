@@ -28,7 +28,7 @@ public abstract class Dataset implements Serializable {
      * Is fine grained resource management enabled
      */
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
-    protected boolean fineGrainedResourceManagementEnabled; // Add custom slotSharingGroupsForOperators
+    protected boolean fineGrainedResourceManagementEnabled;
 
     /**
      * Helper method for getting the required dataset from string name
@@ -49,7 +49,7 @@ public abstract class Dataset implements Serializable {
      * Process command line arguments.
      * Made final since base class already has cmd arguments
      */
-    public final void parseCmdArgs(String[] cmdArgs) {
+    public void parseCmdArgs(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 

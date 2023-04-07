@@ -3,10 +3,10 @@ package org.apache.flink.streaming.api.operators.iteration;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.jobgraph.OperatorID;
-import org.apache.flink.shaded.netty4.io.netty.util.internal.shaded.org.jctools.queues.SpscLinkedQueue;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
+import org.jctools.queues.unpadded.SpscUnboundedUnpaddedArrayQueue;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
@@ -32,14 +32,17 @@ public class IterationChannel<T> implements Closeable {
      * List of producers identified by their IDs
      */
     private final Map<OperatorID, IterationQueue<T>> producers = new HashMap<>(5);
+
     /**
      * ID of this channel
      */
     private final IterationChannelKey channelKey;
+
     /**
      * Consumer & Executor of this channel, changes are made entirely for volatile to take effect
      */
-    private volatile Tuple2<Consumer<T>, MailboxExecutor> consumerAndExecutor = null;
+    private final Tuple2<Consumer<T>, MailboxExecutor> consumerAndExecutor = Tuple2.of(null, null);
+
 
     public IterationChannel(IterationChannelKey channelKey) {
         this.channelKey = channelKey;
@@ -48,26 +51,20 @@ public class IterationChannel<T> implements Closeable {
     /**
      * Add Producer to this iteration Channel
      */
-    public IterationQueue<T> addProducer(OperatorID operatorID) {
-        long processingTime = System.currentTimeMillis();
-        while (consumerAndExecutor == null) {
-            Thread.onSpinWait(); // Wait for consumer to appear
-            Preconditions.checkState(System.currentTimeMillis() - processingTime < 20000, "Cannot find a consumer in Iteration Channel, somethings wrong");
-        }
-        synchronized (this) {
-            Preconditions.checkState(!producers.containsKey(operatorID), "Duplicate Producers in queue");
-            IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
-            producers.put(operatorID, queue);
-            return queue;
-        }
+    public synchronized IterationQueue<T> addProducer(OperatorID operatorID) {
+        Preconditions.checkState(!producers.containsKey(operatorID), "Duplicate Producers in queue");
+        IterationQueue<T> queue = new IterationQueue<T>(consumerAndExecutor);
+        producers.put(operatorID, queue);
+        return queue;
     }
 
     /**
      * Set the consumer for this iteration Channel
      */
     public void setConsumer(Consumer<T> consumer, MailboxExecutor consumerExecutor) {
-        Preconditions.checkState(consumerAndExecutor == null, "A IterationQueue cannot have multiple Consumers");
-        this.consumerAndExecutor = Tuple2.of(consumer, consumerExecutor);
+        Preconditions.checkState(consumerAndExecutor.f0 == null, "Cannot have 2 consumers for iteration channel");
+        consumerAndExecutor.f0 = consumer;
+        consumerAndExecutor.f1 = consumerExecutor;
     }
 
     /**
@@ -91,7 +88,7 @@ public class IterationChannel<T> implements Closeable {
      *
      * @param <T> Type of elements in this iteration
      */
-    protected static class IterationQueue<T> extends SpscLinkedQueue<T> implements ThrowingRunnable<Exception>, Closeable {
+    protected static class IterationQueue<T> extends SpscUnboundedUnpaddedArrayQueue<T> implements ThrowingRunnable<Exception>, Closeable {
 
         /**
          * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains this queue
@@ -101,6 +98,7 @@ public class IterationChannel<T> implements Closeable {
          * Is this channel closed
          */
         private final AtomicBoolean closed = new AtomicBoolean(false);
+
         /**
          * Reference to the same field in the {@link IterationChannel}
          */
@@ -108,6 +106,7 @@ public class IterationChannel<T> implements Closeable {
         private final Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
+            super(1 << 18); // 1 MB each array reference
             this.consumerAndExecutor = consumerAndExecutor;
         }
 
@@ -137,7 +136,7 @@ public class IterationChannel<T> implements Closeable {
         }
 
         /**
-         * Starting iterating element from the startTermination of this queue
+         * Starting iterating element from the startFlushing of this queue
          * Note that by entering this output HEAD can be closed but during the execution never
          */
         @Override

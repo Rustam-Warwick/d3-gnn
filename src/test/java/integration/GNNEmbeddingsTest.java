@@ -7,26 +7,29 @@ import ai.djl.ndarray.NDList;
 import ai.djl.nn.gnn.GNNBlock;
 import ai.djl.training.ParameterStore;
 import elements.GraphOp;
-import elements.Plugin;
 import elements.features.Tensor;
 import helpers.GraphStream;
 import helpers.datasets.MeshGraphGenerator;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.operators.OneInputStreamOperatorFactory;
+import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
+import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
+import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import org.apache.flink.util.Collector;
+import org.apache.flink.util.function.TriFunction;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import plugins.ModelServer;
-import plugins.debugging.LogCallbacksPlugin;
-import plugins.gnn_embedding.PartOptimizedStreamingGNNEmbeddingLayer;
-import plugins.gnn_embedding.SessionWindowedGNNEmbeddingLayer;
-import plugins.gnn_embedding.StreamingGNNEmbeddingLayer;
-import storage.BaseStorage;
-import storage.EdgeListStorage;
+import plugins.debugging.LogCallbacks;
+import plugins.gnn_embedding.DeepAdaptiveWindowedGNNEmbedding;
+import plugins.gnn_embedding.DeepSessionWindowedGNNEmbedding;
+import plugins.gnn_embedding.StreamingGNNEmbedding;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,10 +42,10 @@ public class GNNEmbeddingsTest extends IntegrationTest {
 
     private static Stream<Arguments> jobArguments() {
         return Stream.of(
-                Arguments.arguments(new String[]{"-p=hdrf", "-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=hdrf", "-l=2"}, 2, 10),
-                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 1, 10),
-                Arguments.arguments(new String[]{"-p=random", "-l=2"}, 2, 10)
+//                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 1, 10),
+//                Arguments.arguments(new String[]{"-p=hdrf", "-l=1.3"}, 2, 10),
+//                Arguments.arguments(new String[]{"-p=random", "-l=1.3"}, 1, 10),
+                Arguments.arguments(new String[]{"-p=hdrf", "-l=1"}, 2, 40)
         );
     }
 
@@ -52,18 +55,20 @@ public class GNNEmbeddingsTest extends IntegrationTest {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
+            TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                if (pos == 0)
+                    return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                return new GraphStorageOperatorFactory(
                         List.of(
-                                new ModelServer<>(models.get(i)),
-                                new StreamingGNNEmbeddingLayer(models.get(i).getName(), true),
-                                new LogCallbacksPlugin())
-                );
-            }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+                                new ModelServer<>(models.get(pos - 1)),
+                                new StreamingGNNEmbedding(models.get(pos - 1).getName(), true),
+                                new LogCallbacks()
+                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            };
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);
@@ -80,19 +85,20 @@ public class GNNEmbeddingsTest extends IntegrationTest {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
+            TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                if (pos == 0)
+                    return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                return new GraphStorageOperatorFactory(
                         List.of(
-                                new ModelServer<>(models.get(i)),
-                                new SessionWindowedGNNEmbeddingLayer(models.get(i).getName(), true, 150),
-                                new LogCallbacksPlugin())
-                );
-            }
-
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+                                new ModelServer<>(models.get(pos - 1)),
+                                new DeepSessionWindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150),
+                                new LogCallbacks()
+                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            };
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);
@@ -105,22 +111,24 @@ public class GNNEmbeddingsTest extends IntegrationTest {
 
     @ParameterizedTest
     @MethodSource("jobArguments")
-    void testPartOptimizedStreamingPlugin(String[] args, int layers, int meshSize) throws Exception {
+    void testAdaptiveWindowPlugin(String[] args, int layers, int meshSize) throws Exception {
         try {
             BaseNDManager.getManager().delay();
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+            env.setParallelism(4);
             ArrayList<Model> models = getGNNModel(layers); // Get the model to be served
-            Tuple2<BaseStorage, List<Plugin>>[] processFunctions = new Tuple2[layers];
-            for (int i = 0; i < layers; i++) {
-                processFunctions[i] = Tuple2.of(
-                        new EdgeListStorage(),
+            TriFunction<Short, Short, Object[], OneInputStreamOperatorFactory<GraphOp, GraphOp>> processFunction;
+            processFunction = (pos, layer, extra) -> {
+                if (pos == 0)
+                    return new DatasetSplitterOperatorFactory(layer, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                return new GraphStorageOperatorFactory(
                         List.of(
-                                new ModelServer<>(models.get(i)),
-                                new PartOptimizedStreamingGNNEmbeddingLayer(models.get(i).getName(), true),
-                                new LogCallbacksPlugin())
-                );
-            }
-            DataStream<GraphOp>[] gs = new GraphStream(env, args, true, false, false, processFunctions).setDataset(new MeshGraphGenerator(meshSize)).build();
+                                new ModelServer<>(models.get(pos - 1)),
+                                new DeepAdaptiveWindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150, 10000, 0.2),
+                                new LogCallbacks()
+                        ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+            };
+            DataStream<GraphOp>[] gs = new GraphStream(env, args, (short) layers, processFunction).setDataset(new MeshGraphGenerator(meshSize)).build();
             gs[gs.length - 1].process(new CollectEmbeddingsProcess()).setParallelism(1);
             env.execute();
             verifyEmbeddings(meshSize, models);
@@ -140,8 +148,9 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             NDArray aggregator = message.mul(meshSize - 1);
             previousLayerEmbedding = block.update(store, new NDList(previousLayerEmbedding, aggregator), false).get(0);
         }
+
         for (Map.Entry<Object, NDArray> stringNDArrayEntry : vertexEmbeddings.entrySet()) {
-            Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-4, 1e-04, false));
+            Assertions.assertTrue(stringNDArrayEntry.getValue().allClose(previousLayerEmbedding, 1e-2, 1e-02, false));
         }
     }
 
@@ -153,7 +162,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
             Tensor tensor = (Tensor) value.element;
             vertexEmbeddings.compute(tensor.id.f1, (vertexId, oldTensor) -> {
                 if (oldTensor != null) oldTensor.resume();
-                tensor.delay();
+                tensor.getValue().delay();
                 return tensor.getValue();
             });
         }

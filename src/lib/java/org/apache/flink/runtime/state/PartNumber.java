@@ -7,10 +7,10 @@ import java.util.Objects;
  * A class Representing PartNumber, wrapper used to distinguish keys requiring murmurHash from this one
  */
 public class PartNumber implements Serializable {
+
     public short partId;
 
     public PartNumber() {
-
     }
 
     public PartNumber(short partId) {
