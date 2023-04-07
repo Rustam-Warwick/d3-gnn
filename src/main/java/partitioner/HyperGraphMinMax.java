@@ -10,7 +10,6 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
-import org.apache.flink.util.Preconditions;
 import picocli.CommandLine;
 
 import java.util.ArrayList;
@@ -35,8 +34,7 @@ public class HyperGraphMinMax extends Partitioner {
      */
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        Preconditions.checkState(partitions > 0);
-        Preconditions.checkNotNull(inputDataStream);
+        super.partition(inputDataStream);
         return inputDataStream.process(new MinMaxProcessFunction(this.partitions, this.betaImbalance)).name("HyperGraphMinMax").setParallelism(1);
     }
 

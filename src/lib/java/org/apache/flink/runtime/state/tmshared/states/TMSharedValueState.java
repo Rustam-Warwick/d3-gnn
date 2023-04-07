@@ -1,4 +1,6 @@
-package org.apache.flink.runtime.state.tmshared;
+package org.apache.flink.runtime.state.tmshared.states;
+
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
 
 /**
  * Task Shared State that stores a single value

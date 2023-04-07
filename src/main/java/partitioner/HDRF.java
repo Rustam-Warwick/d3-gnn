@@ -43,6 +43,7 @@ public class HDRF extends Partitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        super.partition(inputDataStream);
         return inputDataStream.process(new HDRFProcessFunction(partitions, lambda, epsilon)).name(String.format("HDRF[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
     }
 

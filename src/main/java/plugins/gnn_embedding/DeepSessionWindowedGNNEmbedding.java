@@ -15,10 +15,10 @@ import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.tmshared.TMSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.InternalTimer;
-import storage.BaseStorage;
+import storage.ObjectPoolScope;
 
 import java.util.Map;
 
@@ -90,14 +90,14 @@ public class DeepSessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseVertexIdList.clear();
 
         // 2. Collect data
-        try (BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
             ObjectBidirectionalIterator<Object2LongMap.Entry<String>> iterator = maps.f0.object2LongEntrySet().iterator();
             while (iterator.hasNext()) {
                 Object2LongMap.Entry<String> vertexTimerEntry = iterator.next();
                 if (vertexTimerEntry.getLongValue() > timestamp) {
                     break;
                 }
-                Vertex v = getRuntimeContext().getStorage().getVertex(vertexTimerEntry.getKey());
+                Vertex v = getRuntimeContext().getStorage().getVertices().get(vertexTimerEntry.getKey());
                 reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
                 reuseAggregatorsNDList.add((NDArray) (v.getFeature("agg")).getValue());
                 reuseVertexIdList.add(v.getId());

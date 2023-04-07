@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * Only support {@link Vertex} {@link Feature} for now
  * </p>
  */
-public class ListObjectPoolGraphStorage extends BaseStorage {
+public class ListObjectPoolGraphStorage extends GraphStorage {
 
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique

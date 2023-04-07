@@ -87,7 +87,6 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     newElement.getPart()
             );
         }
-        getGraphRuntimeContext().getStorage().cacheAttachedFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
         if ((features != null && features.stream().anyMatch(feature -> !feature.isHalo())) || getType() == ElementType.STANDALONE_FEATURE) {
             GraphElement cpy = copy(CopyContext.SYNC);
             getGraphRuntimeContext().output(new GraphOp(Op.SYNC, newElement.getPart(), cpy), OutputTags.ITERATE_OUTPUT_TAG);

@@ -32,9 +32,6 @@ public class Rmi extends GraphElement {
      */
     public static final Map<Class<?>, Tuple2<MethodAccess, HashMap<String, Tuple2<Integer, Boolean>>>> classRemoteMethods = new NonBlockingHashMap<>(1 << 4);
 
-    /**
-     * Log
-     */
     private static final Logger LOG = LoggerFactory.getLogger(Rmi.class);
 
     /**

@@ -15,8 +15,6 @@ import java.util.Collection;
 
 /**
  * Builder pattern for {@link TMSharedKeyedStateBackend}
- *
- * @param <K>
  */
 public class TMSharedKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBuilder<K> {
 

@@ -3,19 +3,21 @@ package partitioner;
 import elements.GraphOp;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
+import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.Nullable;
 import picocli.CommandLine;
 
 import java.util.ServiceLoader;
 
 /**
- * Abstract class representing all Streaming Graph Partitioners
- * Follows {@link ServiceLoader} pattern and can be extended
+ * Abstract class representing Streaming Graph Partitioners
+ * Uses {@link java.util.ServiceLoader} interface
  */
 abstract public class Partitioner {
 
     /**
-     * Is fine grained resource management enabled
+     * Is fine-grained resource management enabled.
+     * If it is enabled can change the slotSharingGroups
      */
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
     protected boolean fineGrainedResourceManagementEnabled;
@@ -26,7 +28,7 @@ abstract public class Partitioner {
     protected short partitions = -1;
 
     /**
-     * Static Helper for getting the desired partitioner from its name
+     * Get the {@link Partitioner} object from the {@link ServiceLoader}
      */
     @Nullable
     public static Partitioner getPartitioner(String name, String[] cmdArgs) {
@@ -47,10 +49,11 @@ abstract public class Partitioner {
      * Partitioner is expected to gracefully handle out of ordered stream such as vertices or attached features arriving before the actual element.
      * In such cases it either cache/delay its partitioning or assign parts on the fly usually randomly
      * </p>
-     *
-     * @return partition {@link DataStream}
      */
-    public abstract SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream);
+    public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream){
+        Preconditions.checkState(partitions > 0, "Number of partitions should be greater than 0");
+        return null;
+    };
 
     /**
      * Process command line arguments
@@ -60,7 +63,7 @@ abstract public class Partitioner {
     }
 
     /**
-     * Return true if this partitioner has the given name
+     * Return true is this {@link Partitioner} object can process the given name
      */
     public abstract boolean isResponsibleFor(String partitionerName);
 

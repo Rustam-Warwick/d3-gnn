@@ -1,6 +1,7 @@
-package org.apache.flink.runtime.state.tmshared;
+package org.apache.flink.runtime.state.tmshared.states;
 
 import com.clearspring.analytics.hash.MurmurHash;
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
 import org.apache.flink.util.Preconditions;
 
 import java.nio.charset.StandardCharsets;

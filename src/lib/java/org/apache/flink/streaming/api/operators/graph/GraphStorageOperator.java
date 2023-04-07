@@ -11,7 +11,6 @@ import org.apache.flink.api.common.cache.DistributedCache;
 import org.apache.flink.api.common.externalresource.ExternalResourceInfo;
 import org.apache.flink.api.common.functions.BroadcastVariableInitializer;
 import org.apache.flink.api.common.state.*;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.OperatorIOMetricGroup;
 import org.apache.flink.metrics.groups.OperatorMetricGroup;
@@ -20,7 +19,7 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.*;
-import org.apache.flink.runtime.state.tmshared.TMSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
 import org.apache.flink.runtime.state.tmshared.TMSharedState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
@@ -33,14 +32,20 @@ import org.apache.flink.streaming.runtime.streamrecord.StreamRecord;
 import org.apache.flink.streaming.runtime.tasks.CountingBroadcastingGraphOutputCollector;
 import org.apache.flink.streaming.runtime.tasks.ProcessingTimeService;
 import org.apache.flink.util.OutputTag;
-import storage.BaseStorage;
+import storage.GraphStorage;
+import storage.GraphStorageProvider;
+import storage.GraphView;
+import storage.ObjectPoolScope;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Graph Storage operator that contains multiple {@link Plugin} and a {@link BaseStorage}
+ * Graph Storage operator that contains multiple {@link Plugin} and a {@link GraphStorage}
  * Assumes Partitioned {@link GraphOp} as input and output
  */
 public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implements OneInputStreamOperator<GraphOp, GraphOp>, Triggerable<PartNumber, VoidNamespace>, OperatorEventHandler, ExposingInternalTimerService {
@@ -48,7 +53,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage constructor access for state creation
      */
-    protected final BaseStorage.GraphStorageProvider storageProvider;
+    protected final GraphStorageProvider storageProvider;
 
     /**
      * This horizontal position of this pipeline
@@ -98,7 +103,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     /**
      * Storage where all the {@link GraphElement} are stored. Except for {@link Plugin}
      */
-    protected BaseStorage.GraphView storage;
+    protected GraphView storage;
 
     /**
      * Internal Timer Service
@@ -115,7 +120,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
      */
     protected long pipelineFlushingCounter = 0;
 
-    public GraphStorageOperator(List<Plugin> plugins, short position, short layers, BaseStorage.GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
+    public GraphStorageOperator(List<Plugin> plugins, short position, short layers, GraphStorageProvider storageProvider, ProcessingTimeService processingTimeService, StreamOperatorParameters<GraphOp> parameters) {
         this.processingTimeService = processingTimeService;
         super.setup(parameters.getContainingTask(), parameters.getStreamConfig(), parameters.getOutput());
         this.operatorIOMetricGroup = getMetricGroup().getIOMetricGroup();
@@ -154,7 +159,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     @Override
     public void initializeState(StateInitializationContext context) throws Exception {
         super.initializeState(context);
-        this.storage = graphRuntimeContext.getTaskSharedState(new TMSharedStateDescriptor<>("storage", TypeInformation.of(BaseStorage.class), storageProvider)).getGraphStorageView(this.graphRuntimeContext);
+        this.storage = graphRuntimeContext.getTaskSharedState(new TMSharedStateDescriptor<>("storage", GraphStorage.class, storageProvider)).getGraphStorageView(this.graphRuntimeContext);
         for (Plugin plugin : plugins.values()) {
             plugin.initializeState(context);
         }
@@ -217,7 +222,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         if (element.hasTimestamp()) reuse.setTimestamp(element.getTimestamp());
         else reuse.eraseTimestamp();
         GraphOp value = element.getValue();
-        try (BaseStorage.ObjectPoolScope ignored = storage.openObjectPoolScope()) {
+        try (ObjectPoolScope ignored = storage.openObjectPoolScope()) {
             switch (value.op) {
                 case ADD:
                     value.element.create();
@@ -269,7 +274,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
     public class GraphRuntimeContextImpl extends GraphRuntimeContext {
 
         @Override
-        public BaseStorage.GraphView getStorage() {
+        public GraphView getStorage() {
             return storage;
         }
 

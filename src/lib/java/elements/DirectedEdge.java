@@ -18,7 +18,7 @@ import org.jetbrains.annotations.Nullable;
 public final class DirectedEdge extends GraphElement {
 
     /**
-     * Ids of edge represented as [srcId, destId, @Optional attributeId]
+     * Ids of edge represented as [srcId, destId, @Optional attribute]
      */
     public Tuple3<String, String, String> id;
 
@@ -86,7 +86,7 @@ public final class DirectedEdge extends GraphElement {
      */
     public Vertex getSrc() {
         if (src == null && getGraphRuntimeContext() != null)
-            src = getGraphRuntimeContext().getStorage().getVertex(id.f0);
+            src = getGraphRuntimeContext().getStorage().getVertices().get(id.f0);
         return src;
     }
 
@@ -102,7 +102,7 @@ public final class DirectedEdge extends GraphElement {
      */
     public Vertex getDest() {
         if (dest == null && getGraphRuntimeContext() != null)
-            dest = getGraphRuntimeContext().getStorage().getVertex(id.f1);
+            dest = getGraphRuntimeContext().getStorage().getVertices().get(id.f1);
         return dest;
     }
 
@@ -124,10 +124,10 @@ public final class DirectedEdge extends GraphElement {
      */
     @Override
     public void createInternal() {
-        if (!getGraphRuntimeContext().getStorage().containsVertex(getSrcId())) {
+        if (!getGraphRuntimeContext().getStorage().getVertices().containsKey(getSrcId())) {
             src.create();
         }
-        if (!getGraphRuntimeContext().getStorage().containsVertex(getDestId())) {
+        if (!getGraphRuntimeContext().getStorage().getVertices().containsKey(getDestId())) {
             dest.create();
         }
         super.createInternal();

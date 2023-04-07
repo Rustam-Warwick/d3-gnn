@@ -18,6 +18,7 @@ public class BufferedPartitioner extends Partitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        super.partition(inputDataStream);
         return mainPartitioner.partition(inputDataStream).transform("Buffer", TypeInformation.of(GraphOp.class), new FullBufferOperator<>()).setParallelism(1);
     }
 

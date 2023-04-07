@@ -8,7 +8,7 @@ import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.api.common.typeinfo.TypeInfo;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.Nullable;
-import storage.BaseStorage;
+import storage.GraphStorage;
 import typeinfo.recursivepojoinfo.DeSerializationListener;
 import typeinfo.recursivepojoinfo.RecursivePojoTypeInfoFactory;
 
@@ -22,9 +22,8 @@ import java.util.Objects;
  * Abstract class representing all the elements in the graph.
  * <p>
  * All RUD operation on GraphElement should be performed by first fetching the element from storage
- * Since some {@link BaseStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
+ * Since some {@link GraphStorage} implementations might store everything in memory we need to make sure all attached elements are in sync
  * </p>
- *
  * @todo Check on this issue, it works for now because we don't have nested-features & Feature.valueEquals() is not properly used
  */
 @TypeInfo(RecursivePojoTypeInfoFactory.class)
@@ -71,7 +70,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Copy this element
-     *
      * @param context the context for copying.
      */
     abstract public GraphElement copy(CopyContext context);
@@ -232,7 +230,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Current Part of this element
-     * <strong>To be called in {@link BaseStorage} parts only, otherwise {@link NullPointerException}</strong>
+     * <strong>To be called in {@link GraphStorage} parts only, otherwise {@link NullPointerException}</strong>
      */
     public short getPart() {
         return getGraphRuntimeContext().getCurrentPart();
@@ -251,9 +249,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name);
-        feature.setElement(this, false);
-        return feature;
+        return null;
     }
 
     /**
@@ -264,9 +260,6 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             for (Feature<?, ?> feature : features) {
                 if (feature.getName().equals(name)) return true;
             }
-        }
-        if (getGraphRuntimeContext() != null) {
-            return getGraphRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name);
         }
         return false;
     }

@@ -1,4 +1,4 @@
-package plugins.hgnn_embedding;
+package hgnn_embedding;
 
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDArray;

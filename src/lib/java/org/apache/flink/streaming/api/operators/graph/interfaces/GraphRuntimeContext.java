@@ -16,7 +16,8 @@ import org.apache.flink.runtime.state.tmshared.TMSharedStateBackend;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
-import storage.BaseStorage;
+import storage.GraphStorage;
+import storage.GraphView;
 
 import java.util.List;
 
@@ -52,9 +53,9 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     }
 
     /**
-     * Get the {@link BaseStorage}
+     * Get the {@link GraphStorage}
      */
-    abstract public BaseStorage.GraphView getStorage();
+    abstract public GraphView getStorage();
 
     /**
      * Get the {@link Plugin} specified by the ID

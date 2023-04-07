@@ -14,13 +14,17 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Metric Reporter that ouputs to a file all the task metrics
+ * Metric Reporter that periodically flushes to files
+ * <p>
+ * Can hande task as well as operator metrics
+ * {@code FLUSH_DELTA} controls the interval for flushing to files. Default set to 2 minutes
+ * </p>
  */
 public class FileOutputMetricReporter implements Scheduled, MetricReporter {
 
     protected static final List<String> operatorMetricNames = List.of("windowThroughput", "accuracy", "latency", "epochThroughput", "lossValue", "throughput", "Replication Factor", "numRecordsOut", "numRecordsIn", "numRecordsInPerSecond", "numRecordsOutPerSecond");
     protected static final List<String> taskMetricNames = List.of("busyTimeMsPerSecond", "numBytesInLocal", "numBytesInRemote");
-    private static final long FLUSH_DELTA = 120000;
+    private static final long FLUSH_INTERVAL_MS = 120000;
     protected final NonBlockingHashMap<String, Tuple3<File, Metric, StringBuilder>> metricsMap = new NonBlockingHashMap<>(100);
     protected long lastFlush = Long.MIN_VALUE;
 
@@ -51,7 +55,7 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     @Override
     public void report() {
         if (lastFlush == Long.MIN_VALUE) lastFlush = System.currentTimeMillis();
-        final boolean withFlush = (System.currentTimeMillis() - lastFlush) > FLUSH_DELTA;
+        final boolean withFlush = (System.currentTimeMillis() - lastFlush) > FLUSH_INTERVAL_MS;
         metricsMap.forEach((fileName, values) -> {
             appendMetric(values);
             if (withFlush) {

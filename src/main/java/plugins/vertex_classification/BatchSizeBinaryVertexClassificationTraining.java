@@ -22,11 +22,11 @@ import org.apache.flink.metrics.Counter;
 import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.tmshared.TMSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
-import storage.BaseStorage;
+import storage.ObjectPoolScope;
 
 import java.util.Map;
 
@@ -135,10 +135,10 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         reuseLabelsNDList.clear();
 
         // 2. Collect data from storage
-        try (BaseStorage.ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (ObjectPoolScope scope = getRuntimeContext().getStorage().openObjectPoolScope()) {
             for (String vertexId : miniBatchVertexIds) {
-                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "f").getValue());
-                reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, vertexId, "tl").getValue());
+                reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getVertices().getFeatures(vertexId).get("f").getValue());
+                reuseLabelsNDList.add((NDArray) getRuntimeContext().getStorage().getVertices().getFeatures(vertexId).get("tl").getValue());
                 scope.refresh();
             }
         }

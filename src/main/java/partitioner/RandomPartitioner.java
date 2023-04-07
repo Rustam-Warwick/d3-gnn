@@ -26,6 +26,7 @@ public class RandomPartitioner extends Partitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        super.partition(inputDataStream);
         return inputDataStream.map(new RandomMapFunction(partitions)).name("Random Partitioner").setParallelism(1);
     }
 

@@ -33,7 +33,7 @@ import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
-import org.apache.flink.runtime.state.tmshared.TMSharedValueState;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedValueState;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 

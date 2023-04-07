@@ -1,10 +1,10 @@
 package org.apache.flink.streaming.api.operators.graph.interfaces;
 
 import elements.GraphElement;
-import storage.BaseStorage;
+import storage.GraphStorage;
 
 /**
- * Interface for listening to changes in the {@link BaseStorage}
+ * Interface for listening to changes in the {@link GraphStorage}
  */
 public interface GraphListener {
 

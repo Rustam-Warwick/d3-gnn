@@ -39,6 +39,7 @@ public class CHDRF extends Partitioner {
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
+        super.partition(inputDataStream);
         return inputDataStream.process(new CHDRFProcessFunction(partitions, lambda, epsilon)).name(String.format("CHDRF[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
     }
 

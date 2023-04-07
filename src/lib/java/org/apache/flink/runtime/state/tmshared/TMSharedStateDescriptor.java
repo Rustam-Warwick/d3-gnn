@@ -1,7 +1,6 @@
 package org.apache.flink.runtime.state.tmshared;
 
 import org.apache.flink.api.common.state.StateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 
 import java.util.function.Supplier;
 
@@ -18,8 +17,8 @@ public class TMSharedStateDescriptor<S extends TMSharedState, V> extends StateDe
      */
     protected final Supplier<S> stateSupplier;
 
-    public TMSharedStateDescriptor(String name, TypeInformation<V> typeInfo, Supplier<S> stateSupplier) {
-        super(name, typeInfo, null);
+    public TMSharedStateDescriptor(String name, Class<V> type, Supplier<S> stateSupplier) {
+        super(name, type, null);
         this.stateSupplier = stateSupplier;
     }
 

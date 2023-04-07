@@ -8,9 +8,6 @@ import elements.enums.ElementType;
  */
 public final class Vertex extends ReplicableGraphElement {
 
-    /**
-     * Vertex id
-     */
     public String id;
 
     public Vertex() {
@@ -46,6 +43,35 @@ public final class Vertex extends ReplicableGraphElement {
     @Override
     public String getId() {
         return id;
+    }
+
+    @Override
+    public void syncRequest(GraphElement newElement) {
+        getGraphRuntimeContext().getStorage().getVertices().getFeatures(getId()).filter(false).keySet().forEach(name -> {
+            if(!super.containsFeature(name)){
+                getGraphRuntimeContext().getStorage().getVertices().getFeatures(getId()).get(name).setElement(this, false);
+            }
+        });
+        super.syncRequest(newElement);
+    }
+
+    @Override
+    public Feature<?, ?> getFeature(String name) {
+        Feature<?,?> feature = super.getFeature(name);
+        if(feature == null && getGraphRuntimeContext() != null){
+            feature = getGraphRuntimeContext().getStorage().getVertices().getFeatures(getId()).get(name);
+            feature.setElement(this, false);
+        }
+        return feature;
+    }
+
+    @Override
+    public Boolean containsFeature(String name) {
+        boolean contains = super.containsFeature(name);
+        if(!contains && getGraphRuntimeContext() != null){
+            return getGraphRuntimeContext().getStorage().getVertices().getFeatures(getId()).containsKey(name);
+        }
+        return contains;
     }
 
     /**

@@ -15,16 +15,18 @@ import java.io.IOException;
 import java.util.Collection;
 
 /**
- * Special State Backend supporting In-Memory shared state within single task
+ * Special State Backend supporting In-Memory shared state within single Task Manager
  * <p>
  * Wraps around internal {@link StateBackend} hence can be used with RockDB or HashMapStateBackend
- * Nonetheless, shared state will be stored in memory
+ * Nonetheless, shared state will be stored in memory.
+ * @todo Implement TMOperatorStateBackend for non-keyed streams
+ * @todo Add proper fault-tolerance for such state backends
  * </p>
  */
 public class TMSharedStateBackend extends AbstractStateBackend {
 
     /**
-     * Backend that is wrapped with this
+     * Original (wrapped) {@link AbstractStateBackend}
      */
     protected final AbstractStateBackend wrappedBackend;
 
@@ -33,7 +35,7 @@ public class TMSharedStateBackend extends AbstractStateBackend {
     }
 
     /**
-     * Creator static method for better semantic usage
+     * Factory method for creating such state backends
      */
     public static TMSharedStateBackend with(AbstractStateBackend wrappedBackend) {
         return new TMSharedStateBackend(wrappedBackend);

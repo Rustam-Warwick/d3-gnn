@@ -1,6 +1,8 @@
-package org.apache.flink.runtime.state.tmshared;
+package org.apache.flink.runtime.state.tmshared.states;
 
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.NotNull;
 

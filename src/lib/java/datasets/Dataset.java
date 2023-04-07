@@ -25,13 +25,14 @@ public abstract class Dataset implements Serializable {
     protected boolean processOnce;
 
     /**
-     * Is fine grained resource management enabled
+     * Is fine-grained resource management enabled.
+     * If it is enabled can change the slotSharingGroups
      */
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
     protected boolean fineGrainedResourceManagementEnabled;
 
     /**
-     * Helper method for getting the required dataset from string name
+     * Get the {@link Dataset} object from the {@link ServiceLoader}
      */
     @Nullable
     public static Dataset getDataset(String name, String[] cmdArgs) {
@@ -47,24 +48,23 @@ public abstract class Dataset implements Serializable {
 
     /**
      * Process command line arguments.
-     * Made final since base class already has cmd arguments
      */
     public void parseCmdArgs(String[] cmdArgs) {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
     }
 
     /**
-     * Return true is this Dataset object can process the given name
+     * Return true is this {@link Dataset} can process the given name
      */
     public abstract boolean isResponsibleFor(String datasetName);
 
     /**
-     * Build the stream of GraphOps
+     * Build the stream of {@link GraphOp}
      */
     public abstract DataStream<GraphOp> build(StreamExecutionEnvironment env);
 
     /**
-     * Return the splitter function for processing
+     * Return the SPLITTER operator for the dataset
      */
     public abstract KeyedProcessFunction<PartNumber, GraphOp, GraphOp> getSplitter();
 

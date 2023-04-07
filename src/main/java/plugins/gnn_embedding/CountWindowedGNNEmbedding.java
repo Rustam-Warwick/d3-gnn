@@ -11,9 +11,9 @@ import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.tmshared.TMSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
-import storage.BaseStorage;
+import storage.ObjectPoolScope;
 
 import java.util.Map;
 
@@ -66,9 +66,9 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseVertexIdList.clear();
 
         // 2. Collect data
-        try (BaseStorage.ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
+        try (ObjectPoolScope ignored = getRuntimeContext().getStorage().openObjectPoolScope()) {
             maps.f1.forEach((key, ts) -> {
-                Vertex v = getRuntimeContext().getStorage().getVertex(key);
+                Vertex v = getRuntimeContext().getStorage().getVertices().get(key);
                 reuseFeaturesNDList.add((NDArray) (v.getFeature("f")).getValue());
                 reuseAggregatorsNDList.add((NDArray) (v.getFeature("agg")).getValue());
                 reuseVertexIdList.add(v.getId());

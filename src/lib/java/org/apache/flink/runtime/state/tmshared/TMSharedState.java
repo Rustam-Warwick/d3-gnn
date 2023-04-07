@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicInteger;
  * <ul>
  *     <li>Implementations should obviously be Thread-Safe</li>
  *     <li> Note that it is not a KVState but it can create a wrapper KVState if needed to register for publishable states</li>
- *     <li>For fault tolerance these states will be serialized for all the keys in every operator of TM</li>
  * </ul>
  */
 abstract public class TMSharedState implements State {
@@ -22,7 +21,7 @@ abstract public class TMSharedState implements State {
 
     /**
      * Register sub-task to this shared state object.
-     * Initialize variables and etc.
+     * Initialize variables etc.
      */
     public void register(TMSharedKeyedStateBackend<?> TMSharedKeyedStateBackend) {
         registrationCounter.incrementAndGet();
@@ -30,7 +29,7 @@ abstract public class TMSharedState implements State {
 
     /**
      * Deregister sub-task from this shared state object
-     * Used for closing if the registrationCounter is back to 0
+     * Used for closing if the {@code registrationCounter} is back to 0
      * @return if this was the last one and state should be removed
      */
     public boolean deregister(TMSharedKeyedStateBackend<?> TMSharedKeyedStateBackend) {
