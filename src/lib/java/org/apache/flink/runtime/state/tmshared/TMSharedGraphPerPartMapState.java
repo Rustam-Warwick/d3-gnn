@@ -1,4 +1,4 @@
-package org.apache.flink.runtime.state.taskshared;
+package org.apache.flink.runtime.state.tmshared;
 
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
@@ -17,7 +17,7 @@ import java.util.function.Function;
  * Only use it when the state is partitioned according to {@link org.apache.flink.runtime.state.PartNumber}
  * No need to synchronize since the map will be preloaded with the necessary parts on registration
  */
-public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implements Map<Short, V> {
+public class TMSharedGraphPerPartMapState<V> extends TMSharedState implements Map<Short, V> {
 
     protected Map<Short, V> wrappedMap = new Short2ObjectOpenHashMap<>();
 
@@ -79,8 +79,8 @@ public class TaskSharedGraphPerPartMapState<V> extends TaskSharedState implement
     }
 
     @Override
-    public synchronized void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
-        super.register(taskSharedKeyedStateBackend);
+    public synchronized void register(TMSharedKeyedStateBackend<?> TMSharedKeyedStateBackend) {
+        super.register(TMSharedKeyedStateBackend);
         GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getThisOperatorParts().forEach(part -> wrappedMap.put(part, null));
     }
 

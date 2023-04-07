@@ -10,9 +10,10 @@ import org.apache.flink.runtime.operators.coordination.OperatorEvent;
 import org.apache.flink.runtime.operators.coordination.OperatorEventGateway;
 import org.apache.flink.runtime.state.KeyGroupRangeAssignment;
 import org.apache.flink.runtime.state.PartNumber;
-import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedState;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.util.OutputTag;
 import storage.BaseStorage;
@@ -120,14 +121,14 @@ public abstract class GraphRuntimeContext implements RuntimeContext, GraphListen
     abstract public int getNumOfOutChannels(OutputTag<GraphOp> tag);
 
     /**
-     * Return {@link TaskSharedKeyedStateBackend}
+     * Return {@link TMSharedKeyedStateBackend}
      */
-    abstract public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend();
+    abstract public TMSharedKeyedStateBackend<PartNumber> getKeyedStateBackend();
 
     /**
-     * Get Task Shared State from {@link org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend}
+     * Get Task Shared State from {@link TMSharedStateBackend}
      */
-    abstract public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor);
+    abstract public <S extends TMSharedState> S getTaskSharedState(TMSharedStateDescriptor<S, ?> TMSharedStateDescriptor);
 
     /**
      * Run the {@link Runnable} in all parts of this Operator

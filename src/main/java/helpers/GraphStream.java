@@ -10,7 +10,7 @@ import functions.selectors.PartKeySelector;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateBackend;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.IterateStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
@@ -99,7 +99,7 @@ public class GraphStream {
         new CommandLine(this).setUnmatchedArgumentsAllowed(true).parseArgs(cmdArgs);
         this.env = env;
         this.env.getConfig().enableObjectReuse();
-        this.env.setStateBackend(TaskSharedStateBackend.with(new HashMapStateBackend()));
+        this.env.setStateBackend(TMSharedStateBackend.with(new HashMapStateBackend()));
         this.configureSerializers();
         this.layers = layers;
         this.operatorFactorySupplier = operatorFactorySupplier;

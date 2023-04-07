@@ -6,8 +6,8 @@ import elements.enums.EdgeType;
 import elements.enums.ElementType;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.PartNumber;
-import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedState;
+import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.util.Preconditions;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  * To facilitate faster access across various shared operators a {@link GraphView} should be created holding the {@link GraphRuntimeContext}
  * </p>
  */
-abstract public class BaseStorage extends TaskSharedState {
+abstract public class BaseStorage extends TMSharedState {
 
     /**
      * Logger
@@ -37,16 +37,16 @@ abstract public class BaseStorage extends TaskSharedState {
      * Will fail if the storage object is created outside of {@link GraphRuntimeContext} and non-part-number part
      */
     @Override
-    public void register(TaskSharedKeyedStateBackend<?> taskSharedKeyedStateBackend) {
+    public void register(TMSharedKeyedStateBackend<?> TMSharedKeyedStateBackend) {
         Preconditions.checkNotNull(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get(), "Graph Storage can only be used in GraphStorage Operators. GraphRuntimeContext is not detected");
-        Preconditions.checkState(taskSharedKeyedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
-        super.register(taskSharedKeyedStateBackend);
+        Preconditions.checkState(TMSharedKeyedStateBackend.getKeySerializer().createInstance() instanceof PartNumber, "GraphStorage can only be used with partitioned keyed streams");
+        super.register(TMSharedKeyedStateBackend);
     }
 
     /**
      * Create or get the {@link GraphView}
      */
-    abstract public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext);
+    abstract public GraphView getGraphStorageView(GraphRuntimeContext runtimeContext);
 
     /**
      * Provider pattern for {@link BaseStorage}
@@ -56,12 +56,12 @@ abstract public class BaseStorage extends TaskSharedState {
 
     /**
      * A thread local view of the graph object
-     *
      * @implNote All the get methods assume that contains is checked before
      */
     abstract public static class GraphView {
 
         protected final GraphRuntimeContext runtimeContext;
+
 
         public GraphView(GraphRuntimeContext runtimeContext) {
             this.runtimeContext = runtimeContext;
@@ -164,6 +164,11 @@ abstract public class BaseStorage extends TaskSharedState {
          * @param lastN -1 get all edges otherwise pick lastN edges
          */
         public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, int lastN);
+
+        /**
+         * Get vertex degree
+         */
+        public abstract int getIncidentDegree(Vertex vertex, EdgeType edgeType);
 
         /**
          * Get {@link HyperEdge} by its String id

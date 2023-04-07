@@ -51,7 +51,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
     private final Map<Short, Map<String, VertexData>> vertexMap = new NonBlockingHashMap<>();
 
     @Override
-    public GraphView createGraphStorageView(GraphRuntimeContext runtimeContext) {
+    public GraphView getGraphStorageView(GraphRuntimeContext runtimeContext) {
         return new ListGraphView(runtimeContext);
     }
 
@@ -374,6 +374,15 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             }
             Iterator<DirectedEdge> res = IteratorUtils.chainedIterator(inEdgeIterable, outEdgeIterable);
             return () -> res;
+        }
+
+        @Override
+        public int getIncidentDegree(Vertex vertex, EdgeType edgeType) {
+            int res = 0;
+            VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
+            if(vertexData.outEdges != null && edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH) res += vertexData.outEdges.size();
+            if(vertexData.inEdges != null && edgeType == EdgeType.IN || edgeType == EdgeType.BOTH) res += vertexData.inEdges.size();
+            return res;
         }
 
         @Override

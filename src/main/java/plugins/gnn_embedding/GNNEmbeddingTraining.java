@@ -20,8 +20,8 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.taskshared.TaskSharedGraphPerPartMapState;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.TMSharedGraphPerPartMapState;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import storage.BaseStorage;
@@ -80,8 +80,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reuseVertexToIndexMap = new Object2IntOpenHashMap<>();
         reuseVertexIdList = new ArrayList<>();
 
-        part2FeatureGradientAgg = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2FeatureGradientAgg", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
-        part2AggregatorGradientAgg = getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>("part2AggregatorGradientAgg", Types.GENERIC(Map.class), TaskSharedGraphPerPartMapState::new));
+        part2FeatureGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2FeatureGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        part2AggregatorGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2AggregatorGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2FeatureGradientAgg.put(part, new NDArraysAggregator()));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2AggregatorGradientAgg.put(part, new NDArraysAggregator()));
     }

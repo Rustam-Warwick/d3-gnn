@@ -1,4 +1,4 @@
-package org.apache.flink.runtime.state.taskshared;
+package org.apache.flink.runtime.state.tmshared;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.ExecutionConfig;
@@ -31,27 +31,27 @@ import java.util.concurrent.RunnableFuture;
 import java.util.stream.Stream;
 
 /**
- * Keyed State Backend for {@link TaskSharedStateBackend}
+ * Keyed State Backend for {@link TMSharedStateBackend}
  * <p>
- * As with {@link TaskSharedStateBackend} it wraps around a pre-defined {@link KeyedStateBackend} and
+ * As with {@link TMSharedStateBackend} it wraps around a pre-defined {@link KeyedStateBackend} and
  * basically uses it for all normal state operations
  * On top of it it implements methods for handling task local state access
  * </p>
  *
  * @param <K> Type of Keys
  */
-public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
+public class TMSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
 
     /**
      * Map table of the {@link BaseStorage} per task
      * Key is [JobID, JobVertexID, State Name, NameSpace]. NameSpace for task shared state cannot be changed afterwards
      */
-    final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> TASK_LOCAL_STATE_MAP = new ConcurrentHashMap<>(10);
+    final protected static Map<Tuple4<JobID, JobVertexID, String, Object>, TMSharedState> TASK_LOCAL_STATE_MAP = new ConcurrentHashMap<>(10);
 
     /**
      * Access to state backend
      */
-    final protected static ThreadLocal<TaskSharedKeyedStateBackend<?>> TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL = new ThreadLocal<>();
+    final protected static ThreadLocal<TMSharedKeyedStateBackend<?>> TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL = new ThreadLocal<>();
 
     /**
      * Wrapped delegate state backend
@@ -64,23 +64,23 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     final protected Tuple2<JobID, JobVertexID> taskIdentifier;
 
 
-    public TaskSharedKeyedStateBackend(TaskKvStateRegistry kvStateRegistry,
-                                       TypeSerializer<K> keySerializer,
-                                       ClassLoader userCodeClassLoader,
-                                       ExecutionConfig executionConfig,
-                                       TtlTimeProvider ttlTimeProvider,
-                                       LatencyTrackingStateConfig latencyTrackingStateConfig,
-                                       CloseableRegistry cancelStreamRegistry,
-                                       InternalKeyContext<K> keyContext,
-                                       AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
-                                       Tuple2<JobID, JobVertexID> taskIdentifier) {
+    public TMSharedKeyedStateBackend(TaskKvStateRegistry kvStateRegistry,
+                                     TypeSerializer<K> keySerializer,
+                                     ClassLoader userCodeClassLoader,
+                                     ExecutionConfig executionConfig,
+                                     TtlTimeProvider ttlTimeProvider,
+                                     LatencyTrackingStateConfig latencyTrackingStateConfig,
+                                     CloseableRegistry cancelStreamRegistry,
+                                     InternalKeyContext<K> keyContext,
+                                     AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
+                                     Tuple2<JobID, JobVertexID> taskIdentifier) {
         super(kvStateRegistry, keySerializer, userCodeClassLoader, executionConfig, ttlTimeProvider, latencyTrackingStateConfig, cancelStreamRegistry, keyContext);
         this.wrappedKeyedStateBackend = wrappedKeyedStateBackend;
         this.taskIdentifier = taskIdentifier;
         TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.set(this);
     }
 
-    public static TaskSharedKeyedStateBackend<?> getBackend() {
+    public static TMSharedKeyedStateBackend<?> getBackend() {
         return TASK_SHARED_KEYED_STATE_BACKEND_THREAD_LOCAL.get();
     }
 
@@ -154,11 +154,11 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     /**
-     * Create or get {@link TaskSharedState} from backend
+     * Create or get {@link TMSharedState} from backend
      */
-    public <N, S extends TaskSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
-        TaskSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, taskSharedStateDescriptor.getName(), namespace), (key, val) -> (
-                val == null ? taskSharedStateDescriptor.getStateSupplier().get() : val
+    public <N, S extends TMSharedState> S getOrCreateTaskSharedState(N namespace, TypeSerializer<N> nameSpaceSerializer, TMSharedStateDescriptor<S, ?> TMSharedStateDescriptor) {
+        TMSharedState taskLocal = TASK_LOCAL_STATE_MAP.compute(Tuple4.of(taskIdentifier.f0, taskIdentifier.f1, TMSharedStateDescriptor.getName(), namespace), (key, val) -> (
+                val == null ? TMSharedStateDescriptor.getStateSupplier().get() : val
         ));
         taskLocal.register(this);
         return (S) taskLocal;
@@ -170,7 +170,7 @@ public class TaskSharedKeyedStateBackend<K> extends AbstractKeyedStateBackend<K>
     }
 
     public void close() throws IOException {
-        for (Map.Entry<Tuple4<JobID, JobVertexID, String, Object>, TaskSharedState> taskLocalState : TASK_LOCAL_STATE_MAP.entrySet()) {
+        for (Map.Entry<Tuple4<JobID, JobVertexID, String, Object>, TMSharedState> taskLocalState : TASK_LOCAL_STATE_MAP.entrySet()) {
             if (taskLocalState.getKey().f0.equals(taskIdentifier.f0) && taskLocalState.getKey().f1.equals(taskIdentifier.f1) && taskLocalState.getValue().deregister(this))
                 TASK_LOCAL_STATE_MAP.remove(taskLocalState.getKey());
         }

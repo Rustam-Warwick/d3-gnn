@@ -1,4 +1,4 @@
-package org.apache.flink.runtime.state.taskshared;
+package org.apache.flink.runtime.state.tmshared;
 
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -21,28 +21,28 @@ import java.util.Collection;
  * Nonetheless, shared state will be stored in memory
  * </p>
  */
-public class TaskSharedStateBackend extends AbstractStateBackend {
+public class TMSharedStateBackend extends AbstractStateBackend {
 
     /**
      * Backend that is wrapped with this
      */
     protected final AbstractStateBackend wrappedBackend;
 
-    private TaskSharedStateBackend(AbstractStateBackend wrappedBackend) {
+    private TMSharedStateBackend(AbstractStateBackend wrappedBackend) {
         this.wrappedBackend = wrappedBackend;
     }
 
     /**
      * Creator static method for better semantic usage
      */
-    public static TaskSharedStateBackend with(AbstractStateBackend wrappedBackend) {
-        return new TaskSharedStateBackend(wrappedBackend);
+    public static TMSharedStateBackend with(AbstractStateBackend wrappedBackend) {
+        return new TMSharedStateBackend(wrappedBackend);
     }
 
     @Override
     public <K> AbstractKeyedStateBackend<K> createKeyedStateBackend(Environment env, JobID jobID, String operatorIdentifier, TypeSerializer<K> keySerializer, int numberOfKeyGroups, KeyGroupRange keyGroupRange, TaskKvStateRegistry kvStateRegistry, TtlTimeProvider ttlTimeProvider, MetricGroup metricGroup, @NotNull Collection<KeyedStateHandle> stateHandles, CloseableRegistry cancelStreamRegistry) throws IOException {
         AbstractKeyedStateBackend<K> wrappedKeyedStateBackend = wrappedBackend.createKeyedStateBackend(env, jobID, operatorIdentifier, keySerializer, numberOfKeyGroups, keyGroupRange, kvStateRegistry, ttlTimeProvider, metricGroup, stateHandles, cancelStreamRegistry);
-        return new TaskSharedKeyedStateBackendBuilder<>(
+        return new TMSharedKeyedStateBackendBuilder<>(
                 kvStateRegistry,
                 keySerializer,
                 env.getUserCodeClassLoader().asClassLoader(),
@@ -62,7 +62,7 @@ public class TaskSharedStateBackend extends AbstractStateBackend {
     @Override
     public <K> CheckpointableKeyedStateBackend<K> createKeyedStateBackend(Environment env, JobID jobID, String operatorIdentifier, TypeSerializer<K> keySerializer, int numberOfKeyGroups, KeyGroupRange keyGroupRange, TaskKvStateRegistry kvStateRegistry, TtlTimeProvider ttlTimeProvider, MetricGroup metricGroup, @NotNull Collection<KeyedStateHandle> stateHandles, CloseableRegistry cancelStreamRegistry, double managedMemoryFraction) throws Exception {
         AbstractKeyedStateBackend<K> wrappedKeyedStateBackend = (AbstractKeyedStateBackend<K>) wrappedBackend.createKeyedStateBackend(env, jobID, operatorIdentifier, keySerializer, numberOfKeyGroups, keyGroupRange, kvStateRegistry, ttlTimeProvider, metricGroup, stateHandles, cancelStreamRegistry, managedMemoryFraction);
-        return new TaskSharedKeyedStateBackendBuilder<>(
+        return new TMSharedKeyedStateBackendBuilder<>(
                 kvStateRegistry,
                 keySerializer,
                 env.getUserCodeClassLoader().asClassLoader(),

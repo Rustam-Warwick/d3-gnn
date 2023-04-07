@@ -21,9 +21,9 @@ import org.apache.flink.runtime.operators.coordination.OperatorEventHandler;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
 import org.apache.flink.runtime.state.VoidNamespaceSerializer;
-import org.apache.flink.runtime.state.taskshared.TaskSharedKeyedStateBackend;
-import org.apache.flink.runtime.state.taskshared.TaskSharedState;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
+import org.apache.flink.runtime.state.tmshared.TMSharedState;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
 import org.apache.flink.streaming.api.SimpleTimerService;
 import org.apache.flink.streaming.api.TimerService;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
@@ -144,8 +144,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
     }
 
     @Override
-    public <K> TaskSharedKeyedStateBackend<K> getKeyedStateBackend() {
-        return (TaskSharedKeyedStateBackend<K>) super.getKeyedStateBackend(); // Typecast error if not
+    public <K> TMSharedKeyedStateBackend<K> getKeyedStateBackend() {
+        return (TMSharedKeyedStateBackend<K>) super.getKeyedStateBackend(); // Typecast error if not
     }
 
     @Override
@@ -307,7 +307,7 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         }
 
         @Override
-        public TaskSharedKeyedStateBackend<PartNumber> getKeyedStateBackend() {
+        public TMSharedKeyedStateBackend<PartNumber> getKeyedStateBackend() {
             return DatasetSplitterOperator.this.getKeyedStateBackend();
         }
 
@@ -472,8 +472,8 @@ public class DatasetSplitterOperator extends KeyedProcessOperator<PartNumber, Gr
         }
 
         @Override
-        public <S extends TaskSharedState> S getTaskSharedState(TaskSharedStateDescriptor<S, ?> taskSharedStateDescriptor) {
-            return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE, taskSharedStateDescriptor);
+        public <S extends TMSharedState> S getTaskSharedState(TMSharedStateDescriptor<S, ?> TMSharedStateDescriptor) {
+            return getKeyedStateBackend().getOrCreateTaskSharedState(VoidNamespace.get(), VoidNamespaceSerializer.INSTANCE, TMSharedStateDescriptor);
         }
     }
 

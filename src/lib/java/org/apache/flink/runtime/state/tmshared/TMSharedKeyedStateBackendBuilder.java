@@ -1,4 +1,4 @@
-package org.apache.flink.runtime.state.taskshared;
+package org.apache.flink.runtime.state.tmshared;
 
 import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
@@ -14,30 +14,30 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Collection;
 
 /**
- * Builder pattern for {@link TaskSharedKeyedStateBackend}
+ * Builder pattern for {@link TMSharedKeyedStateBackend}
  *
  * @param <K>
  */
-public class TaskSharedKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBuilder<K> {
+public class TMSharedKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBuilder<K> {
 
     protected final AbstractKeyedStateBackend<K> wrappedKeyedStateBackend;
 
     protected final Environment environment;
 
 
-    public TaskSharedKeyedStateBackendBuilder(TaskKvStateRegistry kvStateRegistry,
-                                              TypeSerializer<K> keySerializer,
-                                              ClassLoader userCodeClassLoader,
-                                              int numberOfKeyGroups,
-                                              KeyGroupRange keyGroupRange,
-                                              ExecutionConfig executionConfig,
-                                              TtlTimeProvider ttlTimeProvider,
-                                              LatencyTrackingStateConfig latencyTrackingStateConfig,
-                                              @NotNull Collection<KeyedStateHandle> stateHandles,
-                                              StreamCompressionDecorator keyGroupCompressionDecorator,
-                                              CloseableRegistry cancelStreamRegistry,
-                                              AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
-                                              Environment environment) {
+    public TMSharedKeyedStateBackendBuilder(TaskKvStateRegistry kvStateRegistry,
+                                            TypeSerializer<K> keySerializer,
+                                            ClassLoader userCodeClassLoader,
+                                            int numberOfKeyGroups,
+                                            KeyGroupRange keyGroupRange,
+                                            ExecutionConfig executionConfig,
+                                            TtlTimeProvider ttlTimeProvider,
+                                            LatencyTrackingStateConfig latencyTrackingStateConfig,
+                                            @NotNull Collection<KeyedStateHandle> stateHandles,
+                                            StreamCompressionDecorator keyGroupCompressionDecorator,
+                                            CloseableRegistry cancelStreamRegistry,
+                                            AbstractKeyedStateBackend<K> wrappedKeyedStateBackend,
+                                            Environment environment) {
         super(kvStateRegistry, keySerializer, userCodeClassLoader, numberOfKeyGroups, keyGroupRange, executionConfig, ttlTimeProvider, latencyTrackingStateConfig, stateHandles, keyGroupCompressionDecorator, cancelStreamRegistry);
         this.wrappedKeyedStateBackend = wrappedKeyedStateBackend;
         this.environment = environment;
@@ -45,7 +45,7 @@ public class TaskSharedKeyedStateBackendBuilder<K> extends AbstractKeyedStateBac
 
     @Override
     public AbstractKeyedStateBackend<K> build() throws BackendBuildingException {
-        return new TaskSharedKeyedStateBackend<>(
+        return new TMSharedKeyedStateBackend<>(
                 kvStateRegistry,
                 keySerializerProvider.currentSchemaSerializer(),
                 userCodeClassLoader,

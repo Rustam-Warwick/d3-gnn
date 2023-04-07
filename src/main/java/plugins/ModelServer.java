@@ -32,8 +32,8 @@ import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.taskshared.TaskSharedStateDescriptor;
-import org.apache.flink.runtime.state.taskshared.TaskSharedValueState;
+import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.TMSharedValueState;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 
@@ -77,7 +77,7 @@ public class ModelServer<T extends Block> extends Plugin {
 
     public void open(Configuration params) throws Exception {
         super.open(params);
-        modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TaskSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), () -> new TaskSharedValueState(new ModelWrapper<>(model)))).getValue();
+        modelWrapper = (ModelWrapper<T>) getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>(getId(), Types.GENERIC(ModelWrapper.class), () -> new TMSharedValueState(new ModelWrapper<>(model)))).getValue();
         if (modelWrapper.model == model) isMaster = true;
         model = null;
     }
