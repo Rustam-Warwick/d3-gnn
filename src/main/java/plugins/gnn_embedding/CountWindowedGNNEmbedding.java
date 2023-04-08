@@ -8,11 +8,10 @@ import elements.Vertex;
 import elements.enums.Op;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import storage.ObjectPoolScope;
 
 import java.util.Map;
@@ -43,7 +42,7 @@ public class CountWindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseAggregatorsNDList = new NDList();
         reuseVertexIdList = new ObjectArrayList<>();
         LOCAL_BATCH_SIZE = BATCH_SIZE / getRuntimeContext().getNumberOfParallelSubtasks();
-        part2VertexMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_part2VertexMaps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        part2VertexMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_part2VertexMaps", Map.class, TMSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2VertexMaps.put(part, Tuple2.of(0, new Object2LongOpenHashMap<>())));
     }
 

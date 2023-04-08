@@ -8,18 +8,21 @@ import elements.Feature;
  */
 class AttachedFeatureInfo {
 
-    boolean halo;
+    final boolean halo;
 
-    int position;
+    final int position;
 
-    Class<? extends Feature> clazz;
+    final Class<? extends Feature> clazz;
 
-    ConstructorAccess<? extends Feature> constructorAccess;
+    final ConstructorAccess<? extends Feature> constructorAccess;
+
+    final String name;
 
     AttachedFeatureInfo(Feature<?, ?> feature, int position) {
         this.position = position;
         this.halo = feature.isHalo();
         this.clazz = feature.getClass();
         this.constructorAccess = ConstructorAccess.get(this.clazz);
+        this.name = feature.getName();
     }
 }

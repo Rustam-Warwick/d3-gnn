@@ -15,12 +15,11 @@ import elements.features.Tensor;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.operators.coordination.OperatorEvent;
-import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
 import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 import storage.ObjectPoolScope;
@@ -79,8 +78,8 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reuseVertexToIndexMap = new Object2IntOpenHashMap<>();
         reuseVertexIdList = new ArrayList<>();
 
-        part2FeatureGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2FeatureGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
-        part2AggregatorGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2AggregatorGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        part2FeatureGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2FeatureGradientAgg", Map.class, TMSharedGraphPerPartMapState::new));
+        part2AggregatorGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2AggregatorGradientAgg", Map.class, TMSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2FeatureGradientAgg.put(part, new NDArraysAggregator()));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2AggregatorGradientAgg.put(part, new NDArraysAggregator()));
     }

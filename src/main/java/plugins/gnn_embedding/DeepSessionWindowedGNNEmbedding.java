@@ -7,7 +7,6 @@ import elements.GraphOp;
 import elements.Vertex;
 import elements.enums.Op;
 import it.unimi.dsi.fastutil.objects.*;
-import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.Counter;
@@ -15,8 +14,8 @@ import org.apache.flink.metrics.MeterView;
 import org.apache.flink.metrics.SimpleCounter;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.VoidNamespace;
-import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedGraphPerPartMapState;
 import org.apache.flink.streaming.api.operators.InternalTimer;
 import storage.ObjectPoolScope;
 
@@ -52,7 +51,7 @@ public class DeepSessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseVertexIdList = new ObjectArrayList<>();
         windowThroughput = new SimpleCounter();
         getRuntimeContext().getMetricGroup().meter("windowThroughput", new MeterView(windowThroughput));
-        part2Maps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_part2Maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        part2Maps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_part2Maps", Map.class, TMSharedGraphPerPartMapState::new));
         getRuntimeContext().getThisOperatorParts().forEach(part -> part2Maps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
     }
 

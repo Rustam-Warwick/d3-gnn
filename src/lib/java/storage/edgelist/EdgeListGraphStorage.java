@@ -1,6 +1,7 @@
 package storage.edgelist;
 
 import elements.Feature;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jctools.maps.NonBlockingHashMap;
@@ -19,22 +20,27 @@ public class EdgeListGraphStorage extends GraphStorage {
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
      */
-    final Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
+    protected final Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
 
     /**
      * Vertex Feature Info
      */
-    final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable = new ConcurrentHashMap<>();
+    protected final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable = new ConcurrentHashMap<>();
+
+    /**
+     * Indec to feature info table
+     */
+    protected final Int2ObjectOpenHashMap<AttachedFeatureInfo> indexVertexFeatureInfoTable = new Int2ObjectOpenHashMap<>();
 
     /**
      * Unique Vertex Feature Counter
      */
-    final AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
+    protected final AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
 
     /**
      * Vertex Map
      */
-    final Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap = new Short2ObjectOpenHashMap<>();
+    protected final Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap = new Short2ObjectOpenHashMap<>();
 
     @Override
     public void clear() {
@@ -60,7 +66,7 @@ public class EdgeListGraphStorage extends GraphStorage {
 
     @Override
     public GraphView getGraphStorageView(GraphRuntimeContext runtimeContext) {
-        return new EdgeListGraphView(runtimeContext, vertexMasterTable, vertexFeatureInfoTable, uniqueVertexFeatureCounter, vertexMap);
+        return new EdgeListGraphView(runtimeContext, vertexMasterTable, vertexFeatureInfoTable, indexVertexFeatureInfoTable, uniqueVertexFeatureCounter, vertexMap);
     }
 
 }

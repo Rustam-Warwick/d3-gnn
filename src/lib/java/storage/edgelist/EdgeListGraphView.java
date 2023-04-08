@@ -4,8 +4,8 @@ import elements.DirectedEdge;
 import elements.Feature;
 import elements.Vertex;
 import elements.enums.ElementType;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.NotNull;
@@ -29,6 +29,11 @@ class EdgeListGraphView extends GraphView {
     protected final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable;
 
     /**
+     * Index to feature info table
+     */
+    protected final Int2ObjectOpenHashMap<AttachedFeatureInfo> indexVertexFeatureInfoTable;
+
+    /**
      * Unique Vertex Feature Counter
      */
     protected final AtomicInteger uniqueVertexFeatureCounter;
@@ -41,7 +46,7 @@ class EdgeListGraphView extends GraphView {
     /**
      * {@link ObjectPoolScope}
      */
-    protected final EdgeListObjectPool edgeListObjectPool = new EdgeListObjectPool();
+    protected final EdgeListObjectPool objectPool = new EdgeListObjectPool();
 
     /**
      * {@link VerticesView}
@@ -53,10 +58,11 @@ class EdgeListGraphView extends GraphView {
      */
     protected final EdgesView edgesView = new PossiblyFilteredEdgesView();
 
-    public EdgeListGraphView(GraphRuntimeContext runtimeContext, Map<String, Short> vertexMasterTable, Map<String, AttachedFeatureInfo> vertexFeatureInfoTable, AtomicInteger uniqueVertexFeatureCounter, Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap) {
+    public EdgeListGraphView(GraphRuntimeContext runtimeContext, Map<String, Short> vertexMasterTable, Map<String, AttachedFeatureInfo> vertexFeatureInfoTable, Int2ObjectOpenHashMap<AttachedFeatureInfo> indexVertexFeatureInfoTable, AtomicInteger uniqueVertexFeatureCounter, Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap) {
         super(runtimeContext);
         this.vertexMasterTable = vertexMasterTable;
         this.vertexFeatureInfoTable = vertexFeatureInfoTable;
+        this.indexVertexFeatureInfoTable = indexVertexFeatureInfoTable;
         this.uniqueVertexFeatureCounter = uniqueVertexFeatureCounter;
         this.vertexMap = vertexMap;
         synchronized (vertexMap){
@@ -81,12 +87,12 @@ class EdgeListGraphView extends GraphView {
 
     @Override
     public ObjectPoolScope openObjectPoolScope() {
-        return edgeListObjectPool.open();
+        return objectPool.open();
     }
 
     class GlobalVerticesView implements VerticesView{
 
-        protected Values values = null;
+        protected final Values values = new Values();
 
         @Override
         public FeaturesView getFeatures(String key) {
@@ -94,7 +100,7 @@ class EdgeListGraphView extends GraphView {
         }
 
         @Override
-        public List<Feature> filterFeatures(String featureName) {
+        public Collection<Feature> filterFeatures(String featureName) {
             return null;
         }
 
@@ -121,8 +127,8 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public Vertex get(Object key) {
-            if (edgeListObjectPool.isOpen()) {
-                return edgeListObjectPool.getVertex((String) key, vertexMasterTable.get(key));
+            if (objectPool.isOpen()) {
+                return objectPool.getVertex((String) key, vertexMasterTable.get(key));
             }
             return new Vertex((String) key, vertexMasterTable.get(key));
         }
@@ -137,7 +143,7 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public Vertex remove(Object key) {
-            throw new NotImplementedException("");
+            throw new NotImplementedException("Remove not handled yet");
         }
 
         @Override
@@ -147,7 +153,7 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public void clear() {
-            throw new NotImplementedException("");
+            throw new NotImplementedException("Remove not handled yet");
         }
 
         @NotNull
@@ -159,31 +165,71 @@ class EdgeListGraphView extends GraphView {
         @NotNull
         @Override
         public Collection<Vertex> values() {
-            if(values == null) values = new Values();
             return values;
-        }
-
-        @NotNull
-        @Override
-        public Set<Entry<String, Vertex>> entrySet() {
-            throw new NotImplementedException("");
         }
 
         final class Values extends AbstractCollection<Vertex> {
             public int size()                 { return GlobalVerticesView.this.size(); }
             public void clear()               { GlobalVerticesView.this.clear(); }
             public Iterator<Vertex> iterator()     {
-                return IteratorUtils.transformedIterator(GlobalVerticesView.this.keySet().iterator(), GlobalVerticesView.this::get);
+                return new ValuesIterator();
             }
             public boolean contains(Object o) { return containsValue(o); }
             public Spliterator<Vertex> spliterator() {
-                throw new NotImplementedException("");
+                return new ValuesSpliterator();
             }
             public void forEach(Consumer<? super Vertex> action) {
                 GlobalVerticesView.this.keySet().forEach(key -> {
                     Vertex v = GlobalVerticesView.this.get(key);
                     action.accept(v);
                 });
+            }
+        }
+
+        final class ValuesSpliterator implements Spliterator<Vertex>{
+            Spliterator<String> keySpliterator;
+
+            public ValuesSpliterator() {
+                this.keySpliterator = vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().spliterator();
+            }
+
+            public ValuesSpliterator(Spliterator<String> keySpliterator) {
+                this.keySpliterator = keySpliterator;
+            }
+
+            @Override
+            public boolean tryAdvance(Consumer<? super Vertex> action) {
+                return keySpliterator.tryAdvance(vertexId -> {
+                    action.accept(GlobalVerticesView.this.get(vertexId));
+                });
+            }
+
+            @Override
+            public Spliterator<Vertex> trySplit() {
+                return new ValuesSpliterator(keySpliterator.trySplit());
+            }
+
+            @Override
+            public long estimateSize() {
+                return keySpliterator.estimateSize();
+            }
+
+            @Override
+            public int characteristics() {
+                return keySpliterator.characteristics();
+            }
+        }
+
+        final class ValuesIterator implements Iterator<Vertex>{
+            Iterator<String> keyIterator = vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().iterator();
+            @Override
+            public boolean hasNext() {
+                return keyIterator.hasNext();
+            }
+
+            @Override
+            public Vertex next() {
+                return GlobalVerticesView.this.get(keyIterator.next());
             }
         }
     }
@@ -214,31 +260,40 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public int size() {
-            return 0;
+            int size = 0;
+            for (int i = 0; i < vertexInfo.featureValues.length; i++) {
+                if(vertexInfo.featureValues[i] != null && (isHalo == null || indexVertexFeatureInfoTable.get(i).halo == isHalo)){
+                    size++;
+                }
+            }
+            return size;
         }
 
         @Override
         public boolean isEmpty() {
-            return false;
+            return size() == 0;
         }
 
         @Override
         public boolean containsKey(Object key) {
-            return vertexInfo.hasFeatureInPosition(vertexFeatureInfoTable.get(key).position);
+            AttachedFeatureInfo featureInfo = vertexFeatureInfoTable.get(key);
+            return featureInfo != null && (isHalo == null || isHalo == featureInfo.halo) && vertexInfo.hasFeatureInPosition(featureInfo.position);
         }
 
         @Override
         public boolean containsValue(Object value) {
             Feature feature = (Feature) value;
-            return vertexInfo.hasFeatureInPosition(vertexFeatureInfoTable.get(feature.getName()).position);
+            AttachedFeatureInfo featureInfo = vertexFeatureInfoTable.get(feature.getName());
+            return (isHalo == null || isHalo == featureInfo.halo) && vertexInfo.hasFeatureInPosition(featureInfo.position);
         }
 
         @Override
         public Feature get(Object key) {
             AttachedFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(key);
+            if(isHalo != null && vertexFeatureInfo.halo != isHalo) return null;
             Object value = vertexInfo.featureValues[vertexFeatureInfo.position];
-            if (edgeListObjectPool.isOpen()) {
-                return edgeListObjectPool.getVertexFeature(vertexId, (String) key, value, vertexFeatureInfo);
+            if (objectPool.isOpen()) {
+                return objectPool.getVertexFeature(vertexId, (String) key, value, vertexFeatureInfo);
             } else {
                 Feature feature = vertexFeatureInfo.constructorAccess.newInstance();
                 feature.value = value;
@@ -253,67 +308,185 @@ class EdgeListGraphView extends GraphView {
         @Nullable
         @Override
         public Feature put(String key, Feature value) {
-            return null;
+            if(isHalo != null && value.isHalo() != isHalo) return null;
+            AttachedFeatureInfo attachedFeatureInfo = vertexFeatureInfoTable.computeIfAbsent(value.getName(), (ignored) ->{
+                int position = uniqueVertexFeatureCounter.getAndIncrement();
+                AttachedFeatureInfo featureInfo = new AttachedFeatureInfo(value, position);
+                indexVertexFeatureInfoTable.put(position, featureInfo);
+                return featureInfo;
+            });
+            vertexInfo.addOrUpdateFeature(value, attachedFeatureInfo);
+            return value;
         }
 
         @Override
         public Feature remove(Object key) {
-            throw new NotImplementedException("");
+            throw new NotImplementedException("Remove not handled yet");
         }
 
         @Override
         public void putAll(@NotNull Map<? extends String, ? extends Feature> m) {
-            throw new NotImplementedException("");
+            m.forEach(this::put);
         }
 
         @Override
         public void clear() {
-            throw new NotImplementedException("");
+            throw new NotImplementedException("Remove not handled yet");
         }
 
         @NotNull
         @Override
         public Set<String> keySet() {
-            return null;
+            return new KeySet();
         }
 
         @NotNull
         @Override
         public Collection<Feature> values() {
-            return null;
+            return new Values();
         }
 
-        @NotNull
-        @Override
-        public Set<Entry<String, Feature>> entrySet() {
-            return null;
+        final class Values extends AbstractCollection<Feature>{
+            @Override
+            public Iterator<Feature> iterator() {
+                return new ValuesIterator();
+            }
+
+            @Override
+            public int size() {
+                return VertexFeaturesView.this.size();
+            }
         }
+
+        final class ValuesIterator implements Iterator<Feature>{
+
+            int i;
+
+            int processed;
+
+            int size = VertexFeaturesView.this.size();
+
+            @Override
+            public boolean hasNext() {
+                return processed < size;
+            }
+
+            @Override
+            public Feature next() {
+                for (; i < vertexInfo.featureValues.length; i++) {
+                    AttachedFeatureInfo featureInfo = null;
+                    if(vertexInfo.featureValues[i] != null && (isHalo == null || (featureInfo = indexVertexFeatureInfoTable.get(i)).halo == isHalo)) {
+                        processed++;
+                        if (objectPool.isOpen()) {
+                            return objectPool.getVertexFeature(vertexId, (String) vertexId, vertexInfo.featureValues[i], featureInfo);
+                        } else {
+                            Feature feature = featureInfo.constructorAccess.newInstance();
+                            feature.value = vertexInfo.featureValues[i];
+                            feature.id.f0 = ElementType.VERTEX;
+                            feature.id.f1 = vertexId;
+                            feature.id.f2 = featureInfo.name;
+                            feature.halo = featureInfo.halo;
+                            return feature;
+                        }
+                    }
+                }
+                return null;
+            }
+        }
+
+        final class KeySet extends AbstractSet<String> {
+            public int size()                 { return VertexFeaturesView.this.size(); }
+            public void clear()               { VertexFeaturesView.this.clear();}
+            public Iterator<String> iterator() {
+                return new KeyIterator();
+            }
+
+            public boolean contains(Object o) { return containsKey(o); }
+            public boolean remove(Object key) {
+                return remove(key);
+            }
+            public Spliterator<String> spliterator() {
+                throw new NotImplementedException("");
+            }
+            public void forEach(Consumer<? super String> action) {
+                for (int i = 0; i < vertexInfo.featureValues.length; i++) {
+                    AttachedFeatureInfo featureInfo = null;
+                    if(vertexInfo.featureValues[i] != null && (isHalo == null || (featureInfo = indexVertexFeatureInfoTable.get(i)).halo == isHalo)){
+                        action.accept(featureInfo.name);
+                    }
+                }
+            }
+        }
+
+        final class KeyIterator implements Iterator<String>{
+            int i;
+
+            int processed;
+
+            int size = VertexFeaturesView.this.size();
+            @Override
+            public boolean hasNext() {
+                return processed < size;
+            }
+
+            @Override
+            public String next() {
+                for (; i < vertexInfo.featureValues.length; i++) {
+                    AttachedFeatureInfo featureInfo = null;
+                    if(vertexInfo.featureValues[i] != null && (isHalo == null || (featureInfo = indexVertexFeatureInfoTable.get(i)).halo == isHalo)) {
+                        processed++;
+                        return featureInfo.name;
+                    }
+                }
+                return null;
+            }
+        }
+
     }
 
     class PossiblyFilteredEdgesView implements EdgesView{
+
+        protected final String mainVertexId;
+
+        protected final List<String> destVertexIds;
+
+        protected final List<String> srcVertexIds;
+
+        public PossiblyFilteredEdgesView(String mainVertexId, List<String> destVertexIds, List<String> srcVertexIds) {
+            this.mainVertexId = mainVertexId;
+            this.destVertexIds = destVertexIds;
+            this.srcVertexIds = srcVertexIds;
+        }
+
+        public PossiblyFilteredEdgesView() {
+            mainVertexId = null;
+            destVertexIds = null;
+            srcVertexIds = null;
+        }
+
         @Override
         public EdgesView filterSrcId(String srcId) {
-            return null;
+            return new PossiblyFilteredEdgesView(srcId, vertexMap.get(getRuntimeContext().getCurrentPart()).get(srcId).outEdges, null);
         }
 
         @Override
         public EdgesView filterDestId(String destId) {
-            return null;
+            return new PossiblyFilteredEdgesView(destId, null, vertexMap.get(getRuntimeContext().getCurrentPart()).get(destId).inEdges);
         }
 
         @Override
         public EdgesView filterVertexId(String vertexId) {
-            return null;
+            return new PossiblyFilteredEdgesView(vertexId, vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertexId).outEdges, vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertexId).inEdges);
         }
 
         @Override
         public EdgesView filterAttribute(String attribute) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public EdgesView filterSrcAndDest(String srcId, String destId) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override

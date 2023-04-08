@@ -5,10 +5,9 @@ import ai.djl.ndarray.NDList;
 import elements.Vertex;
 import elements.features.Aggregator;
 import elements.features.InPlaceMeanAggregator;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.tmshared.states.TMSharedExpMovingAverageCountMinSketch;
 import org.apache.flink.runtime.state.tmshared.TMSharedStateDescriptor;
+import org.apache.flink.runtime.state.tmshared.states.TMSharedExpMovingAverageCountMinSketch;
 
 import java.util.Arrays;
 
@@ -36,7 +35,7 @@ public class DeepAdaptiveWindowedGNNEmbedding extends DeepSessionWindowedGNNEmbe
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
-        forwardExpMean = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_forwardExpMean", TypeInformation.of(TMSharedExpMovingAverageCountMinSketch.class), () -> new TMSharedExpMovingAverageCountMinSketch(0.001, 0.99, movingAverageIntervalMs, momentum)));
+        forwardExpMean = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_forwardExpMean",TMSharedExpMovingAverageCountMinSketch.class, () -> new TMSharedExpMovingAverageCountMinSketch(0.001, 0.99, movingAverageIntervalMs, momentum)));
         estimateComputationTimes();
     }
 
