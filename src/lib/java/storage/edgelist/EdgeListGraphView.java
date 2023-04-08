@@ -3,7 +3,9 @@ package storage.edgelist;
 import elements.DirectedEdge;
 import elements.Feature;
 import elements.Vertex;
+import elements.enums.ElementType;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.jetbrains.annotations.NotNull;
@@ -12,6 +14,7 @@ import storage.*;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 class EdgeListGraphView extends GraphView {
 
@@ -48,7 +51,7 @@ class EdgeListGraphView extends GraphView {
     /**
      * {@link EdgesView}
      */
-    protected final EdgesView edgesView = new GlobalEdgeView();
+    protected final EdgesView edgesView = new PossiblyFilteredEdgesView();
 
     public EdgeListGraphView(GraphRuntimeContext runtimeContext, Map<String, Short> vertexMasterTable, Map<String, AttachedFeatureInfo> vertexFeatureInfoTable, AtomicInteger uniqueVertexFeatureCounter, Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap) {
         super(runtimeContext);
@@ -82,9 +85,12 @@ class EdgeListGraphView extends GraphView {
     }
 
     class GlobalVerticesView implements VerticesView{
+
+        protected Values values = null;
+
         @Override
         public FeaturesView getFeatures(String key) {
-            return null;
+            return new VertexFeaturesView(vertexMap.get(getRuntimeContext().getCurrentPart()).get(key), key);
         }
 
         @Override
@@ -136,7 +142,7 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public void putAll(@NotNull Map<? extends String, ? extends Vertex> m) {
-            throw new NotImplementedException("");
+            m.forEach(this::put);
         }
 
         @Override
@@ -153,7 +159,8 @@ class EdgeListGraphView extends GraphView {
         @NotNull
         @Override
         public Collection<Vertex> values() {
-            throw new NotImplementedException("");
+            if(values == null) values = new Values();
+            return values;
         }
 
         @NotNull
@@ -161,14 +168,48 @@ class EdgeListGraphView extends GraphView {
         public Set<Entry<String, Vertex>> entrySet() {
             throw new NotImplementedException("");
         }
+
+        final class Values extends AbstractCollection<Vertex> {
+            public int size()                 { return GlobalVerticesView.this.size(); }
+            public void clear()               { GlobalVerticesView.this.clear(); }
+            public Iterator<Vertex> iterator()     {
+                return IteratorUtils.transformedIterator(GlobalVerticesView.this.keySet().iterator(), GlobalVerticesView.this::get);
+            }
+            public boolean contains(Object o) { return containsValue(o); }
+            public Spliterator<Vertex> spliterator() {
+                throw new NotImplementedException("");
+            }
+            public void forEach(Consumer<? super Vertex> action) {
+                GlobalVerticesView.this.keySet().forEach(key -> {
+                    Vertex v = GlobalVerticesView.this.get(key);
+                    action.accept(v);
+                });
+            }
+        }
     }
 
     class VertexFeaturesView implements FeaturesView{
-        VertexInfo vertexInfo;
+        final VertexInfo vertexInfo;
+
+        final String vertexId;
+
+        final Boolean isHalo;
+
+        private VertexFeaturesView(VertexInfo vertexInfo, String vertexId, Boolean isHalo) {
+            this.vertexInfo = vertexInfo;
+            this.vertexId = vertexId;
+            this.isHalo = isHalo;
+        }
+
+        public VertexFeaturesView(VertexInfo vertexInfo, String vertexId) {
+            this.vertexInfo = vertexInfo;
+            this.vertexId = vertexId;
+            this.isHalo = null;
+        }
 
         @Override
         public FeaturesView filter(boolean isHalo) {
-            return null;
+            return new VertexFeaturesView(vertexInfo, vertexId, isHalo);
         }
 
         @Override
@@ -183,17 +224,30 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public boolean containsKey(Object key) {
-            return false;
+            return vertexInfo.hasFeatureInPosition(vertexFeatureInfoTable.get(key).position);
         }
 
         @Override
         public boolean containsValue(Object value) {
-            return false;
+            Feature feature = (Feature) value;
+            return vertexInfo.hasFeatureInPosition(vertexFeatureInfoTable.get(feature.getName()).position);
         }
 
         @Override
         public Feature get(Object key) {
-            return null;
+            AttachedFeatureInfo vertexFeatureInfo = vertexFeatureInfoTable.get(key);
+            Object value = vertexInfo.featureValues[vertexFeatureInfo.position];
+            if (edgeListObjectPool.isOpen()) {
+                return edgeListObjectPool.getVertexFeature(vertexId, (String) key, value, vertexFeatureInfo);
+            } else {
+                Feature feature = vertexFeatureInfo.constructorAccess.newInstance();
+                feature.value = value;
+                feature.id.f0 = ElementType.VERTEX;
+                feature.id.f1 = vertexId;
+                feature.id.f2 = key;
+                feature.halo = vertexFeatureInfo.halo;
+                return feature;
+            }
         }
 
         @Nullable
@@ -204,17 +258,17 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public Feature remove(Object key) {
-            return null;
+            throw new NotImplementedException("");
         }
 
         @Override
         public void putAll(@NotNull Map<? extends String, ? extends Feature> m) {
-
+            throw new NotImplementedException("");
         }
 
         @Override
         public void clear() {
-
+            throw new NotImplementedException("");
         }
 
         @NotNull
@@ -234,13 +288,9 @@ class EdgeListGraphView extends GraphView {
         public Set<Entry<String, Feature>> entrySet() {
             return null;
         }
-
-        public VertexFeaturesView(VertexInfo vertexInfo) {
-            this.vertexInfo = vertexInfo;
-        }
     }
 
-    class GlobalEdgeView implements EdgesView{
+    class PossiblyFilteredEdgesView implements EdgesView{
         @Override
         public EdgesView filterSrcId(String srcId) {
             return null;

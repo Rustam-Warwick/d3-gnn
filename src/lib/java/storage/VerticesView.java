@@ -3,7 +3,7 @@ package storage;
 import elements.Feature;
 import elements.Vertex;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -19,5 +19,5 @@ public interface VerticesView extends Map<String, Vertex> {
     /**
      * Get all the Vertex-attached {@link Feature}s with the given name
      */
-    List<Feature> filterFeatures(String featureName);
+    Collection<Feature> filterFeatures(String featureName);
 }
