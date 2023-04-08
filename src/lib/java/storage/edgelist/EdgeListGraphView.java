@@ -187,7 +187,7 @@ class EdgeListGraphView extends GraphView {
         }
 
         final class ValuesSpliterator implements Spliterator<Vertex>{
-            Spliterator<String> keySpliterator;
+            final Spliterator<String> keySpliterator;
 
             public ValuesSpliterator() {
                 this.keySpliterator = vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().spliterator();
@@ -221,7 +221,7 @@ class EdgeListGraphView extends GraphView {
         }
 
         final class ValuesIterator implements Iterator<Vertex>{
-            Iterator<String> keyIterator = vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().iterator();
+            final Iterator<String> keyIterator = vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().iterator();
             @Override
             public boolean hasNext() {
                 return keyIterator.hasNext();
@@ -466,12 +466,12 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public EdgesView filterSrcId(String srcId) {
-            return new PossiblyFilteredEdgesView(srcId, vertexMap.get(getRuntimeContext().getCurrentPart()).get(srcId).outEdges, null);
+            return new PossiblyFilteredEdgesView(srcId, vertexMap.get(getRuntimeContext().getCurrentPart()).get(srcId).outEdges, Collections.emptyList());
         }
 
         @Override
         public EdgesView filterDestId(String destId) {
-            return new PossiblyFilteredEdgesView(destId, null, vertexMap.get(getRuntimeContext().getCurrentPart()).get(destId).inEdges);
+            return new PossiblyFilteredEdgesView(destId, Collections.emptyList(), vertexMap.get(getRuntimeContext().getCurrentPart()).get(destId).inEdges);
         }
 
         @Override
@@ -491,27 +491,34 @@ class EdgeListGraphView extends GraphView {
 
         @Override
         public DirectedEdge get(String srcId, String destId, @Nullable String attribute) {
-            return null;
+            if (objectPool.isOpen()) {
+                return objectPool.getEdge(srcId, destId, attribute);
+            }
+            return new DirectedEdge(srcId, destId, attribute);
         }
 
         @Override
         public boolean contains(String srcId, String destId, @Nullable String attribute) {
+            if(attribute != null) return false;
+            if (srcId.equals(mainVertexId)) return destVertexIds.contains(destId);
+            if (destId.equals(mainVertexId)) return srcVertexIds.contains(srcId);
             return false;
         }
 
         @Override
         public int size() {
-            return 0;
+            return srcVertexIds.size() + destVertexIds.size();
         }
 
         @Override
         public boolean isEmpty() {
-            return false;
+            return size() == 0;
         }
 
         @Override
         public boolean contains(Object o) {
-            return false;
+            DirectedEdge edge = (DirectedEdge) o;
+            return contains(edge.getSrcId(), edge.getDestId(), edge.getAttribute());
         }
 
         @NotNull
@@ -523,101 +530,103 @@ class EdgeListGraphView extends GraphView {
         @NotNull
         @Override
         public Object[] toArray() {
-            return new Object[0];
+            throw new NotImplementedException("Not implemented");
         }
 
         @NotNull
         @Override
         public <T> T[] toArray(@NotNull T[] a) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean add(DirectedEdge directedEdge) {
-            return false;
+            vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getSrcId()).addOutEdge(directedEdge);
+            vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getDestId()).addInEdge(directedEdge);
+            return true;
         }
 
         @Override
         public boolean remove(Object o) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean containsAll(@NotNull Collection<?> c) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean addAll(@NotNull Collection<? extends DirectedEdge> c) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean addAll(int index, @NotNull Collection<? extends DirectedEdge> c) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean removeAll(@NotNull Collection<?> c) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public boolean retainAll(@NotNull Collection<?> c) {
-            return false;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public void clear() {
-
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public DirectedEdge get(int index) {
-            return null;
+            if(index < destVertexIds.size()){
+                return get(mainVertexId, destVertexIds.get(index), null);
+            }else{
+                return get(srcVertexIds.get(index - destVertexIds.size()), mainVertexId, null);
+            }
         }
 
         @Override
         public DirectedEdge set(int index, DirectedEdge element) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public void add(int index, DirectedEdge element) {
-
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public DirectedEdge remove(int index) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
 
         @Override
         public int indexOf(Object o) {
-            return 0;
-        }
+            throw new NotImplementedException("Not implemented");        }
 
         @Override
         public int lastIndexOf(Object o) {
-            return 0;
-        }
+            throw new NotImplementedException("Not implemented");        }
 
         @NotNull
         @Override
         public ListIterator<DirectedEdge> listIterator() {
-            return null;
-        }
+            throw new NotImplementedException("Not implemented");        }
 
         @NotNull
         @Override
         public ListIterator<DirectedEdge> listIterator(int index) {
-            return null;
-        }
+            throw new NotImplementedException("Not implemented");        }
 
         @NotNull
         @Override
         public List<DirectedEdge> subList(int fromIndex, int toIndex) {
-            return null;
+            throw new NotImplementedException("Not implemented");
         }
     }
 
