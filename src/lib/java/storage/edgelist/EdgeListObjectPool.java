@@ -55,7 +55,7 @@ class EdgeListObjectPool extends ObjectPoolScope {
         return edge;
     }
 
-    public Feature getVertexFeature(Object vertexId, String featureName, Object value, AttachedFeatureInfo attachedFeatureInfo) {
+    public Feature getVertexFeature(Object vertexId, Object value, AttachedFeatureInfo attachedFeatureInfo) {
         Tuple2<List<Feature>, IntList> vertexFeatureTuple = vertexFeaturesMap.computeIfAbsent(attachedFeatureInfo.position, (position) -> Tuple2.of(new ObjectArrayList<>(), new IntArrayList(Collections.nCopies(openCount + 1, 0))));
         if (vertexFeatureTuple.f0.size() <= vertexFeatureTuple.f1.getInt(openCount))
             vertexFeatureTuple.f0.add(attachedFeatureInfo.constructorAccess.newInstance());
@@ -66,7 +66,7 @@ class EdgeListObjectPool extends ObjectPoolScope {
         feature.value = value;
         feature.id.f0 = ElementType.VERTEX;
         feature.id.f1 = vertexId;
-        feature.id.f2 = featureName;
+        feature.id.f2 = attachedFeatureInfo.name;
         if (feature.features != null) feature.features.clear();
         return feature;
     }
