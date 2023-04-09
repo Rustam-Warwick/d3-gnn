@@ -161,14 +161,13 @@ abstract public class BaseStorage extends TMSharedState {
 
         /**
          * Get incided edges of {@link Vertex}.
-         * @param lastN -1 get all edges otherwise pick lastN edges
          */
-        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type, int lastN);
+        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
 
         /**
          * Get vertex degree
          */
-        public abstract int getIncidentDegree(Vertex vertex, EdgeType edgeType);
+        public abstract int getIncidentEdgeCount(Vertex vertex, EdgeType edgeType);
 
         /**
          * Get {@link HyperEdge} by its String id

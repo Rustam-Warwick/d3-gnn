@@ -24,28 +24,21 @@ import java.util.List;
 
 /**
  * Plugin that compute the streaming GNN for source based messages
+ * Does not window anything fully cascading graph neural networks
  */
 public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     protected transient Counter throughput;
-
     protected transient Counter latency;
-
     protected transient NDList reuseFeaturesNDList;
-
     protected transient Tuple3<ElementType, Object, String> reuseAggId;
-
     protected transient Short2ObjectOpenHashMap<ObjectArrayList<String>> reusePart2VertexIdsMap;
-
     protected transient Tensor reuseTensor;
 
     public StreamingGNNEmbedding(String modelName, boolean trainableVertexEmbeddings) {
         super(modelName, "inferencer", trainableVertexEmbeddings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void open(Configuration params) throws Exception {
         super.open(params);
@@ -60,9 +53,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         reuseTensor.id.f0 = ElementType.VERTEX;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void addElementCallback(GraphElement element) {
         super.addElementCallback(element);
@@ -95,9 +85,6 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void updateElementCallback(GraphElement newElement, GraphElement oldElement) {
         super.updateElementCallback(newElement, oldElement);
@@ -105,7 +92,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
+                if(false) updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {
@@ -135,16 +122,12 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     /**
      * Given vertex reduce all of its out edges
-     * <p>
-     * Now we are assuming that the vertex function only depends on the source "f"
-     * Hence we can optimize by sending single tensor to the parts
-     * </p>
      */
     public void reduceOutEdges(Tensor feature, Vertex v) {
         NDList message = null;
         reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT, -1)) {
+            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.OUT)) {
                 if (message == null) {
                     reuseFeaturesNDList.clear();
                     reuseFeaturesNDList.add(feature.getValue());
@@ -184,17 +167,13 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
 
     /**
      * Given vertex replace all of its out edges
-     * <p>
-     * Now we are assuming that the vertex function only depends on the source "f"
-     * Hence we can optimize by sending single tensor to the parts
-     * </p>
      */
     public void updateOutEdges(Tensor newFeature, Tensor oldFeature, Vertex vertex) {
         NDList msgOld = null;
         NDList msgNew = null;
         reusePart2VertexIdsMap.forEach((key, val) -> val.clear());
         try (BaseStorage.ObjectPoolScope objectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.OUT, -1)) {
+            for (DirectedEdge directedEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.OUT)) {
                 if (msgOld == null) {
                     reuseFeaturesNDList.clear();
                     reuseFeaturesNDList.add(oldFeature.getValue());

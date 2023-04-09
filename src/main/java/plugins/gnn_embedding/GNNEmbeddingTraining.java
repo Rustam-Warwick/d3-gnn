@@ -213,10 +213,10 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             for (int i = 0; i < gradientAggregator.keys.length; i++) {
                 Vertex v = getRuntimeContext().getStorage().getVertex(gradientAggregator.keys[i]);
                 try (BaseStorage.ObjectPoolScope innerObjectPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.IN, -1)) {
+                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(v, EdgeType.IN)) {
                         reuseFeatureKey.f1 = incidentEdge.getSrcId();
                         if (getRuntimeContext().getStorage().containsAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f")) {
-                            reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
+                            int srcIndex = reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
                                 Tensor srcFeature = (Tensor) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f");
                                 reuseFeaturesNDList.add(srcFeature.getValue());
                                 reuseVertexIdList.add(incidentEdge.getSrcId());
@@ -224,7 +224,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
                                 return reuseVertexIdList.size() - 1;
                             });
                             reuseDestIndexList.add(i);
-                            reuseSrcIndexList.add(reuseVertexToIndexMap.getInt(incidentEdge.getSrcId()));
+                            reuseSrcIndexList.add(srcIndex);
                         }
                         innerObjectPoolScope.refresh();
                     }
@@ -311,14 +311,14 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             for (Vertex vertex : getRuntimeContext().getStorage().getVertices()) {
                 boolean hasInEdges = false;
                 try (BaseStorage.ObjectPoolScope innerObjetPoolScope = getRuntimeContext().getStorage().openObjectPoolScope()) {
-                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN, -1)) {
+                    for (DirectedEdge incidentEdge : getRuntimeContext().getStorage().getIncidentEdges(vertex, EdgeType.IN)) {
                         reuseFeatureKey.f1 = incidentEdge.getSrcId();
                         if (getRuntimeContext().getStorage().containsAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f")) {
-                            reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
+                            int indexOfSrc = reuseVertexToIndexMap.computeIfAbsent(incidentEdge.getSrcId(), (key) -> {
                                 reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, incidentEdge.getSrcId(), "f").getValue());
                                 return reuseFeaturesNDList.size() - 1;
                             });
-                            reuseSrcIndexList.add(reuseVertexToIndexMap.getInt(incidentEdge.getSrcId()));
+                            reuseSrcIndexList.add(indexOfSrc);
                             hasInEdges = true;
                         }
                         innerObjetPoolScope.refresh();

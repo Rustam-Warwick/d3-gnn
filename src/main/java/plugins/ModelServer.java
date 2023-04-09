@@ -50,17 +50,17 @@ import org.apache.flink.streaming.api.operators.graph.TrainingSubCoordinator;
 public class ModelServer<T extends Block> extends Plugin {
 
     /**
-     * The {@link Model} object that is passed on job creation time
+     * The {@link Model} object that is passed on job creation time. Will be set to null after open to maintain a single copy by TM
      */
     public Model model;
 
     /**
-     * The Task local {@link ModelWrapper} object
+     * The TM local {@link ModelWrapper} object
      */
     public transient ModelWrapper<T> modelWrapper;
 
     /**
-     * If this task is the one which's model was used it is considered as the master
+     * If this task is the one which model was used it is considered as the master. Used for training sync
      */
     public transient boolean isMaster;
 

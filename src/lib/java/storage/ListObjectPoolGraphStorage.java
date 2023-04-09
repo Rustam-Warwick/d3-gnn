@@ -85,9 +85,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         protected Object[] featureValues;
 
-        protected List<String[]> outEdges;
+        protected List<String> outEdges;
 
-        protected List<String[]> inEdges;
+        protected List<String> inEdges;
 
         protected void addOrUpdateFeature(Feature feature, AttachedFeatureInfo featureInfo) {
             if (featureValues == null) featureValues = new Object[featureInfo.position + 1];
@@ -123,14 +123,12 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         protected void addOutEdge(DirectedEdge edge) {
             if (outEdges == null) outEdges = new ObjectArrayList<>(4);
-            if (edge.getAttribute() == null) outEdges.add(new String[]{edge.getDestId()});
-            else outEdges.add(new String[]{edge.getDestId(), edge.getAttribute()});
+            outEdges.add(edge.getDestId());
         }
 
         protected void addInEdge(DirectedEdge edge) {
             if (inEdges == null) inEdges = new ObjectArrayList<>(4);
-            if (edge.getAttribute() == null) inEdges.add(new String[]{edge.getSrcId()});
-            else inEdges.add(new String[]{edge.getSrcId(), edge.getAttribute()});
+            inEdges.add(edge.getSrcId());
         }
 
     }
@@ -320,7 +318,10 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void deleteEdge(DirectedEdge directedEdge) {
-            throw new IllegalStateException("NOT IMPLEMENTED");
+            List<String> outEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getSrcId()).outEdges;
+            List<String> inEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getDestId()).inEdges;
+            outEdges.remove(outEdges.lastIndexOf(directedEdge.getDestId()));
+            inEdges.remove(inEdges.lastIndexOf(directedEdge.getSrcId()));
         }
 
         @Override
@@ -350,24 +351,20 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         }
 
         @Override
-        public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edgeType, int lastN) {
+        public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edgeType) {
             VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             Iterator<DirectedEdge> inEdgeIterable = IteratorUtils.emptyIterator();
             Iterator<DirectedEdge> outEdgeIterable = IteratorUtils.emptyIterator();
             if (vertexData.outEdges != null && (edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)) {
-                List<String[]> outEdges = vertexData.outEdges;
-                if(lastN > 0) outEdges = outEdges.subList(0, outEdges.size() - lastN -1);
-                outEdgeIterable = outEdges.stream().map(partialIds -> {
-                    DirectedEdge e = getEdge(vertex.getId(), partialIds[0], partialIds.length == 2 ? partialIds[1] : null);
+                outEdgeIterable = vertexData.outEdges.stream().map(outVertexId -> {
+                    DirectedEdge e = getEdge(vertex.getId(), outVertexId, null);
                     e.src = vertex;
                     return e;
                 }).iterator();
             }
             if (vertexData.inEdges != null && (edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)) {
-                List<String[]> inEdges = vertexData.inEdges;
-                if(lastN > 0) inEdges = inEdges.subList(0 ,inEdges.size() - lastN - 1);
-                inEdgeIterable = inEdges.stream().map(partialIds -> {
-                    DirectedEdge e = getEdge(partialIds[0], vertex.getId(), partialIds.length == 2 ? partialIds[1] : null);
+                inEdgeIterable = vertexData.inEdges.stream().map(inVertexId -> {
+                    DirectedEdge e = getEdge(inVertexId, vertex.getId(), null);
                     e.dest = vertex;
                     return e;
                 }).iterator();
@@ -377,7 +374,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         }
 
         @Override
-        public int getIncidentDegree(Vertex vertex, EdgeType edgeType) {
+        public int getIncidentEdgeCount(Vertex vertex, EdgeType edgeType) {
             int res = 0;
             VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
             if(vertexData.outEdges != null && edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH) res += vertexData.outEdges.size();
@@ -468,7 +465,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public boolean containsEdge(String srcId, String destId, @Nullable String attributeId) {
-            throw new IllegalStateException("NOT IMPLEMENTED");
+            if(!vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(srcId)) return false;
+            List<String> outEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(srcId).outEdges;
+            return outEdges != null && outEdges.contains(destId);
         }
 
         @Override

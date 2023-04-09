@@ -2,7 +2,6 @@ package org.apache.flink.metrics.reporter;
 
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.*;
-import org.jctools.maps.NonBlockingHashMap;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
@@ -10,6 +9,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,7 +21,7 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     protected static final List<String> operatorMetricNames = List.of("windowThroughput", "accuracy", "latency", "epochThroughput", "lossValue", "throughput", "Replication Factor", "numRecordsOut", "numRecordsIn", "numRecordsInPerSecond", "numRecordsOutPerSecond");
     protected static final List<String> taskMetricNames = List.of("busyTimeMsPerSecond", "numBytesInLocal", "numBytesInRemote");
     private static final long FLUSH_DELTA = 120000;
-    protected final NonBlockingHashMap<String, Tuple3<File, Metric, StringBuilder>> metricsMap = new NonBlockingHashMap<>(100);
+    protected final Map<String, Tuple3<File, Metric, StringBuilder>> metricsMap = new HashMap<>(100);
     protected long lastFlush = Long.MIN_VALUE;
 
     @Override
@@ -31,9 +31,15 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     @Override
     public void notifyOfRemovedMetric(Metric metric, String metricName, MetricGroup group) {
         String fileName = getMetricFileName(metric, metricName, group);
-        if (fileName != null) {
-            appendMetric(metricsMap.get(fileName));
-            flushMetric(metricsMap.remove(fileName));
+        if(fileName != null) {
+            Tuple3<File, Metric, StringBuilder> tmp = null;
+            synchronized (this) {
+                tmp = metricsMap.remove(fileName);
+            }
+            if(tmp != null){
+                appendMetric(tmp);
+                flushMetric(tmp);
+            }
         }
     }
 
@@ -98,13 +104,13 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
         return null;
     }
 
-    protected void createFileForMetric(Metric metric, String metricName, MetricGroup group, String fileName) {
+    synchronized protected void createFileForMetric(Metric metric, String metricName, MetricGroup group, String fileName) {
         try {
             File file = new File(String.format("%s/metrics/%s", System.getenv("HOME"), fileName));
             File parent = file.getParentFile();
             parent.mkdirs();
             file.createNewFile();
-            metricsMap.put(fileName, new Tuple3<>(file, metric, new StringBuilder()));
+            metricsMap.putIfAbsent(fileName, new Tuple3<>(file, metric, new StringBuilder()));
         } catch (IllegalStateException | IOException e) {
             e.printStackTrace();
         }

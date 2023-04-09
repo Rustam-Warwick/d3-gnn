@@ -1,13 +1,11 @@
 package plugins.gnn_embedding;
 
 import ai.djl.ndarray.BaseNDManager;
-import ai.djl.ndarray.NDArray;
 import ai.djl.ndarray.NDList;
 import elements.Vertex;
 import elements.enums.EdgeType;
 import elements.features.Aggregator;
 import elements.features.InPlaceMeanAggregator;
-import elements.features.Tensor;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.state.tmshared.TMSharedExpMovingAverageCountMinSketch;
@@ -18,7 +16,7 @@ import java.util.Arrays;
 /**
  * Adaptive windowing based on exponential-mean of the vertex forward messages
  */
-public class DeepAdaptiveWindowedGNNEmbedding extends DeepSessionWindowedGNNEmbedding {
+public class AdaptiveWindowedGNNEmbedding extends SessionWindowedGNNEmbedding {
 
     protected transient TMSharedExpMovingAverageCountMinSketch forwardExpMean;
 
@@ -30,7 +28,7 @@ public class DeepAdaptiveWindowedGNNEmbedding extends DeepSessionWindowedGNNEmbe
 
     protected transient double aggregationTimeMs;
 
-    public DeepAdaptiveWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int minSessionIntervalMs, long movingAverageIntervalMs, double momentum) {
+    public AdaptiveWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int minSessionIntervalMs, long movingAverageIntervalMs, double momentum) {
         super(modelName, trainableVertexEmbeddings, minSessionIntervalMs);
         this.movingAverageIntervalMs = movingAverageIntervalMs;
         this.momentum = momentum;
@@ -73,7 +71,7 @@ public class DeepAdaptiveWindowedGNNEmbedding extends DeepSessionWindowedGNNEmbe
         else{
             // There are some statistics
             long nextEstimatedForward = movingAverageIntervalMs / vertexCount;
-            long nextLayerWorkload = (long) (messageComputationTimeMs + getRuntimeContext().getStorage().getIncidentDegree(v, EdgeType.OUT) * aggregationTimeMs);
+            long nextLayerWorkload = (long) (messageComputationTimeMs + getRuntimeContext().getStorage().getIncidentEdgeCount(v, EdgeType.OUT) * aggregationTimeMs);
             if(nextEstimatedForward > nextLayerWorkload)
                 super.forward(v);
             else
