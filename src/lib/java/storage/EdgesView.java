@@ -7,6 +7,8 @@ import java.util.Collection;
 
 /**
  * View for {@link DirectedEdge} storage in the {@link GraphStorage}
+ * @implNote All the get & remove methods assume that contains is checked before
+ *
  */
 public interface EdgesView  extends Collection<DirectedEdge> {
 

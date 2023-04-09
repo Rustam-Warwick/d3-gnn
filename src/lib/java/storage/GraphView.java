@@ -10,7 +10,7 @@ import java.util.ArrayList;
 
 /**
  * An operator-local view of the graph object that stores the {@link GraphRuntimeContext} inside
- * @implNote All the get methods assume that contains is checked before
+ * @implNote All the get & remove methods assume that contains is checked before
  */
 abstract public class GraphView {
 

@@ -11,6 +11,7 @@ import java.util.Set;
 
 /**
  * View for {@link Vertex} in the {@link GraphStorage}
+ * @implNote All the get & remove methods assume that contains is checked before
  */
 public interface VerticesView extends Map<String, Vertex> {
 

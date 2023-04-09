@@ -265,6 +265,7 @@ class EdgeListGraphView extends GraphView {
         @Nullable
         @Override
         public Feature put(String key, Feature value) {
+            if(isHalo != null && value.isHalo() != isHalo) throw new IllegalStateException("Wrong feature halo type");
             AttachedFeatureInfo attachedFeatureInfo = vertexFeatureName2FeatureInfo.computeIfAbsent(value.getName(), (ignored) ->{
                 int position = uniqueVertexFeatureCounter.getAndIncrement();
                 AttachedFeatureInfo featureInfo = new AttachedFeatureInfo(value, position);

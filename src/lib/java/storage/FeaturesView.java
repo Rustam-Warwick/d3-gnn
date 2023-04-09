@@ -9,6 +9,7 @@ import java.util.Set;
 
 /**
  * View for {@link Feature} attached or standalone in the {@link GraphStorage}
+ * @implNote All the get & remove methods assume that contains is checked before
  */
 public interface FeaturesView extends Map<String, Feature> {
 
