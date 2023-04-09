@@ -13,9 +13,20 @@ import java.util.Set;
 public interface FeaturesView extends Map<String, Feature> {
 
     /**
-     * Filter based on wether the {@link Feature} is halo or not
+     * Filter based on weather the {@link Feature} is halo or not
      */
     FeaturesView filter(boolean isHalo);
+
+    @Override
+    default boolean containsValue(Object value){
+        Feature feature = (Feature) value;
+        return containsKey(feature.getName());
+    };
+
+    @Override
+    default void putAll(@NotNull Map<? extends String, ? extends Feature> m){
+        m.forEach(this::put);
+    };
 
     @NotNull
     @Override

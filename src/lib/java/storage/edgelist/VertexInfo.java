@@ -3,6 +3,7 @@ package storage.edgelist;
 import elements.DirectedEdge;
 import elements.Feature;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
@@ -10,11 +11,11 @@ import java.util.List;
  * Information about a single vertex
  */
 class VertexInfo {
-
+    @Nullable
     Object[] featureValues;
-
+    @Nullable
     List<String> outEdges;
-
+    @Nullable
     List<String> inEdges;
 
     protected void addOrUpdateFeature(Feature feature, AttachedFeatureInfo featureInfo) {

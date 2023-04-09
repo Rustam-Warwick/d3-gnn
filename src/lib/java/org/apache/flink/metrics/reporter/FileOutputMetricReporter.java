@@ -35,7 +35,7 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     @Override
     public void notifyOfRemovedMetric(Metric metric, String metricName, MetricGroup group) {
         String fileName = getMetricFileName(metric, metricName, group);
-        if (fileName != null) {
+        if (fileName != null && metricsMap.contains(fileName)) {
             appendMetric(metricsMap.get(fileName));
             flushMetric(metricsMap.remove(fileName));
         }
@@ -108,7 +108,7 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
             File parent = file.getParentFile();
             parent.mkdirs();
             file.createNewFile();
-            metricsMap.put(fileName, new Tuple3<>(file, metric, new StringBuilder()));
+            metricsMap.putIfAbsent(fileName, new Tuple3<>(file, metric, new StringBuilder()));
         } catch (IllegalStateException | IOException e) {
             e.printStackTrace();
         }

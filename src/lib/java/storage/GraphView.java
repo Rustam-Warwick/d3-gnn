@@ -111,7 +111,8 @@ abstract public class GraphView {
                 Tuple3<ElementType, Object, String> attachedFeatureId = (Tuple3<ElementType, Object, String>) id;
                 switch (attachedFeatureId.f0) {
                     case VERTEX:
-                        return getVertices().getFeatures((String) attachedFeatureId.f1).containsKey(attachedFeatureId.f2);
+                        String vertexId  = (String) attachedFeatureId.f1;
+                        return getVertices().containsKey(vertexId) && getVertices().getFeatures(vertexId).containsKey(attachedFeatureId.f2);
                     default:
                         throw new NotImplementedException("Attached feature only possible in vertices for now");
                 }
@@ -161,7 +162,8 @@ abstract public class GraphView {
                 Tuple3<ElementType, Object, String> attachedFeatureId = (Tuple3<ElementType, Object, String>) element.getId();
                 switch (attachedFeatureId.f0) {
                     case VERTEX:
-                        return getVertices().getFeatures((String) attachedFeatureId.f1).containsKey(attachedFeatureId.f2);
+                        String vertexId = (String) attachedFeatureId.f1;
+                        return getVertices().containsKey(vertexId) && getVertices().getFeatures(vertexId).containsKey(attachedFeatureId.f2);
                     default:
                         throw new NotImplementedException("Attached feature only possible in vertices for now");
                 }

@@ -24,9 +24,21 @@ public interface VerticesView extends Map<String, Vertex> {
      */
     Collection<Feature> filterFeatures(String featureName);
 
+    @Override
+    default boolean containsValue(Object value) {
+        Vertex v = (Vertex) value;
+        return containsKey(v.getId());
+    }
+
+    @Override
+    default void putAll(@NotNull Map<? extends String, ? extends Vertex> m) {
+        m.forEach(this::put);
+    }
+
     @NotNull
     @Override
     default Set<Entry<String, Vertex>> entrySet(){
         throw new NotImplementedException("Entry set not needed");
     };
+
 }

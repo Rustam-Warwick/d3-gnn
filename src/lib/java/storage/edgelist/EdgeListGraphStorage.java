@@ -20,17 +20,17 @@ public class EdgeListGraphStorage extends GraphStorage {
     /**
      * Master Part table for vertices. This table is shared across tasks as vertices unique
      */
-    protected final Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
+    protected final Map<String, Short> vertex2MasterPart = new NonBlockingHashMap<>(1000);
 
     /**
      * Vertex Feature Info
      */
-    protected final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable = new ConcurrentHashMap<>();
+    protected final Map<String, AttachedFeatureInfo> vertexFeatureName2FeatureInfo = new ConcurrentHashMap<>();
 
     /**
      * Indec to feature info table
      */
-    protected final Int2ObjectOpenHashMap<AttachedFeatureInfo> indexVertexFeatureInfoTable = new Int2ObjectOpenHashMap<>();
+    protected final Int2ObjectOpenHashMap<AttachedFeatureInfo> vertexFeatureIndex2FeatureInfo = new Int2ObjectOpenHashMap<>();
 
     /**
      * Unique Vertex Feature Counter
@@ -40,12 +40,12 @@ public class EdgeListGraphStorage extends GraphStorage {
     /**
      * Vertex Map
      */
-    protected final Short2ObjectOpenHashMap<Map<String, VertexInfo>> vertexMap = new Short2ObjectOpenHashMap<>();
+    protected final Short2ObjectOpenHashMap<Map<String, VertexInfo>> part2Vertex2VertexInfo = new Short2ObjectOpenHashMap<>();
 
     @Override
     public void clear() {
-        Map<Integer, Feature> featureTmpMap = vertexFeatureInfoTable.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
-        vertexMap.forEach((part, vertexMapInternal) -> {
+        Map<Integer, Feature> featureTmpMap = vertexFeatureName2FeatureInfo.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
+        part2Vertex2VertexInfo.forEach((part, vertexMapInternal) -> {
             vertexMapInternal.forEach((vertexId, vertexData) -> {
                 if (vertexData.featureValues != null) {
                     for (int i = 0; i < vertexData.featureValues.length; i++) {
@@ -59,14 +59,14 @@ public class EdgeListGraphStorage extends GraphStorage {
             });
             vertexMapInternal.clear();
         });
-        vertexMap.clear();
-        vertexFeatureInfoTable.clear();
-        vertexMasterTable.clear();
+        part2Vertex2VertexInfo.clear();
+        vertexFeatureName2FeatureInfo.clear();
+        vertex2MasterPart.clear();
     }
 
     @Override
     public GraphView getGraphStorageView(GraphRuntimeContext runtimeContext) {
-        return new EdgeListGraphView(runtimeContext, vertexMasterTable, vertexFeatureInfoTable, indexVertexFeatureInfoTable, uniqueVertexFeatureCounter, vertexMap);
+        return new EdgeListGraphView(runtimeContext, vertex2MasterPart, vertexFeatureName2FeatureInfo, vertexFeatureIndex2FeatureInfo, uniqueVertexFeatureCounter, part2Vertex2VertexInfo);
     }
 
 }
