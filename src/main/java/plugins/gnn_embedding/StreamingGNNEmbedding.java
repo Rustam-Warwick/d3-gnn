@@ -92,7 +92,7 @@ public class StreamingGNNEmbedding extends BaseGNNEmbedding {
             Feature<?, ?> feature = (Feature<?, ?>) newElement;
             Feature<?, ?> oldFeature = (Feature<?, ?>) oldElement;
             if (feature.id.f0 == ElementType.VERTEX && "f".equals(feature.getName())) {
-                if(false) updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
+                updateOutEdges((Tensor) feature, (Tensor) oldFeature, (Vertex) feature.getElement());
                 if (feature.state() == ReplicaState.MASTER) forward((Vertex) feature.getElement());
             }
             if (feature.id.f0 == ElementType.VERTEX && "agg".equals(feature.getName())) {

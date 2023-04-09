@@ -90,7 +90,7 @@ public class Main {
             });
             env.setMaxParallelism(270);
             gs.build();
-            env.execute(String.format("No-Replace SW-25 %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
+            env.execute(String.format("Full SW-25 %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {
