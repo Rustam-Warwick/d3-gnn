@@ -32,12 +32,12 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
     private static final double TIMER_COALESCING = 25;
     public final int sessionIntervalMs;
-    protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> forwardMaps;
-    protected transient Map<Short, Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>>> reduceMaps;
+    protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> deepMaps; // eviction times and timestamps
+    protected transient Map<Short, Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>>> breadthMaps;  // Eviction times, in-edges, timestamps
     protected transient NDList reuseAggregatorsNDList;
     protected transient ObjectArrayList<String> reuseVertexIdList;
-    protected transient Object2IntOpenHashMap<String> reuseVertexToIndexMap;
-    protected transient IntArrayList reuseSrcIndexList;
+    protected transient Object2IntOpenHashMap<String> reuseVertex2IndexMap;
+    protected transient IntArrayList reuseIndexList;
 
     public SessionWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, int sessionIntervalMs) {
         super(modelName, trainableVertexEmbeddings);
@@ -48,16 +48,16 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
     public void open(Configuration params) throws Exception {
         super.open(params);
         reuseAggregatorsNDList = new NDList();
-        reuseSrcIndexList = new IntArrayList();
+        reuseIndexList = new IntArrayList();
         reuseVertexIdList = new ObjectArrayList<>();
-        reuseVertexToIndexMap = new Object2IntOpenHashMap<>();
-        forwardMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_forward_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
-        synchronized (forwardMaps){
-            getRuntimeContext().getThisOperatorParts().forEach(part -> forwardMaps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
+        reuseVertex2IndexMap = new Object2IntOpenHashMap<>();
+        deepMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_deep_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        synchronized (deepMaps){
+            getRuntimeContext().getThisOperatorParts().forEach(part -> deepMaps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
         }
-        reduceMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_reduce_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
-        synchronized (reduceMaps){
-            getRuntimeContext().getThisOperatorParts().forEach(part -> reduceMaps.put(part, Tuple3.of(new Object2LongLinkedOpenHashMap<>(), new Object2ObjectOpenHashMap<>(), new Object2LongOpenHashMap<>())));
+        breadthMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_breadth_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        synchronized (breadthMaps){
+            getRuntimeContext().getThisOperatorParts().forEach(part -> breadthMaps.put(part, Tuple3.of(new Object2LongLinkedOpenHashMap<>(), new Object2ObjectOpenHashMap<>(), new Object2LongOpenHashMap<>())));
         }
     }
 
@@ -91,7 +91,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
     public void reduceTimer(DirectedEdge directedEdge, long updateTime){
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
         getRuntimeContext().getStorage().deleteEdge(directedEdge);
-        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partReduceMaps = reduceMaps.get(getRuntimeContext().getCurrentPart());
+        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partReduceMaps = breadthMaps.get(getRuntimeContext().getCurrentPart());
         partReduceMaps.f0.removeLong(directedEdge.getDestId());
         partReduceMaps.f0.put(directedEdge.getDestId(), updateTime);
         partReduceMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore)->new ObjectArrayList<>()).add(directedEdge.getSrcId());
@@ -104,7 +104,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
      */
     public void forwardTimer(Vertex v, long updateTime){
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
-        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = forwardMaps.get(getPart());
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = deepMaps.get(getPart());
         maps.f0.removeLong(v.getId());
         maps.f0.put(v.getId(), updateTime);
         maps.f1.put(v.getId(), getRuntimeContext().currentTimestamp());
@@ -118,11 +118,11 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
         try (BaseStorage.ObjectPoolScope objectPool = getRuntimeContext().getStorage().openObjectPoolScope()) {
             // 1. Set placeholders
             final short currentPart = getPart();
-            Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> maps = reduceMaps.get(currentPart);
+            Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> maps = breadthMaps.get(currentPart);
             reuseVertexIdList.clear();
             reuseFeaturesNDList.clear();
-            reuseSrcIndexList.clear();
-            reuseVertexToIndexMap.clear();
+            reuseIndexList.clear();
+            reuseVertex2IndexMap.clear();
 
             // 2. Collect data
             ObjectBidirectionalIterator<Object2LongMap.Entry<String>> iterator = maps.f0.object2LongEntrySet().iterator();
@@ -135,14 +135,14 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
                 List<String> inEdges = maps.f1.remove(vertexTimerEntry.getKey());
                 for (String inVertexId : inEdges) {
                     getRuntimeContext().getStorage().addEdge(new DirectedEdge(inVertexId, vertexTimerEntry.getKey(), null));
-                    int indexOfSrc = reuseVertexToIndexMap.computeIfAbsent(inVertexId, (key) -> {
+                    int indexOfSrc = reuseVertex2IndexMap.computeIfAbsent(inVertexId, (key) -> {
                         reuseFeaturesNDList.add((NDArray) getRuntimeContext().getStorage().getAttachedFeature(ElementType.VERTEX, key, "f").getValue());
                         return reuseFeaturesNDList.size() - 1;
                     });
-                    reuseSrcIndexList.add(indexOfSrc);
+                    reuseIndexList.add(indexOfSrc);
                     objectPool.refresh();
                 }
-                reuseSrcIndexList.add(-1);
+                reuseIndexList.add(-1);
                 iterator.remove();
             }
 
@@ -157,11 +157,11 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
             int destCount = 0;
             int start = 0;
             final int[] dim = new int[]{0};
-            for (int i = 0; i < reuseSrcIndexList.size(); i++) {
-                if (reuseSrcIndexList.getInt(i) == -1) {
+            for (int i = 0; i < reuseIndexList.size(); i++) {
+                if (reuseIndexList.getInt(i) == -1) {
                     int[] indices = new int[i - start];
                     reuseFeaturesNDList.clear();
-                    System.arraycopy(reuseSrcIndexList.elements(), start, indices, 0, indices.length);
+                    System.arraycopy(reuseIndexList.elements(), start, indices, 0, indices.length);
                     reuseFeaturesNDList.add(batchedSrcMessages.get(BaseNDManager.getManager().create(indices)).sum(dim));
                     reuseAggId.f1 = reuseVertexIdList.get(destCount++);
                     getRuntimeContext().runWithTimestamp(() -> {
@@ -189,7 +189,7 @@ public class SessionWindowedGNNEmbedding extends StreamingGNNEmbedding {
 
         // 1. Set placeholders
         final short currentPart = getPart();
-        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = forwardMaps.get(getPart());
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = deepMaps.get(getPart());
         reuseFeaturesNDList.clear();
         reuseAggregatorsNDList.clear();
         reuseVertexIdList.clear();
