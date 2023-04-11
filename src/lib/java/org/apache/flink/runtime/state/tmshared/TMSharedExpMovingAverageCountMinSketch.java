@@ -12,31 +12,22 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * {@link TMSharedState} that calculate the exp mean of string counts backed by 3 CountMin data structures
  */
-public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState{
+public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState {
 
     protected final int depth;
 
     protected final int width;
 
     protected final long[][][] tables;
-
-    protected long size;
-
     final protected double eps;
-
     final protected long movingAverageIntervalMs;
-
     final protected double momentum;
-
     final protected double invMomentum;
-
     final protected double confidence;
-
     final protected AtomicInteger currentlyActive = new AtomicInteger(0);
-
     final protected TimerTask timerTask = new ExpMeanUpdateTask();
-
     final protected Timer timer = new Timer();
+    protected long size;
 
     public TMSharedExpMovingAverageCountMinSketch(int depth, int width, long movingAverageIntervalMs, double momentum) {
         Preconditions.checkState(momentum >= 0 && momentum <= 1, "momentum should be between [0-1]");
@@ -64,6 +55,15 @@ public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState{
         this.momentum = momentum;
         this.invMomentum = 1 - momentum;
         timer.schedule(timerTask, movingAverageIntervalMs, movingAverageIntervalMs);
+    }
+
+    private static void checkSizeAfterOperation(long previousSize, long newSize) {
+        if (newSize < previousSize) {
+            throw new IllegalStateException("Overflow error: the size after calling add`" +
+                    "` is smaller than the previous size. " +
+                    "Previous size: " + previousSize +
+                    ", New size: " + newSize);
+        }
     }
 
     public double getRelativeError() {
@@ -114,23 +114,19 @@ public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState{
     private void checkSizeAfterAdd(String item, long count) {
         long previousSize = size;
         size += count;
-        checkSizeAfterOperation(previousSize,  size);
+        checkSizeAfterOperation(previousSize, size);
     }
 
-    private static void checkSizeAfterOperation(long previousSize, long newSize) {
-        if (newSize < previousSize) {
-            throw new IllegalStateException("Overflow error: the size after calling add`" +
-                    "` is smaller than the previous size. " +
-                    "Previous size: " + previousSize +
-                    ", New size: " + newSize);
-        }
+    @Override
+    public void clear() {
+        timer.cancel();
     }
 
-    private class ExpMeanUpdateTask extends TimerTask{
+    private class ExpMeanUpdateTask extends TimerTask {
         @Override
         public void run() {
             int previouslyActive = currentlyActive.get();
-            if(previouslyActive == 0){
+            if (previouslyActive == 0) {
                 currentlyActive.set(1);
                 return;
             }
@@ -142,10 +138,5 @@ public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState{
                 Arrays.fill(tables[previouslyActive][i], 0);
             }
         }
-    }
-
-    @Override
-    public void clear() {
-        timer.cancel();
     }
 }

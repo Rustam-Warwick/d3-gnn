@@ -31,6 +31,7 @@ abstract public class TMSharedState implements State {
     /**
      * Deregister sub-task from this shared state object
      * Used for closing if the registrationCounter is back to 0
+     *
      * @return if this was the last one and state should be removed
      */
     public boolean deregister(TMSharedKeyedStateBackend<?> TMSharedKeyedStateBackend) {

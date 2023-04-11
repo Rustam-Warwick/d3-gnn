@@ -17,6 +17,7 @@ import plugins.ModelServer;
 
 /**
  * Base class for all GNN Embedding Plugins
+ * Contains helper methods for vertex initialization, message and update
  */
 abstract public class BaseGNNEmbedding extends Plugin {
 
@@ -77,7 +78,7 @@ abstract public class BaseGNNEmbedding extends Plugin {
      *
      * @return are_trainable
      */
-    public final boolean usingGeneratedVertexEmbeddings() {
+    public final boolean generateVertexEmbddings() {
         return generateVertexEmbeddings;
     }
 
@@ -99,7 +100,7 @@ abstract public class BaseGNNEmbedding extends Plugin {
             }
             aggStart.setElement(element, false);
             aggStart.createInternal();
-            if (usingGeneratedVertexEmbeddings() && getRuntimeContext().isFirst()) {
+            if (generateVertexEmbddings() && getRuntimeContext().isFirst()) {
                 Tensor embeddingRandom = new Tensor("f", BaseNDManager.getManager().ones(modelServer.getInputShapes()[0]), false); // Initialize to random value
                 embeddingRandom.setElement(element, false);
                 embeddingRandom.createInternal();

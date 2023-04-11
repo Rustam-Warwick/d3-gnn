@@ -28,7 +28,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import plugins.ModelServer;
 import plugins.debugging.LogCallbacks;
 import plugins.gnn_embedding.AdaptiveWindowedGNNEmbedding;
-import plugins.gnn_embedding.SessionWindowedGNNEmbedding;
+import plugins.gnn_embedding.WindowedGNNEmbedding;
 import plugins.gnn_embedding.StreamingGNNEmbedding;
 
 import java.util.ArrayList;
@@ -94,7 +94,7 @@ public class GNNEmbeddingsTest extends IntegrationTest {
                 return new GraphStorageOperatorFactory(
                         List.of(
                                 new ModelServer<>(models.get(pos - 1)),
-                                new SessionWindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150),
+                                new WindowedGNNEmbedding(models.get(pos - 1).getName(), true, 150),
                                 new LogCallbacks()
                         ), pos, layer, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
             };

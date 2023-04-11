@@ -53,7 +53,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.REPLICA && features != null) features.clear();
         if (!isHalo() && isReplicable() && state() == ReplicaState.REPLICA) {
             GraphOp syncRequestMessage = new GraphOp(Op.SYNC_REQUEST, getMasterPart(), new SyncRequest(this));
-            getGraphRuntimeContext().output(syncRequestMessage, OutputTags.ITERATE_OUTPUT_TAG);
+            getRuntimeContext().output(syncRequestMessage, OutputTags.ITERATE_OUTPUT_TAG);
         }
         super.create();
     }
@@ -87,10 +87,10 @@ abstract public class ReplicableGraphElement extends GraphElement {
                     newElement.getPart()
             );
         }
-        getGraphRuntimeContext().getStorage().cacheAttachedFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
+        getRuntimeContext().getStorage().cacheAttachedFeatures(this, CacheFeatureContext.NON_HALO); // Get all non-halo Features
         if ((features != null && features.stream().anyMatch(feature -> !feature.isHalo())) || getType() == ElementType.STANDALONE_FEATURE) {
             GraphElement cpy = copy(CopyContext.SYNC);
-            getGraphRuntimeContext().output(new GraphOp(Op.SYNC, newElement.getPart(), cpy), OutputTags.ITERATE_OUTPUT_TAG);
+            getRuntimeContext().output(new GraphOp(Op.SYNC, newElement.getPart(), cpy), OutputTags.ITERATE_OUTPUT_TAG);
         }
     }
 
@@ -107,7 +107,7 @@ abstract public class ReplicableGraphElement extends GraphElement {
         if (state() == ReplicaState.MASTER) {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (getType() == ElementType.ATTACHED_FEATURE || getType() == ElementType.STANDALONE_FEATURE || (newElement.features != null && newElement.features.stream().anyMatch(feature -> !feature.isHalo())))) {
                 GraphOp message = new GraphOp(Op.SYNC, newElement.copy(CopyContext.SYNC));
-                getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
+                getRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             super.update(newElement);
         } else {

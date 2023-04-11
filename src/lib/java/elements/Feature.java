@@ -104,14 +104,14 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Override
     public void create() {
         if (getType() == ElementType.STANDALONE_FEATURE) super.create();
-        else if (!getGraphRuntimeContext().getStorage().containsElement(id.f1, id.f0)) {
-            GraphElement el = getGraphRuntimeContext().getStorage().getDummyElementAsMaster(id.f1, id.f0);
+        else if (!getRuntimeContext().getStorage().containsElement(id.f1, id.f0)) {
+            GraphElement el = getRuntimeContext().getStorage().getDummyElementAsMaster(id.f1, id.f0);
             setElement(el, false);
             el.create();
         } else {
             if (!isHalo() && isReplicable() && !getReplicaParts().isEmpty() && (state() == ReplicaState.MASTER)) {
                 GraphOp message = new GraphOp(Op.COMMIT, copy(CopyContext.SYNC));
-                getGraphRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
+                getRuntimeContext().broadcast(message, OutputTags.ITERATE_OUTPUT_TAG, getReplicaParts());
             }
             createInternal();
         }
@@ -229,8 +229,8 @@ public class Feature<T, V> extends ReplicableGraphElement {
     @Nullable
     public GraphElement getElement() {
         if (id.f0 == ElementType.NONE) return null;
-        if (element == null && getGraphRuntimeContext() != null) {
-            setElement(getGraphRuntimeContext().getStorage().getElement(id.f1, id.f0), true);
+        if (element == null && getRuntimeContext() != null) {
+            setElement(getRuntimeContext().getStorage().getElement(id.f1, id.f0), true);
         }
         return element;
     }

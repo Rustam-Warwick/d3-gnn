@@ -19,9 +19,6 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("unused")
 public class Plugin extends GraphElement implements RichGraphProcess, GraphListener {
 
-    /**
-     * Plugin Logger
-     */
     protected final static Logger LOG = LoggerFactory.getLogger(Plugin.class);
 
     /**
@@ -35,7 +32,7 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     protected boolean listening = true;
 
     /**
-     * Reference to {@link GraphRuntimeContext}
+     * Reference to {@link GraphRuntimeContext}. Can store it since {@link Plugin} is operator-local
      */
     protected transient GraphRuntimeContext runtimeContext;
 
@@ -49,7 +46,7 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
 
     /**
      * {@inheritDoc}
-     * Throws {@link  IllegalStateException}
+     * Simply throws {@link  IllegalStateException}
      */
     @Override
     public GraphElement copy(CopyContext context) {
@@ -58,44 +55,30 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
 
     /**
      * {@inheritDoc}
-     * Throws {@link IllegalStateException}
+     * Simply throws {@link IllegalStateException}
      */
     @Override
     public Feature<?, ?> getFeature(String name) {
-        throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");
+        throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin itself");
     }
 
     /**
      * {@inheritDoc}
-     * Throws {@link IllegalStateException}
+     * Simply throws {@link IllegalStateException}
      */
     @Override
     public Boolean containsFeature(String name) {
         throw new IllegalStateException("Plugins do not have Features instead save state in the Plugin intself");
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public String getId() {
         return id;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public ElementType getType() {
         return ElementType.PLUGIN;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public short getPart() {
-        return getRuntimeContext().getCurrentPart();
     }
 
     /**
@@ -105,9 +88,6 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
         return listening;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public GraphRuntimeContext getRuntimeContext() {
         return runtimeContext;

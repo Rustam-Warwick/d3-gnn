@@ -8,6 +8,7 @@ import elements.enums.ElementType;
 import elements.enums.Op;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.operators.graph.OutputTags;
+import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
 import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.OutputTag;
 import org.jctools.maps.NonBlockingHashMap;
@@ -116,10 +117,10 @@ public class Rmi extends GraphElement {
      * Executes if intended for this part or sends a {@link GraphOp}
      */
     public static void buildAndRun(Object id, ElementType elemType, String methodName, short destination, OutputTag<GraphOp> messageDirection, Object... args) {
-        if (destination == getGraphRuntimeContext().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG) {
-            execute(getGraphRuntimeContext().getStorage().getElement(id, elemType), methodName, args);
+        if (destination == GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getCurrentPart() && messageDirection == OutputTags.ITERATE_OUTPUT_TAG) {
+            execute(GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().getStorage().getElement(id, elemType), methodName, args);
         } else {
-            getGraphRuntimeContext().output(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
+            GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get().output(new GraphOp(Op.RMI, destination, new Rmi(id, methodName, elemType, args)), messageDirection);
         }
     }
 

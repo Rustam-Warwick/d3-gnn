@@ -21,33 +21,37 @@ import picocli.CommandLine;
 import java.util.*;
 
 /**
- * Cascading-HDRF for handling balancing cascading load of GNNs
+ * Implementation of HDRF <strong>vertex-cut</strong> partitioning algorithm.
+ * <p>
+ * {@link DirectedEdge} streams should come first as the partitioner expects vertex-cut
+ * Vertices and Vertex-Features are simply directed to their master part
+ * </p>
  */
-public class CHDRF extends Partitioner {
+public class CLDA extends Partitioner {
 
     /**
      * A small value to overcome division by zero errors on score calculation
      */
-    @CommandLine.Option(names = {"--hdrf:epsilon"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Epsilon to be used in HDRF"})
+    @CommandLine.Option(names = {"--clda:epsilon"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Epsilon to be used in HDRF"})
     public float epsilon;
 
     /**
      * <strong>Balance coefficient</strong>. Higher value usually means higher distribution of edges.
      */
-    @CommandLine.Option(names = {"--hdrf:lambda"}, defaultValue = "2", fallbackValue = "2", arity = "1", description = {"Lambda to be used in HDRF"})
+    @CommandLine.Option(names = {"--clda:lambda"}, defaultValue = "2", fallbackValue = "2", arity = "1", description = {"Lambda to be used in HDRF"})
     public float lambda;
 
     @Override
     public SingleOutputStreamOperator<GraphOp> partition(DataStream<GraphOp> inputDataStream) {
-        return inputDataStream.process(new CHDRFProcessFunction(partitions, lambda, epsilon)).name(String.format("CHDRF[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
+        return inputDataStream.process(new CLDAProcessFunction(partitions, lambda, epsilon)).name(String.format("CLDA[l=%s,eps=%s]", lambda, epsilon)).setParallelism(1);
     }
 
     @Override
     public boolean isResponsibleFor(String partitionerName) {
-        return partitionerName.equals("chdrf");
+        return partitionerName.equals("clda");
     }
 
-    public static class CHDRFProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
+    public static class CLDAProcessFunction extends ProcessFunction<GraphOp, GraphOp> {
         public final short numPartitions;
         public final float lamb;
         public final float eps;
@@ -57,15 +61,14 @@ public class CHDRF extends Partitioner {
         public transient int[] partitionsSize;
         public transient ShortList emptyShortList;
         public transient ShortList reuseShortList;
-        public transient long degreeSum;
         public transient long maxSize;
         public transient long minSize;
-        public transient long totalNumberOfVertices;
         public transient long totalNumberOfReplicas;
+        public transient long totalNumberOfEdges;
 
-        public CHDRFProcessFunction(short numPartitions, float lambda, float eps) {
+        public CLDAProcessFunction(short numPartitions, float lamb, float eps) {
             this.numPartitions = numPartitions;
-            this.lamb = lambda;
+            this.lamb = lamb;
             this.eps = eps;
         }
 
@@ -81,8 +84,8 @@ public class CHDRF extends Partitioner {
             getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    if (totalNumberOfVertices == 0) return 0;
-                    return (int) ((float) totalNumberOfReplicas / totalNumberOfVertices * 1000);
+                    if (partitionTable.isEmpty()) return 0;
+                    return (int) ((float) totalNumberOfReplicas / partitionTable.size() * 1000);
                 }
             });
         }
@@ -101,6 +104,13 @@ public class CHDRF extends Partitioner {
             return G(directedEdge.getSrcId(), srcDegNormal, partition) + G(directedEdge.getDestId(), destDegNormal, partition);
         }
 
+        protected float REPGreedy(DirectedEdge directedEdge, short partition) {
+            byte tmp = 0;
+            if (partitionTable.getOrDefault(directedEdge.getSrcId(), emptyShortList).contains(partition)) tmp += 1;
+            if (partitionTable.getOrDefault(directedEdge.getDestId(), emptyShortList).contains(partition)) tmp += 1;
+            return tmp;
+        }
+
         protected float BAL(short partition) {
             float res = (float) (maxSize - partitionsSize[partition]) / (eps + maxSize - minSize);
             return lamb * res;
@@ -108,15 +118,16 @@ public class CHDRF extends Partitioner {
 
         protected short partitionEdge(DirectedEdge directedEdge) {
             // 1. Increment the node degrees seen so far
-            partialDegTable.merge(directedEdge.getSrcId(), 1, Integer::sum);
-            partialDegTable.merge(directedEdge.getDestId(), 1, Integer::sum);
-            degreeSum += 2;
+            totalNumberOfEdges++;
+            long edgeDegree = partialDegTable.merge(directedEdge.getSrcId(), 1, Integer::sum) + partialDegTable.merge(directedEdge.getDestId(), 1, Integer::sum);
+            long avgDegree = (totalNumberOfEdges * 2) / partialDegTable.size();
+            boolean useGreedy = edgeDegree <= avgDegree;
 
             // 2. Calculate the partition
             float maxScore = Float.NEGATIVE_INFINITY;
             reuseShortList.clear();
             for (short i = 0; i < numPartitions; i++) {
-                float score = REP(directedEdge, i) + BAL(i);
+                float score = useGreedy ? REPGreedy(directedEdge, i) : REP(directedEdge, i) + BAL(i);
                 if (score > maxScore) {
                     reuseShortList.clear();
                     maxScore = score;
@@ -137,7 +148,6 @@ public class CHDRF extends Partitioner {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
                     vertex.masterPart = part;
-                    totalNumberOfVertices++;
                     return new ShortArrayList(List.of(part));
                 } else {
                     if (!val.contains(part)) {
@@ -159,7 +169,6 @@ public class CHDRF extends Partitioner {
                     short part = partitionEdge(directedEdge);
                     updatePartitionTableAndAssignMaster(directedEdge.getSrc(), part);
                     updatePartitionTableAndAssignMaster(directedEdge.getDest(), part);
-                    partitionsSize[directedEdge.getSrc().masterPart] += 1 + (degreeSum / totalNumberOfVertices);
                     out.collect(value.setPartId(part));
                     break;
                 }

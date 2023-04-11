@@ -65,7 +65,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
     /**
      * Helper method for getting {@link GraphRuntimeContext} object from {@link ThreadLocal}
      */
-    public static GraphRuntimeContext getGraphRuntimeContext() {
+    public GraphRuntimeContext getRuntimeContext() {
         return GraphRuntimeContext.CONTEXT_THREAD_LOCAL.get();
     }
 
@@ -78,6 +78,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
 
     /**
      * Part of creation relating to storage and plugin callbacks
+     *
      * @implNote features will be cleared after exiting this method
      * <ol>
      *     <li>Create in Storage</li>
@@ -94,8 +95,8 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
             copyFeatures = features;
             features = new ArrayList<>(copyFeatures.size());
         }
-        getGraphRuntimeContext().getStorage().addElement(this);
-        getGraphRuntimeContext().addElementCallback(this);
+        getRuntimeContext().getStorage().addElement(this);
+        getRuntimeContext().addElementCallback(this);
         if (copyFeatures != null && !copyFeatures.isEmpty()) {
             for (Feature<?, ?> feature : copyFeatures) {
                 feature.setElement(this, false);
@@ -139,8 +140,8 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 }
             }
         }
-        getGraphRuntimeContext().getStorage().updateElement(this, newElement);
-        getGraphRuntimeContext().updateElementCallback(this, newElement);
+        getRuntimeContext().getStorage().updateElement(this, newElement);
+        getRuntimeContext().updateElementCallback(this, newElement);
     }
 
     /**
@@ -235,7 +236,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
      * <strong>To be called in {@link BaseStorage} parts only, otherwise {@link NullPointerException}</strong>
      */
     public short getPart() {
-        return getGraphRuntimeContext().getCurrentPart();
+        return getRuntimeContext().getCurrentPart();
     }
 
     /**
@@ -251,7 +252,7 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return feature;
             }
         }
-        Feature<?, ?> feature = getGraphRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name);
+        Feature<?, ?> feature = getRuntimeContext().getStorage().getAttachedFeature(getType(), getId(), name);
         feature.setElement(this, false);
         return feature;
     }
@@ -265,8 +266,8 @@ public abstract class GraphElement implements Serializable, LifeCycleControl, De
                 if (feature.getName().equals(name)) return true;
             }
         }
-        if (getGraphRuntimeContext() != null) {
-            return getGraphRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name);
+        if (getRuntimeContext() != null) {
+            return getRuntimeContext().getStorage().containsAttachedFeature(getType(), getId(), name);
         }
         return false;
     }

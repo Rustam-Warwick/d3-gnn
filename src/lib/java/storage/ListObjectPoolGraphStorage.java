@@ -274,7 +274,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void updateAttachedFeature(Feature feature, Feature memento) {
-            if(feature.getAttachedElementType() == ElementType.VERTEX){
+            if (feature.getAttachedElementType() == ElementType.VERTEX) {
                 vertexMap.get(getRuntimeContext().getCurrentPart()).get(feature.getAttachedElementId()).addOrUpdateFeature(feature, vertexFeatureInfoTable.get(feature.getName()));
                 return;
             }
@@ -377,8 +377,10 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         public int getIncidentEdgeCount(Vertex vertex, EdgeType edgeType) {
             int res = 0;
             VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
-            if(vertexData.outEdges != null && edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH) res += vertexData.outEdges.size();
-            if(vertexData.inEdges != null && edgeType == EdgeType.IN || edgeType == EdgeType.BOTH) res += vertexData.inEdges.size();
+            if (vertexData.outEdges != null && edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)
+                res += vertexData.outEdges.size();
+            if (vertexData.inEdges != null && edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)
+                res += vertexData.inEdges.size();
             return res;
         }
 
@@ -465,7 +467,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public boolean containsEdge(String srcId, String destId, @Nullable String attributeId) {
-            if(!vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(srcId)) return false;
+            if (!vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(srcId)) return false;
             List<String> outEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(srcId).outEdges;
             return outEdges != null && outEdges.contains(destId);
         }
@@ -480,7 +482,8 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             if (element.getType() == ElementType.VERTEX) {
                 VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(element.getId());
                 vertexFeatureInfoTable.forEach((featureName, featureInfo) -> {
-                    if(featureInfo.halo ^ context == CacheFeatureContext.HALO || !vertexData.hasFeatureInPosition(featureInfo.position)) return;
+                    if (featureInfo.halo ^ context == CacheFeatureContext.HALO || !vertexData.hasFeatureInPosition(featureInfo.position))
+                        return;
                     element.getFeature(featureName); // Try to get it so element will cache
                 });
                 return;

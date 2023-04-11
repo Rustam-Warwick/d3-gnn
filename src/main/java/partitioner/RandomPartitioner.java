@@ -39,7 +39,6 @@ public class RandomPartitioner extends Partitioner {
         public final short partitions;
         public transient Random random;
         public transient Map<String, ShortList> partitionTable;
-        public transient int totalNumberOfVertices;
         public transient int totalNumberOfReplicas;
 
         public RandomMapFunction(short partitions) {
@@ -54,8 +53,8 @@ public class RandomPartitioner extends Partitioner {
             getRuntimeContext().getMetricGroup().addGroup("partitioner").gauge("Replication Factor", new Gauge<Integer>() {
                 @Override
                 public Integer getValue() {
-                    if (totalNumberOfVertices == 0) return 0;
-                    return (int) ((float) totalNumberOfReplicas / totalNumberOfVertices * 1000);
+                    if (partitionTable.isEmpty()) return 0;
+                    return (int) ((float) totalNumberOfReplicas / partitionTable.size() * 1000);
                 }
             });
         }
@@ -65,7 +64,6 @@ public class RandomPartitioner extends Partitioner {
                 if (val == null) {
                     // This is the first part of this vertex hence the master
                     vertex.masterPart = part;
-                    totalNumberOfVertices++;
                     return new ShortArrayList(List.of(part));
                 } else {
                     if (!val.contains(part)) {

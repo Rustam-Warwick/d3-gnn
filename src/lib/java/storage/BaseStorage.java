@@ -56,6 +56,7 @@ abstract public class BaseStorage extends TMSharedState {
 
     /**
      * A thread local view of the graph object
+     *
      * @implNote All the get methods assume that contains is checked before
      */
     abstract public static class GraphView {

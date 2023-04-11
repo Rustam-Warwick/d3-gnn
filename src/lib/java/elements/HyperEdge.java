@@ -91,7 +91,7 @@ public final class HyperEdge extends ReplicableGraphElement {
     @Override
     public void createInternal() {
         for (int i = 0; i < vertexIds.size(); i++) {
-            if (!getGraphRuntimeContext().getStorage().containsVertex(vertexIds.get(i))) vertices.get(i).create();
+            if (!getRuntimeContext().getStorage().containsVertex(vertexIds.get(i))) vertices.get(i).create();
         }
         super.createInternal();
     }
@@ -124,7 +124,7 @@ public final class HyperEdge extends ReplicableGraphElement {
     public void updateInternal(GraphElement newElement) {
         HyperEdge newHyperEdge = (HyperEdge) newElement;
         for (int i = 0; i < newHyperEdge.vertexIds.size(); i++) {
-            if (!getGraphRuntimeContext().getStorage().containsVertex(newHyperEdge.vertexIds.get(i)))
+            if (!getRuntimeContext().getStorage().containsVertex(newHyperEdge.vertexIds.get(i)))
                 newHyperEdge.vertices.get(i).create();
         }
         vertexIds.addAll(newHyperEdge.vertexIds);
@@ -150,14 +150,14 @@ public final class HyperEdge extends ReplicableGraphElement {
      */
     public List<Vertex> getVertices() {
         if (vertices == null) {
-            if (getGraphRuntimeContext() != null) {
-                vertices = vertexIds.stream().map(item -> getGraphRuntimeContext().getStorage().getVertex(item)).collect(Collectors.toList());
+            if (getRuntimeContext() != null) {
+                vertices = vertexIds.stream().map(item -> getRuntimeContext().getStorage().getVertex(item)).collect(Collectors.toList());
                 return vertices;
             }
             return Collections.emptyList();
-        } else if (vertices.size() != vertexIds.size() && getGraphRuntimeContext() != null) {
+        } else if (vertices.size() != vertexIds.size() && getRuntimeContext() != null) {
             for (int i = vertices.size(); i < vertexIds.size(); i++) {
-                vertices.add(getGraphRuntimeContext().getStorage().getVertex(vertexIds.get(i)));
+                vertices.add(getRuntimeContext().getStorage().getVertex(vertexIds.get(i)));
             }
         }
         return vertices;

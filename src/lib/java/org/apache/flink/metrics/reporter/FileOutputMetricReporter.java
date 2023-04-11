@@ -31,12 +31,12 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter {
     @Override
     public void notifyOfRemovedMetric(Metric metric, String metricName, MetricGroup group) {
         String fileName = getMetricFileName(metric, metricName, group);
-        if(fileName != null) {
+        if (fileName != null) {
             Tuple3<File, Metric, StringBuilder> tmp = null;
             synchronized (this) {
                 tmp = metricsMap.remove(fileName);
             }
-            if(tmp != null){
+            if (tmp != null) {
                 appendMetric(tmp);
                 flushMetric(tmp);
             }
