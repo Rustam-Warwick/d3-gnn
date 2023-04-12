@@ -19,7 +19,7 @@ import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFac
 import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
 import plugins.ModelServer;
-import plugins.gnn_embedding.StreamingGNNEmbedding;
+import plugins.gnn_embedding.SessionWindowGNNEmbeddings;
 import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
 import java.util.ArrayList;
@@ -82,15 +82,15 @@ public class Main {
                 if (position == 0)
                     return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new StreamingGNNEmbedding(models.get(0).getName(), true)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowGNNEmbeddings(models.get(0).getName(), true,25)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 2)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new StreamingGNNEmbedding(models.get(1).getName(), false)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowGNNEmbeddings(models.get(1).getName(), false, 25)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 else
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             });
             env.setMaxParallelism(270);
             gs.build();
-            env.execute(String.format("Streaming %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
+            env.execute(String.format("Full SessionW-25 %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

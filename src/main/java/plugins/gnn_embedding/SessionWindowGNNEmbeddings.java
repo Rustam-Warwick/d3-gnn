@@ -15,7 +15,7 @@ import java.util.List;
  * Windowing plugins that evict the windowing results once a per-vertex session has expired
  * In other words, once that vertex has been inactive for > some session duration
  */
-public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding{
+public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding {
 
     public final long intraLayerSessionDuration;
 
