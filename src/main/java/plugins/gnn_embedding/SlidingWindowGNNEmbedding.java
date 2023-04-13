@@ -14,6 +14,7 @@ import java.util.List;
 /**
  * Windowing plugin that evicts active vertices periodically
  * Contrary to {@link SessionWindowGNNEmbeddings} it does constantly delay the times and wait for window expiration
+ * By default intraLayerWindow is half the size of interLayer ones
  */
 public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
 
@@ -28,31 +29,31 @@ public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
     }
 
     public SlidingWindowGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, long windowSizeMs) {
-        this(modelName, trainableVertexEmbeddings, windowSizeMs, windowSizeMs);
+        this(modelName, trainableVertexEmbeddings, windowSizeMs / 2, windowSizeMs);
     }
 
     @Override
     public void intraLayerWindow(DirectedEdge directedEdge) {
         getRuntimeContext().getStorage().deleteEdge(directedEdge);
-        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partReduceMaps = intraLayerMaps.get(getRuntimeContext().getCurrentPart());
-        partReduceMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());
-        partReduceMaps.f2.put(directedEdge.getDestId(), getRuntimeContext().currentTimestamp());
-        if(!partReduceMaps.f0.containsKey(directedEdge.getDestId())) {
+        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getRuntimeContext().getCurrentPart());
+        partIntraLayerMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());
+        partIntraLayerMaps.f2.mergeLong(directedEdge.getDestId(), getRuntimeContext().currentTimestamp(),Math::max);
+        if(!partIntraLayerMaps.f0.containsKey(directedEdge.getDestId())) {
             long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + intraLayerWindowSizeMs;
             long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
-            partReduceMaps.f0.put(directedEdge.getDestId(), updateTime);
+            partIntraLayerMaps.f0.put(directedEdge.getDestId(), updateTime);
             getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         }
     }
 
     @Override
     public void interLayerWindow(Vertex v) {
-        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> maps = interLayerMaps.get(getPart());
-        maps.f1.put(v.getId(), getRuntimeContext().currentTimestamp());
-        if(!maps.f0.containsKey(v.getId())) {
+        Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> partInterLayerMaps = interLayerMaps.get(getPart());
+        partInterLayerMaps.f1.mergeLong(v.getId(), getRuntimeContext().currentTimestamp(), Math::max);
+        if(!partInterLayerMaps.f0.containsKey(v.getId())) {
             long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + interLayerWindowSizeMs;
             long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
-            maps.f0.put(v.getId(), updateTime);
+            partInterLayerMaps.f0.put(v.getId(), updateTime);
             getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         }
     }

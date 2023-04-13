@@ -35,7 +35,7 @@ import java.util.Map;
  */
 public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
 
-    protected static final double TIMER_COALESCING = 25L;
+    protected static final double TIMER_COALESCING = 10L;
     protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> interLayerMaps; // eviction times and timestamps
     protected transient Map<Short, Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>>> intraLayerMaps;  // Eviction times, in-edges, timestamps
     protected transient NDList reuseAggregatorsNDList;
