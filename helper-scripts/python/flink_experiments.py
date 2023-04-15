@@ -1,6 +1,7 @@
 """ Script for running experiments testing the scalability of system with varying parallelism """
 import requests
 from time import sleep
+import math
 from typing import List
 from threading import Thread, Lock
 import re
@@ -13,7 +14,7 @@ JAR_ID = None
 
 TIMER = None
 
-TASK_MANAGERS = 10
+TASK_MANAGERS = 9
 
 SLOTS_PER_MANAGER = 40
 
@@ -24,17 +25,15 @@ N_TIMES_EACH = 3
 LOCK = Lock()
 
 ARGS = {
-    "--tagsAskUbuntu:datasetType": "n2v",
-    "--tagsAskUbuntu:streamType": "edge-stream",
-    "-p": ["hdrf"],
+    "-p": ["hdrf:buffered", "random:buffered", "clda:buffered"],
     "-f": ["true"],
-    "-d": ["tags-ask-ubuntu"],
-    "-l": "3",
+    "-d": ["sx-superuser"],
+    "-l": "3"
 }
 
 
 def get_jar_id():
-    """ Get uploaded JAR ID """
+    """ Get global JAR ID """
     global JAR_ID
     response = requests.get("%s/jars" % BASE_URL)
     JAR_ID = response.json()['files'][0]['id']
@@ -45,13 +44,13 @@ def get_parallelisms_and_slots_required(l: float) -> List[List[int]]:
     result = []
     for i in range(1, TASK_MANAGERS + 1):
         slots = i * SLOTS_PER_MANAGER
-        parallelism = int(slots // (l + 1))
+        parallelism = math.floor(slots / (l + 1))
         result.append([parallelism, slots])
     return result
 
 
 def get_all_configurations() -> List[str]:
-    """" Return a list of all permutations of configurations """
+    """ Get a list of all configurations """
     configurations = [""]
     for argName, argValues in ARGS.items():
         if isinstance(argValues, list):
@@ -68,6 +67,7 @@ def get_all_configurations() -> List[str]:
 
 def find_termination(job_id: str, slots_required: int):
     """" Find termination point for each experiment """
+    global FREE_SLOTS
     if TIMER is not None:
         sleep(TIMER)
         requests.patch('%s/jobs/%s' % (BASE_URL, job_id))
@@ -91,6 +91,7 @@ def start_experiments(configurations: List[str]):
         parallelisms_and_slots = get_parallelisms_and_slots_required(float(1 if test is None else test.group(1)))
         for (parallelism, slots_required) in parallelisms_and_slots:
             for trial in range(N_TIMES_EACH):
+                sleep(10)
                 while FREE_SLOTS < slots_required:
                     sleep(1)
                 data = {"programArgs": configuration,
