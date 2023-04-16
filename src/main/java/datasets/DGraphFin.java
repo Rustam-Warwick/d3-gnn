@@ -34,13 +34,13 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class DGraphFin extends Dataset {
 
-    @CommandLine.Option(names = {"--dGraphFin:trainSplitProb"}, defaultValue = "0.2", fallbackValue = "0.2", arity = "1", description = {"Probability of train labels [0, 1]"})
+    @CommandLine.Option(names = {"--dGraphFin:trainSplitProb"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = {"Probability of train labels [0, 1]"})
     protected float trainSplitProb;
 
-    @CommandLine.Option(names = {"--dGraphFin:deltaBoundMs"}, defaultValue = "3000", fallbackValue = "3000", arity = "1", description = {"Bound of milliseconds to wait before emitting labels. Coalesed by 100ms intervals"})
+    @CommandLine.Option(names = {"--dGraphFin:deltaBoundMs"}, defaultValue = "0", fallbackValue = "0", arity = "1", description = {"Bound of milliseconds to wait before emitting labels. Coalesed by 100ms intervals"})
     protected int deltaBoundMs;
 
-    @CommandLine.Option(names = {"--dGraphFin:withLabels"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = {"Stream the labels as well"})
+    @CommandLine.Option(names = {"--dGraphFin:withLabels"}, defaultValue = "true", fallbackValue = "true", arity = "1", description = {"Stream the labels as well"})
     protected boolean withLabels;
 
     @Override
@@ -120,6 +120,10 @@ public class DGraphFin extends Dataset {
             if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
                 label.id.f2 = "tl"; // Mark label as training label
             GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
+            if(deltaBoundMs ==0){
+                graphRuntimeContext.output(labelOp, OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
+                return;
+            }
             labelOp.delay();
             int delta = (int) ThreadLocalRandom.current().nextDouble(0, deltaBoundMs);
             long updateTime = graphRuntimeContext.getTimerService().currentProcessingTime() + delta;
@@ -237,7 +241,6 @@ public class DGraphFin extends Dataset {
      * Class for parsing the Edges in this dataset
      */
     protected static class ParseEdges implements FlatMapFunction<String, GraphOp> {
-        transient int count;
 
         @Override
         public void flatMap(String value, Collector<GraphOp> out) throws Exception {

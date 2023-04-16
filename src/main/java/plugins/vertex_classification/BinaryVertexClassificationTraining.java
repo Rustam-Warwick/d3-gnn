@@ -33,17 +33,12 @@ import java.util.Map;
 /**
  * Does the last layer training for vertex classification based models
  */
-public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutput {
+public class BinaryVertexClassificationTraining extends BaseVertexOutput {
 
     /**
      * Loss functions for gradient calculation
      */
     public final Loss loss;
-
-    /**
-     * Batch size for training to start
-     */
-    protected final int batchSize;
 
     /**
      * Size of collected data in this plugin over all parts represented
@@ -85,10 +80,9 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
      */
     protected transient Tuple3<ElementType, Object, String> reuseLabelsId;
 
-    public BatchSizeBinaryVertexClassificationTraining(String modelName, Loss loss, int batchSize) {
+    public BinaryVertexClassificationTraining(String modelName, Loss loss) {
         super(modelName, "trainer");
         this.loss = loss;
-        this.batchSize = batchSize;
     }
 
     @Override
@@ -112,9 +106,7 @@ public class BatchSizeBinaryVertexClassificationTraining extends BaseVertexOutpu
         super.addElementCallback(element);
         if (element.getType() == ElementType.ATTACHED_FEATURE && ((Feature<?, ?>) element).getName().equals("tl")) {
             part2TrainingVertexMap.get(getPart()).add((String) ((Feature<?, ?>) element).getAttachedElementId());
-            if (++collectedTrainingDataCount == batchSize) {
-                getRuntimeContext().sendOperatorEvent(new TrainingSubCoordinator.TrainingRequest());
-            }
+            collectedTrainingDataCount++;
         }
     }
 

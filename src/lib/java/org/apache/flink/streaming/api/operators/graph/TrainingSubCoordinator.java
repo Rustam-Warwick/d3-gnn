@@ -43,7 +43,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
     }
 
     public TrainingSubCoordinator(GraphOperatorCoordinator mainCoordinator) {
-        this(mainCoordinator, 1f, 1024, (short) 5);
+        this(mainCoordinator, 0.5f, 50000, (short) 100);
     }
 
     @Override
@@ -354,17 +354,21 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                 shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels(); // Receiving initially form the forward layer
             }
             if (++numReceived == shouldReceive) {
-                if (!isSecondPhase) {
-                    pool.eventHandler.handleOperatorEvent(this);
-                    numReceived = 0;
-                    shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks(); // Then iterate
-                    isSecondPhase = true;
-                    pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
-                } else {
+                if(pool.graphRuntimeContext.isSplitter()){
                     pool.evict(this);
-                    if (!pool.graphRuntimeContext.isFirst())
+                    pool.graphRuntimeContext.broadcast(new GraphOp(new ForwardPhaser()));
+                }
+                else{
+                    if (!isSecondPhase) {
+                        pool.eventHandler.handleOperatorEvent(this);
+                        numReceived = 0;
+                        shouldReceive = (short) pool.graphRuntimeContext.getNumberOfParallelSubtasks(); // Then iterate
+                        isSecondPhase = true;
+                        pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.ITERATE_OUTPUT_TAG);
+                    } else {
+                        pool.evict(this);
                         pool.graphRuntimeContext.broadcast(new GraphOp(this), OutputTags.BACKWARD_OUTPUT_TAG); // send back
-                    else pool.addEvent(new ForwardPhaser()); // Start forward pass
+                    }
                 }
             }
         }
@@ -390,13 +394,7 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
         @Override
         public void merge(GraphEventPool pool, @org.jetbrains.annotations.Nullable GraphEvent incoming) {
             if (incoming == null) {
-                if (pool.graphRuntimeContext.isFirst()) {
-                    // Since it is locally created after backward pass need to make it immediately entering the if block
-                    shouldReceive = 1;
-                    numReceived = 0;
-                } else {
-                    shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels(OutputTags.BACKWARD_OUTPUT_TAG);
-                }
+                shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels(OutputTags.BACKWARD_OUTPUT_TAG);
             }
             if (++numReceived == shouldReceive) {
                 if (iteration < (pool.graphRuntimeContext.isLast() ? 2 : 3)) {

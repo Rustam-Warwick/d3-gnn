@@ -163,8 +163,8 @@ if __name__ == '__main__':
         for epoch in range(EPOCHS):
             for step, (input_nodes, seeds, blocks) in enumerate(dataloader):
                 batch_inputs = g.ndata["features"][input_nodes]
-                batch_labels = g.ndata["labels"][input_nodes]
-                batch_pred = model(blocks, batch_inputs)
+                batch_labels = g.ndata["labels"][seeds]
+                batch_pred = model(blocks, batch_inputs).flatten()
                 correct = (batch_pred == batch_labels).sum().item()  # Compare and count correct predictions
                 total = batch_labels.size(0)  # Total number of samples
                 accuracy = correct / total  # Calculate accuracy

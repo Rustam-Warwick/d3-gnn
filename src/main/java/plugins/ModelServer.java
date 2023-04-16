@@ -67,7 +67,7 @@ public class ModelServer<T extends Block> extends Plugin {
     /**
      * Parameters that are gathered by this model. Actually created on {@code sync()}
      */
-    protected transient Tuple2<ParameterList, Short> syncParameters;
+    protected transient Tuple2<ParameterList, Integer> syncParameters;
 
     public ModelServer(Model m) {
         super(String.format("%s-server", m.getName()));
@@ -145,7 +145,7 @@ public class ModelServer<T extends Block> extends Plugin {
     @RemoteFunction(triggerUpdate = false)
     public void sync(ParameterList parameterList) {
         if (isMaster) {
-            if (syncParameters == null) syncParameters = Tuple2.of(parameterList, (short) 1);
+            if (syncParameters == null) syncParameters = Tuple2.of(parameterList, 1);
             else {
                 syncParameters.f1++;
                 for (int i = 0; i < syncParameters.f0.size(); i++) {

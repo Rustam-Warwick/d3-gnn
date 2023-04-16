@@ -6,6 +6,7 @@ import elements.*;
 import elements.features.MeanAggregator;
 import elements.features.Parts;
 import elements.features.Tensor;
+import functions.helpers.Throttler;
 import functions.selectors.PartKeySelector;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 import org.apache.flink.runtime.state.PartNumber;
@@ -149,7 +150,7 @@ public class GraphStream {
      * @param position    position of the storage layer [1...layers]
      * @return Output of this storage operator not partitioned
      */
-    protected final SingleOutputStreamOperator<GraphOp> addGraphOperator(DataStream<GraphOp> inputStream, short position, Object[] extra) {
+    protected SingleOutputStreamOperator<GraphOp> addGraphOperator(DataStream<GraphOp> inputStream, short position, Object[] extra) {
         int thisParallelism = (int) (env.getParallelism() * Math.pow(lambda, Math.max(position - 1, 0)));
         SingleOutputStreamOperator<GraphOp> storageOperator = inputStream.keyBy(new PartKeySelector()).transform(String.format("GNN Operator - %s", position), TypeExtractor.createTypeInfo(GraphOp.class), operatorFactorySupplier.apply(position, layers, extra)).setParallelism(thisParallelism);
         if (fineGrainedResourceManagementEnabled && position > 1) storageOperator.slotSharingGroup("GNN-" + position);
@@ -190,7 +191,7 @@ public class GraphStream {
         SingleOutputStreamOperator<GraphOp>[] layerOutputs = new SingleOutputStreamOperator[layers + 3]; // the final return value
         layerOutputs[0] = (SingleOutputStreamOperator<GraphOp>) dataset.build(env);
         layerOutputs[1] = partitioner.setPartitions((short) env.getMaxParallelism()).partition(layerOutputs[0]);
-        layerOutputs[2] = addGraphOperator(layerOutputs[1], (short) 0, new Object[]{dataset.getSplitter()});
+        layerOutputs[2] = addGraphOperator(layerOutputs[1].process(new Throttler(10000, 100000)).setParallelism(1), (short) 0, new Object[]{dataset.getSplitter()});
         return build(layerOutputs);
     }
 

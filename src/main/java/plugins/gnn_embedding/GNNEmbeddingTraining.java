@@ -79,11 +79,14 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         reuseSrcIndexList = new IntArrayList();
         reuseVertexToIndexMap = new Object2IntOpenHashMap<>();
         reuseVertexIdList = new ArrayList<>();
-
         part2FeatureGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2FeatureGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
         part2AggregatorGradientAgg = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2AggregatorGradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
-        getRuntimeContext().getThisOperatorParts().forEach(part -> part2FeatureGradientAgg.put(part, new NDArraysAggregator()));
-        getRuntimeContext().getThisOperatorParts().forEach(part -> part2AggregatorGradientAgg.put(part, new NDArraysAggregator()));
+        synchronized (part2FeatureGradientAgg){
+            getRuntimeContext().getThisOperatorParts().forEach(part -> part2FeatureGradientAgg.put(part, new NDArraysAggregator()));
+        }
+        synchronized (part2AggregatorGradientAgg){
+            getRuntimeContext().getThisOperatorParts().forEach(part -> part2AggregatorGradientAgg.put(part, new NDArraysAggregator()));
+        }
     }
 
     @RemoteFunction(triggerUpdate = false)
