@@ -6,8 +6,9 @@
 ## Datasets
 1. **StackOverflow** dataset can be downloaded from https://snap.stanford.edu/data/sx-stackoverflow.html
 2. **Reddit-Hyperlinks-body** dataset can be downloaded from https://snap.stanford.edu/data/soc-RedditHyperlinks.html
+3. **SX-SuperUser** dataset can be downloaded from https://snap.stanford.edu/data/sx-superuser.html
 
-We pre-process those datasets to make them easier to parse using the corresponding **RedditHyperlinks** and **Stackoverflow** parsers.
+We pre-process those datasets to make them easier to parse using the corresponding **SxSuperUser** **RedditHyperlinks** and **Stackoverflow** parsers.
 We include this pre-processing script in /scripts/jupyter/Pre Process Datasets.ipynb file
 
 To test the aforementioned datasets organize them in a folder structure as such:
@@ -16,6 +17,8 @@ To test the aforementioned datasets organize them in a folder structure as such:
     - soc-redditHyperlinks-body.tsv
   - StackOverflow
     - sx-stackoverflow.tsv
+  - SX-SuperUser
+    - sx-superuser.tsv
 
 Then create an environments variable _DATASET_DIR_ pointing to the /Datasets folder.
 
@@ -43,32 +46,26 @@ Elements store main classes involved within Flink operators
 ### Aggregators
 Aggregators are Vertex @Features that aggregate messages from the previous layer neighborhood.
 - **BaseAggregator**: Interface all aggregators should support
-- **MeanAggregator**: 1-hop neighborhood mean aggregator
+- **InPlaceMeanAggregator**: 1-hop neighborhood mean aggregator
 
 ### Features
 Features can be instantiated using `new Feature()`. But this module contains Features that needed subclassing to have some custom logic inside.
 - **Tensor**: Used to store node features
-- **Set**: Used to store replicated part arrays
-- **MeanGradientCollector**: Used to collect gradients in backward passs
 
 ### Iterations
 Stores all helpers and types that deal with Iterative Stream Processing
-- **IterationState**: How the flowing GraphOp should be delivered, FORWARD(next-operator), ITERATE(same-operator), BACKWARD(previous-operator)
 - **Rpc**: **Asynchronous Remote Method Call** object. Rpc is also a type of GraphElement. Rpc object contains information about which GraphElement to execute the procedure on, which method should be called and with which arguments to execute procedure.
 - **RemoteFunction**: A special decorator for GraphElement's methods that can be using for Rpc calls. Failing to decorate as such will result in RuntimeErrors.
 ### Plugins
 All the Plugins are contianed here
 - **StreamingGNNEmbeddingLayer**: Streaming Inference plugin
 - **WindowedGNNEmbeddingLayer**: Windowed Inference plugin
-- **EdgeClassificationTrainingPlugin**: Output plugin for starting the directedEdge classification training
-- **VerteClassifiationTrainingPlugin**: Output plugin for starting the vertex classification training
-- **GNNEmbeddingLayerTrainingPlugin**: Trainer plugin for intermediate gnn embedding layers
 ### Partitioner
 - **BasePartitioner**: Base class for all partitioners
 ### Storage
 Storage is central process function of gnn layers. Storage is responsible for storing GraphElements
 - **BaseStorage**: Defines the main interfaces and common logic for storage.
-- **FlatInMemoryClassStorage**: Storage Implemented as tables of HashMaps that also use Flink State
+- **ListGraphStorage**: Implementation of the storage using **TMSharedStorageBackend**
 ### Helpers
 Miscellaneous classes
 - **GraphStream**: Helper class to initialize iterative Flink operators for each Storage Layer
