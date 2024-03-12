@@ -97,4 +97,14 @@ public class Plugin extends GraphElement implements RichGraphProcess, GraphListe
     public void setRuntimeContext(RuntimeContext t) {
         runtimeContext = (GraphRuntimeContext) t;
     }
+
+    @Override
+    public void updateIdle(boolean b) {
+
+    }
+
+    @Override
+    public void updateCurrentSplitWatermark(String s, long l) {
+
+    }
 }

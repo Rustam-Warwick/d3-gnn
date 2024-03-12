@@ -31,7 +31,7 @@ abstract public class IntegrationTest {
                             .build());
 
     static {
-        config.setString("metrics.reporter.fileoutput.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
+        config.setString("metrics.reporter.fileoutput.factory.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
     }
 
     /**

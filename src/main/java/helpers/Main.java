@@ -2,6 +2,7 @@ package helpers;
 
 import ai.djl.BaseModel;
 import ai.djl.Model;
+import ai.djl.engine.Engine;
 import ai.djl.ndarray.BaseNDManager;
 import ai.djl.ndarray.NDList;
 import ai.djl.ndarray.types.DataType;
@@ -11,27 +12,47 @@ import ai.djl.nn.SequentialBlock;
 import ai.djl.nn.core.Linear;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.training.loss.Loss;
+import datasets.Dataset;
+import datasets.RedditHyperlink;
+import elements.DirectedEdge;
 import elements.GraphOp;
+import elements.Plugin;
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.typeutils.TupleTypeInfo;
+import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.MetricOptions;
+import org.apache.flink.metrics.reporter.MetricReporter;
 import org.apache.flink.runtime.state.PartNumber;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.operators.graph.DatasetSplitterOperatorFactory;
 import org.apache.flink.streaming.api.operators.graph.GraphOperatorCoordinator;
 import org.apache.flink.streaming.api.operators.graph.GraphStorageOperatorFactory;
+import org.apache.flink.types.Row;
+import partitioner.Partitioner;
+import picocli.CommandLine;
 import plugins.ModelServer;
-import plugins.gnn_embedding.SessionWindowGNNEmbeddings;
+import plugins.gnn_embedding.*;
 import plugins.vertex_classification.BatchSizeBinaryVertexClassificationTraining;
 
+import java.io.File;
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Application entrypoint
  */
 public class Main {
     // -d=tags-ask-ubuntu --tagsAskUbuntu:type=star-graph -p=hdrf --hdrf:lambda=1 -l=3 -f=true
+
     public static ArrayList<Model> layeredModel() {
         SequentialBlock sb = new SequentialBlock();
         sb.add(new SAGEConv(128, true));
@@ -74,23 +95,25 @@ public class Main {
         return models;
     }
 
-    public static void main(String[] args) throws Throwable {
+
+     public static void main(String[] args) throws Throwable {
         try {
             ArrayList<Model> models = layeredModel(); // Get the model to be served
             StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-            GraphStream gs = new GraphStream(env, args, (short) 2, (position, layers, extra) -> {
+            GraphStream gs = new GraphStream(env, args, (short) 2, (position, layers, graphStream) -> {
                 if (position == 0)
-                    return new DatasetSplitterOperatorFactory(layers, (KeyedProcessFunction<PartNumber, GraphOp, GraphOp>) extra[0], new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new DatasetSplitterOperatorFactory(layers, graphStream.dataset.getSplitter(), new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 1)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), new SessionWindowGNNEmbeddings(models.get(0).getName(), true,20)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(0)), graphStream.getModelPlugin(models.get(0).getName(), true)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 if (position == 2)
-                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), new SessionWindowGNNEmbeddings(models.get(1).getName(), false, 20)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
+                    return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(1)), graphStream.getModelPlugin(models.get(0).getName(), false)), position, layers, new GraphOperatorCoordinator.EmptyGraphOperatorSubCoordinatorsProvider());
                 else
                     return new GraphStorageOperatorFactory(List.of(new ModelServer<>(models.get(2)), new BatchSizeBinaryVertexClassificationTraining(models.get(2).getName(), Loss.sigmoidBinaryCrossEntropyLoss(), 800)), position, layers);
             });
-            env.setMaxParallelism(270);
+            env.setMaxParallelism(400);
             gs.build();
-            env.execute(String.format("Full SessionW-20 %s (%s) [%s]", new Date(), env.getParallelism(), String.join(",", args)));
+            env.execute(String.format("%s %s (%s) [%s]", gs.pluginName, new Date(), env.getParallelism(), String.join(",", args)));
+
         } catch (Exception e) {
             e.printStackTrace();
         } finally {

@@ -8,6 +8,7 @@ import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.metrics.Counter;
 import org.apache.flink.runtime.io.network.api.writer.RecordWriter;
 import org.apache.flink.runtime.plugable.SerializationDelegate;
+import org.apache.flink.streaming.api.operators.CountingOutput;
 import org.apache.flink.streaming.api.operators.Output;
 import org.apache.flink.streaming.runtime.io.RecordWriterOutput;
 import org.apache.flink.streaming.runtime.streamrecord.StreamElement;
@@ -18,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
-import java.util.List;
+import java.util.*;
 
 /**
  * Special Counting Output Collector for {@link GraphOp}.
@@ -42,25 +43,24 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
 
     static Field numChannelsField;
 
+    static Field countingOutputOutputField;
+
     static {
         try {
             outputTagField = RecordWriterOutput.class.getDeclaredField("outputTag");
             recordWriterField = RecordWriterOutput.class.getDeclaredField("recordWriter");
             serializationDelegateField = RecordWriterOutput.class.getDeclaredField("serializationDelegate");
             numChannelsField = RecordWriter.class.getDeclaredField("numberOfChannels");
+            countingOutputOutputField = CountingOutput.class.getDeclaredField("output");
             outputTagField.setAccessible(true);
             recordWriterField.setAccessible(true);
             serializationDelegateField.setAccessible(true);
             numChannelsField.setAccessible(true);
+            countingOutputOutputField.setAccessible(true);
         } catch (Exception e) {
             throw new RuntimeException("Could not initialization GraphOutputCollected, turn off Security manager");
         }
     }
-
-    /**
-     * Operator metrics counter
-     */
-    protected final Counter numRecordsOutCounter;
 
     /**
      * Reference to the fields in the {@link RecordWriterOutput}
@@ -68,8 +68,7 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
     protected final Tuple4<OutputTag<GraphOp>, RecordWriter<SerializationDelegate<StreamElement>>, HelperSerializationDelegate, Integer>[] outputInternalInfo;
 
     public CountingBroadcastingGraphOutputCollector(Output<StreamRecord<GraphOp>> output, Counter numRecordsOutCounter) {
-        super(output instanceof BroadcastingOutputCollector ? ((BroadcastingOutputCollector) output).outputs : new Output[]{output});
-        this.numRecordsOutCounter = numRecordsOutCounter;
+        super(extractOutputs(output), numRecordsOutCounter);
         this.outputInternalInfo = new Tuple4[outputs.length];
         try {
             for (int i = 0; i < outputs.length; i++) {
@@ -89,22 +88,6 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
         }
     }
 
-    @Override
-    public void collect(StreamRecord<GraphOp> record) {
-        numRecordsOutCounter.inc();
-        for (Output<StreamRecord<GraphOp>> output : outputs) {
-            output.collect(record);
-        }
-    }
-
-    @Override
-    public <X> void collect(OutputTag<X> outputTag, StreamRecord<X> record) {
-        numRecordsOutCounter.inc();
-        for (Output<StreamRecord<GraphOp>> output : outputs) {
-            output.collect(outputTag, record);
-        }
-    }
-
     /**
      * Broadcast single message to all output channels in all connected edges
      */
@@ -114,7 +97,7 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
             info.f2.setInstance(record);
             try {
                 info.f1.broadcastEmit(info.f2);
-                numRecordsOutCounter.inc(info.f3);
+                numRecordsOutForTask.inc(info.f3);
             } catch (IOException e) {
                 throw new UncheckedIOException(e.getMessage(), e);
             }
@@ -132,7 +115,7 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
             info.f2.setInstance(record);
             try {
                 info.f1.broadcastEmit(info.f2);
-                numRecordsOutCounter.inc(info.f3);
+                numRecordsOutForTask.inc(info.f3);
             } catch (IOException e) {
                 throw new UncheckedIOException(e.getMessage(), e);
             }
@@ -153,7 +136,7 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
                 record.getValue().setPartId(selectedPart);
                 outputs[i].collect(outputTag, record);
             }
-            numRecordsOutCounter.inc(selectedParts.size());
+            numRecordsOutForTask.inc(selectedParts.size());
             outputInternalInfo[i].f2.broadcastFinish();
             return;
         }
@@ -244,4 +227,25 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
 
     }
 
+    static OutputWithChainingCheck<StreamRecord<GraphOp>>[] extractOutputs(Output<StreamRecord<GraphOp>> output){
+        try {
+            List<OutputWithChainingCheck<StreamRecord<GraphOp>>> tmpOutputs = new ArrayList<>(2 << 4);
+            Queue<Output<StreamRecord<GraphOp>>> queue = new ArrayDeque<>(List.of(output));
+            Output<StreamRecord<GraphOp>> tmp;
+            while ((tmp = queue.poll()) != null) {
+                if (tmp instanceof CountingOutput) {
+                    queue.add((Output<StreamRecord<GraphOp>>) countingOutputOutputField.get(tmp));
+                }else if(tmp instanceof BroadcastingOutputCollector){
+                    queue.addAll(List.of(((BroadcastingOutputCollector<GraphOp>) tmp).outputs));
+                }else if(tmp instanceof OutputWithChainingCheck){
+                    tmpOutputs.add((OutputWithChainingCheck<StreamRecord<GraphOp>>) tmp);
+                }else{
+                    throw new IllegalStateException("Unhandled output type" + tmp.getClass());
+                }
+            }
+            return tmpOutputs.toArray(OutputWithChainingCheck[]::new);
+        }catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

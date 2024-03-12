@@ -12,8 +12,8 @@ mainClassName = 'helpers.Main'
 description = """GNN Plugin for apache Flink"""
 
 ext {
-    javaVersion = '1.8'
-    flinkVersion = '1.16.0'
+    javaVersion = '11'
+    flinkVersion = '1.18.1'
     scalaBinaryVersion = '_2.12'
     slf4jVersion = '1.7.32'
     log4jVersion = '2.17.1'
@@ -81,6 +81,7 @@ dependencies{
     libImplementation "org.apache.flink:flink-clients:${flinkVersion}"
     libImplementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
     libImplementation "org.apache.flink:flink-connector-files:${flinkVersion}"
+    libImplementation "org.apache.flink:flink-table-common:${flinkVersion}"
 
     libRuntimeOnly "org.apache.logging.log4j:log4j-slf4j-impl:${log4jVersion}"
     libRuntimeOnly "org.apache.logging.log4j:log4j-api:${log4jVersion}"
@@ -97,7 +98,6 @@ dependencies{
     libApi group: 'com.clearspring.analytics', name: 'stream', version: '2.9.8'
 
     libApi 'com.esotericsoftware:reflectasm:1.11.9' // Reflection and constructors fast
-
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"
 
 }
