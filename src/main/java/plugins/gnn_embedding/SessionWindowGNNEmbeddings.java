@@ -18,14 +18,14 @@ import java.util.List;
  */
 public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding {
 
-    public final long intraLayerSessionDuration;
+    public final long intraLayerSessionDurationMs;
 
-    public final long interLayerSessionDuration;
+    public final long interLayerSessionDurationMs;
 
-    public SessionWindowGNNEmbeddings(String modelName, boolean trainableVertexEmbeddings, long intraLayerSessionDuration, long interLayerSessionDuration) {
+    public SessionWindowGNNEmbeddings(String modelName, boolean trainableVertexEmbeddings, long intraLayerSessionDurationMs, long interLayerSessionDurationMs) {
         super(modelName, trainableVertexEmbeddings);
-        this.intraLayerSessionDuration = intraLayerSessionDuration;
-        this.interLayerSessionDuration = interLayerSessionDuration;
+        this.intraLayerSessionDurationMs = intraLayerSessionDurationMs;
+        this.interLayerSessionDurationMs = interLayerSessionDurationMs;
     }
 
     public SessionWindowGNNEmbeddings(String modelName, boolean trainableVertexEmbeddings, long sessionDuration) {
@@ -34,10 +34,10 @@ public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding {
 
     @Override
     public void intraLayerWindow(DirectedEdge directedEdge) {
-        long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + intraLayerSessionDuration;
+        long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + intraLayerSessionDurationMs;
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
         getRuntimeContext().getStorage().deleteEdge(directedEdge);
-        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getRuntimeContext().getCurrentPart());
+        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getPart());
         partIntraLayerMaps.f0.removeLong(directedEdge.getDestId());
         partIntraLayerMaps.f0.put(directedEdge.getDestId(), updateTime);
         partIntraLayerMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());
@@ -48,12 +48,17 @@ public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding {
 
     @Override
     public void interLayerWindow(Vertex v) {
-        long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + interLayerSessionDuration;
+        long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + interLayerSessionDurationMs;
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
         Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> partInterLayerMaps = interLayerMaps.get(getPart());
         partInterLayerMaps.f0.removeLong(v.getId());
         partInterLayerMaps.f0.put(v.getId(), updateTime);
         partInterLayerMaps.f1.mergeLong(v.getId(), getRuntimeContext().currentTimestamp(), Math::max);
         getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
+    }
+
+    @Override
+    public boolean hasOrderedTimestamps() {
+        return true;
     }
 }

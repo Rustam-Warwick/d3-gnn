@@ -15,9 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TMSharedExpMovingAverageCountMinSketch extends TMSharedState {
 
     protected final int depth;
-
     protected final int width;
-
     protected final long[][][] tables;
     final protected double eps;
     final protected long movingAverageIntervalMs;

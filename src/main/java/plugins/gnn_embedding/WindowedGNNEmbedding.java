@@ -56,11 +56,11 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
         reuseIntList2 = new IntArrayList();
         reuseVertexIdList = new ObjectArrayList<>();
         reuseVertex2IndexMap = new Object2IntOpenHashMap<>();
-        interLayerMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_deep_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        interLayerMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_interLayer_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
         synchronized (interLayerMaps) {
             getRuntimeContext().getThisOperatorParts().forEach(part -> interLayerMaps.put(part, Tuple2.of(new Object2LongLinkedOpenHashMap<>(), new Object2LongOpenHashMap<>())));
         }
-        intraLayerMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_breadth_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
+        intraLayerMaps = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("window_intraLayer_maps", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
         synchronized (intraLayerMaps) {
             getRuntimeContext().getThisOperatorParts().forEach(part -> intraLayerMaps.put(part, Tuple3.of(new Object2LongLinkedOpenHashMap<>(), new Object2ObjectOpenHashMap<>(), new Object2LongOpenHashMap<>())));
         }
@@ -101,6 +101,11 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
     abstract public void interLayerWindow(Vertex v);
 
     /**
+     * Ae the timer maps ordered by timestamps
+     */
+    abstract public boolean hasOrderedTimestamps();
+
+    /**
      * Evict waiting reduce messages less than the current timestamp
      */
     public final void evictReduceUntil(long timestamp) {
@@ -118,7 +123,7 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
             ObjectBidirectionalIterator<Object2LongMap.Entry<String>> iterator = maps.f0.object2LongEntrySet().fastIterator();
             while (iterator.hasNext()) {
                 Object2LongMap.Entry<String> vertexTimerEntry = iterator.next();
-                if (vertexTimerEntry.getLongValue() > timestamp) {
+                if (hasOrderedTimestamps() && vertexTimerEntry.getLongValue() > timestamp) {
                     // Time not arrived yet
                     break;
                 }
@@ -187,7 +192,7 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
             ObjectBidirectionalIterator<Object2LongMap.Entry<String>> iterator = maps.f0.object2LongEntrySet().fastIterator();
             while (iterator.hasNext()) {
                 Object2LongMap.Entry<String> vertexTimerEntry = iterator.next();
-                if (vertexTimerEntry.getLongValue() > timestamp) {
+                if (hasOrderedTimestamps() && vertexTimerEntry.getLongValue() > timestamp) {
                     // Time not arrived yet
                     break;
                 }

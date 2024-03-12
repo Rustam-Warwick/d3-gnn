@@ -35,7 +35,7 @@ public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
     @Override
     public void intraLayerWindow(DirectedEdge directedEdge) {
         getRuntimeContext().getStorage().deleteEdge(directedEdge);
-        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getRuntimeContext().getCurrentPart());
+        Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getPart());
         partIntraLayerMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());
         partIntraLayerMaps.f2.mergeLong(directedEdge.getDestId(), getRuntimeContext().currentTimestamp(),Math::max);
         if(!partIntraLayerMaps.f0.containsKey(directedEdge.getDestId())) {
@@ -56,5 +56,10 @@ public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
             partInterLayerMaps.f0.put(v.getId(), updateTime);
             getRuntimeContext().getTimerService().registerProcessingTimeTimer(timerTime);
         }
+    }
+
+    @Override
+    public boolean hasOrderedTimestamps() {
+        return true;
     }
 }
