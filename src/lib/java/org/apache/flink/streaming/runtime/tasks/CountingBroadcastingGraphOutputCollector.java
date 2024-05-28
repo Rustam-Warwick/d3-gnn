@@ -19,7 +19,10 @@ import org.jetbrains.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Queue;
 
 /**
  * Special Counting Output Collector for {@link GraphOp}.
@@ -85,6 +88,28 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
             }
         } catch (Exception e) {
             throw new RuntimeException("Could not initialize GraphOutputCollected, turn off Security Manager");
+        }
+    }
+
+    static OutputWithChainingCheck<StreamRecord<GraphOp>>[] extractOutputs(Output<StreamRecord<GraphOp>> output) {
+        try {
+            List<OutputWithChainingCheck<StreamRecord<GraphOp>>> tmpOutputs = new ArrayList<>(2 << 4);
+            Queue<Output<StreamRecord<GraphOp>>> queue = new ArrayDeque<>(List.of(output));
+            Output<StreamRecord<GraphOp>> tmp;
+            while ((tmp = queue.poll()) != null) {
+                if (tmp instanceof CountingOutput) {
+                    queue.add((Output<StreamRecord<GraphOp>>) countingOutputOutputField.get(tmp));
+                } else if (tmp instanceof BroadcastingOutputCollector) {
+                    queue.addAll(List.of(((BroadcastingOutputCollector<GraphOp>) tmp).outputs));
+                } else if (tmp instanceof OutputWithChainingCheck) {
+                    tmpOutputs.add((OutputWithChainingCheck<StreamRecord<GraphOp>>) tmp);
+                } else {
+                    throw new IllegalStateException("Unhandled output type" + tmp.getClass());
+                }
+            }
+            return tmpOutputs.toArray(OutputWithChainingCheck[]::new);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -225,27 +250,5 @@ public class CountingBroadcastingGraphOutputCollector extends BroadcastingOutput
             broadcastStarted = 0;
         }
 
-    }
-
-    static OutputWithChainingCheck<StreamRecord<GraphOp>>[] extractOutputs(Output<StreamRecord<GraphOp>> output){
-        try {
-            List<OutputWithChainingCheck<StreamRecord<GraphOp>>> tmpOutputs = new ArrayList<>(2 << 4);
-            Queue<Output<StreamRecord<GraphOp>>> queue = new ArrayDeque<>(List.of(output));
-            Output<StreamRecord<GraphOp>> tmp;
-            while ((tmp = queue.poll()) != null) {
-                if (tmp instanceof CountingOutput) {
-                    queue.add((Output<StreamRecord<GraphOp>>) countingOutputOutputField.get(tmp));
-                }else if(tmp instanceof BroadcastingOutputCollector){
-                    queue.addAll(List.of(((BroadcastingOutputCollector<GraphOp>) tmp).outputs));
-                }else if(tmp instanceof OutputWithChainingCheck){
-                    tmpOutputs.add((OutputWithChainingCheck<StreamRecord<GraphOp>>) tmp);
-                }else{
-                    throw new IllegalStateException("Unhandled output type" + tmp.getClass());
-                }
-            }
-            return tmpOutputs.toArray(OutputWithChainingCheck[]::new);
-        }catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

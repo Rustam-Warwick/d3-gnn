@@ -112,8 +112,7 @@ public final class ByteEnumSerializer<T extends Enum<T>> extends TypeSerializer<
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof ByteEnumSerializer) {
-            ByteEnumSerializer<?> other = (ByteEnumSerializer<?>) obj;
+        if (obj instanceof ByteEnumSerializer<?> other) {
 
             return other.enumClass == this.enumClass && Arrays.equals(values, other.values);
         } else {

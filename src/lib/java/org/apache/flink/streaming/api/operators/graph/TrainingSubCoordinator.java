@@ -354,11 +354,10 @@ public class TrainingSubCoordinator extends GraphOperatorCoordinator.GraphOperat
                 shouldReceive = (short) pool.graphRuntimeContext.getNumOfOutChannels(); // Receiving initially form the forward layer
             }
             if (++numReceived == shouldReceive) {
-                if(pool.graphRuntimeContext.isSplitter()){
+                if (pool.graphRuntimeContext.isSplitter()) {
                     pool.evict(this);
                     pool.graphRuntimeContext.broadcast(new GraphOp(new ForwardPhaser()));
-                }
-                else{
+                } else {
                     if (!isSecondPhase) {
                         pool.eventHandler.handleOperatorEvent(this);
                         numReceived = 0;

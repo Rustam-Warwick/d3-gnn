@@ -34,11 +34,10 @@ public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
 
     @Override
     public void intraLayerWindow(DirectedEdge directedEdge) {
-        getRuntimeContext().getStorage().deleteEdge(directedEdge);
         Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getPart());
         partIntraLayerMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());
-        partIntraLayerMaps.f2.mergeLong(directedEdge.getDestId(), getRuntimeContext().currentTimestamp(),Math::max);
-        if(!partIntraLayerMaps.f0.containsKey(directedEdge.getDestId())) {
+        partIntraLayerMaps.f2.mergeLong(directedEdge.getDestId(), getRuntimeContext().currentTimestamp(), Math::max);
+        if (!partIntraLayerMaps.f0.containsKey(directedEdge.getDestId())) {
             long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + intraLayerWindowSizeMs;
             long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
             partIntraLayerMaps.f0.put(directedEdge.getDestId(), updateTime);
@@ -50,7 +49,7 @@ public class SlidingWindowGNNEmbedding extends WindowedGNNEmbedding {
     public void interLayerWindow(Vertex v) {
         Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>> partInterLayerMaps = interLayerMaps.get(getPart());
         partInterLayerMaps.f1.mergeLong(v.getId(), getRuntimeContext().currentTimestamp(), Math::max);
-        if(!partInterLayerMaps.f0.containsKey(v.getId())) {
+        if (!partInterLayerMaps.f0.containsKey(v.getId())) {
             long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + interLayerWindowSizeMs;
             long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
             partInterLayerMaps.f0.put(v.getId(), updateTime);

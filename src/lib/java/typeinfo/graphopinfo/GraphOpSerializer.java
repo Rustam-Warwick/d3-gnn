@@ -201,8 +201,7 @@ public final class GraphOpSerializer extends TypeSerializer<GraphOp> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj instanceof GraphOpSerializer) {
-            GraphOpSerializer other = (GraphOpSerializer) obj;
+        if (obj instanceof GraphOpSerializer other) {
             return Arrays.equals(fieldSerializers, other.fieldSerializers);
         }
         return false;

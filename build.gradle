@@ -9,22 +9,25 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 group = 'org.apache.flink.gnn'
 version = '1.0'
 mainClassName = 'helpers.Main'
-description = """GNN Plugin for apache Flink"""
+description = """GNN Plugin for Apache Flink"""
 
 ext {
-    javaVersion = '11'
+    javaVersion = '17'
     flinkVersion = '1.18.1'
     scalaBinaryVersion = '_2.12'
     slf4jVersion = '1.7.32'
     log4jVersion = '2.17.1'
 }
 
-sourceCompatibility = "11"
-targetCompatibility = "11"
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
 
-applicationDefaultJvmArgs = ["-ea", "-Dlog4j.configurationFile=log4j.properties"]
+application {
+    applicationDefaultJvmArgs = ["-ea", "-Dlog4j.configurationFile=log4j.properties", "--add-opens=java.base/java.util=ALL-UNNAMED"]
+    mainClass.set('helpers.Main')
+}
 
-// declare where to find the dependencies of your project
+// Declare where to find the dependencies of your project
 repositories {
     mavenCentral()
     maven {
@@ -33,18 +36,15 @@ repositories {
             snapshotsOnly()
         }
     }
-
     maven {
         url "https://oss.sonatype.org/content/repositories/snapshots/"
         mavenContent {
             snapshotsOnly()
         }
     }
-
 }
 
-
-tasks.getByName("compileJava"){
+tasks.withType(JavaCompile) {
     options.encoding = "UTF-8"
 }
 
@@ -68,15 +68,14 @@ sourceSets{
     }
 }
 
-configurations{
+configurations {
     libImplementation.extendsFrom(libApi)
     implementation.extendsFrom(libImplementation)
     runtimeOnly.extendsFrom(libRuntimeOnly)
     annotationProcessor.extendsFrom(libAnnotationProcessor)
 }
 
-dependencies{
-
+dependencies {
     libImplementation 'org.jetbrains:annotations:23.0.0'
     libImplementation "org.apache.flink:flink-clients:${flinkVersion}"
     libImplementation "org.apache.flink:flink-statebackend-rocksdb:${flinkVersion}"
@@ -90,25 +89,23 @@ dependencies{
     libAnnotationProcessor 'info.picocli:picocli-codegen:4.7.0'
 
     libApi 'info.picocli:picocli:4.7.0'
-    libApi('ai.djl:api:0.21.0'){exclude group: 'org.slf4j'}
-    libApi('ai.djl.pytorch:pytorch-engine:0.21.0') {exclude group: 'org.slf4j'}
-    libApi "org.jctools:jctools-core:4.0.1" // More concurrent data structures
-    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.5' // Cache
-    libApi 'it.unimi.dsi:fastutil:8.5.12' // Small data structures
+    libApi('ai.djl:api:0.21.0') { exclude group: 'org.slf4j' }
+    libApi('ai.djl.pytorch:pytorch-engine:0.21.0') { exclude group: 'org.slf4j' }
+    libApi "org.jctools:jctools-core:4.0.1"
+    libApi 'com.github.ben-manes.caffeine:caffeine:3.1.5'
+    libApi 'it.unimi.dsi:fastutil:8.5.12'
     libApi group: 'com.clearspring.analytics', name: 'stream', version: '2.9.8'
 
-    libApi 'com.esotericsoftware:reflectasm:1.11.9' // Reflection and constructors fast
+    libApi 'com.esotericsoftware:reflectasm:1.11.9'
     testImplementation "org.apache.flink:flink-test-utils:1.16.0"
-
 }
 
-compileJava {
-    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"] // Using annotation processor for CMD args Parser
+tasks.withType(JavaCompile) {
+    options.compilerArgs += ["-Aproject=${project.group}/${project.name}"]
 }
 
-task libShadowJar(type: ShadowJar){
-    // Other Shadow Task that prepares all the library dependencies
-    configurations =  [project.configurations.libApi]
+task libShadowJar(type: ShadowJar) {
+    configurations = [project.configurations.libApi]
     from sourceSets.lib.output
     dependencies {
         exclude(dependency('org.apache.flink:force-shading'))
@@ -120,16 +117,20 @@ task libShadowJar(type: ShadowJar){
     mergeServiceFiles()
 }
 
-shadowJar{
+shadowJar {
     configurations = []
     archiveClassifier.set("")
 }
 
-task bothJars{
-    dependsOn(libShadowJar, shadowJar)
+task bothJars {
+    dependsOn libShadowJar, shadowJar
 }
 
-test{
-    jvmArgs applicationDefaultJvmArgs
+test {
+    jvmArgs = application.applicationDefaultJvmArgs
     useJUnitPlatform()
+}
+
+run {
+    jvmArgs = application.applicationDefaultJvmArgs
 }

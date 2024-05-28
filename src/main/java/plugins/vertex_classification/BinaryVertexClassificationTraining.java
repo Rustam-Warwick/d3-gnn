@@ -93,7 +93,7 @@ public class BinaryVertexClassificationTraining extends BaseVertexOutput {
         reuseFeaturesId = Tuple3.of(ElementType.VERTEX, null, "f");
         reuseLabelsId = Tuple3.of(ElementType.VERTEX, null, "tl");
         part2TrainingVertexMap = getRuntimeContext().getTaskSharedState(new TMSharedStateDescriptor<>("part2GradientAgg", Types.GENERIC(Map.class), TMSharedGraphPerPartMapState::new));
-        synchronized (part2TrainingVertexMap){
+        synchronized (part2TrainingVertexMap) {
             getRuntimeContext().getThisOperatorParts().forEach(part -> part2TrainingVertexMap.put(part, new ObjectArrayList<>()));
         }
         miniBatchEpochController = new MiniBatchEpochController();

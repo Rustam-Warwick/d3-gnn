@@ -12,28 +12,14 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.java.typeutils.TypeExtractor;
 
 import java.io.*;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
 public class NDHelper {
 
-    public static Void VOID;
-
-    static {
-        try {
-            Constructor<Void> c = Void.class.getDeclaredConstructor();
-            c.setAccessible(true);
-            VOID = c.newInstance();
-            c.setAccessible(false);
-        } catch (NoSuchMethodException | InvocationTargetException | InstantiationException |
-                 IllegalAccessException e) {
-            e.printStackTrace();
-        }
-    }
+    public static Object VOID = new Object();
 
     /**
      * Decode numpy to NDArray

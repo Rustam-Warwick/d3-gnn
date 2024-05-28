@@ -1,5 +1,7 @@
 package org.apache.flink.runtime.state.tmshared;
 
+import ai.djl.ndarray.LifeCycleControl;
+
 /**
  * Task Shared State that stores a single value
  *
@@ -19,7 +21,7 @@ public class TMSharedValueState<V> extends TMSharedState {
 
     @Override
     public void clear() {
-        // pass
+        if (value instanceof LifeCycleControl) ((LifeCycleControl) value).destroy();
     }
 
 }

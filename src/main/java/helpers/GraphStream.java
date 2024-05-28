@@ -61,44 +61,39 @@ public class GraphStream {
     /**
      * {@link Partitioner} to be used
      */
-    protected Partitioner partitioner;
+    public Partitioner partitioner;
 
     /**
      * {@link Dataset} to be used
      */
-    protected Dataset dataset;
-
+    public Dataset dataset;
+    /**
+     * Name of the plugin that should be used for inference
+     */
+    @CommandLine.Option(names = {"-pl", "--plugin"}, defaultValue = "Streaming", fallbackValue = "", arity = "1", description = "Plugin to be used")
+    public String pluginName;
     /**
      * Explosion coefficient across the Storage layers
      */
     @CommandLine.Option(names = {"-l", "--lambda"}, defaultValue = "1", fallbackValue = "1", arity = "1", description = "explosion coefficient")
     protected double lambda; // GNN operator explosion coefficient. 1 means no explosion
-
     /**
      * Should the resources be fineGrained, adding slotSharingGroups etc.
      */
     @CommandLine.Option(names = {"-f", "--fineGrainedResourceManagementEnabled"}, defaultValue = "false", fallbackValue = "false", arity = "1", description = "Is fine grained resource management enabled")
     protected boolean fineGrainedResourceManagementEnabled;
-
     /**
      * Name of the partitioner to be resolved to {@code this.partitionerInstance}
      * <strong> You can leave it blank and populate {@code this.partitionerInstance} manually </strong>
      */
     @CommandLine.Option(names = {"-p", "--partitioner"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Partitioner to be used")
     protected String partitionerName;
-
     /**
      * Name of the dataset to be resolved to {@code this.datasetInstance}
      * <strong> You can leave it blank and populate {@code this.datasetInstance} manually </strong>
      */
     @CommandLine.Option(names = {"-d", "--dataset"}, defaultValue = "", fallbackValue = "", arity = "1", description = "Dataset to be used")
     protected String datasetName;
-
-    /**
-     * Name of the plugin that should be used for inference
-     */
-    @CommandLine.Option(names = {"-pl", "--plugin"}, defaultValue = "Streaming", fallbackValue = "", arity = "1", description = "Plugin to be used")
-    public String pluginName;
 
 
     public GraphStream(StreamExecutionEnvironment env, String[] cmdArgs, short layers, TriFunction<Short, Short, GraphStream, OneInputStreamOperatorFactory<GraphOp, GraphOp>> operatorFactorySupplier) {
@@ -202,21 +197,25 @@ public class GraphStream {
         return build(layerOutputs);
     }
 
-    protected Plugin getModelPlugin(String modelName, boolean trainableVertexEmbeddings){
-        try{
-            if(pluginName.equals("Streaming")){
+    protected Plugin getModelPlugin(String modelName, boolean trainableVertexEmbeddings) {
+        try {
+            if (pluginName.equals("Streaming")) {
                 return new StreamingGNNEmbedding(modelName, trainableVertexEmbeddings);
             }
             Pattern pattern = Pattern.compile("[a-zA-Z]+-(\\d+)");
             Matcher matcher = pattern.matcher(pluginName);
             matcher.find();
             long variable = Long.parseLong(matcher.group(1));
-            if(pluginName.contains("SessionWindow-")) return new SessionWindowGNNEmbeddings(modelName, trainableVertexEmbeddings, variable);
-            else if(pluginName.contains("CountWindow-")) return new CountWindowedGNNEmbedding(modelName, trainableVertexEmbeddings, (int) variable);
-            else if(pluginName.contains("SlidingWindow-")) return new SlidingWindowGNNEmbedding(modelName, trainableVertexEmbeddings, variable);
-            else if(pluginName.contains("AdaptiveWindow-")) return new AdaptiveWindowedGNNEmbedding(modelName, trainableVertexEmbeddings, variable, 0.5);
+            if (pluginName.contains("SessionWindow-"))
+                return new SessionWindowGNNEmbeddings(modelName, trainableVertexEmbeddings, variable);
+            else if (pluginName.contains("CountWindow-"))
+                return new CountWindowedGNNEmbedding(modelName, trainableVertexEmbeddings, (int) variable);
+            else if (pluginName.contains("SlidingWindow-"))
+                return new SlidingWindowGNNEmbedding(modelName, trainableVertexEmbeddings, variable);
+            else if (pluginName.contains("AdaptiveWindow-"))
+                return new AdaptiveWindowedGNNEmbedding(modelName, trainableVertexEmbeddings, variable);
             throw new Exception("Could not find a plugin. Available values Streaming, SessionWindow-[msDelay], CountWindow-[BATCH_SIZE], SlidingWindow-[msDelay]m AdaptiveWindow-[mvAvgIntervalMs]");
-        }catch (Exception e){
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }

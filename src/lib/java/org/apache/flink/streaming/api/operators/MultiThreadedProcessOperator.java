@@ -27,7 +27,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * @param <OUT>
  * @implNote It is thread-safe until the userFunction is Thread Safe!!!
  */
-public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT extends LifeCycleControl> extends ProcessOperator<IN, OUT> {
+public class MultiThreadedProcessOperator<IN, OUT> extends ProcessOperator<IN, OUT> {
 
     private final int nThreads;
 
@@ -56,7 +56,7 @@ public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT exten
 
     @Override
     public void processElement(StreamRecord<IN> element) throws Exception {
-        element.getValue().delay();
+        if (element.getValue() instanceof LifeCycleControl) ((LifeCycleControl) element.getValue()).delay();
         executorService.submit(() -> {
             try {
                 collector.get().getInnerCollector().setTimestamp(element);
@@ -66,7 +66,7 @@ public class MultiThreadedProcessOperator<IN extends LifeCycleControl, OUT exten
             } catch (Exception e) {
                 e.printStackTrace();
             } finally {
-                element.getValue().resume();
+                if (element.getValue() instanceof LifeCycleControl) ((LifeCycleControl) element.getValue()).resume();
             }
         }); // Waiting if the buffer is full
     }

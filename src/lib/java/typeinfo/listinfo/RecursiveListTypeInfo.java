@@ -116,8 +116,7 @@ public final class RecursiveListTypeInfo<T> extends TypeInformation<List<T>> {
     public boolean equals(Object obj) {
         if (obj == this) {
             return true;
-        } else if (obj instanceof RecursiveListTypeInfo) {
-            final RecursiveListTypeInfo<?> other = (RecursiveListTypeInfo<?>) obj;
+        } else if (obj instanceof RecursiveListTypeInfo<?> other) {
             return other.canEqual(this);
         } else {
             return false;

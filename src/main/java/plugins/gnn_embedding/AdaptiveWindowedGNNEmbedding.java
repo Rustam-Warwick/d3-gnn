@@ -2,7 +2,10 @@ package plugins.gnn_embedding;
 
 import elements.DirectedEdge;
 import elements.Vertex;
-import it.unimi.dsi.fastutil.objects.*;
+import it.unimi.dsi.fastutil.objects.Object2LongLinkedOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
@@ -34,7 +37,11 @@ public class AdaptiveWindowedGNNEmbedding extends WindowedGNNEmbedding {
     }
 
     public AdaptiveWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, long sessionDurationMin, long movingAverageIntervalMs) {
-        this(modelName, trainableVertexEmbeddings, sessionDurationMin / 2,sessionDurationMin, movingAverageIntervalMs, defaultMomentum);
+        this(modelName, trainableVertexEmbeddings, sessionDurationMin / 2, sessionDurationMin, movingAverageIntervalMs, defaultMomentum);
+    }
+
+    public AdaptiveWindowedGNNEmbedding(String modelName, boolean trainableVertexEmbeddings, long sessionDurationMin) {
+        this(modelName, trainableVertexEmbeddings, sessionDurationMin / 2, sessionDurationMin, 1000, defaultMomentum);
     }
 
     @Override
@@ -51,7 +58,6 @@ public class AdaptiveWindowedGNNEmbedding extends WindowedGNNEmbedding {
         long sessionDuration = Math.max(intraLayerSessionDurationMinMs, movingAverageIntervalMs / estimatedCount);
         long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + sessionDuration;
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
-        getRuntimeContext().getStorage().deleteEdge(directedEdge);
         Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getPart());
         partIntraLayerMaps.f0.mergeLong(directedEdge.getDestId(), updateTime, Math::max);
         partIntraLayerMaps.f1.computeIfAbsent(directedEdge.getDestId(), (ignore) -> new ObjectArrayList<>()).add(directedEdge.getSrcId());

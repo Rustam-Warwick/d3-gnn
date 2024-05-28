@@ -90,8 +90,7 @@ public class SetTypeInfo<T> extends TypeInformation<Set<T>> {
     public boolean equals(Object obj) {
         if (obj == this) {
             return true;
-        } else if (obj instanceof SetTypeInfo) {
-            final SetTypeInfo<?> other = (SetTypeInfo<?>) obj;
+        } else if (obj instanceof SetTypeInfo<?> other) {
             return other.canEqual(this) && elementTypeInfo.equals(other.elementTypeInfo);
         } else {
             return false;

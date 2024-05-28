@@ -36,7 +36,6 @@ public class SessionWindowGNNEmbeddings extends WindowedGNNEmbedding {
     public void intraLayerWindow(DirectedEdge directedEdge) {
         long updateTime = getRuntimeContext().getTimerService().currentProcessingTime() + intraLayerSessionDurationMs;
         long timerTime = (long) (Math.ceil((updateTime) / TIMER_COALESCING) * TIMER_COALESCING);
-        getRuntimeContext().getStorage().deleteEdge(directedEdge);
         Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>> partIntraLayerMaps = intraLayerMaps.get(getPart());
         partIntraLayerMaps.f0.removeLong(directedEdge.getDestId());
         partIntraLayerMaps.f0.put(directedEdge.getDestId(), updateTime);

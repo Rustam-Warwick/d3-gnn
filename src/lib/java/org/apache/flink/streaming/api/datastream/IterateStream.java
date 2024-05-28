@@ -10,7 +10,6 @@ import org.apache.flink.streaming.runtime.translators.IterateTransformationTrans
 import org.apache.flink.util.Preconditions;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -27,17 +26,18 @@ public class IterateStream<T, IT> extends DataStream<T> {
 
     static {
         try {
+            // Access the translatorMap field
             Field translatorMapField = StreamGraphGenerator.class.getDeclaredField("translatorMap");
-            Field translatorModifiersField = translatorMapField.getClass().getDeclaredField("modifiers");
             translatorMapField.setAccessible(true);
-            translatorModifiersField.setAccessible(true);
-            translatorModifiersField.setInt(translatorMapField, translatorMapField.getModifiers() & ~Modifier.FINAL);
-            Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>> translatorMap = new HashMap<>((Map) translatorMapField.get(null));
-            translatorMap.putIfAbsent(IterateTransformation.class, new IterateTransformationTranslator<>());
-            translatorMapField.set(null, Collections.unmodifiableMap(translatorMap));
-            translatorModifiersField.setInt(translatorMapField, translatorMapField.getModifiers() & Modifier.FINAL);
+            Field mField = Collections.unmodifiableMap(new HashMap<>()).getClass().getDeclaredField("m");
+            mField.setAccessible(true);
+
+            Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>> underlyingMap = (Map<Class<? extends Transformation>, TransformationTranslator<?, ? extends Transformation>>) mField.get(translatorMapField.get(null));
+            underlyingMap.putIfAbsent(IterateTransformation.class, new IterateTransformationTranslator<>());
+
+            // Restore accessibility
             translatorMapField.setAccessible(false);
-            translatorModifiersField.setAccessible(false);
+            mField.setAccessible(false);
         } catch (Exception e) {
             throw new RuntimeException("Can't find Translator Map, something is wrong. Try turning off the SecurityManager");
         }

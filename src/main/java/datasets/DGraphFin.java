@@ -120,7 +120,7 @@ public class DGraphFin extends Dataset {
             if (ThreadLocalRandom.current().nextFloat() < trainSplitProb)
                 label.id.f2 = "tl"; // Mark label as training label
             GraphOp labelOp = new GraphOp(Op.ADD, label.getMasterPart(), label);
-            if(deltaBoundMs ==0){
+            if (deltaBoundMs == 0) {
                 graphRuntimeContext.output(labelOp, OutputTags.TRAIN_TEST_SPLIT_OUTPUT);
                 return;
             }

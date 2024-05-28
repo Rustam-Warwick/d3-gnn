@@ -256,6 +256,8 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
                     eventPool.addEvent(element.getValue().graphEvent);
                     break;
             }
+        } catch (Exception e) {
+            LOG.error(org.apache.commons.lang3.exception.ExceptionUtils.getStackTrace(e));
         }
     }
 

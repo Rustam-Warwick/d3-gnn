@@ -1,9 +1,16 @@
 package storage;
 
+import com.esotericsoftware.reflectasm.ConstructorAccess;
 import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
+import it.unimi.dsi.fastutil.bytes.Byte2ObjectMap;
+import it.unimi.dsi.fastutil.bytes.Byte2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.state.PartNumber;
 import org.apache.flink.runtime.state.tmshared.TMSharedKeyedStateBackend;
@@ -16,6 +23,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -163,7 +172,7 @@ abstract public class BaseStorage extends TMSharedState {
         /**
          * Get incided edges of {@link Vertex}.
          */
-        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edge_type);
+        public abstract Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edgeType);
 
         /**
          * Get vertex degree
@@ -427,13 +436,38 @@ abstract public class BaseStorage extends TMSharedState {
         }
     }
 
+    public static class StorageException extends IllegalStateException {
+
+    }
+
     /**
      * Default provider using {@link ListObjectPoolGraphStorage}
      */
     public static class DefaultGraphStorageProvider implements GraphStorageProvider {
         @Override
         public BaseStorage get() {
-            return new ListObjectPoolGraphStorage();
+            return new ListBasedCompressedObjectPoolStorage();
+        }
+    }
+
+    /**
+     * Information about the Feature storing halo state constructor and etc.
+     */
+    protected static class AttachedFeatureInfo {
+
+        boolean halo;
+
+        byte position;
+
+        Class<? extends Feature> clazz;
+
+        ConstructorAccess<? extends Feature> constructorAccess;
+
+        protected AttachedFeatureInfo(Feature<?, ?> feature, byte position) {
+            this.position = position;
+            this.halo = feature.isHalo();
+            this.clazz = feature.getClass();
+            this.constructorAccess = ConstructorAccess.get(this.clazz);
         }
     }
 
@@ -445,9 +479,13 @@ abstract public class BaseStorage extends TMSharedState {
      * In such mode, UDF should not depend on storing the returned objects as they might change value later
      * </p>
      */
-    public static class ObjectPoolScope implements AutoCloseable {
-
+    public static abstract class ObjectPoolScope implements AutoCloseable {
         protected byte openCount;
+
+        abstract public Vertex getVertex(String id, short masterPart);
+
+        abstract public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId);
+
 
         protected ObjectPoolScope open() {
             openCount++;
@@ -472,5 +510,78 @@ abstract public class BaseStorage extends TMSharedState {
         }
 
     }
+
+    /**
+     * Reuse scope with elements cache per block
+     * Caches {@link Vertex} {@link DirectedEdge} and attached-{@link Feature} objects
+     */
+    protected static class ObjectPool extends ObjectPoolScope {
+
+        List<Vertex> vertices = new ObjectArrayList<>(10);
+
+        IntList usingVerticesUpTo = new IntArrayList(List.of(0));
+
+        List<DirectedEdge> edges = new ObjectArrayList<>(10);
+
+        IntList usingEdgesUpTo = new IntArrayList(List.of(0));
+
+        Byte2ObjectMap<Tuple2<List<Feature>, IntList>> vertexFeaturesMap = new Byte2ObjectOpenHashMap<>();
+
+        public Vertex getVertex(String id, short masterPart) {
+            if (vertices.size() <= usingVerticesUpTo.getInt(openCount)) vertices.add(new Vertex());
+            Vertex v = vertices.get(usingVerticesUpTo.getInt(openCount));
+            usingVerticesUpTo.set(openCount, usingVerticesUpTo.getInt(openCount) + 1);
+            v.id = id;
+            v.masterPart = masterPart;
+            if (v.features != null) v.features.clear();
+            return v;
+        }
+
+        public DirectedEdge getEdge(String srcId, String destId, @Nullable String attributeId) {
+            if (edges.size() <= usingEdgesUpTo.getInt(openCount)) edges.add(new DirectedEdge());
+            DirectedEdge edge = edges.get(usingEdgesUpTo.getInt(openCount));
+            usingEdgesUpTo.set(openCount, usingEdgesUpTo.getInt(openCount) + 1);
+            edge.src = null;
+            edge.dest = null;
+            edge.id.f0 = srcId;
+            edge.id.f1 = destId;
+            edge.id.f2 = attributeId;
+            if (edge.features != null) edge.features.clear();
+            return edge;
+        }
+
+        public Feature getVertexFeature(Object vertexId, String featureName, Object value, AttachedFeatureInfo attachedFeatureInfo) {
+            Tuple2<List<Feature>, IntList> vertexFeatureTuple = vertexFeaturesMap.computeIfAbsent(attachedFeatureInfo.position, (position) -> Tuple2.of(new ObjectArrayList<>(), new IntArrayList(Collections.nCopies(openCount + 1, 0))));
+            if (vertexFeatureTuple.f0.size() <= vertexFeatureTuple.f1.getInt(openCount))
+                vertexFeatureTuple.f0.add(attachedFeatureInfo.constructorAccess.newInstance());
+            Feature feature = vertexFeatureTuple.f0.get(vertexFeatureTuple.f1.getInt(openCount));
+            vertexFeatureTuple.f1.set(openCount, vertexFeatureTuple.f1.getInt(openCount) + 1);
+            feature.element = null;
+            feature.halo = attachedFeatureInfo.halo;
+            feature.value = value;
+            feature.id.f0 = ElementType.VERTEX;
+            feature.id.f1 = vertexId;
+            feature.id.f2 = featureName;
+            if (feature.features != null) feature.features.clear();
+            return feature;
+        }
+
+        @Override
+        protected ObjectPoolScope open() {
+            usingVerticesUpTo.add(usingVerticesUpTo.getInt(openCount));
+            usingEdgesUpTo.add(usingEdgesUpTo.getInt(openCount));
+            vertexFeaturesMap.forEach((key, val) -> val.f1.add(val.f1.getInt(openCount)));
+            return super.open();
+        }
+
+        @Override
+        public void close() {
+            usingVerticesUpTo.removeInt(openCount);
+            usingEdgesUpTo.removeInt(openCount);
+            vertexFeaturesMap.forEach((key, val) -> val.f1.removeInt(openCount));
+            super.close();
+        }
+    }
+
 
 }

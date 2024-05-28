@@ -6,7 +6,7 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import org.apache.flink.util.IOUtils;
 import org.apache.flink.util.Preconditions;
 import org.apache.flink.util.function.ThrowingRunnable;
-import org.jctools.queues.unpadded.SpscUnboundedUnpaddedArrayQueue;
+import org.jctools.queues.unpadded.SpscChunkedUnpaddedArrayQueue;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
@@ -88,7 +88,7 @@ public class IterationChannel<T> implements Closeable {
      *
      * @param <T> Type of elements in this iteration
      */
-    protected static class IterationQueue<T> extends SpscUnboundedUnpaddedArrayQueue<T> implements ThrowingRunnable<Exception>, Closeable {
+    protected static class IterationQueue<T> extends SpscChunkedUnpaddedArrayQueue<T> implements ThrowingRunnable<Exception>, Closeable {
 
         /**
          * If this Runnable is still in {@link MailboxExecutor} do not schedule anymore since one run drains this queue
@@ -106,7 +106,7 @@ public class IterationChannel<T> implements Closeable {
         private final Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
-            super(1 << 18); // 1 MB each array reference
+            super(2 << 14); // 1 MB each array reference
             this.consumerAndExecutor = consumerAndExecutor;
         }
 
@@ -117,9 +117,15 @@ public class IterationChannel<T> implements Closeable {
         @Override
         public boolean add(T t) {
             if (closed.get()) return false;
-            boolean res = super.add(t);
+            while (!super.offer(t)) {
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    // Try again
+                }
+            }
             if (!waiting.getAndSet(true)) scheduleMailbox();
-            return res;
+            return true;
         }
 
         /**

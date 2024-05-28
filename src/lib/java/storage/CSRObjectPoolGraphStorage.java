@@ -4,62 +4,54 @@ import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
 import elements.enums.ElementType;
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.objects.Object2IntMap;
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import it.unimi.dsi.fastutil.objects.ObjectList;
+import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.shorts.ShortArrayList;
+import it.unimi.dsi.fastutil.shorts.ShortList;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.flink.streaming.api.operators.graph.interfaces.GraphRuntimeContext;
-import org.jctools.maps.NonBlockingHashMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * Simple storage implementation with small data structures, base on list edges
- * <p>
- * Only support {@link Vertex} {@link Feature} for now
- * </p>
+ *
  */
 @Deprecated
-public class ListObjectPoolGraphStorage extends BaseStorage {
+public class CSRObjectPoolGraphStorage extends BaseStorage {
 
-    /**
-     * Master Part table for vertices. This table is shared across tasks as vertices unique
-     */
-    private final Map<String, Short> vertexMasterTable = new NonBlockingHashMap<>(1000);
+    protected final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable = new ConcurrentHashMap<>();
 
-    /**
-     * Vertex Feature Info
-     */
-    private final Map<String, AttachedFeatureInfo> vertexFeatureInfoTable = new ConcurrentHashMap<>();
+    protected final Short2ObjectOpenHashMap<Int2ObjectMap<VertexData>> part2VertexDataMap = new Short2ObjectOpenHashMap<>();
 
-    /**
-     * Unique Vertex Feature Counter
-     */
-    private final AtomicInteger uniqueVertexFeatureCounter = new AtomicInteger(0);
-
-    /**
-     * Vertex Map
-     */
-    private final Map<Short, Map<String, VertexData>> vertexMap = new NonBlockingHashMap<>();
+    protected volatile byte uniqueVertexFeatureCounter = 0;
 
     @Override
     public GraphView getGraphStorageView(GraphRuntimeContext runtimeContext) {
+        synchronized (this) {
+            runtimeContext.getThisOperatorParts().forEach(part -> part2VertexDataMap.put(part, new Int2ObjectOpenHashMap<>()));
+        }
         return new GraphViewImpl(runtimeContext);
     }
 
     @Override
     public void clear() {
         Map<Byte, Feature> featureTmpMap = vertexFeatureInfoTable.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
-        vertexMap.forEach((part, vertexMapInternal) -> {
+        part2VertexDataMap.forEach((part, vertexMapInternal) -> {
             vertexMapInternal.forEach((vertexId, vertexData) -> {
                 if (vertexData.featureValues != null) {
-                    for (int i = 0; i < vertexData.featureValues.length; i++) {
+                    for (byte i = 0; i < vertexData.featureValues.length; i++) {
                         if (vertexData.featureValues[i] != null) {
                             Feature tmp = featureTmpMap.get(i);
                             tmp.value = vertexData.featureValues[i];
@@ -68,11 +60,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
                     }
                 }
             });
-            vertexMapInternal.clear();
         });
-        vertexMap.clear();
+        part2VertexDataMap.clear();
         vertexFeatureInfoTable.clear();
-        vertexMasterTable.clear();
         LOG.info("CLEARED Storage");
     }
 
@@ -83,11 +73,12 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         protected Object[] featureValues;
 
-        protected List<String> outEdges;
+        protected IntArrayList outEdges;
 
-        protected List<String> inEdges;
+        protected IntArrayList inEdges;
 
         protected void addOrUpdateFeature(Feature feature, AttachedFeatureInfo featureInfo) {
+
             if (featureValues == null) featureValues = new Object[featureInfo.position + 1];
             if (featureInfo.position >= featureValues.length) {
                 Object[] tmp = new Object[featureInfo.position + 1];
@@ -119,37 +110,37 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             return featureValues != null && featureValues.length > position && featureValues[position] != null;
         }
 
-        protected void addOutEdge(DirectedEdge edge) {
-            if (outEdges == null) outEdges = new ObjectArrayList<>(4);
-            outEdges.add(edge.getDestId());
+        protected void addOutEdge(int id) {
+            if (outEdges == null) outEdges = new IntArrayList(4);
+            outEdges.add(id);
         }
 
-        protected void addInEdge(DirectedEdge edge) {
-            if (inEdges == null) inEdges = new ObjectArrayList<>(4);
-            inEdges.add(edge.getSrcId());
+        protected void addInEdge(int id) {
+            if (inEdges == null) inEdges = new IntArrayList(4);
+            inEdges.add(id);
         }
 
     }
 
-    private class GraphViewImpl extends GraphView {
-
-        /**
-         * Scope pool object
-         */
+    protected class GraphViewImpl extends GraphView {
         protected final ObjectPool scopePool = new ObjectPool();
+        protected final Object2IntMap<String> vertexIdTranslation = new Object2IntOpenHashMap<>();
+        protected final ShortList vertexMasterParts = new ShortArrayList();
+        protected final ObjectList<String> vertexIdInverseTranslation = new ObjectArrayList<>();
+        protected int internalVertexIdCounter = 0;
 
         public GraphViewImpl(GraphRuntimeContext runtimeContext) {
             super(runtimeContext);
-            runtimeContext.getThisOperatorParts().forEach(part -> {
-                vertexMap.putIfAbsent(part, new HashMap<>());
-            });
         }
 
         @Override
         public void addAttachedFeature(Feature feature) {
             if (feature.getAttachedElementType() == ElementType.VERTEX) {
-                AttachedFeatureInfo attachedFeatureInfo = vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key) -> new AttachedFeatureInfo(feature, (byte) uniqueVertexFeatureCounter.getAndIncrement()));
-                vertexMap.get(getRuntimeContext().getCurrentPart()).get(feature.getAttachedElementId()).addOrUpdateFeature(feature, attachedFeatureInfo);
+                AttachedFeatureInfo attachedFeatureInfo = vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key) -> new AttachedFeatureInfo(feature, uniqueVertexFeatureCounter++));
+
+                int internalVertexId = vertexIdTranslation.getInt(feature.getAttachedElementId());
+
+                part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(internalVertexId).addOrUpdateFeature(feature, attachedFeatureInfo);
                 return;
             }
             throw new IllegalStateException("NOT IMPLEMENTED");
@@ -162,14 +153,26 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void addVertex(Vertex vertex) {
-            vertexMasterTable.putIfAbsent(vertex.getId(), vertex.getMasterPart());
-            vertexMap.get(getRuntimeContext().getCurrentPart()).putIfAbsent(vertex.getId(), new VertexData());
+            vertexIdTranslation.computeIfAbsent(vertex.getId(), (s) -> {
+                vertexMasterParts.size(Math.max(internalVertexIdCounter + 1, vertexMasterParts.size()));
+                vertexMasterParts.set(internalVertexIdCounter, vertex.getMasterPart());
+                vertexIdInverseTranslation.size(Math.max(internalVertexIdCounter + 1, vertexIdInverseTranslation.size()));
+                vertexIdInverseTranslation.set(internalVertexIdCounter, vertex.getId());
+                return internalVertexIdCounter++;
+            });
+
+            int internalVertexId = vertexIdTranslation.getInt(vertex.getId());
+            part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).computeIfAbsent(internalVertexId, (ignored) -> new VertexData());
         }
 
         @Override
         public void addEdge(DirectedEdge directedEdge) {
-            vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getSrcId()).addOutEdge(directedEdge);
-            vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getDestId()).addInEdge(directedEdge);
+
+            int internalSrcId = vertexIdTranslation.getInt(directedEdge.getSrcId());
+            int internalDestId = vertexIdTranslation.getInt(directedEdge.getDestId());
+
+            part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(internalSrcId).addOutEdge(internalDestId);
+            part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(internalDestId).addInEdge(internalSrcId);
         }
 
         @Override
@@ -180,7 +183,10 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public void updateAttachedFeature(Feature feature, Feature memento) {
             if (feature.getAttachedElementType() == ElementType.VERTEX) {
-                vertexMap.get(getRuntimeContext().getCurrentPart()).get(feature.getAttachedElementId()).addOrUpdateFeature(feature, vertexFeatureInfoTable.get(feature.getName()));
+
+                int internalVertexId = vertexIdTranslation.getInt(feature.getAttachedElementId());
+
+                part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(internalVertexId).addOrUpdateFeature(feature, vertexFeatureInfoTable.get(feature.getName()));
                 return;
             }
             throw new NotImplementedException("NOT IMPLEMENTED");
@@ -223,10 +229,14 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public void deleteEdge(DirectedEdge directedEdge) {
-            List<String> outEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getSrcId()).outEdges;
-            List<String> inEdges = vertexMap.get(getRuntimeContext().getCurrentPart()).get(directedEdge.getDestId()).inEdges;
-            outEdges.remove(outEdges.lastIndexOf(directedEdge.getDestId()));
-            inEdges.remove(inEdges.lastIndexOf(directedEdge.getSrcId()));
+
+            int srcIndex = vertexIdTranslation.getInt(directedEdge.getSrcId());
+            int destIndex = vertexIdTranslation.getInt(directedEdge.getDestId());
+
+            IntArrayList outEdges = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(srcIndex).outEdges;
+            IntArrayList inEdges = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(destIndex).inEdges;
+            outEdges.removeInt(outEdges.lastIndexOf(destIndex));
+            inEdges.removeInt(inEdges.lastIndexOf(srcIndex));
         }
 
         @Override
@@ -236,15 +246,29 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public @Nullable Vertex getVertex(String vertexId) {
+
+            short masterPart = vertexMasterParts.getShort(vertexIdTranslation.getInt(vertexId));
+
             if (scopePool.isOpen()) {
-                return scopePool.getVertex(vertexId, vertexMasterTable.get(vertexId));
+                return scopePool.getVertex(vertexId, masterPart);
             }
-            return new Vertex(vertexId, vertexMasterTable.get(vertexId));
+            return new Vertex(vertexId, masterPart);
+        }
+
+        protected @Nullable Vertex getVertex(int internalId) {
+
+            String vertexId = vertexIdInverseTranslation.get(internalId);
+            short masterPart = vertexMasterParts.getShort(internalId);
+
+            if (scopePool.isOpen()) {
+                return scopePool.getVertex(vertexId, masterPart);
+            }
+            return new Vertex(vertexId, masterPart);
         }
 
         @Override
         public Iterable<Vertex> getVertices() {
-            return () -> vertexMap.get(getRuntimeContext().getCurrentPart()).keySet().stream().map(this::getVertex).iterator();
+            return () -> part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).keySet().intStream().mapToObj(this::getVertex).iterator();
         }
 
         @Override
@@ -257,19 +281,27 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public Iterable<DirectedEdge> getIncidentEdges(Vertex vertex, EdgeType edgeType) {
-            VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
+
+            VertexData vertexData = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(vertexIdTranslation.getInt(vertex.getId()));
+
             Iterator<DirectedEdge> inEdgeIterable = IteratorUtils.emptyIterator();
             Iterator<DirectedEdge> outEdgeIterable = IteratorUtils.emptyIterator();
             if (vertexData.outEdges != null && (edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)) {
-                outEdgeIterable = vertexData.outEdges.stream().map(outVertexId -> {
-                    DirectedEdge e = getEdge(vertex.getId(), outVertexId, null);
+                outEdgeIterable = vertexData.outEdges.intStream().mapToObj(outVertexId -> {
+
+                    String inverseId = vertexIdInverseTranslation.get(outVertexId);
+
+                    DirectedEdge e = getEdge(vertex.getId(), inverseId, null);
                     e.src = vertex;
                     return e;
                 }).iterator();
             }
             if (vertexData.inEdges != null && (edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)) {
-                inEdgeIterable = vertexData.inEdges.stream().map(inVertexId -> {
-                    DirectedEdge e = getEdge(inVertexId, vertex.getId(), null);
+                inEdgeIterable = vertexData.inEdges.intStream().mapToObj(inVertexId -> {
+
+                    String inverseId = vertexIdInverseTranslation.get(inVertexId);
+
+                    DirectedEdge e = getEdge(inverseId, vertex.getId(), null);
                     e.dest = vertex;
                     return e;
                 }).iterator();
@@ -281,7 +313,9 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public int getIncidentEdgeCount(Vertex vertex, EdgeType edgeType) {
             int res = 0;
-            VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(vertex.getId());
+
+            VertexData vertexData = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(vertexIdTranslation.getInt(vertex.getId()));
+
             if (vertexData.outEdges != null && edgeType == EdgeType.OUT || edgeType == EdgeType.BOTH)
                 res += vertexData.outEdges.size();
             if (vertexData.inEdges != null && edgeType == EdgeType.IN || edgeType == EdgeType.BOTH)
@@ -299,10 +333,14 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
             throw new IllegalStateException("NOT IMPLEMENTED");
         }
 
-        protected @Nullable Feature getAttachedVertexFeature(Object elementId, String featureName, @Nullable Object value, @Nullable ListObjectPoolGraphStorage.AttachedFeatureInfo featureInfo) {
+        protected @Nullable Feature getAttachedVertexFeature(String elementId, String featureName, @Nullable Object value, @Nullable AttachedFeatureInfo featureInfo) {
             if (featureInfo == null) featureInfo = vertexFeatureInfoTable.get(featureName);
-            if (value == null)
-                value = vertexMap.get(getRuntimeContext().getCurrentPart()).get(elementId).featureValues[featureInfo.position];
+            if (value == null) {
+
+                value = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(vertexIdTranslation.getInt(elementId)).featureValues[featureInfo.position];
+
+            }
+
             if (scopePool.isOpen()) {
                 return scopePool.getVertexFeature(elementId, featureName, value, featureInfo);
             } else {
@@ -319,7 +357,7 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public @Nullable Feature getAttachedFeature(ElementType elementType, Object elementId, String featureName) {
             if (elementType == ElementType.VERTEX) {
-                return getAttachedVertexFeature(elementId, featureName, null, null);
+                return getAttachedVertexFeature((String) elementId, featureName, null, null);
             }
             throw new NotImplementedException("Not Implemented");
         }
@@ -328,12 +366,15 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         public Iterable<Feature> getAttachedFeatures(ElementType elementType, String featureName) {
             if (elementType == ElementType.VERTEX) {
                 final AttachedFeatureInfo attachedFeatureInfo = vertexFeatureInfoTable.get(featureName);
-                return () -> vertexMap.get(getRuntimeContext().getCurrentPart()).entrySet()
+                return () -> part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).int2ObjectEntrySet()
                         .stream()
                         .filter(entrySet -> entrySet.getValue().hasFeatureInPosition(attachedFeatureInfo.position))
                         .map(entrySet -> {
+
+                            String vertexId = vertexIdInverseTranslation.get(entrySet.getIntKey());
+
                             Object value = entrySet.getValue().featureValues[attachedFeatureInfo.position];
-                            return getAttachedVertexFeature(entrySet.getKey(), featureName, value, attachedFeatureInfo);
+                            return getAttachedVertexFeature(vertexId, featureName, value, attachedFeatureInfo);
                         }).iterator();
 
             }
@@ -352,15 +393,21 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
 
         @Override
         public boolean containsVertex(String vertexId) {
-            return vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(vertexId);
+
+            int internalVertexId = vertexIdTranslation.getOrDefault(vertexId, -1);
+
+            return part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).containsKey(internalVertexId);
         }
 
         @Override
         public boolean containsAttachedFeature(ElementType elementType, Object elementId, String featureName) {
             if (elementType == ElementType.VERTEX) {
-                if (!vertexFeatureInfoTable.containsKey(featureName) || !vertexMap.get(getRuntimeContext().getCurrentPart()).containsKey(elementId))
+                if (!vertexFeatureInfoTable.containsKey(featureName) || !containsVertex((String) elementId))
                     return false;
-                return vertexMap.get(getRuntimeContext().getCurrentPart()).get(elementId).hasFeatureInPosition(vertexFeatureInfoTable.get(featureName).position);
+
+                int internalVertexId = vertexIdTranslation.getInt(elementId);
+
+                return part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(internalVertexId).hasFeatureInPosition(vertexFeatureInfoTable.get(featureName).position);
             }
             throw new IllegalStateException("NOT IMPLEMENTED");
         }
@@ -383,7 +430,10 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         @Override
         public void cacheAttachedFeatures(GraphElement element, CacheFeatureContext context) {
             if (element.getType() == ElementType.VERTEX) {
-                VertexData vertexData = vertexMap.get(getRuntimeContext().getCurrentPart()).get(element.getId());
+
+                int vertexId = vertexIdTranslation.getInt(element.getId());
+
+                VertexData vertexData = part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).get(vertexId);
                 vertexFeatureInfoTable.forEach((featureName, featureInfo) -> {
                     if (featureInfo.halo ^ context == CacheFeatureContext.HALO || !vertexData.hasFeatureInPosition(featureInfo.position))
                         return;
@@ -398,7 +448,6 @@ public class ListObjectPoolGraphStorage extends BaseStorage {
         public ObjectPoolScope openObjectPoolScope() {
             return scopePool.open();
         }
-
     }
 
 }

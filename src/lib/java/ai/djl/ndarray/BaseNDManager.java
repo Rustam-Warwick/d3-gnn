@@ -62,8 +62,8 @@ public abstract class BaseNDManager implements NDManager {
 
     protected final BaseNDManager.ManualTicker ticker = new BaseNDManager.ManualTicker(); // Logical timer depending on the data-rate
 
-    protected final Cache<AutoCloseable, Void> attached = Caffeine.newBuilder()
-            .evictionListener((RemovalListener<AutoCloseable, Void>) (key, value, cause) -> {
+    protected final Cache<AutoCloseable, Object> attached = Caffeine.newBuilder()
+            .evictionListener((RemovalListener<AutoCloseable, Object>) (key, value, cause) -> {
                 try {
                     if (cause.wasEvicted()) {
                         ((LifeCycleControl) key).destroy();
@@ -71,7 +71,7 @@ public abstract class BaseNDManager implements NDManager {
                 } catch (Exception e) {
                     logger.error(e.getMessage());
                 }
-            }).expireAfterWrite(50, TimeUnit.NANOSECONDS)
+            }).expireAfterWrite(3, TimeUnit.NANOSECONDS)
             .ticker(ticker)
             .scheduler(Scheduler.systemScheduler())
             .build();
@@ -606,7 +606,7 @@ public abstract class BaseNDManager implements NDManager {
      */
     static class NDManagerFinalizeTask implements Runnable {
 
-        private final Cache<AutoCloseable, Void> attached;
+        private final Cache<AutoCloseable, Object> attached;
 
         public NDManagerFinalizeTask(BaseNDManager manager) {
             attached = manager.attached;

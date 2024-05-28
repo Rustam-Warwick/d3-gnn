@@ -1,7 +1,6 @@
 package org.apache.flink.metrics.reporter;
 
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.metrics.*;
 import org.jetbrains.annotations.Nullable;
 
@@ -9,24 +8,19 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
 /**
  * Metric Reporter that ouputs to a file all the task metrics
  */
-public class FileOutputMetricReporter implements Scheduled, MetricReporter, MetricReporterFactory
-{
-    private final String BASE_PATH;
+public class FileOutputMetricReporter implements Scheduled, MetricReporter, MetricReporterFactory {
     protected final Map<String, Tuple2<BufferedWriter, Metric>> metricsMap = new HashMap<>(100);
+    private final String BASE_PATH;
 
 
-    public FileOutputMetricReporter(){
+    public FileOutputMetricReporter() {
         this.BASE_PATH = System.getenv("HOME");
     }
 
@@ -64,13 +58,13 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter, Metr
     @Override
     synchronized public void notifyOfAddedMetric(Metric metric, String metricName, MetricGroup group) {
         String fileName = getMetricFileName(metric, metricName, group);
-        if (fileName != null && !metricsMap.containsKey(fileName)){
+        if (fileName != null && !metricsMap.containsKey(fileName)) {
             try {
-                File file = new File(String.format("%s/metrics/%s",BASE_PATH, fileName));
+                File file = new File(String.format("%s/metrics/%s", BASE_PATH, fileName));
                 File parent = file.getParentFile();
                 parent.mkdirs();
                 file.createNewFile();
-                metricsMap.put(fileName, new Tuple2<>( new BufferedWriter(new FileWriter(file,true)), metric));
+                metricsMap.put(fileName, new Tuple2<>(new BufferedWriter(new FileWriter(file, true)), metric));
             } catch (IllegalStateException | IOException e) {
                 throw new RuntimeException(e);
             }
@@ -93,18 +87,15 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter, Metr
     synchronized public void report() {
         metricsMap.forEach((fileName, values) -> {
             try {
-                if (values.f1 instanceof Gauge) {
-                    Gauge tmp = (Gauge) values.f1;
+                if (values.f1 instanceof Gauge tmp) {
                     values.f0.write(tmp.getValue().toString());
-                } else if (values.f1 instanceof Counter) {
-                    Counter tmp = (Counter) values.f1;
+                } else if (values.f1 instanceof Counter tmp) {
                     values.f0.write(Long.toString(tmp.getCount()));
-                } else if (values.f1 instanceof Meter) {
-                    Meter tmp = (Meter) values.f1;
+                } else if (values.f1 instanceof Meter tmp) {
                     values.f0.write(Double.toString(tmp.getRate()));
                 }
                 values.f0.newLine();
-            }catch (IOException e) {
+            } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -113,13 +104,13 @@ public class FileOutputMetricReporter implements Scheduled, MetricReporter, Metr
     @Nullable
     protected String getMetricFileName(Metric metric, String metricName, MetricGroup group) {
         Map<String, String> variables = group.getAllVariables();
-        if(!variables.containsKey("<job_name>")) return null;
+        if (!variables.containsKey("<job_name>")) return null;
         String prefix = variables.get("<job_name>") + "/";
-        prefix += variables.containsKey("<tm_id>") ? variables.get("<tm_id>")+"/": "";
-        prefix += variables.containsKey("<task_name>") ? "[TASK]"+variables.get("<task_name>")+"/" : "";
-        prefix += variables.containsKey("<operator_name>") ? "[OP]"+variables.get("<operator_name>")+"/" : "";
+        prefix += variables.containsKey("<tm_id>") ? variables.get("<tm_id>") + "/" : "";
+        prefix += variables.containsKey("<task_name>") ? "[TASK]" + variables.get("<task_name>") + "/" : "";
+        prefix += variables.containsKey("<operator_name>") ? "[OP]" + variables.get("<operator_name>") + "/" : "";
         prefix += metricName;
-        prefix += variables.containsKey("<subtask_index>") ? "/"+variables.get("<subtask_index>") : "";
+        prefix += variables.containsKey("<subtask_index>") ? "/" + variables.get("<subtask_index>") : "";
         return prefix;
     }
 }
