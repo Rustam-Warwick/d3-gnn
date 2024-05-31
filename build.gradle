@@ -23,7 +23,7 @@ sourceCompatibility = JavaVersion.VERSION_17
 targetCompatibility = JavaVersion.VERSION_17
 
 application {
-    applicationDefaultJvmArgs = ["-ea", "-Dlog4j.configurationFile=log4j.properties", "--add-opens=java.base/java.util=ALL-UNNAMED"]
+    applicationDefaultJvmArgs = ["-ea", "-Dlog4j.configurationFile=log4j.properties", "--add-opens=java.base/java.util=ALL-UNNAMED", "-XX:NativeMemoryTracking=detail", "-XX:+UnlockDiagnosticVMOptions"]
     mainClass.set('helpers.Main')
 }
 

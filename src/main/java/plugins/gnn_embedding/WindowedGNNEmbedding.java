@@ -36,9 +36,9 @@ import java.util.Map;
  */
 public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
 
-    protected static final double TIMER_COALESCING = 10000;
+    protected static final double TIMER_COALESCING = 5000;
 
-    protected static final int MINI_BATCH_SIZE = 1000;
+    protected static final int MINI_BATCH_SIZE = 10000;
 
     protected transient Map<Short, Tuple2<Object2LongLinkedOpenHashMap<String>, Object2LongOpenHashMap<String>>> interLayerMaps; // eviction times and timestamps
     protected transient Map<Short, Tuple3<Object2LongLinkedOpenHashMap<String>, Object2ObjectOpenHashMap<String, List<String>>, Object2LongOpenHashMap<String>>> intraLayerMaps;  // Eviction times, in-edges, timestamps
@@ -178,7 +178,7 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
                     startIndex += indices.length;
                 }
 
-                BaseNDManager.getManager().resumeAndDelay();
+                BaseNDManager.getManager().clean();
             }
         }
     }
@@ -233,7 +233,7 @@ public abstract class WindowedGNNEmbedding extends StreamingGNNEmbedding {
                         maps.f1.removeLong(reuseVertexIdList.get(i)));
             }
 
-            BaseNDManager.getManager().resumeAndDelay();
+            BaseNDManager.getManager().clean();
         }
     }
 

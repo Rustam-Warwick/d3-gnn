@@ -106,7 +106,7 @@ public class IterationChannel<T> implements Closeable {
         private final Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor;
 
         public IterationQueue(@NotNull Tuple2<java.util.function.Consumer<T>, MailboxExecutor> consumerAndExecutor) {
-            super(2 << 14); // 1 MB each array reference
+            super(2 << 12);
             this.consumerAndExecutor = consumerAndExecutor;
         }
 

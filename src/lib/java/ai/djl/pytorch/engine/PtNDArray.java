@@ -52,6 +52,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
 
     static {
         try {
+            JniUtils.setGradMode(false);
+            JniUtils.setGraphExecutorOptimize(false);
             Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
             unsafeField.setAccessible(true);
             UNSAFE = (Unsafe) unsafeField.get(null);
@@ -61,12 +63,12 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     }
 
     private transient Cleaner.Cleanable cleanable;
-    private Device device;
-    private DataType dataType;
-    private Shape shape;
-    private SparseFormat sparseFormat;
-    // use Boolean object to maintain three status: null, false, true
-    private Boolean hasGradient;
+//    private Device device;
+//    private DataType dataType;
+//    private Shape shape;
+//    private SparseFormat sparseFormat;
+// use Boolean object to maintain three status: null, false, true
+//    private Boolean hasGradient;
     private byte delayed;
     private PtNDArrayEx ptNDArrayEx;
 
@@ -112,8 +114,8 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     public PtNDArray(PtNDManager manager, String[] strs, Shape shape) {
         super(-1L);
-        this.shape = shape;
-        this.dataType = DataType.STRING;
+//        this.shape = shape;
+//        this.dataType = DataType.STRING;
     }
 
     /**
@@ -145,10 +147,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public DataType getDataType() {
-        if (dataType == null) {
-            dataType = JniUtils.getDataType(this);
-        }
-        return dataType;
+        return JniUtils.getDataType(this);
     }
 
     /**
@@ -156,10 +155,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public Device getDevice() {
-        if (device == null) {
-            device = JniUtils.getDevice(this);
-        }
-        return device;
+        return JniUtils.getDevice(this);
     }
 
     /**
@@ -167,10 +163,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public Shape getShape() {
-        if (shape == null) {
-            shape = JniUtils.getShape(this);
-        }
-        return shape;
+        return JniUtils.getShape(this);
     }
 
     /**
@@ -178,10 +171,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public SparseFormat getSparseFormat() {
-        if (sparseFormat == null) {
-            sparseFormat = JniUtils.getSparseFormat(this);
-        }
-        return sparseFormat;
+        return JniUtils.getSparseFormat(this);
     }
 
     /**
@@ -212,7 +202,6 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
     @Override
     public void setRequiresGradient(boolean requiresGrad) {
         JniUtils.attachGradient(this, requiresGrad);
-        hasGradient = requiresGrad;
     }
 
     /**
@@ -241,10 +230,7 @@ public class PtNDArray extends NativeResource<Long> implements NDArray {
      */
     @Override
     public boolean hasGradient() {
-        if (hasGradient == null) {
-            hasGradient = JniUtils.requiresGrad(this);
-        }
-        return hasGradient;
+        return JniUtils.requiresGrad(this);
     }
 
     /**

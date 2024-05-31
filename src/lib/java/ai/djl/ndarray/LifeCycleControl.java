@@ -31,7 +31,7 @@ public interface LifeCycleControl {
     /**
      * Simply resume and then delay
      */
-    default void resumeAndDelay() {
+    default void clean() {
         resume();
         delay();
     }

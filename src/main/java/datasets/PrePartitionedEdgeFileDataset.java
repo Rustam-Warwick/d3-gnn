@@ -38,8 +38,8 @@ public class PrePartitionedEdgeFileDataset extends Dataset {
             filePath = String.format("%s.csv", fileName);
         }
         if (fileName.contains("both-partitioned-")) {
-            SingleOutputStreamOperator<String> fileStream = env.fromSource(FileSource.forRecordStreamFormat(new TextLineInputFormat("UTF-8"), new org.apache.flink.core.fs.Path(filePath)).build(), WatermarkStrategy.noWatermarks(), fileName);
-            return fileStream.flatMap(new BothParser()).name("Parser " + fileName);
+            SingleOutputStreamOperator<String> fileStream = env.fromSource(FileSource.forRecordStreamFormat(new TextLineInputFormat("UTF-8"), new org.apache.flink.core.fs.Path(filePath)).build(), WatermarkStrategy.noWatermarks(), fileName).setParallelism(1);
+            return fileStream.flatMap(new BothParser()).name("Parser " + fileName).setParallelism(1);
         }
         SingleOutputStreamOperator<String> fileStream = env.fromSource(FileSource.forRecordStreamFormat(new TextLineInputFormat("UTF-8"), new org.apache.flink.core.fs.Path(filePath)).build(), WatermarkStrategy.noWatermarks(), fileName).setParallelism(1);
         return fileStream.flatMap(new Parser()).name("Parser " + fileName).setParallelism(1);

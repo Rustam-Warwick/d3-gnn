@@ -1,5 +1,6 @@
 package storage;
 
+import ai.djl.ndarray.NDArray;
 import elements.*;
 import elements.enums.CacheFeatureContext;
 import elements.enums.EdgeType;
@@ -41,6 +42,7 @@ public class ListBasedCompressedObjectPoolStorage extends BaseStorage {
         Map<Byte, Feature> featureTmpMap = vertexFeatureInfoTable.entrySet().stream().collect(Collectors.toMap(item -> item.getValue().position, item -> item.getValue().constructorAccess.newInstance()));
         part2VertexDataMap.values().forEach(perPartVertexStorage -> {
             perPartVertexStorage.iterator().forEachRemaining(vertexData -> {
+                if(vertexData.featureValues == null) return;
                 for (byte i = 0; i < vertexData.featureValues.length; i++) {
                     if (vertexData.featureValues[i] != null) {
                         Feature tmp = featureTmpMap.get(i);
@@ -196,6 +198,7 @@ public class ListBasedCompressedObjectPoolStorage extends BaseStorage {
 
         protected final ObjectPool scopePool = new ObjectPool();
 
+        protected long tensorMemoryInBytes = 0;
 
         public GraphViewImpl(GraphRuntimeContext runtimeContext) {
             super(runtimeContext);
@@ -204,13 +207,24 @@ public class ListBasedCompressedObjectPoolStorage extends BaseStorage {
             }
         }
 
+        private void updateMemory(NDArray ndArray){
+            tensorMemoryInBytes+= ndArray.size() * 4;
+        }
+
+        @Override
+        public long tensorMemoryUsageInMb() {
+            return (long) (tensorMemoryInBytes / (1024.0 * 1024.0));
+        }
+
         @Override
         public void addAttachedFeature(Feature feature) {
             if (feature.getAttachedElementType() == ElementType.VERTEX) {
                 AttachedFeatureInfo attachedFeatureInfo = vertexFeatureInfoTable.computeIfAbsent(feature.getName(), (key) -> new AttachedFeatureInfo(feature, uniqueVertexFeatureCounter++));
                 part2VertexDataMap.get(getRuntimeContext().getCurrentPart()).getVertex((String) feature.getAttachedElementId()).addOrUpdateFeature(feature, attachedFeatureInfo);
+                if(feature.getValue() instanceof NDArray) updateMemory((NDArray) feature.getValue());
                 return;
             }
+
             throw new IllegalStateException("NOT IMPLEMENTED");
         }
 

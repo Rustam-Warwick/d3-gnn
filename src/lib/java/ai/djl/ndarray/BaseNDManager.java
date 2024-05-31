@@ -29,6 +29,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -60,12 +61,14 @@ public abstract class BaseNDManager implements NDManager {
 
     protected static final ThreadLocal<BaseNDManager> ND_MANAGER_THREAD_LOCAL = new ThreadLocal<>();
 
+    protected static final int MAX_OUTSTANDING_TENSORS = 100;
+
     protected final BaseNDManager.ManualTicker ticker = new BaseNDManager.ManualTicker(); // Logical timer depending on the data-rate
 
     protected final Cache<AutoCloseable, Object> attached = Caffeine.newBuilder()
             .evictionListener((RemovalListener<AutoCloseable, Object>) (key, value, cause) -> {
                 try {
-                    if (cause.wasEvicted()) {
+                    if (cause != RemovalCause.EXPLICIT) {
                         ((LifeCycleControl) key).destroy();
                     }
                 } catch (Exception e) {
@@ -77,7 +80,6 @@ public abstract class BaseNDManager implements NDManager {
             .build();
 
     protected NDManager parent;
-
     protected String uid;
 
     protected String name;
@@ -113,6 +115,7 @@ public abstract class BaseNDManager implements NDManager {
      * @throws IllegalArgumentException if buffer size is invalid
      */
     public static void validateBuffer(Buffer buffer, DataType dataType, int expected) {
+
         boolean isByteBuffer = buffer instanceof ByteBuffer;
         DataType type = DataType.fromBuffer(buffer);
         if (type != dataType && !isByteBuffer) {
@@ -186,6 +189,7 @@ public abstract class BaseNDManager implements NDManager {
         if (delayed == 0) ticker.increment();
         else scopedCount++;
         attached.put(resource, NDHelper.VOID);
+        if(attached.estimatedSize() > MAX_OUTSTANDING_TENSORS) attached.cleanUp(); // no more than 100 pending
     }
 
     /**

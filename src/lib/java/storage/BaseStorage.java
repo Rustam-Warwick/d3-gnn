@@ -246,6 +246,13 @@ abstract public class BaseStorage extends TMSharedState {
         public abstract ObjectPoolScope openObjectPoolScope();
 
         /**
+         * Retrieve the tensor-related memory usage in megabytes
+         */
+        public long tensorMemoryUsageInMb(){
+            return 0;
+        };
+
+        /**
          * Add {@link GraphElement}
          */
         public void addElement(GraphElement element) {

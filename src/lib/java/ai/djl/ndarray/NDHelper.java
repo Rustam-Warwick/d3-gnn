@@ -5,6 +5,7 @@ import ai.djl.nn.Parameter;
 import ai.djl.pytorch.engine.PtNDArray;
 import ai.djl.pytorch.engine.PtNDManager;
 import ai.djl.serializers.NDArrayLZ4Serializer;
+import ai.djl.serializers.NDArrayRawSerializer;
 import ai.djl.serializers.NDManagerSerializer;
 import ai.djl.serializers.ParameterSerializer;
 import ai.djl.util.Pair;
@@ -32,8 +33,8 @@ public class NDHelper {
      * Add all the necessary serializers for Tensor related stuff
      */
     public static ExecutionConfig addSerializers(ExecutionConfig config) {
-        config.addDefaultKryoSerializer(NDArray.class, NDArrayLZ4Serializer.class);
-        config.addDefaultKryoSerializer(PtNDArray.class, NDArrayLZ4Serializer.class);
+        config.addDefaultKryoSerializer(NDArray.class, NDArrayRawSerializer.class);
+        config.addDefaultKryoSerializer(PtNDArray.class, NDArrayRawSerializer.class);
         config.addDefaultKryoSerializer(PtNDManager.class, NDManagerSerializer.class);
         config.addDefaultKryoSerializer(NDManager.class, NDManagerSerializer.class);
         config.addDefaultKryoSerializer(BaseNDManager.class, NDManagerSerializer.class);

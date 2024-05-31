@@ -162,7 +162,7 @@ public class BinaryVertexClassificationTraining extends BaseVertexOutput {
                 miniBatchVertexIds,
                 batchedGradients
         );
-        BaseNDManager.getManager().resumeAndDelay(); // Refresh
+        BaseNDManager.getManager().clean(); // Refresh
     }
 
     /**

@@ -10,6 +10,7 @@ import ai.djl.nn.gnn.AggregatorVariant;
 import ai.djl.nn.gnn.SAGEConv;
 import ai.djl.nn.hgnn.HSageConv;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.configuration.MetricOptions;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.junit.ClassRule;
@@ -31,7 +32,9 @@ abstract public class IntegrationTest {
                             .build());
 
     static {
-        config.setString("metrics.reporter.fileoutput.factory.class", "org.apache.flink.metrics.reporter.FileOutputMetricReporter");
+        config.setString(MetricOptions.REPORTERS_LIST, "nm");
+        config.setString("metrics.reporter.nm.factory.class", "org.apache.flink.metrics.reporter.NativeMemoryReporter");
+        config.setString("metrics.reporter.nm.interval", "5 SECONDS");
     }
 
     /**

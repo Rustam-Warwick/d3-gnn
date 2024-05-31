@@ -187,7 +187,7 @@ public class WrapperIterationHeadOperator<OUT> implements StreamOperator<OUT>, O
             e.printStackTrace();
         } finally {
             // NDManager is delayed per batch of iteration messages, and these messages can be quite large, so it is good to delay them per element instead of per batch so no memory overflow occurs
-            manager.resumeAndDelay();
+            manager.clean();
         }
     }
 

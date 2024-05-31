@@ -144,6 +144,7 @@ public class GraphStorageOperator extends AbstractStreamOperator<GraphOp> implem
         for (Plugin plugin : plugins.values()) {
             plugin.open(tmp);
         }
+        getRuntimeContext().getMetricGroup().gauge("tensors_mb", storage::tensorMemoryUsageInMb);
     }
 
     @Override

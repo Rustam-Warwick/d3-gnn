@@ -14,6 +14,8 @@ import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Kryo implementation of Tensor Serializer with LZ4 Compression. Works with all NDArrays
@@ -24,6 +26,7 @@ public class NDArrayLZ4Serializer extends Serializer<NDArray> {
     private static final LZ4SafeDecompressor lz4DeCompressor = LZ4Factory.fastestInstance().safeDecompressor();
     private static final ThreadLocal<ByteBuffer> reuse = ThreadLocal.withInitial(() -> ByteBuffer.allocate(0));
     private final transient NDManager manager = BaseNDManager.getManager();
+
 
     public NDArrayLZ4Serializer() {
     }

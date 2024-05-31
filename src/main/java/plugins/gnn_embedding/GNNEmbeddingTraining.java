@@ -190,7 +190,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         //6. Cleanup
 
         gradientAggregator.clear();
-        BaseNDManager.getManager().resumeAndDelay();
+        BaseNDManager.getManager().clean();
 
     }
 
@@ -276,7 +276,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
         // 4. Cleanup
 
         gradientAggregator.clear();
-        BaseNDManager.getManager().resumeAndDelay();
+        BaseNDManager.getManager().clean();
 
     }
 
@@ -291,7 +291,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
                 objectPoolScope.refresh();
             }
         }
-        BaseNDManager.getManager().resumeAndDelay();
+        BaseNDManager.getManager().clean();
     }
 
     /**
@@ -388,7 +388,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
 
         // 6. Cleanup
 
-        BaseNDManager.getManager().resumeAndDelay();
+        BaseNDManager.getManager().clean();
 
     }
 
@@ -442,7 +442,7 @@ public class GNNEmbeddingTraining extends BaseGNNEmbedding {
             getRuntimeContext().output(new GraphOp(Op.COMMIT, getRuntimeContext().getCurrentPart(), reuseFeature));
         }
 
-        BaseNDManager.getManager().resumeAndDelay();
+        BaseNDManager.getManager().clean();
     }
 
     @Override
